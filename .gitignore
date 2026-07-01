@@ -1,0 +1,14 @@
+node_modules
+out
+dist
+release
+*.log
+.DS_Store
+.env
+.env.*
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+src/renderer/src/routeTree.gen.ts
+.vite

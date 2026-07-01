@@ -1,0 +1,35 @@
+appId: com.shmoney.app
+productName: shmoney
+directories:
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  - '!**/{.eslintrc,.eslintignore,.prettierrc,.prettierignore}'
+asarUnpack:
+  - '**/*.node'
+extraResources:
+  - from: drizzle
+    to: drizzle
+win:
+  target: nsis
+  executableName: shmoney
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+mac:
+  target: dmg
+  category: public.app-category.productivity
+dmg:
+  artifactName: ${name}-${version}.${ext}
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Utility
+appImage:
+  artifactName: ${name}-${version}.${ext}
+npmRebuild: false
+publish: null
