@@ -89,6 +89,18 @@ const api = {
       ipcRenderer.invoke(REPORTS_IPC.runQuery, query),
     transactions: (query: ReportTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(REPORTS_IPC.transactions, query)
+  },
+  window: {
+    minimize: (): void => ipcRenderer.send(IPC.windowMinimize),
+    maximizeToggle: (): void => ipcRenderer.send(IPC.windowMaximizeToggle),
+    close: (): void => ipcRenderer.send(IPC.windowClose),
+    isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IPC.windowIsMaximized),
+    onMaximizedChange: (callback: (maximized: boolean) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, maximized: boolean): void =>
+        callback(maximized)
+      ipcRenderer.on(IPC.windowMaximizedChanged, listener)
+      return () => ipcRenderer.removeListener(IPC.windowMaximizedChanged, listener)
+    }
   }
 }
 

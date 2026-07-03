@@ -134,5 +134,10 @@ export const IPC = {
   categoriesCreate: 'categories:create',
   categoriesRename: 'categories:rename',
   categoriesDelete: 'categories:delete',
-  categoriesResetDefaults: 'categories:resetDefaults'
+  categoriesResetDefaults: 'categories:resetDefaults',
+  windowMinimize: 'window:minimize',
+  windowMaximizeToggle: 'window:maximizeToggle',
+  windowClose: 'window:close',
+  windowIsMaximized: 'window:isMaximized',
+  windowMaximizedChanged: 'window:maximizedChanged'
 } as const

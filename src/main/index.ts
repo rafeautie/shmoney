@@ -5,6 +5,8 @@ import { runMigrations } from './db'
 import { registerConnectionsIpc } from './ipc/connections'
 import { registerCategoriesIpc } from './ipc/categories'
 import { registerReportsIpc } from './ipc/reports'
+import { registerWindowIpc } from './ipc/window'
+import { IPC } from '@shared/ipc'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -14,6 +16,7 @@ function createWindow(): void {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
+    titleBarStyle: 'hidden',
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false
@@ -22,6 +25,13 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+  })
+
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send(IPC.windowMaximizedChanged, true)
+  })
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send(IPC.windowMaximizedChanged, false)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -47,6 +57,7 @@ app.whenReady().then(() => {
   registerConnectionsIpc()
   registerCategoriesIpc()
   registerReportsIpc()
+  registerWindowIpc()
 
   createWindow()
 
