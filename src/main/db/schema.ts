@@ -1,17 +1,53 @@
 import { sql } from 'drizzle-orm'
-import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, integer, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
-export const notes = sqliteTable('notes', {
+export const connections = sqliteTable('connections', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  title: text('title').notNull(),
-  body: text('body').notNull().default(''),
+  name: text('name').notNull(),
+  // base64 of safeStorage.encryptString(accessUrl); decrypted only in the main process
+  accessUrlEncrypted: text('access_url_encrypted').notNull(),
+  lastSyncedAt: integer('last_synced_at'),
   createdAt: text('created_at')
-    .notNull()
-    .default(sql`(current_timestamp)`),
-  updatedAt: text('updated_at')
     .notNull()
     .default(sql`(current_timestamp)`)
 })
 
-export type NoteRow = typeof notes.$inferSelect
-export type NewNoteRow = typeof notes.$inferInsert
+export const accounts = sqliteTable(
+  'accounts',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    connectionId: integer('connection_id')
+      .notNull()
+      .references(() => connections.id, { onDelete: 'cascade' }),
+    simplefinId: text('simplefin_id').notNull(),
+    institutionName: text('institution_name'),
+    name: text('name').notNull(),
+    currency: text('currency').notNull(),
+    // amounts are integer milliunits (value * 1000) so SQL aggregates stay exact
+    balance: integer('balance').notNull(),
+    availableBalance: integer('available_balance'),
+    balanceDate: integer('balance_date').notNull()
+  },
+  (t) => [uniqueIndex('accounts_connection_sfid_ux').on(t.connectionId, t.simplefinId)]
+)
+
+export const transactions = sqliteTable(
+  'transactions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    accountId: integer('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    simplefinId: text('simplefin_id').notNull(),
+    posted: integer('posted').notNull(),
+    amount: integer('amount').notNull(),
+    description: text('description').notNull(),
+    pending: integer('pending', { mode: 'boolean' }).notNull().default(false),
+    transactedAt: integer('transacted_at')
+  },
+  (t) => [uniqueIndex('transactions_account_sfid_ux').on(t.accountId, t.simplefinId)]
+)
+
+export type ConnectionRow = typeof connections.$inferSelect
+export type AccountRow = typeof accounts.$inferSelect
+export type TransactionRow = typeof transactions.$inferSelect

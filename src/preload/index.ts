@@ -1,13 +1,34 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import { IPC, type CreateNoteInput, type Note, type UpdateNoteInput } from '@shared/ipc'
+import {
+  IPC,
+  type Account,
+  type AccountTransactionsQuery,
+  type Connection,
+  type ConnectionsQuery,
+  type ConnectionTransactionsQuery,
+  type CreateConnectionInput,
+  type Page,
+  type Transaction
+} from '@shared/ipc'
 
 const api = {
-  notes: {
-    list: (): Promise<Note[]> => ipcRenderer.invoke(IPC.notesList),
-    create: (input: CreateNoteInput): Promise<Note> => ipcRenderer.invoke(IPC.notesCreate, input),
-    update: (input: UpdateNoteInput): Promise<Note> => ipcRenderer.invoke(IPC.notesUpdate, input),
-    remove: (id: number): Promise<boolean> => ipcRenderer.invoke(IPC.notesRemove, id)
+  connections: {
+    list: (query: ConnectionsQuery): Promise<Page<Connection>> =>
+      ipcRenderer.invoke(IPC.connectionsList, query),
+    get: (id: number): Promise<Connection | null> => ipcRenderer.invoke(IPC.connectionsGet, id),
+    create: (input: CreateConnectionInput): Promise<Connection> =>
+      ipcRenderer.invoke(IPC.connectionsCreate, input),
+    sync: (id: number): Promise<Connection> => ipcRenderer.invoke(IPC.connectionsSync, id),
+    remove: (id: number): Promise<boolean> => ipcRenderer.invoke(IPC.connectionsRemove, id),
+    transactions: (query: ConnectionTransactionsQuery): Promise<Page<Transaction>> =>
+      ipcRenderer.invoke(IPC.transactionsList, query)
+  },
+  accounts: {
+    list: (): Promise<Account[]> => ipcRenderer.invoke(IPC.accountsList),
+    get: (id: number): Promise<Account | null> => ipcRenderer.invoke(IPC.accountsGet, id),
+    transactions: (query: AccountTransactionsQuery): Promise<Page<Transaction>> =>
+      ipcRenderer.invoke(IPC.accountTransactions, query)
   }
 }
 

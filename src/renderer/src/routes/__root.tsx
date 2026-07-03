@@ -1,7 +1,13 @@
 import { Outlet, createRootRoute, Link, useMatchRoute } from '@tanstack/react-router'
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Home01Icon, Moon02Icon, StickyNote01Icon, Sun02Icon } from '@hugeicons/core-free-icons'
+import {
+  Home01Icon,
+  Moon02Icon,
+  Settings01Icon,
+  Sun02Icon,
+  Wallet01Icon
+} from '@hugeicons/core-free-icons'
 import { useTheme } from '@/lib/theme'
 import {
   Sidebar,
@@ -24,7 +30,8 @@ export const Route = createRootRoute({
 
 const NAV_ITEMS = [
   { to: '/', label: 'Home', fuzzy: false, icon: Home01Icon },
-  { to: '/notes', label: 'Notes', fuzzy: true, icon: StickyNote01Icon }
+  { to: '/accounts', label: 'Accounts', fuzzy: true, icon: Wallet01Icon },
+  { to: '/settings', label: 'Settings', fuzzy: false, icon: Settings01Icon }
 ] as const
 
 function RootComponent() {

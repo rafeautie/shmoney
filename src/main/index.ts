@@ -2,7 +2,7 @@ import { join } from 'node:path'
 import { app, shell, BrowserWindow } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { runMigrations } from './db'
-import { registerNotesIpc } from './ipc/notes'
+import { registerConnectionsIpc } from './ipc/connections'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -40,7 +40,7 @@ app.whenReady().then(() => {
   })
 
   runMigrations()
-  registerNotesIpc()
+  registerConnectionsIpc()
 
   createWindow()
 
