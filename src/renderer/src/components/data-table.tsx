@@ -6,6 +6,7 @@ import {
   type Column,
   type ColumnDef,
   type OnChangeFn,
+  type RowData,
   type SortingState
 } from '@tanstack/react-table'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -14,6 +15,14 @@ import { TABLE_BLEED, cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+
+declare module '@tanstack/react-table' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- params must match the library declaration
+  interface ColumnMeta<TData extends RowData, TValue> {
+    /** Extra classes for this column's th and td (e.g. 'w-full max-w-0' for a greedy truncating column) */
+    className?: string
+  }
+}
 
 export function DataTableColumnHeader<TData, TValue>({
   column,
@@ -111,7 +120,7 @@ export function DataTable<TData>({
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => (
-                <TableHead key={header.id}>
+                <TableHead key={header.id} className={header.column.columnDef.meta?.className}>
                   {header.isPlaceholder
                     ? null
                     : flexRender(header.column.columnDef.header, header.getContext())}
@@ -139,7 +148,7 @@ export function DataTable<TData>({
                 onClick={onRowClick ? () => onRowClick(row.original) : undefined}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
+                  <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}

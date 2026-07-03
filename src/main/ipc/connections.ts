@@ -1,7 +1,7 @@
 import { ipcMain, safeStorage } from 'electron'
 import { and, asc, count, desc, eq, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { db } from '../db'
-import { connections, accounts, transactions } from '../db/schema'
+import { connections, accounts, transactions, categories } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
 import { claimAccessUrl, fetchAccounts, parseAmount } from '../simplefin'
 import {
@@ -135,10 +135,13 @@ function transactionsPage(
       date: transactionDate,
       amount: transactions.amount,
       description: transactions.description,
-      pending: transactions.pending
+      pending: transactions.pending,
+      categoryId: transactions.categoryId,
+      categoryName: categories.name
     })
     .from(transactions)
     .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
     .where(where)
     .orderBy(order(transactionSortColumns[q.sortBy], q.sortDir))
     .limit(q.pageSize)

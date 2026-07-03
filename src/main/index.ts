@@ -3,11 +3,14 @@ import { app, shell, BrowserWindow } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { runMigrations } from './db'
 import { registerConnectionsIpc } from './ipc/connections'
+import { registerCategoriesIpc } from './ipc/categories'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1100,
     height: 750,
+    minWidth: 900,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -41,6 +44,7 @@ app.whenReady().then(() => {
 
   runMigrations()
   registerConnectionsIpc()
+  registerCategoriesIpc()
 
   createWindow()
 

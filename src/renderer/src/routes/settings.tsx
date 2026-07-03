@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ipcErrorMessage } from '@/lib/utils'
 import { Page } from '@/components/page'
+import { CategoriesSettings } from '@/components/categories-settings'
 import {
   Card,
   CardContent,
@@ -151,6 +152,8 @@ function SettingsPage() {
           </CardFooter>
         </Card>
       )}
+
+      <CategoriesSettings />
     </Page>
   )
 }

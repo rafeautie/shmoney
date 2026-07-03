@@ -29,6 +29,26 @@ export interface Transaction {
   amount: number
   description: string
   pending: boolean
+  categoryId: number | null
+  categoryName: string | null
+}
+
+export interface Category {
+  id: number
+  /** null = ungrouped */
+  groupId: number | null
+  name: string
+}
+
+export interface CategoryGroup {
+  id: number
+  name: string
+  categories: Category[]
+}
+
+export interface CategoriesList {
+  groups: CategoryGroup[]
+  ungrouped: Category[]
 }
 
 export interface Page<T> {
@@ -42,6 +62,40 @@ export const connectInputSchema = z.object({
 export type ConnectInput = z.infer<typeof connectInputSchema>
 
 export const accountIdSchema = z.number().int().positive()
+
+export const idSchema = z.number().int().positive()
+
+const categoryNameSchema = z.string().trim().min(1).max(60)
+
+export const categoryGroupCreateSchema = z.object({
+  name: categoryNameSchema
+})
+export type CategoryGroupCreateInput = z.infer<typeof categoryGroupCreateSchema>
+
+export const categoryGroupRenameSchema = z.object({
+  id: idSchema,
+  name: categoryNameSchema
+})
+export type CategoryGroupRenameInput = z.infer<typeof categoryGroupRenameSchema>
+
+export const categoryCreateSchema = z.object({
+  /** null = ungrouped */
+  groupId: idSchema.nullable(),
+  name: categoryNameSchema
+})
+export type CategoryCreateInput = z.infer<typeof categoryCreateSchema>
+
+export const categoryRenameSchema = z.object({
+  id: idSchema,
+  name: categoryNameSchema
+})
+export type CategoryRenameInput = z.infer<typeof categoryRenameSchema>
+
+export const transactionSetCategorySchema = z.object({
+  transactionId: idSchema,
+  categoryId: idSchema.nullable()
+})
+export type TransactionSetCategoryInput = z.infer<typeof transactionSetCategorySchema>
 
 const pageFields = {
   page: z.number().int().min(0),
@@ -71,5 +125,14 @@ export const IPC = {
   accountsList: 'accounts:list',
   accountsGet: 'accounts:get',
   accountTransactions: 'accounts:transactions',
-  transactionsList: 'transactions:list'
+  transactionsList: 'transactions:list',
+  transactionsSetCategory: 'transactions:setCategory',
+  categoriesList: 'categories:list',
+  categoriesCreateGroup: 'categories:createGroup',
+  categoriesRenameGroup: 'categories:renameGroup',
+  categoriesDeleteGroup: 'categories:deleteGroup',
+  categoriesCreate: 'categories:create',
+  categoriesRename: 'categories:rename',
+  categoriesDelete: 'categories:delete',
+  categoriesResetDefaults: 'categories:resetDefaults'
 } as const

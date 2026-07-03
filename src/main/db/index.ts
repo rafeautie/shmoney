@@ -25,5 +25,15 @@ export function runMigrations(): void {
     return
   }
 
-  migrate(db, { migrationsFolder })
+  // drizzle runs all migrations inside one transaction, where the PRAGMA
+  // foreign_keys statements its recreate-table migrations emit are no-ops.
+  // With FKs enforced, DROP TABLE implicit-deletes rows and fires ON DELETE
+  // actions on child tables (e.g. wiping transactions.category_id), so
+  // disable them at the connection level for the duration of the migration.
+  sqlite.pragma('foreign_keys = OFF')
+  try {
+    migrate(db, { migrationsFolder })
+  } finally {
+    sqlite.pragma('foreign_keys = ON')
+  }
 }

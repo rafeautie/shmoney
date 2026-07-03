@@ -15,6 +15,34 @@
       "when": 1783057589409,
       "tag": "0001_dashing_guardsmen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783066336103,
+      "tag": "0002_normal_guardsmen",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1783066363486,
+      "tag": "0003_seed_default_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1783070268137,
+      "tag": "0004_violet_silver_samurai",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1783070405417,
+      "tag": "0005_seed_income",
+      "breakpoints": true
     }
   ]
 }

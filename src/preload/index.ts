@@ -4,10 +4,18 @@ import {
   IPC,
   type Account,
   type AccountTransactionsQuery,
+  type CategoriesList,
+  type Category,
+  type CategoryCreateInput,
+  type CategoryGroup,
+  type CategoryGroupCreateInput,
+  type CategoryGroupRenameInput,
+  type CategoryRenameInput,
   type ConnectInput,
   type Connection,
   type Page,
   type Transaction,
+  type TransactionSetCategoryInput,
   type TransactionsQuery
 } from '@shared/ipc'
 
@@ -27,7 +35,24 @@ const api = {
   },
   transactions: {
     list: (query: TransactionsQuery): Promise<Page<Transaction>> =>
-      ipcRenderer.invoke(IPC.transactionsList, query)
+      ipcRenderer.invoke(IPC.transactionsList, query),
+    setCategory: (input: TransactionSetCategoryInput): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.transactionsSetCategory, input)
+  },
+  categories: {
+    list: (): Promise<CategoriesList> => ipcRenderer.invoke(IPC.categoriesList),
+    createGroup: (input: CategoryGroupCreateInput): Promise<CategoryGroup> =>
+      ipcRenderer.invoke(IPC.categoriesCreateGroup, input),
+    renameGroup: (input: CategoryGroupRenameInput): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.categoriesRenameGroup, input),
+    deleteGroup: (id: number): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.categoriesDeleteGroup, id),
+    create: (input: CategoryCreateInput): Promise<Category> =>
+      ipcRenderer.invoke(IPC.categoriesCreate, input),
+    rename: (input: CategoryRenameInput): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.categoriesRename, input),
+    delete: (id: number): Promise<boolean> => ipcRenderer.invoke(IPC.categoriesDelete, id),
+    resetDefaults: (): Promise<CategoriesList> => ipcRenderer.invoke(IPC.categoriesResetDefaults)
   }
 }
 

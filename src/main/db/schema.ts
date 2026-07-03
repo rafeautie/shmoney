@@ -31,6 +31,32 @@ export const accounts = sqliteTable(
   (t) => [uniqueIndex('accounts_connection_sfid_ux').on(t.connectionId, t.simplefinId)]
 )
 
+export const categoryGroups = sqliteTable(
+  'category_groups',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull()
+  },
+  (t) => [uniqueIndex('category_groups_name_ux').on(t.name)]
+)
+
+export const categories = sqliteTable(
+  'categories',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    // null = ungrouped
+    groupId: integer('group_id').references(() => categoryGroups.id, { onDelete: 'cascade' }),
+    name: text('name').notNull()
+  },
+  (t) => [
+    uniqueIndex('categories_group_name_ux').on(t.groupId, t.name),
+    // SQLite treats NULLs as distinct in unique indexes, so ungrouped names need their own
+    uniqueIndex('categories_ungrouped_name_ux')
+      .on(t.name)
+      .where(sql`${t.groupId} is null`)
+  ]
+)
+
 export const transactions = sqliteTable(
   'transactions',
   {
@@ -43,7 +69,8 @@ export const transactions = sqliteTable(
     amount: integer('amount').notNull(),
     description: text('description').notNull(),
     pending: integer('pending', { mode: 'boolean' }).notNull().default(false),
-    transactedAt: integer('transacted_at')
+    transactedAt: integer('transacted_at'),
+    categoryId: integer('category_id').references(() => categories.id, { onDelete: 'set null' })
   },
   (t) => [uniqueIndex('transactions_account_sfid_ux').on(t.accountId, t.simplefinId)]
 )
@@ -51,3 +78,5 @@ export const transactions = sqliteTable(
 export type ConnectionRow = typeof connections.$inferSelect
 export type AccountRow = typeof accounts.$inferSelect
 export type TransactionRow = typeof transactions.$inferSelect
+export type CategoryGroupRow = typeof categoryGroups.$inferSelect
+export type CategoryRow = typeof categories.$inferSelect

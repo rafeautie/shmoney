@@ -4,6 +4,7 @@ import type { ColumnDef, SortingState } from '@tanstack/react-table'
 import type { Page, Transaction, TransactionSortBy } from '@shared/ipc'
 import { PAGE_SIZE, nextPageParam, sortQuery } from '@/lib/utils'
 import { Amount } from '@/components/amount'
+import { CategoryCell } from '@/components/category-cell'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 
 interface TransactionsTableProps {
@@ -60,12 +61,20 @@ export function TransactionsTable({
       {
         accessorKey: 'description',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Description" />,
+        // greedy column: soaks up remaining width and truncates instead of overflowing
+        meta: { className: 'w-full max-w-0' },
         cell: ({ row }) => (
-          <>
+          <div className="truncate" title={row.original.description}>
             {row.original.description}
             {row.original.pending && <span className="text-muted-foreground"> (pending)</span>}
-          </>
+          </div>
         )
+      },
+      {
+        id: 'category',
+        header: 'Category',
+        enableSorting: false,
+        cell: ({ row }) => <CategoryCell transaction={row.original} />
       },
       {
         accessorKey: 'amount',
