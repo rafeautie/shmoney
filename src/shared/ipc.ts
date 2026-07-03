@@ -1,8 +1,6 @@
 import { z } from 'zod'
 
 export interface Connection {
-  id: number
-  name: string
   lastSyncedAt: number | null
   createdAt: string
 }
@@ -37,13 +35,11 @@ export interface Page<T> {
   total: number
 }
 
-export const createConnectionSchema = z.object({
-  name: z.string().trim().min(1).max(100),
+export const connectInputSchema = z.object({
   setupToken: z.string().trim().min(1)
 })
-export type CreateConnectionInput = z.infer<typeof createConnectionSchema>
+export type ConnectInput = z.infer<typeof connectInputSchema>
 
-export const connectionIdSchema = z.number().int().positive()
 export const accountIdSchema = z.number().int().positive()
 
 const pageFields = {
@@ -52,36 +48,27 @@ const pageFields = {
   sortDir: z.enum(['asc', 'desc'])
 }
 
-export const connectionsQuerySchema = z.object({
+export const transactionSortBySchema = z.enum(['posted', 'accountName', 'description', 'amount'])
+export type TransactionSortBy = z.infer<typeof transactionSortBySchema>
+
+export const transactionsQuerySchema = z.object({
   ...pageFields,
-  sortBy: z.enum(['name', 'lastSyncedAt'])
+  sortBy: transactionSortBySchema
 })
-export type ConnectionsQuery = z.infer<typeof connectionsQuerySchema>
+export type TransactionsQuery = z.infer<typeof transactionsQuerySchema>
 
-const transactionSortBy = z.enum(['posted', 'accountName', 'description', 'amount'])
-
-export const accountTransactionsQuerySchema = z.object({
-  ...pageFields,
-  accountId: accountIdSchema,
-  sortBy: transactionSortBy
+export const accountTransactionsQuerySchema = transactionsQuerySchema.extend({
+  accountId: accountIdSchema
 })
 export type AccountTransactionsQuery = z.infer<typeof accountTransactionsQuerySchema>
 
-export const connectionTransactionsQuerySchema = z.object({
-  ...pageFields,
-  connectionId: connectionIdSchema,
-  sortBy: transactionSortBy
-})
-export type ConnectionTransactionsQuery = z.infer<typeof connectionTransactionsQuerySchema>
-
 export const IPC = {
-  connectionsList: 'connections:list',
-  connectionsGet: 'connections:get',
-  connectionsCreate: 'connections:create',
-  connectionsSync: 'connections:sync',
-  connectionsRemove: 'connections:remove',
+  connectionGet: 'connection:get',
+  connectionConnect: 'connection:connect',
+  connectionSync: 'connection:sync',
+  connectionDisconnect: 'connection:disconnect',
   accountsList: 'accounts:list',
   accountsGet: 'accounts:get',
   accountTransactions: 'accounts:transactions',
-  transactionsList: 'connections:transactions'
+  transactionsList: 'transactions:list'
 } as const

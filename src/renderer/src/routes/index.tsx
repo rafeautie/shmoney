@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Page } from '@/components/page'
 
 export const Route = createFileRoute('/')({
   component: HomePage
@@ -19,7 +20,7 @@ const STACK = [
 
 function HomePage() {
   return (
-    <div className="space-y-6">
+    <Page className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Welcome</h2>
         <p className="text-muted-foreground">
@@ -37,6 +38,6 @@ function HomePage() {
           </Card>
         ))}
       </div>
-    </div>
+    </Page>
   )
 }

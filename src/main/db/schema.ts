@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm'
 import { sqliteTable, integer, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
+// holds at most one row: the app supports a single SimpleFIN connection
 export const connections = sqliteTable('connections', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  name: text('name').notNull(),
   // base64 of safeStorage.encryptString(accessUrl); decrypted only in the main process
   accessUrlEncrypted: text('access_url_encrypted').notNull(),
   lastSyncedAt: integer('last_synced_at'),

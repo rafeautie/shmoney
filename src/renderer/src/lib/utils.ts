@@ -1,10 +1,15 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import type { PaginationState, SortingState } from '@tanstack/react-table'
+import type { SortingState } from '@tanstack/react-table'
+import type { Page } from '@shared/ipc'
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
 }
+
+/** Aligns first/last cell content with p-6 chrome when a table bleeds to its container's edges */
+export const TABLE_BLEED =
+  '[&_th:first-child]:pl-6 [&_td:first-child]:pl-6 [&_th:last-child]:pr-6 [&_td:last-child]:pr-6'
 
 export function ipcErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
@@ -12,19 +17,21 @@ export function ipcErrorMessage(error: unknown): string {
   return message.replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, '')
 }
 
-/** Maps table state to the paged IPC query shape. Column ids must match the endpoint's sortBy values. */
-export function pageQuery<S extends string>(
+export const PAGE_SIZE = 50
+
+/** Maps table sorting state to the IPC query shape. Column ids must match the endpoint's sortBy values. */
+export function sortQuery<S extends string>(
   sorting: SortingState,
-  pagination: PaginationState,
   defaultSort: { id: S; desc: boolean }
-): { page: number; pageSize: number; sortBy: S; sortDir: 'asc' | 'desc' } {
+): { sortBy: S; sortDir: 'asc' | 'desc' } {
   const sort = (sorting[0] ?? defaultSort) as { id: S; desc: boolean }
-  return {
-    page: pagination.pageIndex,
-    pageSize: pagination.pageSize,
-    sortBy: sort.id,
-    sortDir: sort.desc ? 'desc' : 'asc'
-  }
+  return { sortBy: sort.id, sortDir: sort.desc ? 'desc' : 'asc' }
+}
+
+/** getNextPageParam for useInfiniteQuery over the paged IPC endpoints */
+export function nextPageParam<T>(lastPage: Page<T>, pages: Page<T>[]): number | undefined {
+  const loaded = pages.reduce((count, page) => count + page.rows.length, 0)
+  return loaded < lastPage.total ? pages.length : undefined
 }
 
 export function formatAmount(milliunits: number, currency: string): string {

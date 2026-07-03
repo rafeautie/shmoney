@@ -6,12 +6,10 @@ import type { ConnectionRow } from '../db/schema'
 import { claimAccessUrl, fetchAccounts, parseAmount } from '../simplefin'
 import {
   IPC,
-  createConnectionSchema,
-  connectionIdSchema,
+  connectInputSchema,
   accountIdSchema,
-  connectionsQuerySchema,
   accountTransactionsQuerySchema,
-  connectionTransactionsQuerySchema,
+  transactionsQuerySchema,
   type Connection,
   type Page,
   type Transaction
@@ -22,16 +20,21 @@ const RESYNC_OVERLAP_SECONDS = 7 * 24 * 60 * 60
 
 function toConnection(row: ConnectionRow): Connection {
   // accessUrlEncrypted deliberately never crosses IPC
-  return { id: row.id, name: row.name, lastSyncedAt: row.lastSyncedAt, createdAt: row.createdAt }
+  return { lastSyncedAt: row.lastSyncedAt, createdAt: row.createdAt }
+}
+
+// the app supports a single SimpleFIN connection; oldest row wins if legacy data has more
+function connectionRow(): ConnectionRow | undefined {
+  return db.select().from(connections).orderBy(asc(connections.id)).limit(1).get()
 }
 
 function order(column: SQLWrapper, dir: 'asc' | 'desc'): SQL {
   return dir === 'asc' ? asc(column) : desc(column)
 }
 
-async function syncConnection(connectionId: number): Promise<Connection> {
-  const row = db.select().from(connections).where(eq(connections.id, connectionId)).get()
-  if (!row) throw new Error('Connection not found')
+async function syncConnection(): Promise<Connection> {
+  const row = connectionRow()
+  if (!row) throw new Error('Not connected to SimpleFIN')
 
   const accessUrl = safeStorage.decryptString(Buffer.from(row.accessUrlEncrypted, 'base64'))
   const now = Math.floor(Date.now() / 1000)
@@ -45,7 +48,7 @@ async function syncConnection(connectionId: number): Promise<Connection> {
   const [updated] = db.transaction((tx) => {
     for (const account of payload.accounts) {
       const values = {
-        connectionId,
+        connectionId: row.id,
         simplefinId: account.id,
         institutionName: account.conn_id
           ? (institutionByConnId.get(account.conn_id) ?? null)
@@ -96,7 +99,7 @@ async function syncConnection(connectionId: number): Promise<Connection> {
     return tx
       .update(connections)
       .set({ lastSyncedAt: now })
-      .where(eq(connections.id, connectionId))
+      .where(eq(connections.id, row.id))
       .returning()
       .all()
   })
@@ -112,7 +115,7 @@ const transactionSortColumns = {
 } as const
 
 function transactionsPage(
-  where: SQL,
+  where: SQL | undefined,
   q: {
     page: number
     pageSize: number
@@ -149,47 +152,37 @@ function transactionsPage(
 }
 
 export function registerConnectionsIpc(): void {
-  ipcMain.handle(IPC.connectionsList, (_event, input: unknown) => {
-    const q = connectionsQuerySchema.parse(input)
-    const sortColumns = { name: connections.name, lastSyncedAt: connections.lastSyncedAt }
-    const rows = db
-      .select()
-      .from(connections)
-      .orderBy(order(sortColumns[q.sortBy], q.sortDir))
-      .limit(q.pageSize)
-      .offset(q.page * q.pageSize)
-      .all()
-      .map(toConnection)
-    const total = db.select({ value: count() }).from(connections).get()?.value ?? 0
-    return { rows, total } satisfies Page<Connection>
-  })
-
-  ipcMain.handle(IPC.connectionsGet, (_event, input: unknown) => {
-    const id = connectionIdSchema.parse(input)
-    const row = db.select().from(connections).where(eq(connections.id, id)).get()
+  ipcMain.handle(IPC.connectionGet, () => {
+    const row = connectionRow()
     return row ? toConnection(row) : null
   })
 
-  ipcMain.handle(IPC.connectionsCreate, async (_event, input: unknown) => {
-    const { name, setupToken } = createConnectionSchema.parse(input)
+  ipcMain.handle(IPC.connectionConnect, async (_event, input: unknown) => {
+    const { setupToken } = connectInputSchema.parse(input)
     if (!safeStorage.isEncryptionAvailable()) {
       throw new Error('Credential encryption is not available on this system')
+    }
+    if (connectionRow()) {
+      throw new Error('Already connected to SimpleFIN. Disconnect first to use a new setup token.')
     }
     // Claim + store only; sync is a separate call so a failed sync never burns
     // the single-use setup token.
     const accessUrl = await claimAccessUrl(setupToken)
+    if (connectionRow()) {
+      throw new Error('Already connected to SimpleFIN. Disconnect first to use a new setup token.')
+    }
     const accessUrlEncrypted = safeStorage.encryptString(accessUrl).toString('base64')
-    const [row] = db.insert(connections).values({ name, accessUrlEncrypted }).returning().all()
+    const [row] = db.insert(connections).values({ accessUrlEncrypted }).returning().all()
     return toConnection(row)
   })
 
-  ipcMain.handle(IPC.connectionsSync, (_event, input: unknown) => {
-    return syncConnection(connectionIdSchema.parse(input))
+  ipcMain.handle(IPC.connectionSync, () => {
+    return syncConnection()
   })
 
-  ipcMain.handle(IPC.connectionsRemove, (_event, input: unknown) => {
-    const id = connectionIdSchema.parse(input)
-    db.delete(connections).where(eq(connections.id, id)).run()
+  ipcMain.handle(IPC.connectionDisconnect, () => {
+    // cascades to accounts and transactions
+    db.delete(connections).run()
     return true
   })
 
@@ -212,7 +205,7 @@ export function registerConnectionsIpc(): void {
   })
 
   ipcMain.handle(IPC.transactionsList, (_event, input: unknown) => {
-    const q = connectionTransactionsQuerySchema.parse(input)
-    return transactionsPage(eq(accounts.connectionId, q.connectionId), q)
+    const q = transactionsQuerySchema.parse(input)
+    return transactionsPage(undefined, q)
   })
 }

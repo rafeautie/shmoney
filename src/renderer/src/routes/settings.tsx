@@ -1,13 +1,11 @@
-import { useMemo, useState } from 'react'
-import { Link, createFileRoute } from '@tanstack/react-router'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { ColumnDef, PaginationState, SortingState } from '@tanstack/react-table'
-import type { Connection } from '@shared/ipc'
+import { useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ipcErrorMessage, pageQuery } from '@/lib/utils'
-import { DataTable, DataTableColumnHeader } from '@/components/data-table'
+import { ipcErrorMessage } from '@/lib/utils'
+import { Page } from '@/components/page'
 import {
   Card,
   CardContent,
@@ -24,168 +22,135 @@ export const Route = createFileRoute('/settings')({
 function SettingsPage() {
   const queryClient = useQueryClient()
 
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }])
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 })
-  const query = pageQuery(sorting, pagination, { id: 'name' as const, desc: false })
-
-  const connectionsQuery = useQuery({
-    queryKey: ['connections', query],
-    queryFn: () => window.api.connections.list(query),
-    placeholderData: keepPreviousData
+  const connectionQuery = useQuery({
+    queryKey: ['connection'],
+    queryFn: () => window.api.connection.get()
   })
+  const connection = connectionQuery.data
 
-  const [name, setName] = useState('')
   const [setupToken, setSetupToken] = useState('')
+  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
 
   const syncConnection = useMutation({
-    mutationFn: (id: number) => window.api.connections.sync(id),
+    mutationFn: () => window.api.connection.sync(),
     onSettled: () => queryClient.invalidateQueries()
   })
 
-  const createConnection = useMutation({
-    mutationFn: () => window.api.connections.create({ name, setupToken }),
-    onSuccess: (connection) => {
-      setName('')
+  const connect = useMutation({
+    mutationFn: () => window.api.connection.connect({ setupToken }),
+    onSuccess: () => {
       setSetupToken('')
       queryClient.invalidateQueries()
-      syncConnection.mutate(connection.id)
+      syncConnection.mutate()
     }
   })
 
-  const removeConnection = useMutation({
-    mutationFn: (id: number) => window.api.connections.remove(id),
-    onSuccess: () => queryClient.invalidateQueries()
+  const disconnect = useMutation({
+    mutationFn: () => window.api.connection.disconnect(),
+    onSuccess: () => {
+      setConfirmingDisconnect(false)
+      queryClient.invalidateQueries()
+    }
   })
 
-  const columns = useMemo<ColumnDef<Connection>[]>(
-    () => [
-      {
-        accessorKey: 'name',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Name" />,
-        cell: ({ row }) => (
-          <Link
-            to="/connections/$connectionId"
-            params={{ connectionId: String(row.original.id) }}
-            className="font-medium underline-offset-4 hover:underline"
-          >
-            {row.original.name}
-          </Link>
-        )
-      },
-      {
-        accessorKey: 'lastSyncedAt',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Last synced" />,
-        cell: ({ row }) =>
-          row.original.lastSyncedAt
-            ? new Date(row.original.lastSyncedAt * 1000).toLocaleString()
-            : 'Never'
-      },
-      {
-        id: 'actions',
-        enableSorting: false,
-        header: '',
-        cell: ({ row }) => (
-          <div className="text-right">
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={syncConnection.isPending}
-              onClick={() => syncConnection.mutate(row.original.id)}
-            >
-              {syncConnection.isPending && syncConnection.variables === row.original.id
-                ? 'Syncing...'
-                : 'Sync'}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={removeConnection.isPending}
-              onClick={() => removeConnection.mutate(row.original.id)}
-            >
-              Delete
-            </Button>
-          </div>
-        )
-      }
-    ],
-    [removeConnection, syncConnection]
-  )
-
   return (
-    <div className="space-y-6">
+    <Page className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Settings</h2>
         <p className="text-muted-foreground">Manage how shmoney connects to your banks.</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Add connection</CardTitle>
-          <CardDescription>
-            Paste a setup token from your SimpleFIN bridge. It is exchanged once for an access key
-            stored encrypted on this device.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="connection-name">Name</Label>
-            <Input
-              id="connection-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. My Bank"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="connection-token">Setup token</Label>
-            <Input
-              id="connection-token"
-              value={setupToken}
-              onChange={(e) => setSetupToken(e.target.value)}
-              placeholder="Base64 setup token"
-            />
-          </div>
-          {createConnection.isError && (
-            <p className="text-sm text-destructive">{ipcErrorMessage(createConnection.error)}</p>
-          )}
-        </CardContent>
-        <CardFooter>
-          <Button
-            disabled={!name.trim() || !setupToken.trim() || createConnection.isPending}
-            onClick={() => createConnection.mutate()}
-          >
-            {createConnection.isPending
-              ? 'Connecting...'
-              : syncConnection.isPending && createConnection.isSuccess
-                ? 'Syncing...'
-                : 'Connect'}
-          </Button>
-        </CardFooter>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">All connections</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {syncConnection.isError && (
-            <p className="text-sm text-destructive">
-              Sync failed: {ipcErrorMessage(syncConnection.error)}
-            </p>
-          )}
-          <DataTable
-            columns={columns}
-            data={connectionsQuery.data?.rows ?? []}
-            total={connectionsQuery.data?.total ?? 0}
-            sorting={sorting}
-            onSortingChange={setSorting}
-            pagination={pagination}
-            onPaginationChange={setPagination}
-            isLoading={connectionsQuery.isLoading}
-            emptyMessage="No connections yet."
-          />
-        </CardContent>
-      </Card>
-    </div>
+      {connectionQuery.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      ) : connection ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">SimpleFIN</CardTitle>
+            <CardDescription>
+              Connected.{' '}
+              {connection.lastSyncedAt
+                ? `Last synced ${new Date(connection.lastSyncedAt * 1000).toLocaleString()}.`
+                : 'Never synced.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {syncConnection.isError && (
+              <p className="text-sm text-destructive">
+                Sync failed: {ipcErrorMessage(syncConnection.error)}
+              </p>
+            )}
+            {disconnect.isError && (
+              <p className="text-sm text-destructive">
+                Disconnect failed: {ipcErrorMessage(disconnect.error)}
+              </p>
+            )}
+            {confirmingDisconnect && (
+              <p className="text-sm text-destructive">
+                Disconnecting deletes all synced accounts and transactions from this device.
+              </p>
+            )}
+          </CardContent>
+          <CardFooter className="gap-2">
+            <Button disabled={syncConnection.isPending} onClick={() => syncConnection.mutate()}>
+              {syncConnection.isPending ? 'Syncing...' : 'Sync'}
+            </Button>
+            {confirmingDisconnect ? (
+              <>
+                <Button
+                  variant="destructive"
+                  disabled={disconnect.isPending}
+                  onClick={() => disconnect.mutate()}
+                >
+                  {disconnect.isPending ? 'Disconnecting...' : 'Yes, disconnect'}
+                </Button>
+                <Button variant="ghost" onClick={() => setConfirmingDisconnect(false)}>
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" onClick={() => setConfirmingDisconnect(true)}>
+                Disconnect
+              </Button>
+            )}
+          </CardFooter>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Connect SimpleFIN</CardTitle>
+            <CardDescription>
+              Paste a setup token from your SimpleFIN bridge. It is exchanged once for an access key
+              stored encrypted on this device.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="setup-token">Setup token</Label>
+              <Input
+                id="setup-token"
+                value={setupToken}
+                onChange={(e) => setSetupToken(e.target.value)}
+                placeholder="Base64 setup token"
+              />
+            </div>
+            {connect.isError && (
+              <p className="text-sm text-destructive">{ipcErrorMessage(connect.error)}</p>
+            )}
+          </CardContent>
+          <CardFooter>
+            <Button
+              disabled={!setupToken.trim() || connect.isPending}
+              onClick={() => connect.mutate()}
+            >
+              {connect.isPending
+                ? 'Connecting...'
+                : syncConnection.isPending && connect.isSuccess
+                  ? 'Syncing...'
+                  : 'Connect'}
+            </Button>
+          </CardFooter>
+        </Card>
+      )}
+    </Page>
   )
 }

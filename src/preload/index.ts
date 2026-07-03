@@ -4,31 +4,30 @@ import {
   IPC,
   type Account,
   type AccountTransactionsQuery,
+  type ConnectInput,
   type Connection,
-  type ConnectionsQuery,
-  type ConnectionTransactionsQuery,
-  type CreateConnectionInput,
   type Page,
-  type Transaction
+  type Transaction,
+  type TransactionsQuery
 } from '@shared/ipc'
 
 const api = {
-  connections: {
-    list: (query: ConnectionsQuery): Promise<Page<Connection>> =>
-      ipcRenderer.invoke(IPC.connectionsList, query),
-    get: (id: number): Promise<Connection | null> => ipcRenderer.invoke(IPC.connectionsGet, id),
-    create: (input: CreateConnectionInput): Promise<Connection> =>
-      ipcRenderer.invoke(IPC.connectionsCreate, input),
-    sync: (id: number): Promise<Connection> => ipcRenderer.invoke(IPC.connectionsSync, id),
-    remove: (id: number): Promise<boolean> => ipcRenderer.invoke(IPC.connectionsRemove, id),
-    transactions: (query: ConnectionTransactionsQuery): Promise<Page<Transaction>> =>
-      ipcRenderer.invoke(IPC.transactionsList, query)
+  connection: {
+    get: (): Promise<Connection | null> => ipcRenderer.invoke(IPC.connectionGet),
+    connect: (input: ConnectInput): Promise<Connection> =>
+      ipcRenderer.invoke(IPC.connectionConnect, input),
+    sync: (): Promise<Connection> => ipcRenderer.invoke(IPC.connectionSync),
+    disconnect: (): Promise<boolean> => ipcRenderer.invoke(IPC.connectionDisconnect)
   },
   accounts: {
     list: (): Promise<Account[]> => ipcRenderer.invoke(IPC.accountsList),
     get: (id: number): Promise<Account | null> => ipcRenderer.invoke(IPC.accountsGet, id),
     transactions: (query: AccountTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(IPC.accountTransactions, query)
+  },
+  transactions: {
+    list: (query: TransactionsQuery): Promise<Page<Transaction>> =>
+      ipcRenderer.invoke(IPC.transactionsList, query)
   }
 }
 
