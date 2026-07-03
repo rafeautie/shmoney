@@ -1,5 +1,5 @@
 import { ipcMain, safeStorage } from 'electron'
-import { and, asc, count, desc, eq, type SQL, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, count, desc, eq, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { db } from '../db'
 import { connections, accounts, transactions } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
@@ -107,8 +107,11 @@ async function syncConnection(): Promise<Connection> {
   return toConnection(updated)
 }
 
+// SimpleFIN sends posted = 0 for pending transactions; their real date is transacted_at
+const transactionDate = sql<number>`coalesce(nullif(${transactions.posted}, 0), ${transactions.transactedAt}, 0)`
+
 const transactionSortColumns = {
-  posted: transactions.posted,
+  date: transactionDate,
   accountName: accounts.name,
   description: transactions.description,
   amount: transactions.amount
@@ -129,7 +132,7 @@ function transactionsPage(
       accountId: transactions.accountId,
       accountName: accounts.name,
       currency: accounts.currency,
-      posted: transactions.posted,
+      date: transactionDate,
       amount: transactions.amount,
       description: transactions.description,
       pending: transactions.pending

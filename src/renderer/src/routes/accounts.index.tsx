@@ -21,6 +21,13 @@ export const Route = createFileRoute('/accounts/')({
   component: AccountsPage
 })
 
+// Credit cards (negative balance) report available credit with the balance's
+// negative sign, but available is a positive quantity to the user.
+function availableBalance(account: Account): number | null {
+  if (account.availableBalance === null) return null
+  return account.balance < 0 ? Math.abs(account.availableBalance) : account.availableBalance
+}
+
 function AccountsPage() {
   return (
     <Tabs defaultValue="accounts" className="flex min-h-0 flex-1 flex-col gap-0">
@@ -100,30 +107,33 @@ function AccountsList() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {accounts.map((account) => (
-                      <TableRow
-                        key={account.id}
-                        className="cursor-pointer"
-                        onClick={() =>
-                          navigate({
-                            to: '/accounts/$accountId',
-                            params: { accountId: String(account.id) }
-                          })
-                        }
-                      >
-                        <TableCell className="truncate font-medium">{account.name}</TableCell>
-                        <TableCell className="text-right">
-                          <Amount value={account.balance} currency={account.currency} />
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {account.availableBalance !== null ? (
-                            <Amount value={account.availableBalance} currency={account.currency} />
-                          ) : (
-                            '—'
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {accounts.map((account) => {
+                      const available = availableBalance(account)
+                      return (
+                        <TableRow
+                          key={account.id}
+                          className="cursor-pointer"
+                          onClick={() =>
+                            navigate({
+                              to: '/accounts/$accountId',
+                              params: { accountId: String(account.id) }
+                            })
+                          }
+                        >
+                          <TableCell className="truncate font-medium">{account.name}</TableCell>
+                          <TableCell className="text-right">
+                            <Amount value={account.balance} currency={account.currency} />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {available !== null ? (
+                              <Amount value={available} currency={account.currency} />
+                            ) : (
+                              '—'
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>

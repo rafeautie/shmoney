@@ -23,7 +23,8 @@ export interface Transaction {
   accountId: number
   accountName: string
   currency: string
-  posted: number
+  /** Unix seconds: posted date, or transacted_at for pending rows; 0 when unknown */
+  date: number
   /** Integer milliunits (value * 1000) */
   amount: number
   description: string
@@ -48,7 +49,7 @@ const pageFields = {
   sortDir: z.enum(['asc', 'desc'])
 }
 
-export const transactionSortBySchema = z.enum(['posted', 'accountName', 'description', 'amount'])
+export const transactionSortBySchema = z.enum(['date', 'accountName', 'description', 'amount'])
 export type TransactionSortBy = z.infer<typeof transactionSortBySchema>
 
 export const transactionsQuerySchema = z.object({

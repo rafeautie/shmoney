@@ -26,8 +26,8 @@ export function TransactionsTable({
   showAccount,
   className
 }: TransactionsTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'posted', desc: true }])
-  const sort = sortQuery<TransactionSortBy>(sorting, { id: 'posted', desc: true })
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }])
+  const sort = sortQuery<TransactionSortBy>(sorting, { id: 'date', desc: true })
 
   const transactionsQuery = useInfiniteQuery({
     queryKey: [...queryKey, sort],
@@ -44,9 +44,10 @@ export function TransactionsTable({
   const columns = useMemo<ColumnDef<Transaction>[]>(
     () => [
       {
-        accessorKey: 'posted',
+        accessorKey: 'date',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
-        cell: ({ row }) => new Date(row.original.posted * 1000).toLocaleDateString()
+        cell: ({ row }) =>
+          row.original.date ? new Date(row.original.date * 1000).toLocaleDateString() : '—'
       },
       ...(showAccount
         ? [
