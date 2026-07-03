@@ -1,4 +1,5 @@
 import '@fontsource-variable/geist/index.css'
+import 'react-grid-layout/css/styles.css'
 import './assets/main.css'
 import React from 'react'
 import ReactDOM from 'react-dom/client'

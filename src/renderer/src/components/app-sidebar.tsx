@@ -27,7 +27,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">shmoney</span>
-                  <span className="truncate text-xs">Personal finance</span>
+                  <span className="truncate text-xs">A personal shmoney app</span>
                 </div>
               </div>
             </SidebarMenuButton>

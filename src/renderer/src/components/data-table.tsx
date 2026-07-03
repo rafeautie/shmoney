@@ -116,7 +116,7 @@ export function DataTable<TData>({
     <ScrollArea viewportRef={scrollRef} className={className}>
       <table className={cn('w-full caption-bottom text-xs', bleed && TABLE_BLEED)}>
         {/* box-shadows stand in for the header's borders, which collapse drops while sticky */}
-        <TableHeader className="sticky top-0 z-10 bg-background shadow-[inset_0_1px_0_0_var(--border),inset_0_-1px_0_0_var(--border)] [&_tr]:border-b-0">
+        <TableHeader className="sticky top-0 z-10 bg-background shadow-[inset_0_1px_0_0_var(--border),inset_0_-1px_0_0_var(--border)] in-data-[slot=card]:bg-card [&_tr]:border-b-0">
           {table.getHeaderGroups().map((headerGroup) => (
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => (

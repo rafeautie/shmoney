@@ -24,11 +24,17 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  /* categorical palette (tailwind 500s), ordered so neighboring series contrast */
+  --chart-1: oklch(0.546 0.245 262.881); /* blue */
+  --chart-2: oklch(0.769 0.188 70.08); /* amber */
+  --chart-3: oklch(0.696 0.17 162.48); /* emerald */
+  --chart-4: oklch(0.645 0.246 16.439); /* rose */
+  --chart-5: oklch(0.606 0.25 292.717); /* violet */
+  --chart-6: oklch(0.715 0.143 215.221); /* cyan */
+  --chart-7: oklch(0.705 0.213 47.604); /* orange */
+  --chart-8: oklch(0.667 0.295 322.15); /* fuchsia */
+  --chart-9: oklch(0.768 0.233 130.85); /* lime */
+  --chart-10: oklch(0.554 0.046 257.417); /* slate */
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -58,11 +64,17 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.809 0.105 251.813);
-  --chart-2: oklch(0.623 0.214 259.815);
-  --chart-3: oklch(0.546 0.245 262.881);
-  --chart-4: oklch(0.488 0.243 264.376);
-  --chart-5: oklch(0.424 0.199 265.638);
+  /* same palette, one step brighter (tailwind 400s) for the dark background */
+  --chart-1: oklch(0.623 0.214 259.815); /* blue */
+  --chart-2: oklch(0.828 0.189 84.429); /* amber */
+  --chart-3: oklch(0.765 0.177 163.223); /* emerald */
+  --chart-4: oklch(0.712 0.194 13.428); /* rose */
+  --chart-5: oklch(0.702 0.183 293.541); /* violet */
+  --chart-6: oklch(0.789 0.154 211.53); /* cyan */
+  --chart-7: oklch(0.75 0.183 55.934); /* orange */
+  --chart-8: oklch(0.74 0.238 322.16); /* fuchsia */
+  --chart-9: oklch(0.841 0.238 128.85); /* lime */
+  --chart-10: oklch(0.704 0.04 256.788); /* slate */
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -106,6 +118,11 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-chart-10: var(--chart-10);
+  --color-chart-9: var(--chart-9);
+  --color-chart-8: var(--chart-8);
+  --color-chart-7: var(--chart-7);
+  --color-chart-6: var(--chart-6);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -126,4 +143,122 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Report-grid resize handles: replace react-grid-layout's default corner arrows
+ * with edge pills and corner dots that fade in while hovering a widget in edit
+ * mode. The library positions and rotates each handle for its arrow glyph, so
+ * every direction is re-positioned here with the rotation removed; selectors
+ * repeat .react-resizable-handle to match the specificity of the library CSS. */
+.react-grid-item > .react-resizable-handle {
+  transition: opacity 150ms ease;
+}
+.react-grid-item > .react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  inset: 50% auto auto 50%;
+  translate: -50% -50%;
+  border: none;
+  border-radius: 9999px;
+  background: var(--ring);
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-n,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  left: 50%;
+  width: 32px;
+  height: 14px;
+  margin-left: -16px;
+  transform: none;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-n {
+  top: 0;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-s {
+  bottom: 0;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-n::after,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-s::after {
+  width: 24px;
+  height: 5px;
+  translate: -50% 0;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-n::after {
+  inset: -2px auto auto 50%;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-s::after {
+  inset: auto auto -2px 50%;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-e,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-w {
+  top: 50%;
+  width: 14px;
+  height: 32px;
+  margin-top: -16px;
+  transform: none;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-e {
+  right: 0;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-w {
+  left: 0;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-e::after,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-w::after {
+  width: 5px;
+  height: 24px;
+  translate: 0 -50%;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-e::after {
+  inset: 50% -2px auto auto;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-w::after {
+  inset: 50% auto auto -2px;
+}
+/* corner handles: quarter-arc brackets with rounded ends (SVG mask, since CSS
+ * borders cannot round the arc's end caps), one nw-oriented arc rotated per
+ * corner. The arc's 5px stroke is centered on the card's rounded-xl border
+ * corner (0.45rem + 4px = 11.2px outer radius, so 10.7px at the 1px border's
+ * center line); the 20px mask box hangs 2px outside the corner to fit it. */
+.react-grid-item > .react-resizable-handle.react-resizable-handle-nw,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-ne,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-sw,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se {
+  width: 16px;
+  height: 16px;
+  transform: none;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-nw::after,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-ne::after,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-sw::after,
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se::after {
+  width: 20px;
+  height: 20px;
+  border-radius: 0;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M2.5 13.2A10.7 10.7 0 0 1 13.2 2.5' fill='none' stroke='%23000' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-nw {
+  top: 0;
+  left: 0;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-ne {
+  top: 0;
+  right: 0;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-ne::after {
+  rotate: 90deg;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se {
+  bottom: 0;
+  right: 0;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-se::after {
+  rotate: 180deg;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-sw {
+  bottom: 0;
+  left: 0;
+}
+.react-grid-item > .react-resizable-handle.react-resizable-handle-sw::after {
+  rotate: 270deg;
 }

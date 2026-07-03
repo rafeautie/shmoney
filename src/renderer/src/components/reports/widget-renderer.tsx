@@ -1,0 +1,606 @@
+import { useMemo } from 'react'
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  XAxis,
+  YAxis
+} from 'recharts'
+import type {
+  Measure,
+  QueryRow,
+  ReportFilters,
+  ReportWidget,
+  ResolvedQuery,
+  TimeGrain,
+  WidgetConfig
+} from '@shared/reports'
+import { formatAmount } from '@/lib/utils'
+import { Amount } from '@/components/amount'
+import { TransactionsTable } from '@/components/transactions-table'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table'
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig
+} from '@/components/ui/chart'
+import { groupTotals, pivotTimeSeries, type SeriesInfo } from './data'
+import { useResolvedQuery, useWidgetData } from './use-widget-data'
+
+const PALETTE_SIZE = 10
+
+/** Cycles through --chart-1..10; series beyond the palette get the same hues
+ * tinted lighter, then darker, so up to 30 series never share a color. */
+function paletteColor(index: number): string {
+  const base = `var(--chart-${(index % PALETTE_SIZE) + 1})`
+  const cycle = Math.floor(index / PALETTE_SIZE) % 3
+  if (cycle === 0) return base
+  return `color-mix(in oklab, ${base}, ${cycle === 1 ? 'white' : 'black'} 30%)`
+}
+
+function formatMeasureValue(measure: Measure, value: number, currency: string): string {
+  if (measure === 'count') return Math.round(value).toLocaleString()
+  return formatAmount(value, currency)
+}
+
+/** Compact axis ticks: "$1.2K" for money (milliunits), "1.2K" for counts */
+function tickFormatter(measure: Measure, currency: string): (value: number) => string {
+  if (measure === 'count') {
+    return (value) => new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value)
+  }
+  return (value) => {
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency,
+        notation: 'compact'
+      }).format(value / 1000)
+    } catch {
+      return new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value / 1000)
+    }
+  }
+}
+
+/** Shared body for chart tooltips: label on the left, formatted value on the right. */
+function TooltipRow({
+  label,
+  measure,
+  value,
+  currency,
+  color
+}: {
+  label: React.ReactNode
+  measure: Measure
+  value: number
+  currency: string
+  color?: string
+}) {
+  return (
+    <>
+      {color && (
+        <div className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: color }} />
+      )}
+      <div className="flex flex-1 items-center justify-between gap-4 leading-none">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-mono font-medium tabular-nums">
+          {formatMeasureValue(measure, value, currency)}
+        </span>
+      </div>
+    </>
+  )
+}
+
+/** Sums render via <Amount> (signed coloring); other measures as plain text. */
+function MeasureValue({
+  measure,
+  value,
+  currency
+}: {
+  measure: Measure
+  value: number
+  currency: string
+}) {
+  if (measure === 'sum') return <Amount value={value} currency={currency} />
+  return <>{formatMeasureValue(measure, value, currency)}</>
+}
+
+function CenteredNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
+      {children}
+    </div>
+  )
+}
+
+function MixedCurrencyBadge({ currencies }: { currencies: string[] }) {
+  if (currencies.length <= 1) return null
+  return (
+    <Badge variant="outline" className="absolute top-0 right-0 z-10 bg-background/80">
+      Mixed currencies: {currencies.join(', ')}
+    </Badge>
+  )
+}
+
+function WidgetSkeleton() {
+  return (
+    <div className="flex h-full flex-col justify-end gap-2 p-2">
+      <div className="flex flex-1 items-end gap-2">
+        {[40, 70, 55, 85, 60, 75].map((h, i) => (
+          <Skeleton key={i} className="w-full" style={{ height: `${h}%` }} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function chartConfigFor(series: SeriesInfo[]): ChartConfig {
+  return Object.fromEntries(
+    series.map((s, i) => [s.key, { label: s.label, color: paletteColor(i) }])
+  )
+}
+
+// ---------- time-series charts (line / bar / area) ----------
+
+function TimeSeriesChart({
+  widget,
+  config,
+  rows,
+  currencies,
+  resolved
+}: {
+  widget: ReportWidget
+  config: WidgetConfig
+  rows: QueryRow[]
+  currencies: string[]
+  resolved: ResolvedQuery
+}) {
+  const grain = config.query.timeGrain as Exclude<TimeGrain, 'none'>
+  const { data, series, tooManyBuckets } = useMemo(
+    () =>
+      pivotTimeSeries(
+        rows,
+        grain,
+        resolved.filters.dateStart,
+        resolved.filters.dateEnd,
+        config.query.cumulative
+      ),
+    [rows, grain, resolved.filters.dateStart, resolved.filters.dateEnd, config.query.cumulative]
+  )
+
+  if (tooManyBuckets) {
+    return <CenteredNote>Too many data points — pick a coarser time grain.</CenteredNote>
+  }
+  if (rows.length === 0) {
+    return <CenteredNote>No transactions match these filters.</CenteredNote>
+  }
+
+  const chartConfig = chartConfigFor(series)
+  const stacked = config.display?.stacked ?? false
+  const measure = config.query.measure
+  const currency = currencies[0] ?? 'USD'
+  const yTick = tickFormatter(measure, currency)
+  const tooltip = (
+    <ChartTooltip
+      content={
+        <ChartTooltipContent
+          formatter={(value, name, item) => (
+            <TooltipRow
+              color={item.color}
+              label={chartConfig[name as string]?.label ?? name}
+              measure={measure}
+              value={value as number}
+              currency={series.find((s) => s.key === name)?.currency ?? currency}
+            />
+          )}
+        />
+      }
+    />
+  )
+  const legend = config.display?.showLegend ? (
+    <ChartLegend content={<ChartLegendContent />} />
+  ) : null
+  const axes = (
+    <>
+      <CartesianGrid vertical={false} />
+      <XAxis dataKey="bucket" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
+      <YAxis tickLine={false} axisLine={false} width={56} tickFormatter={yTick} />
+    </>
+  )
+
+  return (
+    <div className="relative h-full">
+      <MixedCurrencyBadge currencies={currencies} />
+      <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+        {widget.type === 'line' ? (
+          <LineChart data={data} margin={{ top: 8, right: 8 }}>
+            {axes}
+            {tooltip}
+            {legend}
+            {series.map((s) => (
+              <Line
+                key={s.key}
+                dataKey={s.key}
+                type="monotone"
+                stroke={`var(--color-${s.key})`}
+                strokeWidth={2}
+                dot={false}
+              />
+            ))}
+          </LineChart>
+        ) : widget.type === 'area' ? (
+          <AreaChart data={data} margin={{ top: 8, right: 8 }}>
+            {axes}
+            {tooltip}
+            {legend}
+            {series.map((s) => (
+              <Area
+                key={s.key}
+                dataKey={s.key}
+                type="monotone"
+                stroke={`var(--color-${s.key})`}
+                fill={`var(--color-${s.key})`}
+                fillOpacity={0.3}
+                stackId={stacked ? 'stack' : s.key}
+              />
+            ))}
+          </AreaChart>
+        ) : (
+          <BarChart data={data} margin={{ top: 8, right: 8 }}>
+            {axes}
+            {tooltip}
+            {legend}
+            {series.map((s) => (
+              <Bar
+                key={s.key}
+                dataKey={s.key}
+                fill={`var(--color-${s.key})`}
+                stackId={stacked ? 'stack' : undefined}
+                radius={stacked ? 0 : [2, 2, 0, 0]}
+              />
+            ))}
+          </BarChart>
+        )}
+      </ChartContainer>
+    </div>
+  )
+}
+
+// ---------- categorical bar (no time axis, grouped) ----------
+
+function CategoricalBarChart({
+  config,
+  rows,
+  currencies
+}: {
+  config: WidgetConfig
+  rows: QueryRow[]
+  currencies: string[]
+}) {
+  const totals = useMemo(
+    () => groupTotals(rows, config.query.sort ?? { by: 'value', dir: 'desc' }, config.query.limit),
+    [rows, config.query.sort, config.query.limit]
+  )
+  if (totals.length === 0) {
+    return <CenteredNote>No transactions match these filters.</CenteredNote>
+  }
+  const measure = config.query.measure
+  const currency = currencies[0] ?? 'USD'
+  const chartConfig: ChartConfig = { value: { label: 'Value' } }
+  return (
+    <div className="relative h-full">
+      <MixedCurrencyBadge currencies={currencies} />
+      <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+        <BarChart data={totals} margin={{ top: 8, right: 8 }}>
+          <CartesianGrid vertical={false} />
+          <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={56}
+            tickFormatter={tickFormatter(measure, currency)}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                hideLabel
+                formatter={(value, _name, item) => (
+                  <TooltipRow
+                    label={item.payload?.label}
+                    measure={measure}
+                    value={value as number}
+                    currency={item.payload?.currency ?? currency}
+                  />
+                )}
+              />
+            }
+          />
+          <Bar dataKey="value" radius={[2, 2, 0, 0]}>
+            {totals.map((t, i) => (
+              <Cell key={`${t.groupId}-${t.currency}`} fill={paletteColor(i)} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ChartContainer>
+    </div>
+  )
+}
+
+// ---------- pie / donut ----------
+
+function PieChartWidget({
+  config,
+  rows,
+  currencies
+}: {
+  config: WidgetConfig
+  rows: QueryRow[]
+  currencies: string[]
+}) {
+  const totals = useMemo(
+    () =>
+      groupTotals(
+        rows,
+        config.query.sort ?? { by: 'value', dir: 'desc' },
+        config.query.limit ?? 8
+      ).filter((t) => t.value > 0),
+    [rows, config.query.sort, config.query.limit]
+  )
+  if (totals.length === 0) {
+    return (
+      <CenteredNote>No positive values to chart. Try the expense or income measure.</CenteredNote>
+    )
+  }
+  const measure = config.query.measure
+  const chartConfig: ChartConfig = Object.fromEntries(
+    totals.map((t, i) => [`slice-${i}`, { label: t.label, color: paletteColor(i) }])
+  )
+  const data = totals.map((t, i) => ({ ...t, fill: paletteColor(i) }))
+  return (
+    <div className="relative h-full">
+      <MixedCurrencyBadge currencies={currencies} />
+      <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+        <PieChart>
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                hideLabel
+                formatter={(value, _name, item) => (
+                  <TooltipRow
+                    label={item.payload?.label}
+                    measure={measure}
+                    value={value as number}
+                    currency={item.payload?.currency}
+                  />
+                )}
+              />
+            }
+          />
+          {config.display?.showLegend ? (
+            <ChartLegend content={<ChartLegendContent nameKey="label" />} />
+          ) : null}
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="label"
+            innerRadius={config.display?.donut ? '55%' : 0}
+            strokeWidth={2}
+          />
+        </PieChart>
+      </ChartContainer>
+    </div>
+  )
+}
+
+// ---------- stat card ----------
+
+function StatCardWidget({
+  config,
+  rows,
+  currencies
+}: {
+  config: WidgetConfig
+  rows: QueryRow[]
+  currencies: string[]
+}) {
+  const measure = config.query.measure
+  // one row per currency when groupBy/timeGrain are 'none'
+  const byCurrency = currencies.map((currency) => ({
+    currency,
+    value: rows.filter((r) => r.currency === currency).reduce((sum, r) => sum + r.value, 0)
+  }))
+  if (byCurrency.length === 0) {
+    return <CenteredNote>No transactions match these filters.</CenteredNote>
+  }
+  return (
+    <div className="flex h-full flex-col items-start justify-center gap-1 overflow-hidden">
+      {byCurrency.map(({ currency, value }) => (
+        <div key={currency} className="text-3xl font-semibold tracking-tight tabular-nums">
+          <MeasureValue measure={measure} value={value} currency={currency} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ---------- summary table ----------
+
+function SummaryTableWidget({
+  config,
+  rows,
+  currencies
+}: {
+  config: WidgetConfig
+  rows: QueryRow[]
+  currencies: string[]
+}) {
+  const totals = useMemo(
+    () => groupTotals(rows, config.query.sort ?? { by: 'value', dir: 'desc' }, config.query.limit),
+    [rows, config.query.sort, config.query.limit]
+  )
+  const measure = config.query.measure
+  const totalByCurrency = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const t of totals) map.set(t.currency, (map.get(t.currency) ?? 0) + Math.abs(t.value))
+    return map
+  }, [totals])
+
+  if (totals.length === 0) {
+    return <CenteredNote>No transactions match these filters.</CenteredNote>
+  }
+  return (
+    <div className="relative h-full overflow-auto">
+      <MixedCurrencyBadge currencies={currencies} />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Group</TableHead>
+            <TableHead className="w-32 text-right">Value</TableHead>
+            <TableHead className="w-16 text-right">%</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {totals.map((t, i) => {
+            const denominator = totalByCurrency.get(t.currency) ?? 0
+            const pct = denominator > 0 ? (Math.abs(t.value) / denominator) * 100 : 0
+            return (
+              <TableRow key={`${t.groupId}-${t.currency}-${i}`}>
+                <TableCell className="truncate font-medium">{t.label}</TableCell>
+                <TableCell className="text-right tabular-nums">
+                  <MeasureValue measure={measure} value={t.value} currency={t.currency} />
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground tabular-nums">
+                  {pct.toFixed(0)}%
+                </TableCell>
+              </TableRow>
+            )
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+// ---------- transactions ----------
+
+function TransactionsWidget({
+  widget,
+  config,
+  reportFilters
+}: {
+  widget: ReportWidget
+  config: WidgetConfig
+  reportFilters: ReportFilters
+}) {
+  const resolved = useResolvedQuery(config, reportFilters)
+  return (
+    <TransactionsTable
+      queryKey={['report-data', widget.id, resolved.filters]}
+      fetchPage={(query) =>
+        window.api.reports.transactions({ ...query, filters: resolved.filters })
+      }
+      showAccount
+      className="h-full min-h-0"
+    />
+  )
+}
+
+// ---------- dispatcher ----------
+
+function AggregateWidget({
+  widget,
+  config,
+  reportFilters
+}: {
+  widget: ReportWidget
+  config: WidgetConfig
+  reportFilters: ReportFilters
+}) {
+  const { resolved, query } = useWidgetData(widget.id, config, reportFilters)
+  if (query.isLoading) return <WidgetSkeleton />
+  if (query.isError) {
+    return <CenteredNote>Failed to load: {String(query.error)}</CenteredNote>
+  }
+  const { rows, currencies } = query.data!
+
+  switch (widget.type) {
+    case 'line':
+    case 'area':
+      if (config.query.timeGrain === 'none') {
+        return <CenteredNote>Line and area charts need a time grain.</CenteredNote>
+      }
+      return (
+        <TimeSeriesChart
+          widget={widget}
+          config={config}
+          rows={rows}
+          currencies={currencies}
+          resolved={resolved}
+        />
+      )
+    case 'bar':
+      if (config.query.timeGrain === 'none') {
+        if (config.query.groupBy === 'none') {
+          return <CenteredNote>Bar charts need a time grain or a group by.</CenteredNote>
+        }
+        return <CategoricalBarChart config={config} rows={rows} currencies={currencies} />
+      }
+      return (
+        <TimeSeriesChart
+          widget={widget}
+          config={config}
+          rows={rows}
+          currencies={currencies}
+          resolved={resolved}
+        />
+      )
+    case 'pie':
+      return <PieChartWidget config={config} rows={rows} currencies={currencies} />
+    case 'stat':
+      return <StatCardWidget config={config} rows={rows} currencies={currencies} />
+    case 'summaryTable':
+      return <SummaryTableWidget config={config} rows={rows} currencies={currencies} />
+    default:
+      return <CenteredNote>Unknown widget type.</CenteredNote>
+  }
+}
+
+export function WidgetRenderer({
+  widget,
+  reportFilters
+}: {
+  widget: ReportWidget
+  reportFilters: ReportFilters
+}) {
+  if (!widget.config) {
+    return (
+      <CenteredNote>
+        This widget&apos;s configuration is from an incompatible version. Edit it to reconfigure.
+      </CenteredNote>
+    )
+  }
+  if (widget.type === 'transactions') {
+    return (
+      <TransactionsWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
+    )
+  }
+  return <AggregateWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
+}

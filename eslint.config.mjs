@@ -20,7 +20,7 @@ export default tseslint.config(
       'react-hooks/incompatible-library': 'off',
       'react-refresh/only-export-components': [
         'warn',
-        { allowExportNames: ['buttonVariants', 'useTheme', 'useSidebar'] }
+        { allowExportNames: ['buttonVariants', 'badgeVariants', 'useTheme', 'useSidebar'] }
       ]
     }
   },

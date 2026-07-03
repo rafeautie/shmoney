@@ -1,5 +1,7 @@
 import { sql } from 'drizzle-orm'
 import { sqliteTable, integer, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+// type-only import: erased at compile time, so drizzle-kit never resolves it at runtime
+import type { ReportFilters, WidgetConfig, WidgetType } from '../../shared/reports'
 
 // holds at most one row: the app supports a single SimpleFIN connection
 export const connections = sqliteTable('connections', {
@@ -75,8 +77,37 @@ export const transactions = sqliteTable(
   (t) => [uniqueIndex('transactions_account_sfid_ux').on(t.accountId, t.simplefinId)]
 )
 
+export const reports = sqliteTable('reports', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  // report-level filter bar state
+  filters: text('filters', { mode: 'json' }).$type<ReportFilters>().notNull(),
+  configVersion: integer('config_version').notNull().default(1),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull()
+})
+
+export const reportWidgets = sqliteTable('report_widgets', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  reportId: integer('report_id')
+    .notNull()
+    .references(() => reports.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  type: text('type').$type<WidgetType>().notNull(),
+  // query spec + display options + filter overrides; versioned so old configs degrade safely
+  config: text('config', { mode: 'json' }).$type<WidgetConfig>().notNull(),
+  configVersion: integer('config_version').notNull().default(1),
+  // 12-column grid position and size
+  x: integer('x').notNull(),
+  y: integer('y').notNull(),
+  w: integer('w').notNull(),
+  h: integer('h').notNull()
+})
+
 export type ConnectionRow = typeof connections.$inferSelect
 export type AccountRow = typeof accounts.$inferSelect
 export type TransactionRow = typeof transactions.$inferSelect
 export type CategoryGroupRow = typeof categoryGroups.$inferSelect
 export type CategoryRow = typeof categories.$inferSelect
+export type ReportRow = typeof reports.$inferSelect
+export type ReportWidgetRow = typeof reportWidgets.$inferSelect

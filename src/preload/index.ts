@@ -18,6 +18,21 @@ import {
   type TransactionSetCategoryInput,
   type TransactionsQuery
 } from '@shared/ipc'
+import {
+  REPORTS_IPC,
+  type Report,
+  type ReportCreateInput,
+  type ReportDetail,
+  type ReportSummary,
+  type ReportTransactionsQuery,
+  type ReportUpdateInput,
+  type ReportWidget,
+  type ResolvedQuery,
+  type RunQueryResult,
+  type WidgetCreateInput,
+  type WidgetLayoutsInput,
+  type WidgetUpdateInput
+} from '@shared/reports'
 
 const api = {
   connection: {
@@ -53,6 +68,27 @@ const api = {
       ipcRenderer.invoke(IPC.categoriesRename, input),
     delete: (id: number): Promise<boolean> => ipcRenderer.invoke(IPC.categoriesDelete, id),
     resetDefaults: (): Promise<CategoriesList> => ipcRenderer.invoke(IPC.categoriesResetDefaults)
+  },
+  reports: {
+    list: (): Promise<ReportSummary[]> => ipcRenderer.invoke(REPORTS_IPC.list),
+    get: (id: number): Promise<ReportDetail> => ipcRenderer.invoke(REPORTS_IPC.get, id),
+    create: (input: ReportCreateInput): Promise<Report> =>
+      ipcRenderer.invoke(REPORTS_IPC.create, input),
+    update: (input: ReportUpdateInput): Promise<Report> =>
+      ipcRenderer.invoke(REPORTS_IPC.update, input),
+    delete: (id: number): Promise<boolean> => ipcRenderer.invoke(REPORTS_IPC.delete, id),
+    widgetCreate: (input: WidgetCreateInput): Promise<ReportWidget> =>
+      ipcRenderer.invoke(REPORTS_IPC.widgetCreate, input),
+    widgetUpdate: (input: WidgetUpdateInput): Promise<ReportWidget> =>
+      ipcRenderer.invoke(REPORTS_IPC.widgetUpdate, input),
+    widgetDelete: (id: number): Promise<boolean> =>
+      ipcRenderer.invoke(REPORTS_IPC.widgetDelete, id),
+    widgetLayouts: (input: WidgetLayoutsInput): Promise<boolean> =>
+      ipcRenderer.invoke(REPORTS_IPC.widgetLayouts, input),
+    runQuery: (query: ResolvedQuery): Promise<RunQueryResult> =>
+      ipcRenderer.invoke(REPORTS_IPC.runQuery, query),
+    transactions: (query: ReportTransactionsQuery): Promise<Page<Transaction>> =>
+      ipcRenderer.invoke(REPORTS_IPC.transactions, query)
   }
 }
 

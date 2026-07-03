@@ -7,9 +7,10 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
 }
 
-/** Aligns first/last cell content with p-6 chrome when a table bleeds to its container's edges */
+/** Aligns first/last cell content with p-6 chrome when a table bleeds to its container's edges;
+ * set --table-edge on an ancestor to match tighter chrome (e.g. a px-4 card) */
 export const TABLE_BLEED =
-  '[&_th:first-child]:pl-6 [&_td:first-child]:pl-6 [&_th:last-child]:pr-6 [&_td:last-child]:pr-6'
+  '[&_th:first-child]:pl-[var(--table-edge,1.5rem)] [&_td:first-child]:pl-[var(--table-edge,1.5rem)] [&_th:last-child]:pr-[var(--table-edge,1.5rem)] [&_td:last-child]:pr-[var(--table-edge,1.5rem)]'
 
 export function ipcErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)

@@ -43,6 +43,13 @@
       "when": 1783070405417,
       "tag": "0005_seed_income",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1783072721990,
+      "tag": "0006_aromatic_violations",
+      "breakpoints": true
     }
   ]
 }

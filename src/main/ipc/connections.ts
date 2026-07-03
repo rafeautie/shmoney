@@ -1,18 +1,17 @@
 import { ipcMain, safeStorage } from 'electron'
-import { and, asc, count, desc, eq, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 import { db } from '../db'
-import { connections, accounts, transactions, categories } from '../db/schema'
+import { connections, accounts, transactions } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
 import { claimAccessUrl, fetchAccounts, parseAmount } from '../simplefin'
+import { transactionsPage } from './transactions-page'
 import {
   IPC,
   connectInputSchema,
   accountIdSchema,
   accountTransactionsQuerySchema,
   transactionsQuerySchema,
-  type Connection,
-  type Page,
-  type Transaction
+  type Connection
 } from '@shared/ipc'
 
 const FIRST_SYNC_WINDOW_SECONDS = 90 * 24 * 60 * 60
@@ -26,10 +25,6 @@ function toConnection(row: ConnectionRow): Connection {
 // the app supports a single SimpleFIN connection; oldest row wins if legacy data has more
 function connectionRow(): ConnectionRow | undefined {
   return db.select().from(connections).orderBy(asc(connections.id)).limit(1).get()
-}
-
-function order(column: SQLWrapper, dir: 'asc' | 'desc'): SQL {
-  return dir === 'asc' ? asc(column) : desc(column)
 }
 
 async function syncConnection(): Promise<Connection> {
@@ -105,56 +100,6 @@ async function syncConnection(): Promise<Connection> {
   })
 
   return toConnection(updated)
-}
-
-// SimpleFIN sends posted = 0 for pending transactions; their real date is transacted_at
-const transactionDate = sql<number>`coalesce(nullif(${transactions.posted}, 0), ${transactions.transactedAt}, 0)`
-
-const transactionSortColumns = {
-  date: transactionDate,
-  accountName: accounts.name,
-  description: transactions.description,
-  amount: transactions.amount
-} as const
-
-function transactionsPage(
-  where: SQL | undefined,
-  q: {
-    page: number
-    pageSize: number
-    sortBy: keyof typeof transactionSortColumns
-    sortDir: 'asc' | 'desc'
-  }
-): Page<Transaction> {
-  const rows = db
-    .select({
-      id: transactions.id,
-      accountId: transactions.accountId,
-      accountName: accounts.name,
-      currency: accounts.currency,
-      date: transactionDate,
-      amount: transactions.amount,
-      description: transactions.description,
-      pending: transactions.pending,
-      categoryId: transactions.categoryId,
-      categoryName: categories.name
-    })
-    .from(transactions)
-    .innerJoin(accounts, eq(transactions.accountId, accounts.id))
-    .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(where)
-    .orderBy(order(transactionSortColumns[q.sortBy], q.sortDir))
-    .limit(q.pageSize)
-    .offset(q.page * q.pageSize)
-    .all()
-  const total =
-    db
-      .select({ value: count() })
-      .from(transactions)
-      .innerJoin(accounts, eq(transactions.accountId, accounts.id))
-      .where(where)
-      .get()?.value ?? 0
-  return { rows, total }
 }
 
 export function registerConnectionsIpc(): void {

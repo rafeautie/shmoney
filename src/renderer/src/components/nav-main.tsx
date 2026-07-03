@@ -1,6 +1,11 @@
 import { Link, useMatchRoute } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Home01Icon, Settings01Icon, Wallet01Icon } from '@hugeicons/core-free-icons'
+import {
+  Analytics01Icon,
+  Home01Icon,
+  Settings01Icon,
+  Wallet01Icon
+} from '@hugeicons/core-free-icons'
 import {
   SidebarGroup,
   SidebarMenu,
@@ -11,6 +16,7 @@ import {
 const NAV_ITEMS = [
   { to: '/', label: 'Home', fuzzy: false, icon: Home01Icon },
   { to: '/accounts', label: 'Accounts', fuzzy: true, icon: Wallet01Icon },
+  { to: '/reports', label: 'Reports', fuzzy: true, icon: Analytics01Icon },
   { to: '/settings', label: 'Settings', fuzzy: false, icon: Settings01Icon }
 ] as const
 

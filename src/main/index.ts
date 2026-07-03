@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { runMigrations } from './db'
 import { registerConnectionsIpc } from './ipc/connections'
 import { registerCategoriesIpc } from './ipc/categories'
+import { registerReportsIpc } from './ipc/reports'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -45,6 +46,7 @@ app.whenReady().then(() => {
   runMigrations()
   registerConnectionsIpc()
   registerCategoriesIpc()
+  registerReportsIpc()
 
   createWindow()
 
