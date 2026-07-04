@@ -73,7 +73,10 @@ export const transactions = sqliteTable(
     description: text('description').notNull(),
     pending: integer('pending', { mode: 'boolean' }).notNull().default(false),
     transactedAt: integer('transacted_at'),
-    categoryId: integer('category_id').references(() => categories.id, { onDelete: 'set null' })
+    categoryId: integer('category_id').references(() => categories.id, { onDelete: 'set null' }),
+    // soft delete (unix seconds): read paths exclude these rows; sync upserts
+    // must never touch this column or deletes would revert on every sync
+    deletedAt: integer('deleted_at')
   },
   (t) => [uniqueIndex('transactions_account_sfid_ux').on(t.accountId, t.simplefinId)]
 )

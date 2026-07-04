@@ -53,7 +53,8 @@ export function buildWhere(
   f: ResolvedFilters,
   opts: { keepUnknownDates?: boolean } = {}
 ): SQL | undefined {
-  const preds: SQL[] = []
+  // soft-deleted rows never count, in lists or aggregates
+  const preds: SQL[] = [isNull(transactions.deletedAt)]
   // rows whose date resolves to 0 have an unknown date; keep them out of every
   // report query so they can't form a phantom 1970 bucket. The transactions
   // table shows those rows (as "—"), so it opts out unless a date bound is set

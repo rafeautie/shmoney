@@ -1,6 +1,7 @@
 import { Outlet, createRootRoute } from '@tanstack/react-router'
-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { AppSidebar } from '@/components/app-sidebar'
+import { Toaster } from '@/components/ui/sonner'
+import { UndoShortcuts } from '@/components/undo-shortcuts'
 import { WindowControls } from '@/components/window-controls'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
 import { useSettings } from '@/lib/settings'
@@ -29,7 +30,8 @@ function RootComponent() {
           <Outlet />
         </main>
       </SidebarInset>
-      {import.meta.env.DEV && <TanStackRouterDevtools position="bottom-right" />}
+      <UndoShortcuts />
+      <Toaster />
     </SidebarProvider>
   )
 }

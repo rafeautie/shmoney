@@ -97,6 +97,20 @@ export const transactionSetCategorySchema = z.object({
 })
 export type TransactionSetCategoryInput = z.infer<typeof transactionSetCategorySchema>
 
+// bulk actions silently skip pending rows: sync drops and re-inserts them, so
+// any change to them would be lost on the next sync.
+// per-row category values (rather than one value for all ids) let undo restore
+// each transaction's previous category in a single call
+export const transactionsSetCategoriesSchema = z.object({
+  changes: z.array(z.object({ transactionId: idSchema, categoryId: idSchema.nullable() })).min(1)
+})
+export type TransactionsSetCategoriesInput = z.infer<typeof transactionsSetCategoriesSchema>
+
+export const transactionIdsSchema = z.object({
+  transactionIds: z.array(idSchema).min(1)
+})
+export type TransactionIdsInput = z.infer<typeof transactionIdsSchema>
+
 const pageFields = {
   page: z.number().int().min(0),
   pageSize: z.number().int().min(1).max(100),
@@ -127,6 +141,9 @@ export const IPC = {
   accountTransactions: 'accounts:transactions',
   transactionsList: 'transactions:list',
   transactionsSetCategory: 'transactions:setCategory',
+  transactionsSetCategories: 'transactions:setCategories',
+  transactionsBulkDelete: 'transactions:bulkDelete',
+  transactionsRestore: 'transactions:restore',
   categoriesList: 'categories:list',
   categoriesCreateGroup: 'categories:createGroup',
   categoriesRenameGroup: 'categories:renameGroup',

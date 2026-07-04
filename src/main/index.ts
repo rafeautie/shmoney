@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { runMigrations } from './db'
 import { registerConnectionsIpc } from './ipc/connections'
 import { registerCategoriesIpc } from './ipc/categories'
+import { registerTransactionsIpc } from './ipc/transactions'
 import { registerReportsIpc } from './ipc/reports'
 import { registerSavedFiltersIpc } from './ipc/saved-filters'
 import { registerSettingsIpc } from './ipc/settings'
@@ -58,6 +59,7 @@ app.whenReady().then(() => {
   runMigrations()
   registerConnectionsIpc()
   registerCategoriesIpc()
+  registerTransactionsIpc()
   registerReportsIpc()
   registerSavedFiltersIpc()
   registerSettingsIpc()

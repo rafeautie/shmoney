@@ -1,4 +1,4 @@
-import { asc, count, desc, eq, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, transactions } from '../db/schema'
 import type { Page, Transaction } from '@shared/ipc'
@@ -26,6 +26,9 @@ export function transactionsPage(
     sortDir: 'asc' | 'desc'
   }
 ): Page<Transaction> {
+  // soft-deleted rows are invisible everywhere; buildWhere() repeats this for
+  // the report aggregates, which don't go through this function
+  const visible = and(where, isNull(transactions.deletedAt))
   const rows = db
     .select({
       id: transactions.id,
@@ -42,7 +45,7 @@ export function transactionsPage(
     .from(transactions)
     .innerJoin(accounts, eq(transactions.accountId, accounts.id))
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
-    .where(where)
+    .where(visible)
     .orderBy(order(transactionSortColumns[q.sortBy], q.sortDir))
     .limit(q.pageSize)
     .offset(q.page * q.pageSize)
@@ -54,7 +57,7 @@ export function transactionsPage(
       .innerJoin(accounts, eq(transactions.accountId, accounts.id))
       // report filters can reference category columns, so keep joins in sync with the rows query
       .leftJoin(categories, eq(transactions.categoryId, categories.id))
-      .where(where)
+      .where(visible)
       .get()?.value ?? 0
   return { rows, total }
 }

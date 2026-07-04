@@ -6,7 +6,9 @@ import {
   type Column,
   type ColumnDef,
   type OnChangeFn,
+  type Row,
   type RowData,
+  type RowSelectionState,
   type SortingState
 } from '@tanstack/react-table'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -67,6 +69,11 @@ interface DataTableProps<TData> {
   isLoading?: boolean
   emptyMessage?: string
   onRowClick?: (row: TData) => void
+  /** Row selection is controlled: pass all three (plus getRowId for stable ids across refetches) */
+  enableRowSelection?: boolean | ((row: Row<TData>) => boolean)
+  rowSelection?: RowSelectionState
+  onRowSelectionChange?: OnChangeFn<RowSelectionState>
+  getRowId?: (row: TData) => string
   /** Aligns first/last cell content with p-6 page chrome when the table bleeds to the edges */
   bleed?: boolean
   /** e.g. "min-h-0 flex-1" to fill the parent's height; only the table body scrolls */
@@ -84,6 +91,10 @@ export function DataTable<TData>({
   isLoading,
   emptyMessage = 'No results.',
   onRowClick,
+  enableRowSelection = false,
+  rowSelection,
+  onRowSelectionChange,
+  getRowId,
   bleed,
   className
 }: DataTableProps<TData>) {
@@ -92,8 +103,11 @@ export function DataTable<TData>({
     columns,
     getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
-    state: { sorting },
-    onSortingChange
+    enableRowSelection,
+    getRowId,
+    state: { sorting, rowSelection: rowSelection ?? {} },
+    onSortingChange,
+    onRowSelectionChange
   })
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -144,6 +158,7 @@ export function DataTable<TData>({
             table.getRowModel().rows.map((row) => (
               <TableRow
                 key={row.id}
+                data-state={row.getIsSelected() ? 'selected' : undefined}
                 className={cn(onRowClick && 'cursor-pointer')}
                 onClick={onRowClick ? () => onRowClick(row.original) : undefined}
               >

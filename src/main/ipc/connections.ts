@@ -70,6 +70,9 @@ async function syncConnection(): Promise<Connection> {
         .run()
 
       for (const txn of account.transactions) {
+        // txnValues must never include categoryId or deletedAt: the upsert below
+        // reuses it as the conflict `set`, and user edits/deletes live in those
+        // columns — including them would wipe the edits on every sync
         const txnValues = {
           accountId: accountRow.id,
           simplefinId: txn.id,

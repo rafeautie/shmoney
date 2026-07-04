@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
-import type { ColumnDef, SortingState } from '@tanstack/react-table'
+import type { ColumnDef, RowSelectionState, SortingState } from '@tanstack/react-table'
 import type { Page, Transaction, TransactionSortBy } from '@shared/ipc'
-import { PAGE_SIZE, nextPageParam, sortQuery } from '@/lib/utils'
+import { PAGE_SIZE, cn, nextPageParam, sortQuery } from '@/lib/utils'
 import { Amount } from '@/components/amount'
 import { CategoryCell } from '@/components/category-cell'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
+import { TransactionsBulkActions } from '@/components/transactions-bulk-actions'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface TransactionsTableProps {
   /** Base query key; the current sort is appended to it */
@@ -31,6 +33,8 @@ export function TransactionsTable({
 }: TransactionsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }])
   const sort = sortQuery<TransactionSortBy>(sorting, { id: 'date', desc: true })
+  // keyed by transaction id, so selection survives refetches and filter changes
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
   const transactionsQuery = useInfiniteQuery({
     queryKey: [...queryKey, sort],
@@ -44,8 +48,39 @@ export function TransactionsTable({
     [transactionsQuery.data]
   )
 
+  // bulk actions apply to the selection ∩ the rows the current filters show,
+  // so selected rows that a filter hides are never acted on
+  const selectedTransactions = useMemo(
+    () => transactions.filter((transaction) => rowSelection[String(transaction.id)]),
+    [transactions, rowSelection]
+  )
+
   const columns = useMemo<ColumnDef<Transaction>[]>(
     () => [
+      {
+        id: 'select',
+        enableSorting: false,
+        // the base cell strips right padding next to checkboxes; restore breathing room
+        meta: { className: 'pr-4!' },
+        header: ({ table }) => (
+          <Checkbox
+            checked={
+              table.getIsAllRowsSelected() || (table.getIsSomeRowsSelected() && 'indeterminate')
+            }
+            onCheckedChange={(value) => table.toggleAllRowsSelected(!!value)}
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            disabled={!row.getCanSelect()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            onClick={(event) => event.stopPropagation()}
+            aria-label="Select row"
+          />
+        )
+      },
       {
         accessorKey: 'date',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
@@ -96,18 +131,29 @@ export function TransactionsTable({
   )
 
   return (
-    <DataTable
-      bleed
-      className={className}
-      columns={columns}
-      data={transactions}
-      sorting={sorting}
-      onSortingChange={setSorting}
-      onLoadMore={transactionsQuery.fetchNextPage}
-      hasMore={transactionsQuery.hasNextPage}
-      isFetchingMore={transactionsQuery.isFetchingNextPage}
-      isLoading={transactionsQuery.isLoading}
-      emptyMessage={emptyMessage}
-    />
+    <div className={cn('relative flex min-h-0 flex-col', className)}>
+      <DataTable
+        bleed
+        className="min-h-0 flex-1"
+        columns={columns}
+        data={transactions}
+        sorting={sorting}
+        onSortingChange={setSorting}
+        onLoadMore={transactionsQuery.fetchNextPage}
+        hasMore={transactionsQuery.hasNextPage}
+        isFetchingMore={transactionsQuery.isFetchingNextPage}
+        isLoading={transactionsQuery.isLoading}
+        emptyMessage={emptyMessage}
+        // pending rows can't be selected: sync drops and re-inserts them, so bulk edits would be lost
+        enableRowSelection={(row) => !row.original.pending}
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
+        getRowId={(transaction) => String(transaction.id)}
+      />
+      <TransactionsBulkActions
+        transactions={selectedTransactions}
+        onClearSelection={() => setRowSelection({})}
+      />
+    </div>
   )
 }

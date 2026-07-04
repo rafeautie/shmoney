@@ -14,7 +14,9 @@ import {
   type Connection,
   type Page,
   type Transaction,
-  type TransactionSetCategoryInput
+  type TransactionIdsInput,
+  type TransactionSetCategoryInput,
+  type TransactionsSetCategoriesInput
 } from '@shared/ipc'
 import {
   SAVED_FILTERS_IPC,
@@ -59,7 +61,15 @@ const api = {
     list: (query: FilteredTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(IPC.transactionsList, query),
     setCategory: (input: TransactionSetCategoryInput): Promise<boolean> =>
-      ipcRenderer.invoke(IPC.transactionsSetCategory, input)
+      ipcRenderer.invoke(IPC.transactionsSetCategory, input),
+    /** Per-row category values; skips pending rows, resolves to rows updated */
+    setCategories: (input: TransactionsSetCategoriesInput): Promise<number> =>
+      ipcRenderer.invoke(IPC.transactionsSetCategories, input),
+    /** Soft delete; skips pending rows, resolves to the ids actually deleted */
+    bulkDelete: (input: TransactionIdsInput): Promise<number[]> =>
+      ipcRenderer.invoke(IPC.transactionsBulkDelete, input),
+    restore: (input: TransactionIdsInput): Promise<number> =>
+      ipcRenderer.invoke(IPC.transactionsRestore, input)
   },
   categories: {
     list: (): Promise<CategoriesList> => ipcRenderer.invoke(IPC.categoriesList),

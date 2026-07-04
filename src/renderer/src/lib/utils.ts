@@ -42,6 +42,11 @@ export function startOfTodayEpoch(): number {
   return Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000)
 }
 
+/** "1 transaction" / "3 transactions" */
+export function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`
+}
+
 export function formatAmount(milliunits: number, currency: string): string {
   const value = milliunits / 1000
   try {
