@@ -6,6 +6,7 @@ import type { Layout } from 'react-grid-layout'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Add01Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons'
 import {
+  DEFAULT_REPORT_FILTERS,
   type ReportDetail,
   type ReportFilters,
   type ReportWidget,
@@ -21,7 +22,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { ReportGrid } from '@/components/reports/report-grid'
-import { ReportFilterBar } from '@/components/reports/report-filter-bar'
+import { FilterBar } from '@/components/filter-bar'
 import { WidgetEditor } from '@/components/reports/widget-editor'
 
 export const Route = createFileRoute('/reports/$reportId')({
@@ -202,7 +203,11 @@ function ReportPage() {
         </div>
       </div>
 
-      <ReportFilterBar filters={detail.report.filters} onChange={handleFiltersChange} />
+      <FilterBar
+        filters={detail.report.filters}
+        onChange={handleFiltersChange}
+        defaultFilters={DEFAULT_REPORT_FILTERS}
+      />
 
       {detail.widgets.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center">

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Amount } from '@/components/amount'
-import { TransactionsTable } from '@/components/transactions-table'
+import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
 
 export const Route = createFileRoute('/accounts/$accountId')({
   component: AccountDetailPage
@@ -31,9 +31,10 @@ function AccountDetailPage() {
         </p>
       </div>
 
-      <TransactionsTable
+      <FilteredTransactionsTable
         queryKey={['accounts', id, 'transactions']}
         fetchPage={(query) => window.api.accounts.transactions({ accountId: id, ...query })}
+        lockedAccount
         className="min-h-0 flex-1"
       />
     </div>

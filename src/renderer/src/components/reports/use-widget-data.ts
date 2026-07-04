@@ -7,13 +7,7 @@ import {
   type RunQueryResult,
   type WidgetConfig
 } from '@shared/reports'
-
-/** Stable within a calendar day, so resolved relative ranges (and the React
- * Query keys built from them) don't churn on every render. */
-export function startOfTodayEpoch(): number {
-  const now = new Date()
-  return Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000)
-}
+import { startOfTodayEpoch } from '@/lib/utils'
 
 export function useResolvedQuery(
   config: WidgetConfig,

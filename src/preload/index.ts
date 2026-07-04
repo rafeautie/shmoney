@@ -3,7 +3,6 @@ import { electronAPI } from '@electron-toolkit/preload'
 import {
   IPC,
   type Account,
-  type AccountTransactionsQuery,
   type CategoriesList,
   type Category,
   type CategoryCreateInput,
@@ -15,9 +14,16 @@ import {
   type Connection,
   type Page,
   type Transaction,
-  type TransactionSetCategoryInput,
-  type TransactionsQuery
+  type TransactionSetCategoryInput
 } from '@shared/ipc'
+import {
+  SAVED_FILTERS_IPC,
+  type FilteredAccountTransactionsQuery,
+  type FilteredTransactionsQuery,
+  type SavedFilter,
+  type SavedFilterCreateInput,
+  type SavedFilterUpdateInput
+} from '@shared/transaction-filters'
 import {
   REPORTS_IPC,
   type Report,
@@ -45,11 +51,11 @@ const api = {
   accounts: {
     list: (): Promise<Account[]> => ipcRenderer.invoke(IPC.accountsList),
     get: (id: number): Promise<Account | null> => ipcRenderer.invoke(IPC.accountsGet, id),
-    transactions: (query: AccountTransactionsQuery): Promise<Page<Transaction>> =>
+    transactions: (query: FilteredAccountTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(IPC.accountTransactions, query)
   },
   transactions: {
-    list: (query: TransactionsQuery): Promise<Page<Transaction>> =>
+    list: (query: FilteredTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(IPC.transactionsList, query),
     setCategory: (input: TransactionSetCategoryInput): Promise<boolean> =>
       ipcRenderer.invoke(IPC.transactionsSetCategory, input)
@@ -89,6 +95,14 @@ const api = {
       ipcRenderer.invoke(REPORTS_IPC.runQuery, query),
     transactions: (query: ReportTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(REPORTS_IPC.transactions, query)
+  },
+  savedFilters: {
+    list: (): Promise<SavedFilter[]> => ipcRenderer.invoke(SAVED_FILTERS_IPC.list),
+    create: (input: SavedFilterCreateInput): Promise<SavedFilter> =>
+      ipcRenderer.invoke(SAVED_FILTERS_IPC.create, input),
+    update: (input: SavedFilterUpdateInput): Promise<SavedFilter> =>
+      ipcRenderer.invoke(SAVED_FILTERS_IPC.update, input),
+    delete: (id: number): Promise<boolean> => ipcRenderer.invoke(SAVED_FILTERS_IPC.delete, id)
   },
   window: {
     minimize: (): void => ipcRenderer.send(IPC.windowMinimize),

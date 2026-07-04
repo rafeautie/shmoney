@@ -1,7 +1,8 @@
 import { sql } from 'drizzle-orm'
 import { sqliteTable, integer, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
-// type-only import: erased at compile time, so drizzle-kit never resolves it at runtime
+// type-only imports: erased at compile time, so drizzle-kit never resolves them at runtime
 import type { ReportFilters, WidgetConfig, WidgetType } from '../../shared/reports'
+import type { TransactionFilters } from '../../shared/transaction-filters'
 
 // holds at most one row: the app supports a single SimpleFIN connection
 export const connections = sqliteTable('connections', {
@@ -104,6 +105,19 @@ export const reportWidgets = sqliteTable('report_widgets', {
   h: integer('h').notNull()
 })
 
+// user-named filter presets, loadable from any transactions view or report
+export const savedFilters = sqliteTable(
+  'saved_filters',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    name: text('name').notNull(),
+    filters: text('filters', { mode: 'json' }).$type<TransactionFilters>().notNull(),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull()
+  },
+  (t) => [uniqueIndex('saved_filters_name_ux').on(t.name)]
+)
+
 export type ConnectionRow = typeof connections.$inferSelect
 export type AccountRow = typeof accounts.$inferSelect
 export type TransactionRow = typeof transactions.$inferSelect
@@ -111,3 +125,4 @@ export type CategoryGroupRow = typeof categoryGroups.$inferSelect
 export type CategoryRow = typeof categories.$inferSelect
 export type ReportRow = typeof reports.$inferSelect
 export type ReportWidgetRow = typeof reportWidgets.$inferSelect
+export type SavedFilterRow = typeof savedFilters.$inferSelect

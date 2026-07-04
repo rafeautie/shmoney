@@ -58,6 +58,12 @@ const filterFieldsSchema = z.object({
   amountMin: z.number().int().optional(),
   amountMax: z.number().int().optional(),
   descriptionSearch: z.string().trim().optional(),
+  /**
+   * Broad free-text matched against description, account name, and category
+   * name. Amounts are deliberately excluded: substring-matching milliunits is
+   * noise; the amount range filter covers amounts precisely.
+   */
+  search: z.string().trim().optional(),
   includePending: z.boolean()
 })
 

@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import type { Account } from '@shared/ipc'
 import { Amount } from '@/components/amount'
-import { TransactionsTable } from '@/components/transactions-table'
+import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
 import { TABLE_BLEED, cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -49,7 +49,7 @@ function AccountsPage() {
       </TabsContent>
 
       <TabsContent value="transactions" className="flex min-h-0 flex-1 flex-col">
-        <TransactionsTable
+        <FilteredTransactionsTable
           queryKey={['transactions']}
           fetchPage={(query) => window.api.transactions.list(query)}
           showAccount

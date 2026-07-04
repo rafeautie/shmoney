@@ -8,7 +8,12 @@ import type { DateRange } from '@shared/reports'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
-import { Input } from '@/components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText
+} from '@/components/ui/input-group'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Command,
@@ -96,7 +101,7 @@ export function DateRangeControl({
           }
         }}
       >
-        <SelectTrigger size="sm" className="w-40">
+        <SelectTrigger size="lg" className="w-40">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -118,7 +123,7 @@ export function DateRangeControl({
           <PopoverTrigger asChild>
             <Button
               variant="outline"
-              size="sm"
+              size="lg"
               disabled={disabled}
               className="border-input bg-input/20 font-normal"
             >
@@ -193,7 +198,7 @@ export function AccountsControl({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          size="sm"
+          size="lg"
           disabled={disabled}
           className="border-input bg-input/20 font-normal"
         >
@@ -294,7 +299,7 @@ export function CategoriesControl({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
-          size="sm"
+          size="lg"
           disabled={disabled}
           className="border-input bg-input/20 font-normal"
         >
@@ -390,7 +395,7 @@ export function DirectionControl({
 }) {
   return (
     <Select value={value} onValueChange={onChange} disabled={disabled}>
-      <SelectTrigger size="sm" className="w-36">
+      <SelectTrigger size="lg" className="w-36">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -423,29 +428,43 @@ export function AmountRangeControl({
   }
   return (
     <div className="flex items-center gap-1">
-      <Input
-        type="number"
-        min={0}
-        step="0.01"
-        placeholder="Min"
-        disabled={disabled}
-        className="h-8 w-24"
-        defaultValue={toDisplay(min)}
-        key={`min-${min ?? 'none'}`}
-        onBlur={(e) => onChange(fromDisplay(e.target.value), max)}
-      />
+      <InputGroup className="h-8 w-24" data-disabled={disabled || undefined}>
+        <InputGroupAddon>
+          <InputGroupText>$</InputGroupText>
+        </InputGroupAddon>
+        <InputGroupInput
+          type="number"
+          min={0}
+          step="0.01"
+          placeholder="Min"
+          disabled={disabled}
+          defaultValue={toDisplay(min)}
+          key={`min-${min ?? 'none'}`}
+          onBlur={(e) => onChange(fromDisplay(e.target.value), max)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+          }}
+        />
+      </InputGroup>
       <span className="text-muted-foreground">–</span>
-      <Input
-        type="number"
-        min={0}
-        step="0.01"
-        placeholder="Max"
-        disabled={disabled}
-        className="h-8 w-24"
-        defaultValue={toDisplay(max)}
-        key={`max-${max ?? 'none'}`}
-        onBlur={(e) => onChange(min, fromDisplay(e.target.value))}
-      />
+      <InputGroup className="h-8 w-24" data-disabled={disabled || undefined}>
+        <InputGroupAddon>
+          <InputGroupText>$</InputGroupText>
+        </InputGroupAddon>
+        <InputGroupInput
+          type="number"
+          min={0}
+          step="0.01"
+          placeholder="Max"
+          disabled={disabled}
+          defaultValue={toDisplay(max)}
+          key={`max-${max ?? 'none'}`}
+          onBlur={(e) => onChange(min, fromDisplay(e.target.value))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+          }}
+        />
+      </InputGroup>
     </div>
   )
 }

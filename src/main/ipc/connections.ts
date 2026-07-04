@@ -5,14 +5,12 @@ import { connections, accounts, transactions } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
 import { claimAccessUrl, fetchAccounts, parseAmount } from '../simplefin'
 import { transactionsPage } from './transactions-page'
+import { IPC, connectInputSchema, accountIdSchema, type Connection } from '@shared/ipc'
 import {
-  IPC,
-  connectInputSchema,
-  accountIdSchema,
-  accountTransactionsQuerySchema,
-  transactionsQuerySchema,
-  type Connection
-} from '@shared/ipc'
+  filteredAccountTransactionsQuerySchema,
+  filteredTransactionsQuerySchema
+} from '@shared/transaction-filters'
+import { buildWhere } from '../reports/query'
 
 const FIRST_SYNC_WINDOW_SECONDS = 90 * 24 * 60 * 60
 const RESYNC_OVERLAP_SECONDS = 7 * 24 * 60 * 60
@@ -151,12 +149,20 @@ export function registerConnectionsIpc(): void {
   })
 
   ipcMain.handle(IPC.accountTransactions, (_event, input: unknown) => {
-    const q = accountTransactionsQuerySchema.parse(input)
-    return transactionsPage(eq(transactions.accountId, q.accountId), q)
+    const q = filteredAccountTransactionsQuerySchema.parse(input)
+    // the page's account scope is authoritative: accountIds from a loaded
+    // saved filter are ignored (the renderer strips them too)
+    const filterWhere = q.filters
+      ? buildWhere({ ...q.filters, accountIds: undefined }, { keepUnknownDates: true })
+      : undefined
+    return transactionsPage(and(eq(transactions.accountId, q.accountId), filterWhere), q)
   })
 
   ipcMain.handle(IPC.transactionsList, (_event, input: unknown) => {
-    const q = transactionsQuerySchema.parse(input)
-    return transactionsPage(undefined, q)
+    const q = filteredTransactionsQuerySchema.parse(input)
+    return transactionsPage(
+      q.filters ? buildWhere(q.filters, { keepUnknownDates: true }) : undefined,
+      q
+    )
   })
 }

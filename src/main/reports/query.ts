@@ -49,11 +49,18 @@ function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (c) => `\\${c}`)
 }
 
-export function buildWhere(f: ResolvedFilters): SQL | undefined {
+export function buildWhere(
+  f: ResolvedFilters,
+  opts: { keepUnknownDates?: boolean } = {}
+): SQL | undefined {
   const preds: SQL[] = []
   // rows whose date resolves to 0 have an unknown date; keep them out of every
-  // report query so they can't form a phantom 1970 bucket
-  preds.push(sql`${transactionDate} > 0`)
+  // report query so they can't form a phantom 1970 bucket. The transactions
+  // table shows those rows (as "—"), so it opts out unless a date bound is set
+  // (an unknown date can't satisfy a range)
+  if (!opts.keepUnknownDates || f.dateStart !== null || f.dateEnd !== null) {
+    preds.push(sql`${transactionDate} > 0`)
+  }
   if (f.dateStart !== null) preds.push(sql`${transactionDate} >= ${f.dateStart}`)
   if (f.dateEnd !== null) preds.push(sql`${transactionDate} <= ${f.dateEnd}`)
   if (f.accountIds?.length) preds.push(inArray(transactions.accountId, f.accountIds))
@@ -71,6 +78,17 @@ export function buildWhere(f: ResolvedFilters): SQL | undefined {
   if (f.descriptionSearch) {
     preds.push(
       sql`${transactions.description} like ${'%' + escapeLike(f.descriptionSearch) + '%'} escape '\\'`
+    )
+  }
+  if (f.search) {
+    const term = '%' + escapeLike(f.search) + '%'
+    preds.push(
+      or(
+        sql`${transactions.description} like ${term} escape '\\'`,
+        sql`${accounts.name} like ${term} escape '\\'`,
+        // NULL LIKE ... is NULL, which is falsy in OR — uncategorized rows just don't match here
+        sql`${categories.name} like ${term} escape '\\'`
+      )!
     )
   }
   if (!f.includePending) preds.push(eq(transactions.pending, false))

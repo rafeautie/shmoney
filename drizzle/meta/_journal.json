@@ -50,6 +50,13 @@
       "when": 1783072721990,
       "tag": "0006_aromatic_violations",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1783135719220,
+      "tag": "0007_medical_boomer",
+      "breakpoints": true
     }
   ]
 }

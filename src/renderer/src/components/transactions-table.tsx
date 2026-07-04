@@ -18,6 +18,7 @@ interface TransactionsTableProps {
   }) => Promise<Page<Transaction>>
   /** Show the account column (for views spanning multiple accounts) */
   showAccount?: boolean
+  emptyMessage?: string
   className?: string
 }
 
@@ -25,6 +26,7 @@ export function TransactionsTable({
   queryKey,
   fetchPage,
   showAccount,
+  emptyMessage = 'No transactions yet. Try syncing.',
   className
 }: TransactionsTableProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }])
@@ -105,7 +107,7 @@ export function TransactionsTable({
       hasMore={transactionsQuery.hasNextPage}
       isFetchingMore={transactionsQuery.isFetchingNextPage}
       isLoading={transactionsQuery.isLoading}
-      emptyMessage="No transactions yet. Try syncing."
+      emptyMessage={emptyMessage}
     />
   )
 }

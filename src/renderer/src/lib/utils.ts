@@ -35,6 +35,13 @@ export function nextPageParam<T>(lastPage: Page<T>, pages: Page<T>[]): number | 
   return loaded < lastPage.total ? pages.length : undefined
 }
 
+/** Stable within a calendar day, so resolved relative ranges (and the React
+ * Query keys built from them) don't churn on every render. */
+export function startOfTodayEpoch(): number {
+  const now = new Date()
+  return Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000)
+}
+
 export function formatAmount(milliunits: number, currency: string): string {
   const value = milliunits / 1000
   try {
