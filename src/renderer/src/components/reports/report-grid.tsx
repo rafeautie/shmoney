@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { GridLayout, noCompactor, type Layout } from 'react-grid-layout'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { GridLayout, type Layout, type LayoutItem } from 'react-grid-layout'
 import type { ReportFilters, ReportWidget, WidgetType } from '@shared/reports'
+import { createReportCompactor, type ActiveGridOperation } from './grid-compactor'
 import { WidgetCard } from './widget-card'
 
 /** Container width that only updates once resizing settles. Unlike react-grid-layout's
@@ -34,13 +35,13 @@ const GRID_COLS = 12
 const GRID_ROW_HEIGHT = 56
 
 const MIN_SIZES: Record<WidgetType, { minW: number; minH: number }> = {
-  stat: { minW: 2, minH: 2 },
-  line: { minW: 3, minH: 3 },
-  bar: { minW: 3, minH: 3 },
-  area: { minW: 3, minH: 3 },
-  pie: { minW: 3, minH: 3 },
-  summaryTable: { minW: 3, minH: 3 },
-  transactions: { minW: 4, minH: 4 }
+  stat: { minW: 3, minH: 2 },
+  line: { minW: 4, minH: 3 },
+  bar: { minW: 4, minH: 3 },
+  area: { minW: 4, minH: 3 },
+  pie: { minW: 4, minH: 3 },
+  summaryTable: { minW: 4, minH: 3 },
+  transactions: { minW: 5, minH: 4 }
 }
 
 interface ReportGridProps {
@@ -62,6 +63,29 @@ export function ReportGrid({
 }: ReportGridProps) {
   const { width, containerRef, mounted } = useSettledContainerWidth(150)
 
+  const activeOpRef = useRef<ActiveGridOperation | null>(null)
+  const compactor = useMemo(() => createReportCompactor(activeOpRef), [])
+  const beginOperation = useCallback(
+    (kind: ActiveGridOperation['kind']) => (opLayout: Layout, oldItem: LayoutItem | null) => {
+      if (!oldItem) return
+      activeOpRef.current = {
+        id: oldItem.i,
+        kind,
+        snapshot: new Map(
+          opLayout.filter((l): l is LayoutItem => l !== undefined).map((l) => [l.i, { ...l }])
+        ),
+        swapWith: [],
+        accepted: { x: oldItem.x, y: oldItem.y, w: oldItem.w, h: oldItem.h }
+      }
+    },
+    []
+  )
+  const onDragStart = useMemo(() => beginOperation('drag'), [beginOperation])
+  const onResizeStart = useMemo(() => beginOperation('resize'), [beginOperation])
+  const endOperation = useCallback(() => {
+    activeOpRef.current = null
+  }, [])
+
   const layout = useMemo<Layout>(
     () =>
       widgets.map((w) => ({
@@ -81,9 +105,14 @@ export function ReportGrid({
         <GridLayout
           width={width}
           layout={layout}
-          /* the default vertical compactor re-packs items upward on every resize
-           * event, which snaps items back up when shrinking from a top handle */
-          compactor={noCompactor}
+          /* push-down/swap collision behavior; also avoids the default vertical
+           * compactor's upward re-pack, which snapped items back up when
+           * shrinking from a top handle */
+          compactor={compactor}
+          onDragStart={onDragStart}
+          onDragStop={endOperation}
+          onResizeStart={onResizeStart}
+          onResizeStop={endOperation}
           gridConfig={{
             cols: GRID_COLS,
             rowHeight: GRID_ROW_HEIGHT,

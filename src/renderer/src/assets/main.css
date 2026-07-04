@@ -145,6 +145,12 @@
   }
 }
 
+/* Report-grid drag/resize placeholder: the library draws it with square
+ * corners; round it to match the widget cards. */
+.react-grid-item.react-grid-placeholder {
+  border-radius: var(--radius-lg);
+}
+
 /* Report-grid resize handles: replace react-grid-layout's default corner arrows
  * with edge pills and corner dots that fade in while hovering a widget in edit
  * mode. The library positions and rotates each handle for its arrow glyph, so
@@ -152,6 +158,11 @@
  * repeat .react-resizable-handle to match the specificity of the library CSS. */
 .react-grid-item > .react-resizable-handle {
   transition: opacity 150ms ease;
+}
+/* Hide the handles while a widget's delete confirmation overlay is showing. */
+.react-grid-item:has([data-delete-confirm]) > .react-resizable-handle {
+  opacity: 0;
+  pointer-events: none;
 }
 .react-grid-item > .react-resizable-handle::after {
   content: '';
@@ -179,14 +190,14 @@
 .react-grid-item > .react-resizable-handle.react-resizable-handle-n::after,
 .react-grid-item > .react-resizable-handle.react-resizable-handle-s::after {
   width: 24px;
-  height: 5px;
+  height: 3px;
   translate: -50% 0;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-n::after {
-  inset: -2px auto auto 50%;
+  inset: -1px auto auto 50%;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-s::after {
-  inset: auto auto -2px 50%;
+  inset: auto auto -1px 50%;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-e,
 .react-grid-item > .react-resizable-handle.react-resizable-handle-w {
@@ -204,21 +215,21 @@
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-e::after,
 .react-grid-item > .react-resizable-handle.react-resizable-handle-w::after {
-  width: 5px;
+  width: 3px;
   height: 24px;
   translate: 0 -50%;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-e::after {
-  inset: 50% -2px auto auto;
+  inset: 50% -1px auto auto;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-w::after {
-  inset: 50% auto auto -2px;
+  inset: 50% auto auto -1px;
 }
 /* corner handles: quarter-arc brackets with rounded ends (SVG mask, since CSS
  * borders cannot round the arc's end caps), one nw-oriented arc rotated per
- * corner. The arc's 5px stroke is centered on the card's rounded-xl border
- * corner (0.45rem + 4px = 11.2px outer radius, so 10.7px at the 1px border's
- * center line); the 20px mask box hangs 2px outside the corner to fit it. */
+ * corner. The arc's 3px stroke is centered on the card's rounded-lg corner
+ * (--radius = 0.45rem = 7.2px); the 20px mask box hangs 2px outside the
+ * corner, putting the arc's circle center at 9.2px in mask coordinates. */
 .react-grid-item > .react-resizable-handle.react-resizable-handle-nw,
 .react-grid-item > .react-resizable-handle.react-resizable-handle-ne,
 .react-grid-item > .react-resizable-handle.react-resizable-handle-sw,
@@ -234,7 +245,7 @@
   width: 20px;
   height: 20px;
   border-radius: 0;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M2.5 13.2A10.7 10.7 0 0 1 13.2 2.5' fill='none' stroke='%23000' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E")
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M2 9.2A7.2 7.2 0 0 1 9.2 2' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E")
     center / contain no-repeat;
 }
 .react-grid-item > .react-resizable-handle.react-resizable-handle-nw {

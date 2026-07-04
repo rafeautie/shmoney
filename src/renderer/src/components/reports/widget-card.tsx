@@ -1,17 +1,12 @@
+import { useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { MoreVerticalIcon } from '@hugeicons/core-free-icons'
+import { Delete02Icon } from '@hugeicons/core-free-icons'
 import type { ReportFilters, ReportWidget } from '@shared/reports'
 import { overriddenFilterKeys } from '@shared/reports'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { WidgetRenderer } from './widget-renderer'
 
@@ -60,36 +55,48 @@ interface WidgetCardProps {
 }
 
 export function WidgetCard({ widget, reportFilters, editing, onEdit, onDelete }: WidgetCardProps) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   // transactions tables bleed to the card's edges (except the top)
   const flush = widget.type === 'transactions'
   return (
     <Card
       className={cn(
-        'flex h-full flex-col gap-2 overflow-hidden py-3',
+        'relative flex h-full flex-col gap-2 overflow-hidden py-3',
         flush && 'pb-0',
         editing && 'border-dashed cursor-grab active:cursor-grabbing'
       )}
     >
-      <div className="flex items-center gap-2 px-4">
-        <h3 className="min-w-0 flex-1 truncate text-sm font-medium">{widget.title}</h3>
+      <div className="flex h-6 shrink-0 items-center gap-2 px-4">
+        <h3 className="min-w-0 truncate text-sm font-medium">{widget.title}</h3>
         <OverrideBadge widget={widget} />
         {editing && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-6 shrink-0">
-                <HugeiconsIcon icon={MoreVerticalIcon} size={14} />
-                <span className="sr-only">Widget menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={onEdit}>Edit widget</DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onSelect={onDelete}>
-                Delete widget
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={onEdit}>
+              Edit
+            </Button>
+            <Button variant="ghost" size="icon-sm" onClick={() => setConfirmingDelete(true)}>
+              <HugeiconsIcon icon={Delete02Icon} size={14} />
+              <span className="sr-only">Delete widget</span>
+            </Button>
+          </div>
         )}
       </div>
+      {confirmingDelete && (
+        <div
+          data-delete-confirm
+          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card/90 backdrop-blur-sm"
+        >
+          <p className="text-sm font-medium">Delete this widget?</p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" size="sm" onClick={onDelete}>
+              Delete
+            </Button>
+          </div>
+        </div>
+      )}
       <div className={cn('min-h-0 flex-1', flush ? '[--table-edge:--spacing(4)]' : 'px-4 pb-1')}>
         <WidgetRenderer widget={widget} reportFilters={reportFilters} />
       </div>

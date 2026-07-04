@@ -165,7 +165,7 @@ function ReportPage() {
           <Input
             key={detail.report.name}
             defaultValue={detail.report.name}
-            className="h-9 max-w-sm text-lg font-semibold"
+            className="h-8 max-w-sm text-lg font-semibold"
             onBlur={(e) => {
               const name = e.target.value.trim()
               if (name && name !== detail.report.name) renameMutation.mutate(name)
