@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { MoneyBag02Icon, Moon02Icon, Sun02Icon } from '@hugeicons/core-free-icons'
-import { useTheme } from '@/lib/theme'
+import { useTheme } from '@/lib/settings'
 import { NavMain } from '@/components/nav-main'
 import {
   Sidebar,

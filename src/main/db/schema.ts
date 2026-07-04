@@ -118,6 +118,13 @@ export const savedFilters = sqliteTable(
   (t) => [uniqueIndex('saved_filters_name_ux').on(t.name)]
 )
 
+// generic key/value store for small user preferences (theme, privacy blur, sidebar state);
+// values are validated per-key with zod in the settings IPC handler
+export const settings = sqliteTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value', { mode: 'json' }).notNull()
+})
+
 export type ConnectionRow = typeof connections.$inferSelect
 export type AccountRow = typeof accounts.$inferSelect
 export type TransactionRow = typeof transactions.$inferSelect
@@ -126,3 +133,4 @@ export type CategoryRow = typeof categories.$inferSelect
 export type ReportRow = typeof reports.$inferSelect
 export type ReportWidgetRow = typeof reportWidgets.$inferSelect
 export type SavedFilterRow = typeof savedFilters.$inferSelect
+export type SettingRow = typeof settings.$inferSelect

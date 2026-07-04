@@ -1,5 +1,5 @@
 import { cn, formatAmount } from '@/lib/utils'
-import { usePrivacy } from '@/lib/privacy'
+import { usePrivacy } from '@/lib/settings'
 
 interface AmountProps {
   /** Integer milliunits (value * 1000) */

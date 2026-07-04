@@ -1,4 +1,4 @@
-import { usePrivacy } from '@/lib/privacy'
+import { usePrivacy } from '@/lib/settings'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'

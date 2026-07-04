@@ -3,14 +3,20 @@ import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
 import { AppSidebar } from '@/components/app-sidebar'
 import { WindowControls } from '@/components/window-controls'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { useSettings } from '@/lib/settings'
 
 export const Route = createRootRoute({
   component: RootComponent
 })
 
 function RootComponent() {
+  const { settings, setSetting } = useSettings()
+
   return (
-    <SidebarProvider>
+    <SidebarProvider
+      open={settings.sidebarOpen}
+      onOpenChange={(open) => setSetting('sidebarOpen', open)}
+    >
       <AppSidebar />
       <SidebarInset className="h-svh overflow-hidden">
         <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4 [-webkit-app-region:drag]">

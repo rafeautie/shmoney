@@ -7,8 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { RouterProvider, createHashHistory, createRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
-import { ThemeProvider } from './lib/theme'
-import { PrivacyProvider } from './lib/privacy'
+import { SETTINGS_QUERY_KEY, ThemeSync } from './lib/settings'
 import { TooltipProvider } from './components/ui/tooltip'
 
 // Electron loads the production build from a file:// URL, where
@@ -25,16 +24,17 @@ declare module '@tanstack/react-router' {
 
 const queryClient = new QueryClient()
 
+// settings come from SQLite via IPC; seed the query cache before the first
+// render so the initial paint already has the right theme/blur/sidebar state
+queryClient.setQueryData(SETTINGS_QUERY_KEY, await window.api.settings.getAll())
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <PrivacyProvider>
-          <TooltipProvider>
-            <RouterProvider router={router} />
-          </TooltipProvider>
-        </PrivacyProvider>
-      </ThemeProvider>
+      <ThemeSync />
+      <TooltipProvider>
+        <RouterProvider router={router} />
+      </TooltipProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   </React.StrictMode>

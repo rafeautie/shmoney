@@ -6,6 +6,7 @@ import { registerConnectionsIpc } from './ipc/connections'
 import { registerCategoriesIpc } from './ipc/categories'
 import { registerReportsIpc } from './ipc/reports'
 import { registerSavedFiltersIpc } from './ipc/saved-filters'
+import { registerSettingsIpc } from './ipc/settings'
 import { registerWindowIpc } from './ipc/window'
 import { IPC } from '@shared/ipc'
 
@@ -59,6 +60,7 @@ app.whenReady().then(() => {
   registerCategoriesIpc()
   registerReportsIpc()
   registerSavedFiltersIpc()
+  registerSettingsIpc()
   registerWindowIpc()
 
   createWindow()

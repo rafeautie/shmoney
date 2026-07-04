@@ -24,6 +24,7 @@ import {
   type SavedFilterCreateInput,
   type SavedFilterUpdateInput
 } from '@shared/transaction-filters'
+import { SETTINGS_IPC, type SettingKey, type Settings } from '@shared/settings'
 import {
   REPORTS_IPC,
   type Report,
@@ -103,6 +104,11 @@ const api = {
     update: (input: SavedFilterUpdateInput): Promise<SavedFilter> =>
       ipcRenderer.invoke(SAVED_FILTERS_IPC.update, input),
     delete: (id: number): Promise<boolean> => ipcRenderer.invoke(SAVED_FILTERS_IPC.delete, id)
+  },
+  settings: {
+    getAll: (): Promise<Settings> => ipcRenderer.invoke(SETTINGS_IPC.getAll),
+    set: <K extends SettingKey>(key: K, value: Settings[K]): Promise<boolean> =>
+      ipcRenderer.invoke(SETTINGS_IPC.set, { key, value })
   },
   window: {
     minimize: (): void => ipcRenderer.send(IPC.windowMinimize),

@@ -23,7 +23,7 @@ import type {
   WidgetConfig
 } from '@shared/reports'
 import { cn, formatAmount } from '@/lib/utils'
-import { usePrivacy } from '@/lib/privacy'
+import { usePrivacy } from '@/lib/settings'
 import { Amount } from '@/components/amount'
 import { TransactionsTable } from '@/components/transactions-table'
 import { Badge } from '@/components/ui/badge'
