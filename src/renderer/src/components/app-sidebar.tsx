@@ -1,7 +1,8 @@
 import type { ComponentProps } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { MoneyBag02Icon, Moon02Icon, Sun02Icon } from '@hugeicons/core-free-icons'
+import { Moon02Icon, Sun02Icon } from '@hugeicons/core-free-icons'
 import { useTheme } from '@/lib/settings'
+import { Logo } from '@/components/logo'
 import { NavMain } from '@/components/nav-main'
 import {
   Sidebar,
@@ -22,9 +23,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <div>
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <HugeiconsIcon icon={MoneyBag02Icon} size={16} />
-                </div>
+                <Logo />
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-medium">shmoney</span>
                   <span className="truncate text-xs">A personal shmoney app</span>
