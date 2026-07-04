@@ -135,6 +135,7 @@ export function DateRangeControl({
             <Calendar
               mode="range"
               numberOfMonths={2}
+              showOutsideDays={false}
               defaultMonth={new Date(value.start * 1000)}
               selected={draft}
               onSelect={(range) => {
@@ -148,7 +149,7 @@ export function DateRangeControl({
                   ),
                   end: Math.floor(
                     new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59).getTime() /
-                      1000
+                    1000
                   )
                 })
               }}
