@@ -8,6 +8,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { RouterProvider, createHashHistory, createRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
 import { ThemeProvider } from './lib/theme'
+import { PrivacyProvider } from './lib/privacy'
 import { TooltipProvider } from './components/ui/tooltip'
 
 // Electron loads the production build from a file:// URL, where
@@ -28,9 +29,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <TooltipProvider>
-          <RouterProvider router={router} />
-        </TooltipProvider>
+        <PrivacyProvider>
+          <TooltipProvider>
+            <RouterProvider router={router} />
+          </TooltipProvider>
+        </PrivacyProvider>
       </ThemeProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

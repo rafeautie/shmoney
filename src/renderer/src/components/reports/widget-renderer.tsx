@@ -22,7 +22,8 @@ import type {
   TimeGrain,
   WidgetConfig
 } from '@shared/reports'
-import { formatAmount } from '@/lib/utils'
+import { cn, formatAmount } from '@/lib/utils'
+import { usePrivacy } from '@/lib/privacy'
 import { Amount } from '@/components/amount'
 import { TransactionsTable } from '@/components/transactions-table'
 import { Badge } from '@/components/ui/badge'
@@ -47,6 +48,11 @@ import { groupTotals, pivotTimeSeries, type SeriesInfo } from './data'
 import { useResolvedQuery, useWidgetData } from './use-widget-data'
 
 const PALETTE_SIZE = 10
+
+// Recharts renders y-axis tick text outside the g that YAxis's className lands
+// on, so the privacy blur has to target the labels from the chart container.
+const BLUR_Y_TICK_LABELS =
+  '[&_.recharts-yAxis-tick-labels]:blur-sm [&_.recharts-yAxis-tick-labels]:select-none'
 
 /** Cycles through --chart-1..10; series beyond the palette get the same hues
  * tinted lighter, then darker, so up to 30 series never share a color. */
@@ -102,14 +108,18 @@ function TooltipRow({
       <div className="flex flex-1 items-center justify-between gap-4 leading-none">
         <span className="text-muted-foreground">{label}</span>
         <span className="font-mono font-medium tabular-nums">
-          {formatMeasureValue(measure, value, currency)}
+          {measure === 'count' ? (
+            formatMeasureValue(measure, value, currency)
+          ) : (
+            <Amount value={value} currency={currency} colored={false} />
+          )}
         </span>
       </div>
     </>
   )
 }
 
-/** Sums render via <Amount> (signed coloring); other measures as plain text. */
+/** Money renders via <Amount> (signed coloring for sums only); counts as plain text. */
 function MeasureValue({
   measure,
   value,
@@ -119,8 +129,8 @@ function MeasureValue({
   value: number
   currency: string
 }) {
-  if (measure === 'sum') return <Amount value={value} currency={currency} />
-  return <>{formatMeasureValue(measure, value, currency)}</>
+  if (measure === 'count') return <>{formatMeasureValue(measure, value, currency)}</>
+  return <Amount value={value} currency={currency} colored={measure === 'sum'} />
 }
 
 function CenteredNote({ children }: { children: React.ReactNode }) {
@@ -142,7 +152,7 @@ function MixedCurrencyBadge({ currencies }: { currencies: string[] }) {
 
 function WidgetSkeleton() {
   return (
-    <div className="flex h-full flex-col justify-end gap-2 p-2">
+    <div className="flex h-full flex-col justify-end gap-2 px-6 pt-2 pb-6">
       <div className="flex flex-1 items-end gap-2">
         {[40, 70, 55, 85, 60, 75].map((h, i) => (
           <Skeleton key={i} className="w-full" style={{ height: `${h}%` }} />
@@ -173,6 +183,7 @@ function TimeSeriesChart({
   currencies: string[]
   resolved: ResolvedQuery
 }) {
+  const { blurAmounts } = usePrivacy()
   const grain = config.query.timeGrain as Exclude<TimeGrain, 'none'>
   const { data, series, tooManyBuckets } = useMemo(
     () =>
@@ -227,11 +238,17 @@ function TimeSeriesChart({
   )
 
   return (
-    <div className="relative h-full">
+    <div className="relative h-full px-4 pb-4">
       <MixedCurrencyBadge currencies={currencies} />
-      <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+      <ChartContainer
+        config={chartConfig}
+        className={cn(
+          'aspect-auto h-full w-full',
+          blurAmounts && measure !== 'count' && BLUR_Y_TICK_LABELS
+        )}
+      >
         {widget.type === 'line' ? (
-          <LineChart data={data} margin={{ top: 8, right: 8 }}>
+          <LineChart data={data} margin={{ top: 16, right: 8 }}>
             {axes}
             {tooltip}
             {legend}
@@ -247,7 +264,7 @@ function TimeSeriesChart({
             ))}
           </LineChart>
         ) : widget.type === 'area' ? (
-          <AreaChart data={data} margin={{ top: 8, right: 8 }}>
+          <AreaChart data={data} margin={{ top: 16, right: 8 }}>
             {axes}
             {tooltip}
             {legend}
@@ -264,7 +281,7 @@ function TimeSeriesChart({
             ))}
           </AreaChart>
         ) : (
-          <BarChart data={data} margin={{ top: 8, right: 8 }}>
+          <BarChart data={data} margin={{ top: 16, right: 8 }}>
             {axes}
             {tooltip}
             {legend}
@@ -295,6 +312,7 @@ function CategoricalBarChart({
   rows: QueryRow[]
   currencies: string[]
 }) {
+  const { blurAmounts } = usePrivacy()
   const totals = useMemo(
     () => groupTotals(rows, config.query.sort ?? { by: 'value', dir: 'desc' }, config.query.limit),
     [rows, config.query.sort, config.query.limit]
@@ -306,10 +324,16 @@ function CategoricalBarChart({
   const currency = currencies[0] ?? 'USD'
   const chartConfig: ChartConfig = { value: { label: 'Value' } }
   return (
-    <div className="relative h-full">
+    <div className="relative h-full px-4 pb-4">
       <MixedCurrencyBadge currencies={currencies} />
-      <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
-        <BarChart data={totals} margin={{ top: 8, right: 8 }}>
+      <ChartContainer
+        config={chartConfig}
+        className={cn(
+          'aspect-auto h-full w-full',
+          blurAmounts && measure !== 'count' && BLUR_Y_TICK_LABELS
+        )}
+      >
+        <BarChart data={totals} margin={{ top: 16, right: 8 }}>
           <CartesianGrid vertical={false} />
           <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
           <YAxis
@@ -370,12 +394,14 @@ function PieChartWidget({
     )
   }
   const measure = config.query.measure
+  // keyed by slice label: ChartLegendContent looks up entries by the datum's
+  // nameKey value; no color field since cells set an explicit fill
   const chartConfig: ChartConfig = Object.fromEntries(
-    totals.map((t, i) => [`slice-${i}`, { label: t.label, color: paletteColor(i) }])
+    totals.map((t) => [t.label, { label: t.label }])
   )
   const data = totals.map((t, i) => ({ ...t, fill: paletteColor(i) }))
   return (
-    <div className="relative h-full">
+    <div className="relative h-full px-4 pb-4">
       <MixedCurrencyBadge currencies={currencies} />
       <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
         <PieChart>
@@ -431,7 +457,8 @@ function StatCardWidget({
     return <CenteredNote>No transactions match these filters.</CenteredNote>
   }
   return (
-    <div className="flex h-full flex-col items-start justify-center gap-1 overflow-hidden">
+    // the padding also gives the privacy blur halo room inside the overflow-hidden clip box
+    <div className="flex h-full flex-col items-start justify-center gap-1 overflow-hidden p-4">
       {byCurrency.map(({ currency, value }) => (
         <div key={currency} className="text-3xl font-semibold tracking-tight tabular-nums">
           <MeasureValue measure={measure} value={value} currency={currency} />
@@ -467,7 +494,7 @@ function SummaryTableWidget({
     return <CenteredNote>No transactions match these filters.</CenteredNote>
   }
   return (
-    <div className="relative h-full overflow-auto">
+    <div className="relative h-full overflow-auto px-4 pb-4">
       <MixedCurrencyBadge currencies={currencies} />
       <Table>
         <TableHeader>
@@ -518,7 +545,7 @@ function TransactionsWidget({
         window.api.reports.transactions({ ...query, filters: resolved.filters })
       }
       showAccount
-      className="h-full min-h-0"
+      className="h-full min-h-0 [--table-edge:--spacing(4)]"
     />
   )
 }

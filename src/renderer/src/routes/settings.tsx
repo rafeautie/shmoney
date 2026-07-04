@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Page } from '@/components/page'
 import { CategoriesSettings } from '@/components/categories-settings'
 import { ConnectionSettings } from '@/components/connection-settings'
+import { PrivacySettings } from '@/components/privacy-settings'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsPage
@@ -16,6 +17,8 @@ function SettingsPage() {
       </div>
 
       <ConnectionSettings />
+
+      <PrivacySettings />
 
       <CategoriesSettings />
     </Page>

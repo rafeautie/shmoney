@@ -56,13 +56,11 @@ interface WidgetCardProps {
 
 export function WidgetCard({ widget, reportFilters, editing, onEdit, onDelete }: WidgetCardProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  // transactions tables bleed to the card's edges (except the top)
-  const flush = widget.type === 'transactions'
+  // widgets own their edge padding, so the card only pads the header
   return (
     <Card
       className={cn(
-        'relative flex h-full flex-col gap-2 overflow-hidden py-3',
-        flush && 'pb-0',
+        'relative flex h-full flex-col gap-2 overflow-hidden pt-3 pb-0',
         editing && 'border-dashed cursor-grab active:cursor-grabbing'
       )}
     >
@@ -97,7 +95,7 @@ export function WidgetCard({ widget, reportFilters, editing, onEdit, onDelete }:
           </div>
         </div>
       )}
-      <div className={cn('min-h-0 flex-1', flush ? '[--table-edge:--spacing(4)]' : 'px-4 pb-1')}>
+      <div className="min-h-0 flex-1">
         <WidgetRenderer widget={widget} reportFilters={reportFilters} />
       </div>
     </Card>
