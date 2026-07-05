@@ -120,6 +120,8 @@ export const widgetTypeSchema = z.enum([
   'bar',
   'area',
   'pie',
+  'radar',
+  'radial',
   'stat',
   'summaryTable',
   'transactions'

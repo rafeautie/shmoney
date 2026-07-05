@@ -40,6 +40,8 @@ const MIN_SIZES: Record<WidgetType, { minW: number; minH: number }> = {
   bar: { minW: 4, minH: 3 },
   area: { minW: 4, minH: 3 },
   pie: { minW: 4, minH: 3 },
+  radar: { minW: 4, minH: 3 },
+  radial: { minW: 4, minH: 3 },
   summaryTable: { minW: 4, minH: 3 },
   transactions: { minW: 5, minH: 4 }
 }

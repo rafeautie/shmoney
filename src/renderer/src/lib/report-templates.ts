@@ -1,18 +1,15 @@
-import type { DateRange, ReportCreateInput } from '@shared/reports'
-
-const THIS_MONTH: DateRange = { kind: 'relative', unit: 'month', count: 1, includeCurrent: true }
-const THIS_YEAR: DateRange = { kind: 'relative', unit: 'year', count: 1, includeCurrent: true }
+import type { ReportCreateInput } from '@shared/reports'
 
 /** Starter report offered on the empty state and in the New report menu. */
 export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
   name: 'Spending Overview',
   widgets: [
     {
-      title: 'Income this month',
+      title: 'Income',
       type: 'stat',
       config: {
         query: { measure: 'income', groupBy: 'none', timeGrain: 'none', cumulative: false },
-        filters: { mode: 'inherit', overrides: { dateRange: THIS_MONTH } }
+        filters: { mode: 'inherit', overrides: {} }
       },
       x: 0,
       y: 0,
@@ -20,11 +17,11 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       h: 2
     },
     {
-      title: 'Expenses this month',
+      title: 'Expenses',
       type: 'stat',
       config: {
         query: { measure: 'expense', groupBy: 'none', timeGrain: 'none', cumulative: false },
-        filters: { mode: 'inherit', overrides: { dateRange: THIS_MONTH } }
+        filters: { mode: 'inherit', overrides: {} }
       },
       x: 4,
       y: 0,
@@ -32,11 +29,11 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       h: 2
     },
     {
-      title: 'Net this month',
+      title: 'Net',
       type: 'stat',
       config: {
         query: { measure: 'sum', groupBy: 'none', timeGrain: 'none', cumulative: false },
-        filters: { mode: 'inherit', overrides: { dateRange: THIS_MONTH } }
+        filters: { mode: 'inherit', overrides: {} }
       },
       x: 8,
       y: 0,
@@ -63,7 +60,7 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
     },
     {
       title: 'Spending by category',
-      type: 'pie',
+      type: 'radial',
       config: {
         query: {
           measure: 'expense',
@@ -72,8 +69,8 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
           cumulative: false,
           limit: 8
         },
-        filters: { mode: 'inherit', overrides: { dateRange: THIS_MONTH } },
-        display: { donut: true, showLegend: true }
+        filters: { mode: 'inherit', overrides: {} },
+        display: { showLegend: true }
       },
       x: 8,
       y: 2,
@@ -81,15 +78,33 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       h: 5
     },
     {
-      title: 'Cumulative net this year',
+      title: 'Cumulative net',
       type: 'line',
       config: {
         query: { measure: 'sum', groupBy: 'none', timeGrain: 'month', cumulative: true },
-        filters: { mode: 'inherit', overrides: { dateRange: THIS_YEAR } }
+        filters: { mode: 'inherit', overrides: {} }
       },
       x: 0,
       y: 7,
-      w: 12,
+      w: 8,
+      h: 4
+    },
+    {
+      title: 'Expenses by category group',
+      type: 'radar',
+      config: {
+        query: {
+          measure: 'expense',
+          groupBy: 'categoryGroup',
+          timeGrain: 'none',
+          cumulative: false,
+          limit: 8
+        },
+        filters: { mode: 'inherit', overrides: {} }
+      },
+      x: 8,
+      y: 7,
+      w: 4,
       h: 4
     },
     {

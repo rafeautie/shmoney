@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
 import {
   Select,
@@ -42,6 +43,8 @@ const TYPE_LABELS: Record<WidgetType, string> = {
   line: 'Line chart',
   area: 'Area chart',
   pie: 'Pie chart',
+  radar: 'Radar chart',
+  radial: 'Radial chart',
   stat: 'Stat card',
   summaryTable: 'Summary table',
   transactions: 'Transactions table'
@@ -89,13 +92,16 @@ function draftFor(widget: ReportWidget | null): Draft {
 }
 
 /** Types with a fixed (absent) time axis */
-const NO_TIME_TYPES: WidgetType[] = ['pie', 'stat', 'summaryTable']
+const NO_TIME_TYPES: WidgetType[] = ['pie', 'radar', 'radial', 'stat', 'summaryTable']
+
+/** Types that chart group totals, so a groupBy is required and top-N applies */
+const GROUPED_TYPES: WidgetType[] = ['pie', 'radar', 'radial', 'summaryTable']
 
 function normalizeForType(config: WidgetConfig, type: WidgetType): WidgetConfig {
   const query = { ...config.query }
   if (NO_TIME_TYPES.includes(type)) query.timeGrain = 'none'
   if ((type === 'line' || type === 'area') && query.timeGrain === 'none') query.timeGrain = 'month'
-  if ((type === 'pie' || type === 'summaryTable') && query.groupBy === 'none') {
+  if (GROUPED_TYPES.includes(type) && query.groupBy === 'none') {
     query.groupBy = 'category'
   }
   return { ...config, query }
@@ -202,7 +208,7 @@ export function WidgetEditor({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto sm:max-w-lg">
+      <SheetContent className="flex w-full flex-col gap-0 sm:max-w-2xl">
         <SheetHeader>
           <SheetTitle>{widget ? 'Edit widget' : 'Add widget'}</SheetTitle>
           <SheetDescription>
@@ -211,314 +217,320 @@ export function WidgetEditor({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 space-y-6 px-4 pb-4">
-          {/* preview */}
-          <div className="h-56 rounded-lg border p-3">
-            <WidgetRenderer widget={previewWidget} reportFilters={reportFilters} />
-          </div>
-
-          {/* basics */}
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="widget-title">Title</Label>
-              <Input
-                id="widget-title"
-                value={draft.title}
-                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-              />
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-6 px-4 pb-4">
+            {/* preview */}
+            <div className="h-56 rounded-lg border p-3">
+              <WidgetRenderer widget={previewWidget} reportFilters={reportFilters} />
             </div>
-            <div className="space-y-2">
-              <Label>Widget type</Label>
-              <Select
-                value={draft.type}
-                onValueChange={(type) => setDraft((d) => ({ ...d, type: type as WidgetType }))}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {(Object.keys(TYPE_LABELS) as WidgetType[]).map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {TYPE_LABELS[type]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
-          {/* data */}
-          {!isTransactions && (
+            {/* basics */}
             <div className="space-y-4">
-              <h4 className="text-sm font-semibold">Data</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Measure</Label>
-                  <Select
-                    value={query.measure}
-                    onValueChange={(v) => patchQuery({ measure: v as typeof query.measure })}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(MEASURE_LABELS).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Group by</Label>
-                  <Select
-                    value={query.groupBy}
-                    onValueChange={(v) => patchQuery({ groupBy: v as typeof query.groupBy })}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(GROUP_LABELS).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {!NO_TIME_TYPES.includes(draft.type) && (
+              <div className="space-y-2">
+                <Label htmlFor="widget-title">Title</Label>
+                <Input
+                  id="widget-title"
+                  value={draft.title}
+                  onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Widget type</Label>
+                <Select
+                  value={draft.type}
+                  onValueChange={(type) => setDraft((d) => ({ ...d, type: type as WidgetType }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(TYPE_LABELS) as WidgetType[]).map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {TYPE_LABELS[type]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* data */}
+            {!isTransactions && (
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold">Data</h4>
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Time grain</Label>
+                    <Label>Measure</Label>
                     <Select
-                      value={query.timeGrain}
-                      onValueChange={(v) => patchQuery({ timeGrain: v as typeof query.timeGrain })}
+                      value={query.measure}
+                      onValueChange={(v) => patchQuery({ measure: v as typeof query.measure })}
                     >
                       <SelectTrigger className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {Object.entries(GRAIN_LABELS)
-                          .filter(
-                            ([value]) =>
-                              value !== 'none' || (draft.type !== 'line' && draft.type !== 'area')
-                          )
-                          .map(([value, label]) => (
-                            <SelectItem key={value} value={value}>
-                              {label}
-                            </SelectItem>
-                          ))}
+                        {Object.entries(MEASURE_LABELS).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
-                )}
-                {(draft.type === 'pie' || draft.type === 'summaryTable') && (
                   <div className="space-y-2">
-                    <Label>Top N groups</Label>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={50}
-                      placeholder={draft.type === 'pie' ? '8' : 'All'}
-                      key={`limit-${query.limit ?? 'none'}`}
-                      defaultValue={query.limit ?? ''}
-                      onBlur={(e) => {
-                        const parsed = Number(e.target.value)
-                        patchQuery({
-                          limit:
-                            Number.isInteger(parsed) && parsed >= 1 && parsed <= 50
-                              ? parsed
-                              : undefined
-                        })
-                      }}
-                    />
+                    <Label>Group by</Label>
+                    <Select
+                      value={query.groupBy}
+                      onValueChange={(v) => patchQuery({ groupBy: v as typeof query.groupBy })}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(GROUP_LABELS).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
+                  {!NO_TIME_TYPES.includes(draft.type) && (
+                    <div className="space-y-2">
+                      <Label>Time grain</Label>
+                      <Select
+                        value={query.timeGrain}
+                        onValueChange={(v) =>
+                          patchQuery({ timeGrain: v as typeof query.timeGrain })
+                        }
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(GRAIN_LABELS)
+                            .filter(
+                              ([value]) =>
+                                value !== 'none' || (draft.type !== 'line' && draft.type !== 'area')
+                            )
+                            .map(([value, label]) => (
+                              <SelectItem key={value} value={value}>
+                                {label}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {GROUPED_TYPES.includes(draft.type) && (
+                    <div className="space-y-2">
+                      <Label>Top N groups</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={50}
+                        placeholder={draft.type === 'summaryTable' ? 'All' : '8'}
+                        key={`limit-${query.limit ?? 'none'}`}
+                        defaultValue={query.limit ?? ''}
+                        onBlur={(e) => {
+                          const parsed = Number(e.target.value)
+                          patchQuery({
+                            limit:
+                              Number.isInteger(parsed) && parsed >= 1 && parsed <= 50
+                                ? parsed
+                                : undefined
+                          })
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-x-6 gap-y-3">
+                  {hasTimeAxis && (
+                    <SwitchRow
+                      label="Cumulative"
+                      checked={query.cumulative}
+                      onChange={(cumulative) => patchQuery({ cumulative })}
+                    />
+                  )}
+                  {(draft.type === 'bar' || draft.type === 'area') && query.groupBy !== 'none' && (
+                    <SwitchRow
+                      label="Stacked"
+                      checked={config.display?.stacked ?? false}
+                      onChange={(stacked) => patchDisplay({ stacked })}
+                    />
+                  )}
+                  {draft.type === 'pie' && (
+                    <SwitchRow
+                      label="Donut"
+                      checked={config.display?.donut ?? false}
+                      onChange={(donut) => patchDisplay({ donut })}
+                    />
+                  )}
+                  {(isChart || draft.type === 'pie' || draft.type === 'radial') && (
+                    <SwitchRow
+                      label="Legend"
+                      checked={config.display?.showLegend ?? false}
+                      onChange={(showLegend) => patchDisplay({ showLegend })}
+                    />
+                  )}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-x-6 gap-y-3">
-                {hasTimeAxis && (
-                  <SwitchRow
-                    label="Cumulative"
-                    checked={query.cumulative}
-                    onChange={(cumulative) => patchQuery({ cumulative })}
-                  />
-                )}
-                {(draft.type === 'bar' || draft.type === 'area') && query.groupBy !== 'none' && (
-                  <SwitchRow
-                    label="Stacked"
-                    checked={config.display?.stacked ?? false}
-                    onChange={(stacked) => patchDisplay({ stacked })}
-                  />
-                )}
-                {draft.type === 'pie' && (
-                  <SwitchRow
-                    label="Donut"
-                    checked={config.display?.donut ?? false}
-                    onChange={(donut) => patchDisplay({ donut })}
-                  />
-                )}
-                {(isChart || draft.type === 'pie') && (
-                  <SwitchRow
-                    label="Legend"
-                    checked={config.display?.showLegend ?? false}
-                    onChange={(showLegend) => patchDisplay({ showLegend })}
-                  />
-                )}
-              </div>
-            </div>
-          )}
+            )}
 
-          {/* filters */}
-          <div className="space-y-4">
-            <h4 className="text-sm font-semibold">Filters</h4>
-            <Select
-              value={filters.mode}
-              onValueChange={(mode) =>
-                setDraft((d) => ({
-                  ...d,
-                  config: {
-                    ...d.config,
-                    filters: { ...d.config.filters, mode: mode as 'inherit' | 'own' }
+            {/* filters */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold">Filters</h4>
+              <Select
+                value={filters.mode}
+                onValueChange={(mode) =>
+                  setDraft((d) => ({
+                    ...d,
+                    config: {
+                      ...d.config,
+                      filters: { ...d.config.filters, mode: mode as 'inherit' | 'own' }
+                    }
+                  }))
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="inherit">Inherit report filters, with overrides</SelectItem>
+                  <SelectItem value="own">Independent of report filters</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <div className="space-y-3">
+                <OverrideRow
+                  label="Date range"
+                  active={overrides.dateRange !== undefined}
+                  onToggle={(on) => patchOverrides({ dateRange: on ? base.dateRange : undefined })}
+                >
+                  <DateRangeControl
+                    value={overrides.dateRange ?? base.dateRange}
+                    disabled={overrides.dateRange === undefined}
+                    onChange={(dateRange) => patchOverrides({ dateRange })}
+                  />
+                </OverrideRow>
+
+                <OverrideRow
+                  label="Accounts"
+                  active={overrides.accountIds !== undefined}
+                  onToggle={(on) =>
+                    patchOverrides({ accountIds: on ? (base.accountIds ?? []) : undefined })
                   }
-                }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="inherit">Inherit report filters, with overrides</SelectItem>
-                <SelectItem value="own">Independent of report filters</SelectItem>
-              </SelectContent>
-            </Select>
+                >
+                  <AccountsControl
+                    value={overrides.accountIds ?? base.accountIds}
+                    disabled={overrides.accountIds === undefined}
+                    onChange={(accountIds) => patchOverrides({ accountIds: accountIds ?? [] })}
+                  />
+                </OverrideRow>
 
-            <div className="space-y-3">
-              <OverrideRow
-                label="Date range"
-                active={overrides.dateRange !== undefined}
-                onToggle={(on) => patchOverrides({ dateRange: on ? base.dateRange : undefined })}
-              >
-                <DateRangeControl
-                  value={overrides.dateRange ?? base.dateRange}
-                  disabled={overrides.dateRange === undefined}
-                  onChange={(dateRange) => patchOverrides({ dateRange })}
-                />
-              </OverrideRow>
-
-              <OverrideRow
-                label="Accounts"
-                active={overrides.accountIds !== undefined}
-                onToggle={(on) =>
-                  patchOverrides({ accountIds: on ? (base.accountIds ?? []) : undefined })
-                }
-              >
-                <AccountsControl
-                  value={overrides.accountIds ?? base.accountIds}
-                  disabled={overrides.accountIds === undefined}
-                  onChange={(accountIds) => patchOverrides({ accountIds: accountIds ?? [] })}
-                />
-              </OverrideRow>
-
-              <OverrideRow
-                label="Categories"
-                active={
-                  overrides.categoryIds !== undefined ||
-                  overrides.includeUncategorized !== undefined
-                }
-                onToggle={(on) =>
-                  patchOverrides({
-                    categoryIds: on ? (base.categoryIds ?? []) : undefined,
-                    includeUncategorized: on ? base.includeUncategorized : undefined
-                  })
-                }
-              >
-                <CategoriesControl
-                  value={{
-                    categoryIds: overrides.categoryIds ?? base.categoryIds,
-                    includeUncategorized:
-                      overrides.includeUncategorized ?? base.includeUncategorized
-                  }}
-                  disabled={
-                    overrides.categoryIds === undefined &&
-                    overrides.includeUncategorized === undefined
+                <OverrideRow
+                  label="Categories"
+                  active={
+                    overrides.categoryIds !== undefined ||
+                    overrides.includeUncategorized !== undefined
                   }
-                  onChange={({ categoryIds, includeUncategorized }) =>
+                  onToggle={(on) =>
                     patchOverrides({
-                      categoryIds: categoryIds ?? [],
-                      includeUncategorized: includeUncategorized ?? false
+                      categoryIds: on ? (base.categoryIds ?? []) : undefined,
+                      includeUncategorized: on ? base.includeUncategorized : undefined
                     })
                   }
-                />
-              </OverrideRow>
+                >
+                  <CategoriesControl
+                    value={{
+                      categoryIds: overrides.categoryIds ?? base.categoryIds,
+                      includeUncategorized:
+                        overrides.includeUncategorized ?? base.includeUncategorized
+                    }}
+                    disabled={
+                      overrides.categoryIds === undefined &&
+                      overrides.includeUncategorized === undefined
+                    }
+                    onChange={({ categoryIds, includeUncategorized }) =>
+                      patchOverrides({
+                        categoryIds: categoryIds ?? [],
+                        includeUncategorized: includeUncategorized ?? false
+                      })
+                    }
+                  />
+                </OverrideRow>
 
-              <OverrideRow
-                label="Direction"
-                active={overrides.direction !== undefined}
-                onToggle={(on) => patchOverrides({ direction: on ? base.direction : undefined })}
-              >
-                <DirectionControl
-                  value={overrides.direction ?? base.direction}
-                  disabled={overrides.direction === undefined}
-                  onChange={(direction) => patchOverrides({ direction })}
-                />
-              </OverrideRow>
+                <OverrideRow
+                  label="Direction"
+                  active={overrides.direction !== undefined}
+                  onToggle={(on) => patchOverrides({ direction: on ? base.direction : undefined })}
+                >
+                  <DirectionControl
+                    value={overrides.direction ?? base.direction}
+                    disabled={overrides.direction === undefined}
+                    onChange={(direction) => patchOverrides({ direction })}
+                  />
+                </OverrideRow>
 
-              <OverrideRow
-                label="Amount range"
-                active={overrides.amountMin !== undefined || overrides.amountMax !== undefined}
-                onToggle={(on) =>
-                  patchOverrides({
-                    amountMin: on ? (base.amountMin ?? 0) : undefined,
-                    amountMax: on ? base.amountMax : undefined
-                  })
-                }
-              >
-                <AmountRangeControl
-                  min={overrides.amountMin ?? base.amountMin}
-                  max={overrides.amountMax ?? base.amountMax}
-                  disabled={overrides.amountMin === undefined && overrides.amountMax === undefined}
-                  onChange={(amountMin, amountMax) =>
-                    patchOverrides({ amountMin: amountMin ?? 0, amountMax })
+                <OverrideRow
+                  label="Amount range"
+                  active={overrides.amountMin !== undefined || overrides.amountMax !== undefined}
+                  onToggle={(on) =>
+                    patchOverrides({
+                      amountMin: on ? (base.amountMin ?? 0) : undefined,
+                      amountMax: on ? base.amountMax : undefined
+                    })
                   }
-                />
-              </OverrideRow>
+                >
+                  <AmountRangeControl
+                    min={overrides.amountMin ?? base.amountMin}
+                    max={overrides.amountMax ?? base.amountMax}
+                    disabled={
+                      overrides.amountMin === undefined && overrides.amountMax === undefined
+                    }
+                    onChange={(amountMin, amountMax) =>
+                      patchOverrides({ amountMin: amountMin ?? 0, amountMax })
+                    }
+                  />
+                </OverrideRow>
 
-              <OverrideRow
-                label="Description contains"
-                active={overrides.descriptionSearch !== undefined}
-                onToggle={(on) =>
-                  patchOverrides({
-                    descriptionSearch: on ? (base.descriptionSearch ?? '') : undefined
-                  })
-                }
-              >
-                <Input
-                  className="h-8 w-full"
-                  placeholder="Search text"
-                  disabled={overrides.descriptionSearch === undefined}
-                  key={`search-${overrides.descriptionSearch ?? 'inherit'}`}
-                  defaultValue={overrides.descriptionSearch ?? base.descriptionSearch ?? ''}
-                  onBlur={(e) => patchOverrides({ descriptionSearch: e.target.value })}
-                />
-              </OverrideRow>
+                <OverrideRow
+                  label="Description contains"
+                  active={overrides.descriptionSearch !== undefined}
+                  onToggle={(on) =>
+                    patchOverrides({
+                      descriptionSearch: on ? (base.descriptionSearch ?? '') : undefined
+                    })
+                  }
+                >
+                  <Input
+                    className="h-8 w-full"
+                    placeholder="Search text"
+                    disabled={overrides.descriptionSearch === undefined}
+                    key={`search-${overrides.descriptionSearch ?? 'inherit'}`}
+                    defaultValue={overrides.descriptionSearch ?? base.descriptionSearch ?? ''}
+                    onBlur={(e) => patchOverrides({ descriptionSearch: e.target.value })}
+                  />
+                </OverrideRow>
 
-              <OverrideRow
-                label="Include pending"
-                active={overrides.includePending !== undefined}
-                onToggle={(on) =>
-                  patchOverrides({ includePending: on ? base.includePending : undefined })
-                }
-              >
-                <Switch
-                  checked={overrides.includePending ?? base.includePending}
-                  disabled={overrides.includePending === undefined}
-                  onCheckedChange={(includePending) => patchOverrides({ includePending })}
-                />
-              </OverrideRow>
+                <OverrideRow
+                  label="Include pending"
+                  active={overrides.includePending !== undefined}
+                  onToggle={(on) =>
+                    patchOverrides({ includePending: on ? base.includePending : undefined })
+                  }
+                >
+                  <Switch
+                    checked={overrides.includePending ?? base.includePending}
+                    disabled={overrides.includePending === undefined}
+                    onCheckedChange={(includePending) => patchOverrides({ includePending })}
+                  />
+                </OverrideRow>
+              </div>
             </div>
           </div>
-        </div>
+        </ScrollArea>
 
         <SheetFooter className="flex-row justify-end gap-2 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
