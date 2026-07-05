@@ -6,6 +6,7 @@ import type { ConnectionRow } from '../db/schema'
 import { claimAccessUrl, fetchAccounts, parseAmount } from '../simplefin'
 import { transactionsPage, transactionDate } from './transactions-page'
 import { recordAction } from './action-log'
+import { applyRulesInTx } from './rules'
 import { detectTransferPairs } from '../transfers'
 import {
   IPC,
@@ -25,6 +26,12 @@ const RESYNC_OVERLAP_SECONDS = 7 * 24 * 60 * 60
 
 function detectTransfersEnabled(): boolean {
   const row = db.select().from(settings).where(eq(settings.key, 'detectTransfers')).get()
+  // default on; only an explicit stored `false` disables it
+  return row ? row.value !== false : true
+}
+
+function applyRulesOnSyncEnabled(): boolean {
+  const row = db.select().from(settings).where(eq(settings.key, 'applyRulesOnSync')).get()
   // default on; only an explicit stored `false` disables it
   return row ? row.value !== false : true
 }
@@ -57,6 +64,7 @@ async function syncConnection(): Promise<SyncResult> {
   const institutionByConnId = new Map(payload.connections.map((c) => [c.conn_id, c.name]))
 
   const detectEnabled = detectTransfersEnabled()
+  const rulesEnabled = applyRulesOnSyncEnabled()
 
   const result = db.transaction((tx) => {
     for (const account of payload.accounts) {
@@ -150,6 +158,15 @@ async function syncConnection(): Promise<SyncResult> {
       }
     }
 
+    // apply user rules over what's left. The detector runs first (structural,
+    // high-confidence pairs); rules fill the remaining untouched rows. Like the
+    // detector, each firing rule logs its own action_log entry, so it's undoable.
+    let rulesApplied = 0
+    if (rulesEnabled) {
+      const applied = applyRulesInTx(tx)
+      rulesApplied = applied.categorized + applied.markedTransfer
+    }
+
     // persist this sync's errlist so the connection card can surface it; a clean
     // sync writes null, clearing warnings once the underlying issue is resolved
     const lastSyncErrors =
@@ -160,10 +177,14 @@ async function syncConnection(): Promise<SyncResult> {
       .where(eq(connections.id, row.id))
       .returning()
       .all()
-    return { updated, detectedTransfers }
+    return { updated, detectedTransfers, rulesApplied }
   })
 
-  return { ...toConnection(result.updated), detectedTransfers: result.detectedTransfers }
+  return {
+    ...toConnection(result.updated),
+    detectedTransfers: result.detectedTransfers,
+    rulesApplied: result.rulesApplied
+  }
 }
 
 export function registerConnectionsIpc(): void {

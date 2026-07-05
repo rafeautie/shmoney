@@ -66,3 +66,14 @@ export function useDetectTransfers() {
     )
   }
 }
+
+export function useApplyRulesOnSync() {
+  const { settings, setSetting } = useSettings()
+  return {
+    applyRulesOnSync: settings.applyRulesOnSync,
+    setApplyRulesOnSync: useCallback(
+      (on: boolean) => setSetting('applyRulesOnSync', on),
+      [setSetting]
+    )
+  }
+}

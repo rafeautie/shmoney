@@ -32,6 +32,15 @@ import {
 } from '@shared/transaction-filters'
 import { SETTINGS_IPC, type SettingKey, type Settings } from '@shared/settings'
 import {
+  RULES_IPC,
+  type Rule,
+  type RuleCreateInput,
+  type RuleReorderInput,
+  type RuleUpdateInput,
+  type RulePreview,
+  type RulesApplyResult
+} from '@shared/rules'
+import {
   REPORTS_IPC,
   type Report,
   type ReportCreateInput,
@@ -128,6 +137,18 @@ const api = {
     update: (input: SavedFilterUpdateInput): Promise<SavedFilter> =>
       ipcRenderer.invoke(SAVED_FILTERS_IPC.update, input),
     delete: (id: number): Promise<boolean> => ipcRenderer.invoke(SAVED_FILTERS_IPC.delete, id)
+  },
+  rules: {
+    list: (): Promise<Rule[]> => ipcRenderer.invoke(RULES_IPC.list),
+    create: (input: RuleCreateInput): Promise<Rule> => ipcRenderer.invoke(RULES_IPC.create, input),
+    update: (input: RuleUpdateInput): Promise<Rule> => ipcRenderer.invoke(RULES_IPC.update, input),
+    delete: (id: number): Promise<boolean> => ipcRenderer.invoke(RULES_IPC.delete, id),
+    reorder: (input: RuleReorderInput): Promise<boolean> =>
+      ipcRenderer.invoke(RULES_IPC.reorder, input),
+    /** Dry-run: what "apply" would change, grouped by rule; never writes */
+    preview: (): Promise<RulePreview> => ipcRenderer.invoke(RULES_IPC.preview),
+    /** Backfill all untouched transactions; resolves to a change summary */
+    apply: (): Promise<RulesApplyResult> => ipcRenderer.invoke(RULES_IPC.apply)
   },
   settings: {
     getAll: (): Promise<Settings> => ipcRenderer.invoke(SETTINGS_IPC.getAll),

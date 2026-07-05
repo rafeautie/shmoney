@@ -4,6 +4,7 @@ import { sqliteTable, integer, text, uniqueIndex } from 'drizzle-orm/sqlite-core
 import type { ReportFilters, WidgetConfig, WidgetType } from '../../shared/reports'
 import type { TransactionFilters } from '../../shared/transaction-filters'
 import type { ActionChange, SfinError } from '../../shared/ipc'
+import type { RuleConditions, RuleAction } from '../../shared/rules'
 
 // holds at most one row: the app supports a single SimpleFIN connection
 export const connections = sqliteTable('connections', {
@@ -152,6 +153,23 @@ export const actionLog = sqliteTable('action_log', {
   undoneAt: integer('undone_at')
 })
 
+// user-defined "if conditions then action" rules. Applied on sync (after the
+// transfer detector) and via a manual dry-run-then-apply. Like the detector,
+// they only touch untouched rows and log to action_log, so every change is
+// reviewable and undoable. conditions/action are versioned JSON.
+export const rules = sqliteTable('rules', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  // evaluation order; lower runs first, ties broken by id
+  priority: integer('priority').notNull(),
+  conditions: text('conditions', { mode: 'json' }).$type<RuleConditions>().notNull(),
+  action: text('action', { mode: 'json' }).$type<RuleAction>().notNull(),
+  configVersion: integer('config_version').notNull().default(1),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull()
+})
+
 export type ConnectionRow = typeof connections.$inferSelect
 export type AccountRow = typeof accounts.$inferSelect
 export type TransactionRow = typeof transactions.$inferSelect
@@ -162,3 +180,4 @@ export type ReportWidgetRow = typeof reportWidgets.$inferSelect
 export type SavedFilterRow = typeof savedFilters.$inferSelect
 export type SettingRow = typeof settings.$inferSelect
 export type ActionLogRow = typeof actionLog.$inferSelect
+export type RuleRow = typeof rules.$inferSelect

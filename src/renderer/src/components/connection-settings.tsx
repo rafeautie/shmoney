@@ -40,6 +40,12 @@ export function ConnectionSettings() {
           action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
         })
       }
+      if (result.rulesApplied > 0) {
+        toast(`Rules updated ${plural(result.rulesApplied, 'transaction')}`, {
+          description: 'Applied automatically on sync.',
+          action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
+        })
+      }
     },
     onSettled: () => queryClient.invalidateQueries()
   })

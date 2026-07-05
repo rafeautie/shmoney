@@ -93,6 +93,8 @@ function EntryRow({ entry }: { entry: ActionLogEntry }) {
   const [expanded, setExpanded] = useState(false)
   const undone = entry.undoneAt !== null
   const isDetector = entry.source === 'detector'
+  // both the transfer detector and rules are automated (non-user) changes
+  const isAutomated = entry.source !== 'user'
 
   const toggle = useMutation({
     mutationFn: () =>
@@ -137,7 +139,9 @@ function EntryRow({ entry }: { entry: ActionLogEntry }) {
             )}
           />
         </button>
-        {isDetector && <Badge variant="secondary">Auto</Badge>}
+        {isAutomated && (
+          <Badge variant="secondary">{entry.source === 'rule' ? 'Rule' : 'Auto'}</Badge>
+        )}
         {undone && <Badge variant="outline">Undone</Badge>}
         <Button variant="ghost" size="sm" disabled={toggle.isPending} onClick={() => toggle.mutate()}>
           {undone ? 'Redo' : 'Undo'}

@@ -85,6 +85,13 @@
       "when": 1783243619457,
       "tag": "0011_colossal_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1783246338789,
+      "tag": "0012_loose_cassandra_nova",
+      "breakpoints": true
     }
   ]
 }

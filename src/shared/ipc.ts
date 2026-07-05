@@ -16,6 +16,8 @@ export interface Connection {
 export interface SyncResult extends Connection {
   /** transfer pairs the detector auto-marked during this sync */
   detectedTransfers: number
+  /** transactions changed by rules during this sync (categorized or marked) */
+  rulesApplied: number
 }
 
 export interface Account {
@@ -129,7 +131,7 @@ export type TransactionsSetTransferInput = z.infer<typeof transactionsSetTransfe
 
 // ---------- action log (audit trail + undo/redo) ----------
 
-export type ActionSource = 'user' | 'detector'
+export type ActionSource = 'user' | 'detector' | 'rule'
 
 // the transaction columns undo/redo may rewrite. These strings double as the
 // drizzle set-keys in the main-process engine, so they must match schema props.
