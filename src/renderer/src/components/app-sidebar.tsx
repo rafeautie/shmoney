@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Moon02Icon, Sun02Icon } from '@hugeicons/core-free-icons'
-import { useTheme } from '@/lib/settings'
+import { Moon02Icon, Sun02Icon, ViewIcon, ViewOffIcon } from '@hugeicons/core-free-icons'
+import { usePrivacy, useTheme } from '@/lib/settings'
 import { Logo } from '@/components/logo'
 import { NavMain } from '@/components/nav-main'
 import {
@@ -39,12 +39,29 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
+            <PrivacyToggle />
+          </SidebarMenuItem>
+          <SidebarMenuItem>
             <ThemeToggle />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  )
+}
+
+function PrivacyToggle() {
+  const { blurAmounts, setBlurAmounts } = usePrivacy()
+
+  return (
+    <SidebarMenuButton
+      onClick={() => setBlurAmounts(!blurAmounts)}
+      tooltip={blurAmounts ? 'Show amounts' : 'Blur amounts'}
+    >
+      <HugeiconsIcon icon={blurAmounts ? ViewIcon : ViewOffIcon} size={16} />
+      <span>{blurAmounts ? 'Show amounts' : 'Blur amounts'}</span>
+    </SidebarMenuButton>
   )
 }
 

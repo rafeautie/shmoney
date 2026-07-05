@@ -3,7 +3,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import type { RulePreviewGroup } from '@shared/rules'
-import { cn, formatAmount, ipcErrorMessage, plural, TABLE_BLEED } from '@/lib/utils'
+import { cn, ipcErrorMessage, plural, TABLE_BLEED } from '@/lib/utils'
+import { Amount } from '@/components/amount'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -133,8 +134,8 @@ function PreviewGroup({ group }: { group: RulePreviewGroup }): React.JSX.Element
             </TableCell>
             <TableCell className="whitespace-nowrap text-muted-foreground">{t.accountName}</TableCell>
             <TableCell className="max-w-0 truncate">{t.description}</TableCell>
-            <TableCell className="text-right whitespace-nowrap tabular-nums">
-              {formatAmount(t.amount, t.currency)}
+            <TableCell className="text-right whitespace-nowrap">
+              <Amount value={t.amount} currency={t.currency} />
             </TableCell>
             <TableCell className="whitespace-nowrap">
               {isTransfer ? 'Transfer' : (t.targetCategoryName ?? '—')}

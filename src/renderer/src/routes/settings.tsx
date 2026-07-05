@@ -22,9 +22,9 @@ function SettingsPage() {
 
       <TransferSettings />
 
-      <RulesSettings />
-
       <PrivacySettings />
+
+      <RulesSettings />
 
       <CategoriesSettings />
     </Page>

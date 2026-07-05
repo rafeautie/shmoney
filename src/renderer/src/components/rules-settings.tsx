@@ -15,6 +15,7 @@ import { ipcErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
+import { Separator } from '@/components/ui/separator'
 import {
   Card,
   CardAction,
@@ -132,10 +133,10 @@ export function RulesSettings(): React.JSX.Element {
         ) : rules.length === 0 ? (
           <p className="text-sm text-muted-foreground">No rules yet.</p>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {rules.map((rule, index) => (
+          rules.map((rule, index) => (
+            <div key={rule.id} className="space-y-4">
+              <Separator className="-mx-(--card-spacing) data-horizontal:w-auto" />
               <RuleRow
-                key={rule.id}
                 rule={rule}
                 conditionText={describeRule(rule.conditions, accountName)}
                 actionText={
@@ -152,10 +153,11 @@ export function RulesSettings(): React.JSX.Element {
                   setEditorOpen(true)
                 }}
               />
-            ))}
-          </ul>
+            </div>
+          ))
         )}
 
+        <Separator className="-mx-(--card-spacing) data-horizontal:w-auto" />
         <Button
           variant="outline"
           onClick={() => {
@@ -209,7 +211,7 @@ function RuleRow({
   })
 
   return (
-    <li className="flex items-center gap-3 rounded-lg border p-3">
+    <div className="flex items-center gap-3">
       <Switch
         checked={rule.enabled}
         onCheckedChange={(on) => toggle.mutate(on)}
@@ -241,6 +243,6 @@ function RuleRow({
           <HugeiconsIcon icon={Delete02Icon} size={14} />
         </Button>
       </div>
-    </li>
+    </div>
   )
 }
