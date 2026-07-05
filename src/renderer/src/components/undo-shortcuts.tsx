@@ -1,10 +1,13 @@
 import { useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { undoHistory } from '@/lib/undo'
 
-/** App-wide Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y for the undo history. Skipped while
- * typing so text fields keep their native editing undo. */
+/** App-wide Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y over the persisted action log. Undo
+ * targets the newest applied entry, redo the most recently undone one. Skipped
+ * while typing so text fields keep their native editing undo. */
 export function UndoShortcuts() {
+  const queryClient = useQueryClient()
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (!(event.ctrlKey || event.metaKey) || event.altKey) return
@@ -22,13 +25,20 @@ export function UndoShortcuts() {
       }
       event.preventDefault()
       const verb = isRedo ? 'redo' : 'undo'
-      undoHistory[verb]().then(
-        (label) => toast(label ? `${isRedo ? 'Redo' : 'Undo'}: ${label}` : `Nothing to ${verb}`),
-        () => toast.error(`Couldn't ${verb} the last action`)
-      )
+      const run = isRedo ? window.api.actionLog.redo() : window.api.actionLog.undo()
+      run
+        .then((result) => {
+          if (!result) {
+            toast(`Nothing to ${verb}`)
+            return
+          }
+          queryClient.invalidateQueries()
+          toast(`${isRedo ? 'Redo' : 'Undo'}: ${result.label}`)
+        })
+        .catch(() => toast.error(`Couldn't ${verb} the last action`))
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
+  }, [queryClient])
   return null
 }

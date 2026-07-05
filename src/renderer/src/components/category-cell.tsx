@@ -5,30 +5,18 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CategoryPicker } from '@/components/category-picker'
-import { undoHistory } from '@/lib/undo'
 
 export function CategoryCell({ transaction }: { transaction: Transaction }) {
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
 
+  // the main-process handler records the change to the action log for undo
   const setCategory = useMutation({
-    mutationFn: async (categoryId: number | null) => {
-      const previous = transaction.categoryId
-      await window.api.transactions.setCategory({ transactionId: transaction.id, categoryId })
-      return { previous, next: categoryId }
-    },
-    onSuccess: ({ previous, next }) => {
-      if (previous !== next) {
-        const { id } = transaction
-        undoHistory.push({
-          label: 'Set category',
-          undo: () =>
-            window.api.transactions.setCategory({ transactionId: id, categoryId: previous }),
-          redo: () => window.api.transactions.setCategory({ transactionId: id, categoryId: next })
-        })
-      }
-      setOpen(false)
-    },
+    mutationFn: (categoryId: number | null) =>
+      window.api.transactions.setCategories({
+        changes: [{ transactionId: transaction.id, categoryId }]
+      }),
+    onSuccess: () => setOpen(false),
     onSettled: () => queryClient.invalidateQueries()
   })
 

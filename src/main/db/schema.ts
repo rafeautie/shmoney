@@ -3,6 +3,7 @@ import { sqliteTable, integer, text, uniqueIndex } from 'drizzle-orm/sqlite-core
 // type-only imports: erased at compile time, so drizzle-kit never resolves them at runtime
 import type { ReportFilters, WidgetConfig, WidgetType } from '../../shared/reports'
 import type { TransactionFilters } from '../../shared/transaction-filters'
+import type { ActionChange } from '../../shared/ipc'
 
 // holds at most one row: the app supports a single SimpleFIN connection
 export const connections = sqliteTable('connections', {
@@ -76,7 +77,10 @@ export const transactions = sqliteTable(
     categoryId: integer('category_id').references(() => categories.id, { onDelete: 'set null' }),
     // soft delete (unix seconds): read paths exclude these rows; sync upserts
     // must never touch this column or deletes would revert on every sync
-    deletedAt: integer('deleted_at')
+    deletedAt: integer('deleted_at'),
+    // user-owned classification: a transfer between accounts is neither income
+    // nor expense. Like categoryId/deletedAt, sync upserts must never touch it.
+    isTransfer: integer('is_transfer', { mode: 'boolean' }).notNull().default(false)
   },
   (t) => [uniqueIndex('transactions_account_sfid_ux').on(t.accountId, t.simplefinId)]
 )
@@ -128,6 +132,24 @@ export const settings = sqliteTable('settings', {
   value: text('value', { mode: 'json' }).notNull()
 })
 
+// append-only audit log of every state change, manual or automated. Each row
+// carries the affected fields' before/after values; undo/redo replay them with
+// compare-and-set so a newer edit is never clobbered. This is the persistent
+// backbone for undo (survives restarts) and the Activity page's history.
+export const actionLog = sqliteTable('action_log', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // unix milliseconds — finer than the app's usual seconds so ordering among
+  // rapid successive actions (and their undo order) stays unambiguous
+  createdAt: integer('created_at').notNull(),
+  // who caused it: 'user' | 'detector' (later: rule ids)
+  source: text('source').notNull(),
+  // human summary shown in toasts and the Activity list
+  label: text('label').notNull(),
+  changes: text('changes', { mode: 'json' }).$type<ActionChange[]>().notNull(),
+  // unix millis when undone; null = currently applied
+  undoneAt: integer('undone_at')
+})
+
 export type ConnectionRow = typeof connections.$inferSelect
 export type AccountRow = typeof accounts.$inferSelect
 export type TransactionRow = typeof transactions.$inferSelect
@@ -137,3 +159,4 @@ export type ReportRow = typeof reports.$inferSelect
 export type ReportWidgetRow = typeof reportWidgets.$inferSelect
 export type SavedFilterRow = typeof savedFilters.$inferSelect
 export type SettingRow = typeof settings.$inferSelect
+export type ActionLogRow = typeof actionLog.$inferSelect

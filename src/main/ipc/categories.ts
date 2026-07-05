@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { asc, eq } from 'drizzle-orm'
 import { db } from '../db'
-import { categoryGroups, categories, transactions } from '../db/schema'
+import { categoryGroups, categories } from '../db/schema'
 import { resetCategoriesToDefaults } from '../db/defaults'
 import {
   IPC,
@@ -10,7 +10,6 @@ import {
   categoryGroupRenameSchema,
   categoryCreateSchema,
   categoryRenameSchema,
-  transactionSetCategorySchema,
   type CategoriesList,
   type Category,
   type CategoryGroup
@@ -124,19 +123,5 @@ export function registerCategoriesIpc(): void {
   ipcMain.handle(IPC.categoriesResetDefaults, () => {
     resetCategoriesToDefaults()
     return listCategories()
-  })
-
-  ipcMain.handle(IPC.transactionsSetCategory, (_event, input: unknown) => {
-    const { transactionId, categoryId } = transactionSetCategorySchema.parse(input)
-    const txn = db.select().from(transactions).where(eq(transactions.id, transactionId)).get()
-    if (!txn) throw new Error('Transaction not found')
-    // sync drops and re-inserts pending rows, so an assignment would be lost
-    if (txn.pending) throw new Error('Pending transactions can be categorized once they post')
-    if (categoryId !== null) {
-      const category = db.select().from(categories).where(eq(categories.id, categoryId)).get()
-      if (!category) throw new Error('Category not found')
-    }
-    db.update(transactions).set({ categoryId }).where(eq(transactions.id, transactionId)).run()
-    return true
   })
 }

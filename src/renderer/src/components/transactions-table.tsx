@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import type { ColumnDef, RowSelectionState, SortingState } from '@tanstack/react-table'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { ArrowDataTransferHorizontalIcon } from '@hugeicons/core-free-icons'
 import type { Page, Transaction, TransactionSortBy } from '@shared/ipc'
 import { PAGE_SIZE, cn, nextPageParam, sortQuery } from '@/lib/utils'
 import { Amount } from '@/components/amount'
@@ -101,9 +103,20 @@ export function TransactionsTable({
         // greedy column: soaks up remaining width and truncates instead of overflowing
         meta: { className: 'w-full max-w-0' },
         cell: ({ row }) => (
-          <div className="truncate" title={row.original.description}>
-            {row.original.description}
-            {row.original.pending && <span className="text-muted-foreground"> (pending)</span>}
+          <div className="flex min-w-0 items-center gap-1.5" title={row.original.description}>
+            {row.original.isTransfer && (
+              <span title="Transfer" className="flex shrink-0">
+                <HugeiconsIcon
+                  icon={ArrowDataTransferHorizontalIcon}
+                  size={14}
+                  className="text-muted-foreground"
+                />
+              </span>
+            )}
+            <span className="truncate">
+              {row.original.description}
+              {row.original.pending && <span className="text-muted-foreground"> (pending)</span>}
+            </span>
           </div>
         )
       },
@@ -122,7 +135,12 @@ export function TransactionsTable({
         ),
         cell: ({ row }) => (
           <div className="text-right">
-            <Amount value={row.original.amount} currency={row.original.currency} />
+            <Amount
+              value={row.original.amount}
+              currency={row.original.currency}
+              colored={!row.original.isTransfer}
+              className={cn(row.original.isTransfer && 'text-muted-foreground')}
+            />
           </div>
         )
       }
@@ -144,6 +162,8 @@ export function TransactionsTable({
         isFetchingMore={transactionsQuery.isFetchingNextPage}
         isLoading={transactionsQuery.isLoading}
         emptyMessage={emptyMessage}
+        // transfers are neither income nor expense, so dim the whole row to de-emphasize them
+        rowClassName={(transaction) => transaction.isTransfer && 'opacity-60'}
         // pending rows can't be selected: sync drops and re-inserts them, so bulk edits would be lost
         enableRowSelection={(row) => !row.original.pending}
         rowSelection={rowSelection}

@@ -15,7 +15,7 @@ export function PrivacySettings() {
       <CardContent>
         <div className="flex items-center gap-2">
           <Switch id="blur-amounts" checked={blurAmounts} onCheckedChange={setBlurAmounts} />
-          <Label htmlFor="blur-amounts">Blur dollar amounts</Label>
+          <Label htmlFor="blur-amounts">Blur amounts</Label>
         </div>
       </CardContent>
     </Card>

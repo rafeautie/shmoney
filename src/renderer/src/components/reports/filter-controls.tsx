@@ -385,17 +385,19 @@ export function CategoriesControl({
 
 // ---------- direction ----------
 
+type Direction = 'all' | 'income' | 'expense' | 'transfer'
+
 export function DirectionControl({
   value,
   onChange,
   disabled
 }: {
-  value: 'all' | 'income' | 'expense'
-  onChange: (value: 'all' | 'income' | 'expense') => void
+  value: Direction
+  onChange: (value: Direction) => void
   disabled?: boolean
 }) {
   return (
-    <Select value={value} onValueChange={onChange} disabled={disabled}>
+    <Select value={value} onValueChange={(v) => onChange(v as Direction)} disabled={disabled}>
       <SelectTrigger size="lg" className="w-36">
         <SelectValue />
       </SelectTrigger>
@@ -403,6 +405,7 @@ export function DirectionControl({
         <SelectItem value="all">All directions</SelectItem>
         <SelectItem value="income">Income only</SelectItem>
         <SelectItem value="expense">Expenses only</SelectItem>
+        <SelectItem value="transfer">Transfers only</SelectItem>
       </SelectContent>
     </Select>
   )

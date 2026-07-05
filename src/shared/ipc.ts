@@ -5,6 +5,11 @@ export interface Connection {
   createdAt: string
 }
 
+export interface SyncResult extends Connection {
+  /** transfer pairs the detector auto-marked during this sync */
+  detectedTransfers: number
+}
+
 export interface Account {
   id: number
   connectionId: number
@@ -31,6 +36,8 @@ export interface Transaction {
   pending: boolean
   categoryId: number | null
   categoryName: string | null
+  /** transfer between accounts — excluded from income/expense */
+  isTransfer: boolean
 }
 
 export interface Category {
@@ -91,12 +98,6 @@ export const categoryRenameSchema = z.object({
 })
 export type CategoryRenameInput = z.infer<typeof categoryRenameSchema>
 
-export const transactionSetCategorySchema = z.object({
-  transactionId: idSchema,
-  categoryId: idSchema.nullable()
-})
-export type TransactionSetCategoryInput = z.infer<typeof transactionSetCategorySchema>
-
 // bulk actions silently skip pending rows: sync drops and re-inserts them, so
 // any change to them would be lost on the next sync.
 // per-row category values (rather than one value for all ids) let undo restore
@@ -110,6 +111,56 @@ export const transactionIdsSchema = z.object({
   transactionIds: z.array(idSchema).min(1)
 })
 export type TransactionIdsInput = z.infer<typeof transactionIdsSchema>
+
+// marks/unmarks a set of transactions as transfers; skips pending rows
+export const transactionsSetTransferSchema = z.object({
+  transactionIds: z.array(idSchema).min(1),
+  isTransfer: z.boolean()
+})
+export type TransactionsSetTransferInput = z.infer<typeof transactionsSetTransferSchema>
+
+// ---------- action log (audit trail + undo/redo) ----------
+
+export type ActionSource = 'user' | 'detector'
+
+// the transaction columns undo/redo may rewrite. These strings double as the
+// drizzle set-keys in the main-process engine, so they must match schema props.
+export type ActionField = 'categoryId' | 'deletedAt' | 'isTransfer'
+
+export interface ActionChange {
+  transactionId: number
+  field: ActionField
+  /** raw stored values: number|null for categoryId/deletedAt, boolean for isTransfer */
+  before: number | boolean | null
+  after: number | boolean | null
+}
+
+/** A change enriched with its transaction's current context, for the Activity list. */
+export interface ActionLogChange extends ActionChange {
+  /** null when the transaction no longer exists (e.g. after a disconnect) */
+  description: string | null
+  accountName: string | null
+  amount: number | null
+  currency: string | null
+  date: number | null
+}
+
+export interface ActionLogEntry {
+  id: number
+  /** unix milliseconds */
+  createdAt: number
+  source: ActionSource
+  label: string
+  /** unix millis when undone; null = currently applied */
+  undoneAt: number | null
+  changes: ActionLogChange[]
+}
+
+/** Result of undo/redo: applied = rows actually changed (0 = fully superseded). */
+export interface UndoResult {
+  label: string
+  applied: number
+}
 
 const pageFields = {
   page: z.number().int().min(0),
@@ -140,10 +191,9 @@ export const IPC = {
   accountsGet: 'accounts:get',
   accountTransactions: 'accounts:transactions',
   transactionsList: 'transactions:list',
-  transactionsSetCategory: 'transactions:setCategory',
   transactionsSetCategories: 'transactions:setCategories',
   transactionsBulkDelete: 'transactions:bulkDelete',
-  transactionsRestore: 'transactions:restore',
+  transactionsSetTransfer: 'transactions:setTransfer',
   categoriesList: 'categories:list',
   categoriesCreateGroup: 'categories:createGroup',
   categoriesRenameGroup: 'categories:renameGroup',
@@ -157,4 +207,14 @@ export const IPC = {
   windowClose: 'window:close',
   windowIsMaximized: 'window:isMaximized',
   windowMaximizedChanged: 'window:maximizedChanged'
+} as const
+
+export const ACTION_LOG_IPC = {
+  list: 'actionLog:list',
+  // keyboard Ctrl+Z/Y: act on the newest applied / newest undone entry
+  undo: 'actionLog:undo',
+  redo: 'actionLog:redo',
+  // Activity page: act on a specific entry
+  undoEntry: 'actionLog:undoEntry',
+  redoEntry: 'actionLog:redoEntry'
 } as const

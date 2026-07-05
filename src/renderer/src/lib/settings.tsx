@@ -55,3 +55,14 @@ export function usePrivacy() {
     setBlurAmounts: useCallback((blur: boolean) => setSetting('blurAmounts', blur), [setSetting])
   }
 }
+
+export function useDetectTransfers() {
+  const { settings, setSetting } = useSettings()
+  return {
+    detectTransfers: settings.detectTransfers,
+    setDetectTransfers: useCallback(
+      (on: boolean) => setSetting('detectTransfers', on),
+      [setSetting]
+    )
+  }
+}

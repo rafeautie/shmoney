@@ -69,6 +69,8 @@ interface DataTableProps<TData> {
   isLoading?: boolean
   emptyMessage?: string
   onRowClick?: (row: TData) => void
+  /** Extra classes per row, e.g. to dim rows matching a predicate */
+  rowClassName?: (row: TData) => string | false | undefined
   /** Row selection is controlled: pass all three (plus getRowId for stable ids across refetches) */
   enableRowSelection?: boolean | ((row: Row<TData>) => boolean)
   rowSelection?: RowSelectionState
@@ -91,6 +93,7 @@ export function DataTable<TData>({
   isLoading,
   emptyMessage = 'No results.',
   onRowClick,
+  rowClassName,
   enableRowSelection = false,
   rowSelection,
   onRowSelectionChange,
@@ -159,7 +162,7 @@ export function DataTable<TData>({
               <TableRow
                 key={row.id}
                 data-state={row.getIsSelected() ? 'selected' : undefined}
-                className={cn(onRowClick && 'cursor-pointer')}
+                className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row.original))}
                 onClick={onRowClick ? () => onRowClick(row.original) : undefined}
               >
                 {row.getVisibleCells().map((cell) => (

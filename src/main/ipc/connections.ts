@@ -1,11 +1,19 @@
 import { ipcMain, safeStorage } from 'electron'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import { db } from '../db'
-import { connections, accounts, transactions } from '../db/schema'
+import { connections, accounts, transactions, settings, actionLog } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
 import { claimAccessUrl, fetchAccounts, parseAmount } from '../simplefin'
-import { transactionsPage } from './transactions-page'
-import { IPC, connectInputSchema, accountIdSchema, type Connection } from '@shared/ipc'
+import { transactionsPage, transactionDate } from './transactions-page'
+import { recordAction } from './action-log'
+import { detectTransferPairs } from '../transfers'
+import {
+  IPC,
+  connectInputSchema,
+  accountIdSchema,
+  type Connection,
+  type SyncResult
+} from '@shared/ipc'
 import {
   filteredAccountTransactionsQuerySchema,
   filteredTransactionsQuerySchema
@@ -14,6 +22,12 @@ import { buildWhere } from '../reports/query'
 
 const FIRST_SYNC_WINDOW_SECONDS = 90 * 24 * 60 * 60
 const RESYNC_OVERLAP_SECONDS = 7 * 24 * 60 * 60
+
+function detectTransfersEnabled(): boolean {
+  const row = db.select().from(settings).where(eq(settings.key, 'detectTransfers')).get()
+  // default on; only an explicit stored `false` disables it
+  return row ? row.value !== false : true
+}
 
 function toConnection(row: ConnectionRow): Connection {
   // accessUrlEncrypted deliberately never crosses IPC
@@ -25,7 +39,7 @@ function connectionRow(): ConnectionRow | undefined {
   return db.select().from(connections).orderBy(asc(connections.id)).limit(1).get()
 }
 
-async function syncConnection(): Promise<Connection> {
+async function syncConnection(): Promise<SyncResult> {
   const row = connectionRow()
   if (!row) throw new Error('Not connected to SimpleFIN')
 
@@ -38,7 +52,9 @@ async function syncConnection(): Promise<Connection> {
   const payload = await fetchAccounts(accessUrl, startDate)
   const institutionByConnId = new Map(payload.connections.map((c) => [c.conn_id, c.name]))
 
-  const [updated] = db.transaction((tx) => {
+  const detectEnabled = detectTransfersEnabled()
+
+  const result = db.transaction((tx) => {
     for (const account of payload.accounts) {
       const values = {
         connectionId: row.id,
@@ -92,15 +108,54 @@ async function syncConnection(): Promise<Connection> {
       }
     }
 
-    return tx
+    // detect transfers over all currently-unmarked rows (cheap: bucketed by
+    // amount), marking both legs and logging one 'detector' entry to undo from
+    let detectedTransfers = 0
+    if (detectEnabled) {
+      const candidates = tx
+        .select({
+          id: transactions.id,
+          accountId: transactions.accountId,
+          amount: transactions.amount,
+          date: transactionDate
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.pending, false),
+            isNull(transactions.deletedAt),
+            eq(transactions.isTransfer, false)
+          )
+        )
+        .all()
+      const pairs = detectTransferPairs(candidates)
+      if (pairs.length > 0) {
+        const ids = pairs.flat()
+        tx.update(transactions).set({ isTransfer: true }).where(inArray(transactions.id, ids)).run()
+        recordAction(tx, {
+          source: 'detector',
+          label: `Detected ${pairs.length} transfer${pairs.length === 1 ? '' : 's'}`,
+          changes: ids.map((id) => ({
+            transactionId: id,
+            field: 'isTransfer',
+            before: false,
+            after: true
+          }))
+        })
+        detectedTransfers = pairs.length
+      }
+    }
+
+    const [updated] = tx
       .update(connections)
       .set({ lastSyncedAt: now })
       .where(eq(connections.id, row.id))
       .returning()
       .all()
+    return { updated, detectedTransfers }
   })
 
-  return toConnection(updated)
+  return { ...toConnection(result.updated), detectedTransfers: result.detectedTransfers }
 }
 
 export function registerConnectionsIpc(): void {
@@ -133,8 +188,10 @@ export function registerConnectionsIpc(): void {
   })
 
   ipcMain.handle(IPC.connectionDisconnect, () => {
-    // cascades to accounts and transactions
+    // cascades to accounts and transactions; the audit log has no FK, so clear
+    // it too rather than leave entries pointing at deleted transactions
     db.delete(connections).run()
+    db.delete(actionLog).run()
     return true
   })
 

@@ -53,7 +53,8 @@ const filterFieldsSchema = z.object({
   /** pairs with categoryIds: also match rows with no category */
   includeUncategorized: z.boolean().optional(),
   categoryGroupIds: z.array(idSchema).optional(),
-  direction: z.enum(['all', 'income', 'expense']),
+  // 'transfer' shows only inter-account transfers; income/expense exclude them
+  direction: z.enum(['all', 'income', 'expense', 'transfer']),
   /** milliunits, compared against abs(amount) */
   amountMin: z.number().int().optional(),
   amountMax: z.number().int().optional(),

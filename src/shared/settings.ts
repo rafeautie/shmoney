@@ -4,7 +4,9 @@ import { z } from 'zod'
 export const settingSchemas = {
   theme: z.enum(['light', 'dark']),
   blurAmounts: z.boolean(),
-  sidebarOpen: z.boolean()
+  sidebarOpen: z.boolean(),
+  // auto-detect inter-account transfers on sync (see the transfer detector)
+  detectTransfers: z.boolean()
 }
 
 export type SettingKey = keyof typeof settingSchemas
@@ -15,7 +17,8 @@ export const settingKeySchema = z.enum(Object.keys(settingSchemas) as [SettingKe
 export const SETTINGS_DEFAULTS: Settings = {
   theme: 'dark',
   blurAmounts: false,
-  sidebarOpen: true
+  sidebarOpen: true,
+  detectTransfers: true
 }
 
 export const SETTINGS_IPC = {

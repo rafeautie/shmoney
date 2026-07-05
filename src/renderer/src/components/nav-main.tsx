@@ -1,6 +1,7 @@
 import { Link, useMatchRoute } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
+  Activity01Icon,
   Analytics01Icon,
   Home01Icon,
   Settings01Icon,
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { to: '/', label: 'Home', fuzzy: false, icon: Home01Icon },
   { to: '/accounts', label: 'Accounts', fuzzy: true, icon: Wallet01Icon },
   { to: '/reports', label: 'Reports', fuzzy: true, icon: Analytics01Icon },
+  { to: '/activity', label: 'Activity', fuzzy: false, icon: Activity01Icon },
   { to: '/settings', label: 'Settings', fuzzy: false, icon: Settings01Icon }
 ] as const
 

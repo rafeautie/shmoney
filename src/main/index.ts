@@ -5,6 +5,7 @@ import { runMigrations } from './db'
 import { registerConnectionsIpc } from './ipc/connections'
 import { registerCategoriesIpc } from './ipc/categories'
 import { registerTransactionsIpc } from './ipc/transactions'
+import { registerActionLogIpc } from './ipc/action-log'
 import { registerReportsIpc } from './ipc/reports'
 import { registerSavedFiltersIpc } from './ipc/saved-filters'
 import { registerSettingsIpc } from './ipc/settings'
@@ -60,6 +61,7 @@ app.whenReady().then(() => {
   registerConnectionsIpc()
   registerCategoriesIpc()
   registerTransactionsIpc()
+  registerActionLogIpc()
   registerReportsIpc()
   registerSavedFiltersIpc()
   registerSettingsIpc()

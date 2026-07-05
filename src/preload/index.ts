@@ -1,8 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import {
+  ACTION_LOG_IPC,
   IPC,
   type Account,
+  type ActionLogEntry,
   type CategoriesList,
   type Category,
   type CategoryCreateInput,
@@ -13,10 +15,12 @@ import {
   type ConnectInput,
   type Connection,
   type Page,
+  type SyncResult,
   type Transaction,
   type TransactionIdsInput,
-  type TransactionSetCategoryInput,
-  type TransactionsSetCategoriesInput
+  type TransactionsSetCategoriesInput,
+  type TransactionsSetTransferInput,
+  type UndoResult
 } from '@shared/ipc'
 import {
   SAVED_FILTERS_IPC,
@@ -48,7 +52,7 @@ const api = {
     get: (): Promise<Connection | null> => ipcRenderer.invoke(IPC.connectionGet),
     connect: (input: ConnectInput): Promise<Connection> =>
       ipcRenderer.invoke(IPC.connectionConnect, input),
-    sync: (): Promise<Connection> => ipcRenderer.invoke(IPC.connectionSync),
+    sync: (): Promise<SyncResult> => ipcRenderer.invoke(IPC.connectionSync),
     disconnect: (): Promise<boolean> => ipcRenderer.invoke(IPC.connectionDisconnect)
   },
   accounts: {
@@ -60,16 +64,26 @@ const api = {
   transactions: {
     list: (query: FilteredTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(IPC.transactionsList, query),
-    setCategory: (input: TransactionSetCategoryInput): Promise<boolean> =>
-      ipcRenderer.invoke(IPC.transactionsSetCategory, input),
     /** Per-row category values; skips pending rows, resolves to rows updated */
     setCategories: (input: TransactionsSetCategoriesInput): Promise<number> =>
       ipcRenderer.invoke(IPC.transactionsSetCategories, input),
     /** Soft delete; skips pending rows, resolves to the ids actually deleted */
     bulkDelete: (input: TransactionIdsInput): Promise<number[]> =>
       ipcRenderer.invoke(IPC.transactionsBulkDelete, input),
-    restore: (input: TransactionIdsInput): Promise<number> =>
-      ipcRenderer.invoke(IPC.transactionsRestore, input)
+    /** Mark/unmark transfers; skips pending rows, resolves to rows updated */
+    setTransfer: (input: TransactionsSetTransferInput): Promise<number> =>
+      ipcRenderer.invoke(IPC.transactionsSetTransfer, input)
+  },
+  actionLog: {
+    list: (): Promise<ActionLogEntry[]> => ipcRenderer.invoke(ACTION_LOG_IPC.list),
+    /** Undo the newest applied entry; null if there's nothing to undo */
+    undo: (): Promise<UndoResult | null> => ipcRenderer.invoke(ACTION_LOG_IPC.undo),
+    /** Redo the most recently undone entry; null if there's nothing to redo */
+    redo: (): Promise<UndoResult | null> => ipcRenderer.invoke(ACTION_LOG_IPC.redo),
+    undoEntry: (id: number): Promise<UndoResult> =>
+      ipcRenderer.invoke(ACTION_LOG_IPC.undoEntry, id),
+    redoEntry: (id: number): Promise<UndoResult> =>
+      ipcRenderer.invoke(ACTION_LOG_IPC.redoEntry, id)
   },
   categories: {
     list: (): Promise<CategoriesList> => ipcRenderer.invoke(IPC.categoriesList),

@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { CategoryPicker } from '@/components/category-picker'
-import { undoHistory } from '@/lib/undo'
 import { plural } from '@/lib/utils'
 
 interface TransactionsBulkActionsProps {
@@ -25,7 +24,9 @@ interface TransactionsBulkActionsProps {
 }
 
 /** Floating action bar shown while rows are selected. New bulk actions slot in
- * as additional buttons; each should clear the selection when it completes. */
+ * as additional buttons; each should clear the selection when it completes.
+ * Every mutation records to the action log (main process), so undo/redo and the
+ * Activity page pick them up automatically. */
 export function TransactionsBulkActions({
   transactions,
   onClearSelection
@@ -35,23 +36,25 @@ export function TransactionsBulkActions({
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const transactionIds = transactions.map((transaction) => transaction.id)
+  // toggle direction: if every selected row is already a transfer, the action unmarks
+  const allTransfers = transactions.length > 0 && transactions.every((t) => t.isTransfer)
 
   const setCategory = useMutation({
-    mutationFn: async (categoryId: number | null) => {
-      const changes = transactions.map((t) => ({ transactionId: t.id, categoryId }))
-      const previous = transactions.map((t) => ({ transactionId: t.id, categoryId: t.categoryId }))
-      await window.api.transactions.setCategories({ changes })
-      return { changes, previous }
-    },
-    onSuccess: ({ changes, previous }) => {
-      undoHistory.push({
-        label: `Set category on ${plural(changes.length, 'transaction')}`,
-        undo: () => window.api.transactions.setCategories({ changes: previous }),
-        redo: () => window.api.transactions.setCategories({ changes })
-      })
+    mutationFn: (categoryId: number | null) =>
+      window.api.transactions.setCategories({
+        changes: transactions.map((t) => ({ transactionId: t.id, categoryId }))
+      }),
+    onSuccess: () => {
       setCategoryOpen(false)
       onClearSelection()
     },
+    onSettled: () => queryClient.invalidateQueries()
+  })
+
+  const setTransfer = useMutation({
+    mutationFn: () =>
+      window.api.transactions.setTransfer({ transactionIds, isTransfer: !allTransfers }),
+    onSuccess: () => onClearSelection(),
     onSettled: () => queryClient.invalidateQueries()
   })
 
@@ -59,16 +62,14 @@ export function TransactionsBulkActions({
     mutationFn: () => window.api.transactions.bulkDelete({ transactionIds }),
     onSuccess: (deletedIds) => {
       if (deletedIds.length > 0) {
-        undoHistory.push({
-          label: `Delete ${plural(deletedIds.length, 'transaction')}`,
-          undo: () => window.api.transactions.restore({ transactionIds: deletedIds }),
-          redo: () => window.api.transactions.bulkDelete({ transactionIds: deletedIds })
-        })
         toast(`${plural(deletedIds.length, 'transaction')} deleted`, {
           action: {
             label: 'Undo',
             onClick: () => {
-              undoHistory.undo().catch(() => toast.error("Couldn't undo the delete"))
+              window.api.actionLog
+                .undo()
+                .then(() => queryClient.invalidateQueries())
+                .catch(() => toast.error("Couldn't undo the delete"))
             }
           }
         })
@@ -93,27 +94,29 @@ export function TransactionsBulkActions({
       ) {
         return
       }
-      if (event.key !== 'd' && event.key !== 'c') return
+      if (event.key !== 'd' && event.key !== 'c' && event.key !== 't') return
       // the popover focuses its search input before this key's default text
       // insertion runs, so without this the shortcut letter gets typed into it
       event.preventDefault()
       if (event.key === 'd') setConfirmDelete(true)
       if (event.key === 'c') setCategoryOpen(true)
+      if (event.key === 't') setTransfer.mutate()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [transactions.length])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactions.length, allTransfers])
 
   if (transactions.length === 0) return null
 
   return (
-    <div className="absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-lg border bg-background p-1 shadow-md">
-      <span className="px-2 text-xs whitespace-nowrap text-muted-foreground">
+    <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-xl border bg-background p-1.5 shadow-lg">
+      <span className="px-2.5 text-sm whitespace-nowrap text-muted-foreground">
         {transactions.length} selected
       </span>
       <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" title="Set category (c)">
+          <Button variant="ghost" size="lg" className="text-sm" title="Set category (c)">
             Set category
           </Button>
         </PopoverTrigger>
@@ -125,8 +128,19 @@ export function TransactionsBulkActions({
         </PopoverContent>
       </Popover>
       <Button
+        variant="ghost"
+        size="lg"
+        className="text-sm"
+        title={allTransfers ? 'Unmark transfer (t)' : 'Mark as transfer (t)'}
+        disabled={setTransfer.isPending}
+        onClick={() => setTransfer.mutate()}
+      >
+        {allTransfers ? 'Unmark transfer' : 'Mark as transfer'}
+      </Button>
+      <Button
         variant="destructive"
-        size="sm"
+        size="lg"
+        className="text-sm"
         title="Delete (d)"
         onClick={() => setConfirmDelete(true)}
       >
@@ -134,7 +148,7 @@ export function TransactionsBulkActions({
       </Button>
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon-lg"
         aria-label="Clear selection"
         onClick={onClearSelection}
       >

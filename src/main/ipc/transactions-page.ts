@@ -40,7 +40,8 @@ export function transactionsPage(
       description: transactions.description,
       pending: transactions.pending,
       categoryId: transactions.categoryId,
-      categoryName: categories.name
+      categoryName: categories.name,
+      isTransfer: transactions.isTransfer
     })
     .from(transactions)
     .innerJoin(accounts, eq(transactions.accountId, accounts.id))

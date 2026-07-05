@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ipcErrorMessage } from '@/lib/utils'
+import { useNavigate } from '@tanstack/react-router'
+import { toast } from 'sonner'
+import { ipcErrorMessage, plural } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,6 +17,7 @@ import {
 
 export function ConnectionSettings() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const connectionQuery = useQuery({
     queryKey: ['connection'],
@@ -27,6 +30,14 @@ export function ConnectionSettings() {
 
   const syncConnection = useMutation({
     mutationFn: () => window.api.connection.sync(),
+    onSuccess: (result) => {
+      if (result.detectedTransfers > 0) {
+        toast(`Detected ${plural(result.detectedTransfers, 'transfer')}`, {
+          description: 'Marked automatically and excluded from income and expenses.',
+          action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
+        })
+      }
+    },
     onSettled: () => queryClient.invalidateQueries()
   })
 
