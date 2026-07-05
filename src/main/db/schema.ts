@@ -3,7 +3,7 @@ import { sqliteTable, integer, text, uniqueIndex } from 'drizzle-orm/sqlite-core
 // type-only imports: erased at compile time, so drizzle-kit never resolves them at runtime
 import type { ReportFilters, WidgetConfig, WidgetType } from '../../shared/reports'
 import type { TransactionFilters } from '../../shared/transaction-filters'
-import type { ActionChange } from '../../shared/ipc'
+import type { ActionChange, SfinError } from '../../shared/ipc'
 
 // holds at most one row: the app supports a single SimpleFIN connection
 export const connections = sqliteTable('connections', {
@@ -11,6 +11,8 @@ export const connections = sqliteTable('connections', {
   // base64 of safeStorage.encryptString(accessUrl); decrypted only in the main process
   accessUrlEncrypted: text('access_url_encrypted').notNull(),
   lastSyncedAt: integer('last_synced_at'),
+  // errlist from the most recent sync; null once a clean sync clears it
+  lastSyncErrors: text('last_sync_errors', { mode: 'json' }).$type<SfinError[]>(),
   createdAt: text('created_at')
     .notNull()
     .default(sql`(current_timestamp)`)

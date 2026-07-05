@@ -1,0 +1,1 @@
+ALTER TABLE `connections` ADD `last_sync_errors` text;

@@ -31,7 +31,11 @@ function detectTransfersEnabled(): boolean {
 
 function toConnection(row: ConnectionRow): Connection {
   // accessUrlEncrypted deliberately never crosses IPC
-  return { lastSyncedAt: row.lastSyncedAt, createdAt: row.createdAt }
+  return {
+    lastSyncedAt: row.lastSyncedAt,
+    createdAt: row.createdAt,
+    lastSyncErrors: row.lastSyncErrors ?? []
+  }
 }
 
 // the app supports a single SimpleFIN connection; oldest row wins if legacy data has more
@@ -146,9 +150,13 @@ async function syncConnection(): Promise<SyncResult> {
       }
     }
 
+    // persist this sync's errlist so the connection card can surface it; a clean
+    // sync writes null, clearing warnings once the underlying issue is resolved
+    const lastSyncErrors =
+      payload.errlist.length > 0 ? payload.errlist.map((e) => ({ code: e.code, msg: e.msg })) : null
     const [updated] = tx
       .update(connections)
-      .set({ lastSyncedAt: now })
+      .set({ lastSyncedAt: now, lastSyncErrors })
       .where(eq(connections.id, row.id))
       .returning()
       .all()

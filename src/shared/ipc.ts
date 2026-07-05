@@ -1,8 +1,16 @@
 import { z } from 'zod'
 
+/** A non-fatal warning from SimpleFIN's errlist (e.g. an account needing re-auth at the bridge). */
+export interface SfinError {
+  code: string
+  msg: string
+}
+
 export interface Connection {
   lastSyncedAt: number | null
   createdAt: string
+  /** errlist from the most recent sync; empty once a clean sync clears it */
+  lastSyncErrors: SfinError[]
 }
 
 export interface SyncResult extends Connection {

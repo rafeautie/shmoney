@@ -2,6 +2,9 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { Alert02Icon } from '@hugeicons/core-free-icons'
+import type { SfinError } from '@shared/ipc'
 import { ipcErrorMessage, plural } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -114,6 +117,9 @@ export function ConnectionSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
+        {connection.lastSyncErrors.length > 0 && (
+          <SyncErrorsAlert errors={connection.lastSyncErrors} />
+        )}
         {syncConnection.isError && (
           <p className="text-sm text-destructive">
             Sync failed: {ipcErrorMessage(syncConnection.error)}
@@ -154,5 +160,28 @@ export function ConnectionSettings() {
         )}
       </CardFooter>
     </Card>
+  )
+}
+
+function SyncErrorsAlert({ errors }: { errors: SfinError[] }) {
+  return (
+    <div
+      role="alert"
+      className="flex gap-3 rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-destructive dark:bg-destructive/15"
+    >
+      <HugeiconsIcon icon={Alert02Icon} size={18} className="mt-0.5 shrink-0" />
+      <div className="min-w-0 space-y-1.5">
+        <p className="text-sm font-medium">
+          SimpleFIN reported {plural(errors.length, 'issue')} on the last sync
+        </p>
+        <ul className="space-y-1 text-sm text-destructive/90">
+          {errors.map((error, i) => (
+            <li key={`${error.code}-${i}`} className="leading-snug">
+              {error.msg}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   )
 }
