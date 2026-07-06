@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, isToday, isYesterday } from 'date-fns'
@@ -15,6 +14,7 @@ import { Page } from '@/components/page'
 import { Amount } from '@/components/amount'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -90,7 +90,6 @@ function ActivityPage() {
 
 function EntryRow({ entry }: { entry: ActionLogEntry }) {
   const queryClient = useQueryClient()
-  const [expanded, setExpanded] = useState(false)
   const undone = entry.undoneAt !== null
   const isDetector = entry.source === 'detector'
   // both the transfer detector and rules are automated (non-user) changes
@@ -109,18 +108,14 @@ function EntryRow({ entry }: { entry: ActionLogEntry }) {
   })
 
   return (
-    <div className={cn('px-3 py-2.5', undone && 'opacity-60')}>
+    <Collapsible className={cn('group/entry px-3 py-2.5', undone && 'opacity-60')}>
       <div className="flex items-center gap-3">
         <HugeiconsIcon
           icon={isDetector ? ArrowDataTransferHorizontalIcon : Clock01Icon}
           size={18}
           className="shrink-0 text-muted-foreground"
         />
-        <button
-          type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-          onClick={() => setExpanded((v) => !v)}
-        >
+        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 text-left">
           <div className="min-w-0">
             <div className={cn('truncate text-sm font-medium', undone && 'line-through')}>
               {entry.label}
@@ -130,15 +125,7 @@ function EntryRow({ entry }: { entry: ActionLogEntry }) {
               {plural(entry.changes.length, 'transaction')}
             </div>
           </div>
-          <HugeiconsIcon
-            icon={ArrowDown01Icon}
-            size={14}
-            className={cn(
-              'ml-auto shrink-0 text-muted-foreground transition-transform',
-              expanded && 'rotate-180'
-            )}
-          />
-        </button>
+        </CollapsibleTrigger>
         {isAutomated && (
           <Badge variant="secondary">{entry.source === 'rule' ? 'Rule' : 'Auto'}</Badge>
         )}
@@ -146,48 +133,49 @@ function EntryRow({ entry }: { entry: ActionLogEntry }) {
         <Button variant="ghost" size="sm" disabled={toggle.isPending} onClick={() => toggle.mutate()}>
           {undone ? 'Redo' : 'Undo'}
         </Button>
+        <HugeiconsIcon
+          icon={ArrowDown01Icon}
+          size={14}
+          className="ml-auto shrink-0 text-muted-foreground transition-transform group-data-[state=open]/entry:rotate-180"
+        />
       </div>
 
-      {expanded && (
-        <div className="-mx-3 -mb-2.5 mt-2 border-t">
-          <Table className="[&_td:first-child]:pl-3 [&_th:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:last-child]:pr-3 [&_td]:h-auto [&_td]:py-1 [&_th]:h-auto [&_th]:py-1">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="font-normal text-muted-foreground">Date</TableHead>
-                <TableHead className="font-normal text-muted-foreground">Account</TableHead>
-                <TableHead className="w-full font-normal text-muted-foreground">
-                  Description
-                </TableHead>
-                <TableHead className="text-right font-normal text-muted-foreground">Amount</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {entry.changes.map((change) => (
-                <TableRow key={change.transactionId} className="hover:bg-transparent">
-                  {change.description === null ? (
-                    <TableCell colSpan={4} className="text-muted-foreground italic">
-                      Transaction no longer exists
+      <CollapsibleContent className="-mx-3 -mb-2.5 mt-2 border-t">
+        <Table className="[&_td:first-child]:pl-3 [&_th:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:last-child]:pr-3 [&_td]:h-auto [&_td]:py-1 [&_th]:h-auto [&_th]:py-1">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="font-normal text-muted-foreground">Date</TableHead>
+              <TableHead className="font-normal text-muted-foreground">Account</TableHead>
+              <TableHead className="w-full font-normal text-muted-foreground">Description</TableHead>
+              <TableHead className="text-right font-normal text-muted-foreground">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {entry.changes.map((change) => (
+              <TableRow key={change.transactionId} className="hover:bg-transparent">
+                {change.description === null ? (
+                  <TableCell colSpan={4} className="text-muted-foreground italic">
+                    Transaction no longer exists
+                  </TableCell>
+                ) : (
+                  <>
+                    <TableCell className="text-muted-foreground">
+                      {change.date ? new Date(change.date * 1000).toLocaleDateString() : '—'}
                     </TableCell>
-                  ) : (
-                    <>
-                      <TableCell className="text-muted-foreground">
-                        {change.date ? new Date(change.date * 1000).toLocaleDateString() : '—'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{change.accountName}</TableCell>
-                      <TableCell className="w-full max-w-0 truncate">{change.description}</TableCell>
-                      <TableCell className="text-right">
-                        {change.amount !== null && change.currency && (
-                          <Amount value={change.amount} currency={change.currency} />
-                        )}
-                      </TableCell>
-                    </>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-    </div>
+                    <TableCell className="text-muted-foreground">{change.accountName}</TableCell>
+                    <TableCell className="w-full max-w-0 truncate">{change.description}</TableCell>
+                    <TableCell className="text-right">
+                      {change.amount !== null && change.currency && (
+                        <Amount value={change.amount} currency={change.currency} />
+                      )}
+                    </TableCell>
+                  </>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
