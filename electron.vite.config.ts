@@ -11,6 +11,14 @@ export default defineConfig({
         '@main': resolve('src/main'),
         '@shared': resolve('src/shared')
       }
+    },
+    build: {
+      rollupOptions: {
+        input: {
+          index: resolve('src/main/index.ts'),
+          'llm/worker': resolve('src/main/llm/worker.ts')
+        }
+      }
     }
   },
   preload: {

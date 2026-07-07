@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import type { Account } from '@shared/ipc'
 import { Amount } from '@/components/amount'
+import { AutoCategorizeButton } from '@/components/auto-categorize-button'
 import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
 import { TABLE_BLEED, cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,11 +33,15 @@ function AccountsPage() {
   return (
     <Tabs defaultValue="accounts" className="flex min-h-0 flex-1 flex-col gap-0">
       <div className="space-y-4 px-6 pt-6 pb-4">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Accounts</h2>
-          <p className="text-muted-foreground">
-            Balances grouped by institution, and every transaction across your accounts.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight">Accounts</h2>
+            <p className="text-muted-foreground">
+              Balances grouped by institution, and every transaction across your accounts.
+            </p>
+          </div>
+          {/* empty scope → categorize every uncategorized transaction */}
+          <AutoCategorizeButton scope={{}} />
         </div>
         <TabsList>
           <TabsTrigger value="accounts">Accounts</TabsTrigger>

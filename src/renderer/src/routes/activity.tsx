@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, isToday, isYesterday } from 'date-fns'
@@ -40,6 +41,20 @@ function ActivityPage() {
   const query = useQuery({ queryKey: ['actionLog'], queryFn: () => window.api.actionLog.list() })
   const entries = query.data ?? []
 
+  const categoriesQuery = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => window.api.categories.list()
+  })
+  const categoryName = useMemo(() => {
+    const map = new Map<number, string>()
+    const data = categoriesQuery.data
+    if (data) {
+      for (const group of data.groups) for (const c of group.categories) map.set(c.id, c.name)
+      for (const c of data.ungrouped) map.set(c.id, c.name)
+    }
+    return map
+  }, [categoriesQuery.data])
+
   // entries arrive newest-first; collapse runs of the same calendar day
   const groups: { label: string; entries: ActionLogEntry[] }[] = []
   for (const entry of entries) {
@@ -77,7 +92,7 @@ function ActivityPage() {
               </h3>
               <div className="divide-y rounded-lg border">
                 {group.entries.map((entry) => (
-                  <EntryRow key={entry.id} entry={entry} />
+                  <EntryRow key={entry.id} entry={entry} categoryName={categoryName} />
                 ))}
               </div>
             </div>
@@ -88,12 +103,20 @@ function ActivityPage() {
   )
 }
 
-function EntryRow({ entry }: { entry: ActionLogEntry }) {
+function EntryRow({
+  entry,
+  categoryName
+}: {
+  entry: ActionLogEntry
+  categoryName: Map<number, string>
+}) {
   const queryClient = useQueryClient()
   const undone = entry.undoneAt !== null
   const isDetector = entry.source === 'detector'
   // both the transfer detector and rules are automated (non-user) changes
   const isAutomated = entry.source !== 'user'
+  // category-set entries (manual, rule, or auto) show which category each row got
+  const isCategoryEntry = entry.changes.some((c) => c.field === 'categoryId')
 
   const toggle = useMutation({
     mutationFn: () =>
@@ -133,11 +156,13 @@ function EntryRow({ entry }: { entry: ActionLogEntry }) {
         <Button variant="ghost" size="sm" disabled={toggle.isPending} onClick={() => toggle.mutate()}>
           {undone ? 'Redo' : 'Undo'}
         </Button>
-        <HugeiconsIcon
-          icon={ArrowDown01Icon}
-          size={14}
-          className="ml-auto shrink-0 text-muted-foreground transition-transform group-data-[state=open]/entry:rotate-180"
-        />
+        <CollapsibleTrigger>
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            size={14}
+            className="ml-auto shrink-0 text-muted-foreground transition-transform group-data-[state=open]/entry:rotate-180"
+          />
+        </CollapsibleTrigger>
       </div>
 
       <CollapsibleContent className="-mx-3 -mb-2.5 mt-2 border-t">
@@ -148,13 +173,19 @@ function EntryRow({ entry }: { entry: ActionLogEntry }) {
               <TableHead className="font-normal text-muted-foreground">Account</TableHead>
               <TableHead className="w-full font-normal text-muted-foreground">Description</TableHead>
               <TableHead className="text-right font-normal text-muted-foreground">Amount</TableHead>
+              {isCategoryEntry && (
+                <TableHead className="font-normal text-muted-foreground">Category</TableHead>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
             {entry.changes.map((change) => (
               <TableRow key={change.transactionId} className="hover:bg-transparent">
                 {change.description === null ? (
-                  <TableCell colSpan={4} className="text-muted-foreground italic">
+                  <TableCell
+                    colSpan={isCategoryEntry ? 5 : 4}
+                    className="text-muted-foreground italic"
+                  >
                     Transaction no longer exists
                   </TableCell>
                 ) : (
@@ -169,6 +200,13 @@ function EntryRow({ entry }: { entry: ActionLogEntry }) {
                         <Amount value={change.amount} currency={change.currency} />
                       )}
                     </TableCell>
+                    {isCategoryEntry && (
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {typeof change.after === 'number'
+                          ? (categoryName.get(change.after) ?? 'Unknown category')
+                          : 'Uncategorized'}
+                      </TableCell>
+                    )}
                   </>
                 )}
               </TableRow>

@@ -33,7 +33,7 @@ export function UndoShortcuts() {
             return
           }
           queryClient.invalidateQueries()
-          toast(`${isRedo ? 'Redo' : 'Undo'}: ${result.label}`)
+          toast(`${isRedo ? 'Redo' : 'Undo'} ${result.label}`)
         })
         .catch(() => toast.error(`Couldn't ${verb} the last action`))
     }

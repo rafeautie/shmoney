@@ -41,6 +41,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
+    "node-llama-cpp": "^3.19.0",
     "radix-ui": "^1.6.1",
     "react": "^19.2.7",
     "react-day-picker": "^10.0.1",
@@ -79,5 +80,8 @@
     "typescript": "^6.0.3",
     "vite": "^7.3.6",
     "vitest": "^4.1.9"
+  },
+  "allowScripts": {
+    "node-llama-cpp@3.19.0": true
   }
 }

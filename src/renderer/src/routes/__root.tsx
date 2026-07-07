@@ -1,6 +1,7 @@
 import { Outlet, createRootRoute } from '@tanstack/react-router'
 import { AppSidebar } from '@/components/app-sidebar'
 import { Toaster } from '@/components/ui/sonner'
+import { NotificationCenter } from '@/components/notification-center'
 import { UndoShortcuts } from '@/components/undo-shortcuts'
 import { WindowControls } from '@/components/window-controls'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
@@ -22,7 +23,8 @@ function RootComponent() {
       <SidebarInset className="h-svh overflow-hidden">
         <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4 [-webkit-app-region:drag]">
           <SidebarTrigger className="-ml-1 [-webkit-app-region:no-drag]" />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
+            <NotificationCenter />
             <WindowControls />
           </div>
         </header>

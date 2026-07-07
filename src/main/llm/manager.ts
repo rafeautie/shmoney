@@ -1,0 +1,176 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { app, utilityProcess, BrowserWindow, type UtilityProcess } from 'electron'
+import { LLM_IPC, LLM_MODEL, type LlmDownloadProgress, type LlmStatus } from '@shared/llm'
+import type { DistributiveOmit, WorkerCommand, WorkerMessage } from './protocol'
+
+function modelsDir(): string {
+  return path.join(app.getPath('userData'), 'models')
+}
+
+function workerEntry(): string {
+  return path.join(__dirname, 'llm/worker.js')
+}
+
+// push an unsolicited event to the renderer (status, progress). Shared so
+// features can report their own progress through the same one-liner.
+export function sendToRenderer(channel: string, payload: unknown): void {
+  BrowserWindow.getAllWindows()[0]?.webContents.send(channel, payload)
+}
+
+// after the last generate finishes, keep the model in memory this long in case
+// another request follows, then unload to give its RAM back
+const IDLE_UNLOAD_MS = 60_000
+
+class LlmManager {
+  private worker: UtilityProcess | null = null
+  private status: LlmStatus | null = null
+  private nextId = 1
+  private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
+  private inFlight = 0
+  private idleTimer: ReturnType<typeof setTimeout> | null = null
+
+  getStatus(): LlmStatus {
+    if (!this.status) this.status = this.computeInitialStatus()
+    return this.status
+  }
+
+  /** Size of the downloaded model file in bytes, or null if it isn't on disk. */
+  getDiskSize(): number | null {
+    try {
+      return fs.statSync(path.join(modelsDir(), LLM_MODEL.fileName)).size
+    } catch {
+      return null
+    }
+  }
+
+  private computeInitialStatus(): LlmStatus {
+    const downloaded = fs.existsSync(path.join(modelsDir(), LLM_MODEL.fileName))
+    return { stage: downloaded ? 'downloaded' : 'notDownloaded', error: null }
+  }
+
+  async download(): Promise<LlmStatus> {
+    await this.send({ type: 'download' })
+    return this.getStatus()
+  }
+
+  async cancelDownload(): Promise<void> {
+    await this.send({ type: 'cancelDownload' })
+  }
+
+  private async load(): Promise<void> {
+    await this.send({ type: 'load' })
+  }
+
+  private async unload(): Promise<void> {
+    await this.send({ type: 'unload' })
+  }
+
+  /** Delete the downloaded model file, unloading it first if loaded. */
+  async deleteModel(): Promise<LlmStatus> {
+    this.clearIdleTimer()
+    await this.send({ type: 'delete' })
+    return this.getStatus()
+  }
+
+  /**
+   * The one inference primitive every LLM feature is built on: hand it a prompt
+   * (and optional JSON schema) and it takes care of the model lifecycle —
+   * loading on first use, and unloading again once requests stop (see
+   * {@link IDLE_UNLOAD_MS}). Features never load or unload themselves.
+   */
+  async generate(prompt: string, schema?: object, signal?: AbortSignal): Promise<unknown> {
+    this.clearIdleTimer()
+    const status = this.getStatus()
+    if (status.stage === 'downloaded') {
+      await this.load()
+    } else if (status.stage !== 'ready') {
+      throw new Error(`Model is not ready (${status.stage})`)
+    }
+    // the signal can't cross to the worker, so relay an abort command when it
+    // fires; the worker stops the generation and its reply rejects
+    const onAbort = (): void => void this.send({ type: 'abortGenerate' })
+    signal?.addEventListener('abort', onAbort, { once: true })
+    this.inFlight++
+    try {
+      if (signal?.aborted) throw signal.reason // cancelled while the model was loading
+      return await this.send({ type: 'generate', prompt, schema })
+    } finally {
+      signal?.removeEventListener('abort', onAbort)
+      this.inFlight--
+      if (this.inFlight === 0) this.scheduleIdleUnload()
+    }
+  }
+
+  private clearIdleTimer(): void {
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer)
+      this.idleTimer = null
+    }
+  }
+
+  private scheduleIdleUnload(): void {
+    this.clearIdleTimer()
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null
+      if (this.inFlight === 0 && this.getStatus().stage === 'ready') void this.unload()
+    }, IDLE_UNLOAD_MS)
+  }
+
+  private ensureWorker(): UtilityProcess {
+    if (this.worker) return this.worker
+
+    const worker = utilityProcess.fork(workerEntry(), [], {
+      serviceName: 'shmoney-llm',
+      stdio: 'pipe',
+      env: { ...process.env, LLM_MODELS_DIR: modelsDir() }
+    })
+    worker.stdout?.on('data', (d) => console.log(`[llm worker] ${d}`))
+    worker.stderr?.on('data', (d) => console.error(`[llm worker] ${d}`))
+    worker.on('message', (msg: WorkerMessage) => this.handleWorkerMessage(msg))
+    worker.on('exit', (code) => this.handleWorkerExit(code))
+
+    this.worker = worker
+    return worker
+  }
+
+  private handleWorkerMessage(msg: WorkerMessage): void {
+    if ('event' in msg) {
+      if (msg.event === 'status') {
+        this.status = msg.status
+        sendToRenderer(LLM_IPC.statusChanged, msg.status)
+      } else {
+        sendToRenderer(LLM_IPC.downloadProgress, msg.progress satisfies LlmDownloadProgress)
+      }
+      return
+    }
+    const pending = this.pending.get(msg.id)
+    if (!pending) return
+    this.pending.delete(msg.id)
+    if (msg.ok) pending.resolve(msg.result)
+    else pending.reject(new Error(msg.error))
+  }
+
+  private handleWorkerExit(code: number): void {
+    for (const { reject } of this.pending.values()) {
+      reject(new Error(`LLM worker exited unexpectedly (code ${code})`))
+    }
+    this.pending.clear()
+    this.worker = null
+    if (code !== 0) {
+      this.status = { stage: 'error', error: `Worker exited unexpectedly (code ${code})` }
+      sendToRenderer(LLM_IPC.statusChanged, this.status)
+    }
+  }
+
+  private send(command: DistributiveOmit<WorkerCommand, 'id'>): Promise<unknown> {
+    const worker = this.ensureWorker()
+    const id = this.nextId++
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject })
+      worker.postMessage({ id, ...command } as WorkerCommand)
+    })
+  }
+}
+
+export const llmManager = new LlmManager()

@@ -8,12 +8,18 @@ files:
   - '!**/{.eslintrc,.eslintignore,.prettierrc,.prettierignore}'
 asarUnpack:
   - '**/*.node'
+  - '**/node_modules/node-llama-cpp/bins/**'
+  - '**/node_modules/node-llama-cpp/llama/**'
+  - '**/node_modules/@node-llama-cpp/**'
 extraResources:
   - from: drizzle
     to: drizzle
 win:
   target: nsis
   executableName: shmoney
+  # only the win-* prebuilt binary packages are needed on Windows
+  files:
+    - '!node_modules/@node-llama-cpp/{linux-arm64,linux-armv7l,linux-riscv64,linux-x64,linux-x64-cuda,linux-x64-cuda-ext,linux-x64-vulkan,mac-arm64-metal,mac-x64}/**/*'
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
@@ -22,6 +28,8 @@ nsis:
 mac:
   target: dmg
   category: public.app-category.productivity
+  files:
+    - '!node_modules/@node-llama-cpp/{linux-arm64,linux-armv7l,linux-riscv64,linux-x64,linux-x64-cuda,linux-x64-cuda-ext,linux-x64-vulkan,win-arm64,win-x64,win-x64-cuda,win-x64-cuda-ext,win-x64-vulkan}/**/*'
 dmg:
   artifactName: ${name}-${version}.${ext}
 linux:
@@ -29,6 +37,8 @@ linux:
     - AppImage
     - deb
   category: Utility
+  files:
+    - '!node_modules/@node-llama-cpp/{mac-arm64-metal,mac-x64,win-arm64,win-x64,win-x64-cuda,win-x64-cuda-ext,win-x64-vulkan}/**/*'
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false

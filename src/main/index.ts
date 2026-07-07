@@ -11,6 +11,7 @@ import { registerSavedFiltersIpc } from './ipc/saved-filters'
 import { registerRulesIpc } from './ipc/rules'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerWindowIpc } from './ipc/window'
+import { registerLlmIpc } from './ipc/llm'
 import { IPC } from '@shared/ipc'
 
 function createWindow(): void {
@@ -68,6 +69,7 @@ app.whenReady().then(() => {
   registerRulesIpc()
   registerSettingsIpc()
   registerWindowIpc()
+  registerLlmIpc()
 
   createWindow()
 

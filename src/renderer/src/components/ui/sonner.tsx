@@ -8,6 +8,7 @@ function Toaster(props: ToasterProps) {
     <Sonner
       theme={theme}
       className="toaster group"
+      toastOptions={{ style: { padding: '0.75rem' } }}
       style={
         {
           '--normal-bg': 'var(--popover)',

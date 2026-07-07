@@ -113,7 +113,9 @@ export type CategoryRenameInput = z.infer<typeof categoryRenameSchema>
 // per-row category values (rather than one value for all ids) let undo restore
 // each transaction's previous category in a single call
 export const transactionsSetCategoriesSchema = z.object({
-  changes: z.array(z.object({ transactionId: idSchema, categoryId: idSchema.nullable() })).min(1)
+  changes: z.array(z.object({ transactionId: idSchema, categoryId: idSchema.nullable() })).min(1),
+  // who's setting the category; omitted = the normal user-driven path
+  source: z.enum(['user', 'llm']).optional()
 })
 export type TransactionsSetCategoriesInput = z.infer<typeof transactionsSetCategoriesSchema>
 
@@ -121,6 +123,14 @@ export const transactionIdsSchema = z.object({
   transactionIds: z.array(idSchema).min(1)
 })
 export type TransactionIdsInput = z.infer<typeof transactionIdsSchema>
+
+// scope for a categorize run: an explicit selection, one account, or — with both
+// omitted — every eligible transaction. transactionIds wins when both are present.
+export const categorizeScopeSchema = z.object({
+  transactionIds: z.array(idSchema).min(1).optional(),
+  accountId: accountIdSchema.optional()
+})
+export type CategorizeScopeInput = z.infer<typeof categorizeScopeSchema>
 
 // marks/unmarks a set of transactions as transfers; skips pending rows
 export const transactionsSetTransferSchema = z.object({
@@ -131,7 +141,7 @@ export type TransactionsSetTransferInput = z.infer<typeof transactionsSetTransfe
 
 // ---------- action log (audit trail + undo/redo) ----------
 
-export type ActionSource = 'user' | 'detector' | 'rule'
+export type ActionSource = 'user' | 'detector' | 'rule' | 'llm'
 
 // the transaction columns undo/redo may rewrite. These strings double as the
 // drizzle set-keys in the main-process engine, so they must match schema props.

@@ -5,6 +5,7 @@ import {
   IPC,
   type Account,
   type ActionLogEntry,
+  type CategorizeScopeInput,
   type CategoriesList,
   type Category,
   type CategoryCreateInput,
@@ -31,6 +32,13 @@ import {
   type SavedFilterUpdateInput
 } from '@shared/transaction-filters'
 import { SETTINGS_IPC, type SettingKey, type Settings } from '@shared/settings'
+import {
+  LLM_IPC,
+  type CategorizeProgress,
+  type CategorizeResult,
+  type LlmDownloadProgress,
+  type LlmStatus
+} from '@shared/llm'
 import {
   RULES_IPC,
   type Rule,
@@ -91,8 +99,7 @@ const api = {
     redo: (): Promise<UndoResult | null> => ipcRenderer.invoke(ACTION_LOG_IPC.redo),
     undoEntry: (id: number): Promise<UndoResult> =>
       ipcRenderer.invoke(ACTION_LOG_IPC.undoEntry, id),
-    redoEntry: (id: number): Promise<UndoResult> =>
-      ipcRenderer.invoke(ACTION_LOG_IPC.redoEntry, id)
+    redoEntry: (id: number): Promise<UndoResult> => ipcRenderer.invoke(ACTION_LOG_IPC.redoEntry, id)
   },
   categories: {
     list: (): Promise<CategoriesList> => ipcRenderer.invoke(IPC.categoriesList),
@@ -154,6 +161,38 @@ const api = {
     getAll: (): Promise<Settings> => ipcRenderer.invoke(SETTINGS_IPC.getAll),
     set: <K extends SettingKey>(key: K, value: Settings[K]): Promise<boolean> =>
       ipcRenderer.invoke(SETTINGS_IPC.set, { key, value })
+  },
+  llm: {
+    getStatus: (): Promise<LlmStatus> => ipcRenderer.invoke(LLM_IPC.getStatus),
+    /** Downloaded model file size in bytes, or null if it isn't on disk */
+    getDiskSize: (): Promise<number | null> => ipcRenderer.invoke(LLM_IPC.getDiskSize),
+    download: (): Promise<LlmStatus> => ipcRenderer.invoke(LLM_IPC.download),
+    cancelDownload: (): Promise<void> => ipcRenderer.invoke(LLM_IPC.cancelDownload),
+    /** Remove the downloaded model file to reclaim disk space */
+    deleteModel: (): Promise<LlmStatus> => ipcRenderer.invoke(LLM_IPC.deleteModel),
+    /** Auto-categorize a scope — a selection, one account, or (scope omitted) everything */
+    categorize: (scope?: CategorizeScopeInput): Promise<CategorizeResult> =>
+      ipcRenderer.invoke(LLM_IPC.categorize, scope ?? {}),
+    /** Stop an in-flight categorize after the current row; partial results still apply */
+    cancelCategorize: (): Promise<void> => ipcRenderer.invoke(LLM_IPC.cancelCategorize),
+    onStatusChanged: (callback: (status: LlmStatus) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, status: LlmStatus): void =>
+        callback(status)
+      ipcRenderer.on(LLM_IPC.statusChanged, listener)
+      return () => ipcRenderer.removeListener(LLM_IPC.statusChanged, listener)
+    },
+    onDownloadProgress: (callback: (progress: LlmDownloadProgress) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: LlmDownloadProgress): void =>
+        callback(progress)
+      ipcRenderer.on(LLM_IPC.downloadProgress, listener)
+      return () => ipcRenderer.removeListener(LLM_IPC.downloadProgress, listener)
+    },
+    onCategorizeProgress: (callback: (progress: CategorizeProgress) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: CategorizeProgress): void =>
+        callback(progress)
+      ipcRenderer.on(LLM_IPC.categorizeProgress, listener)
+      return () => ipcRenderer.removeListener(LLM_IPC.categorizeProgress, listener)
+    }
   },
   window: {
     minimize: (): void => ipcRenderer.send(IPC.windowMinimize),

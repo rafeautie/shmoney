@@ -8,7 +8,8 @@ import {
   transactionIdsSchema,
   transactionsSetCategoriesSchema,
   transactionsSetTransferSchema,
-  type ActionChange
+  type ActionChange,
+  type TransactionsSetCategoriesInput
 } from '@shared/ipc'
 
 // pending rows are excluded from every bulk action: sync drops and re-inserts
@@ -17,49 +18,57 @@ const notPending = eq(transactions.pending, false)
 
 const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
 
-export function registerTransactionsIpc(): void {
-  ipcMain.handle(IPC.transactionsSetCategories, (_event, input: unknown) => {
-    const { changes } = transactionsSetCategoriesSchema.parse(input)
-    const categoryIds = [
-      ...new Set(changes.map((c) => c.categoryId).filter((id): id is number => id !== null))
-    ]
-    if (categoryIds.length > 0) {
-      const found = db
-        .select({ id: categories.id })
-        .from(categories)
-        .where(inArray(categories.id, categoryIds))
+/**
+ * Apply per-row category changes as one undoable action-log entry, skipping
+ * pending/missing rows and no-ops; returns the number of rows actually changed.
+ * Shared so LLM auto-categorize records through the same path as manual edits.
+ */
+export function setCategories({ changes, source }: TransactionsSetCategoriesInput): number {
+  const categoryIds = [
+    ...new Set(changes.map((c) => c.categoryId).filter((id): id is number => id !== null))
+  ]
+  if (categoryIds.length > 0) {
+    const found = db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(inArray(categories.id, categoryIds))
+      .all()
+    if (found.length !== categoryIds.length) throw new Error('Category not found')
+  }
+  return db.transaction((tx) => {
+    const ids = changes.map((c) => c.transactionId)
+    // current categories for the non-pending targets, so undo can restore each
+    const before = new Map(
+      tx
+        .select({ id: transactions.id, categoryId: transactions.categoryId })
+        .from(transactions)
+        .where(and(inArray(transactions.id, ids), notPending))
         .all()
-      if (found.length !== categoryIds.length) throw new Error('Category not found')
+        .map((r) => [r.id, r.categoryId])
+    )
+    const logged: ActionChange[] = []
+    for (const { transactionId, categoryId } of changes) {
+      if (!before.has(transactionId)) continue // missing or pending: skip
+      const prev = before.get(transactionId)!
+      if (prev === categoryId) continue // no-op
+      tx.update(transactions).set({ categoryId }).where(eq(transactions.id, transactionId)).run()
+      logged.push({ transactionId, field: 'categoryId', before: prev, after: categoryId })
     }
-    return db.transaction((tx) => {
-      const ids = changes.map((c) => c.transactionId)
-      // current categories for the non-pending targets, so undo can restore each
-      const before = new Map(
-        tx
-          .select({ id: transactions.id, categoryId: transactions.categoryId })
-          .from(transactions)
-          .where(and(inArray(transactions.id, ids), notPending))
-          .all()
-          .map((r) => [r.id, r.categoryId])
-      )
-      const logged: ActionChange[] = []
-      for (const { transactionId, categoryId } of changes) {
-        if (!before.has(transactionId)) continue // missing or pending: skip
-        const prev = before.get(transactionId)!
-        if (prev === categoryId) continue // no-op
-        tx.update(transactions).set({ categoryId }).where(eq(transactions.id, transactionId)).run()
-        logged.push({ transactionId, field: 'categoryId', before: prev, after: categoryId })
-      }
-      if (logged.length > 0) {
-        recordAction(tx, {
-          source: 'user',
-          label: `Set category on ${plural(logged.length, 'transaction')}`,
-          changes: logged
-        })
-      }
-      return logged.length
-    })
+    if (logged.length > 0) {
+      recordAction(tx, {
+        source: source ?? 'user',
+        label: `Set category on ${plural(logged.length, 'transaction')}`,
+        changes: logged
+      })
+    }
+    return logged.length
   })
+}
+
+export function registerTransactionsIpc(): void {
+  ipcMain.handle(IPC.transactionsSetCategories, (_event, input: unknown) =>
+    setCategories(transactionsSetCategoriesSchema.parse(input))
+  )
 
   ipcMain.handle(IPC.transactionsBulkDelete, (_event, input: unknown) => {
     const { transactionIds } = transactionIdsSchema.parse(input)
