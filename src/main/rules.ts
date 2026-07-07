@@ -93,14 +93,22 @@ export function matchConditions(conditions: RuleConditions, candidate: RuleCandi
 
 /**
  * Work out which rules change which transactions. Enabled rules run in priority
- * order (ties by id). Rules only ever *fill empty* fields — setCategory touches
- * uncategorized, non-transfer rows; markTransfer touches unmarked rows. The
- * first rule that actually acts on a transaction claims it; later rules skip a
- * claimed row, so a transaction is handled by exactly one rule and can't end up
- * both categorized and marked as a transfer. A rule that merely *matches* an
- * ineligible row (e.g. one already categorized) doesn't claim it.
+ * order (ties by id). By default rules only *fill empty* fields — setCategory
+ * touches uncategorized, non-transfer rows; markTransfer touches unmarked rows.
+ * With `overrideCategories` (a manual, opt-in apply) a setCategory rule also
+ * claims already-categorized non-transfer rows so it can overwrite them; a
+ * transfer is still never categorized. The first rule that claims a transaction
+ * owns it; later rules skip a claimed row, so a transaction is handled by
+ * exactly one rule and can't end up both categorized and marked as a transfer.
+ * A rule that merely *matches* an ineligible row doesn't claim it. Note a claim
+ * may be a no-op (a row already at the target category): it still blocks lower
+ * rules, and the caller drops it from what it writes/logs.
  */
-export function evaluateRules(rules: Rule[], candidates: RuleCandidate[]): RuleFiring[] {
+export function evaluateRules(
+  rules: Rule[],
+  candidates: RuleCandidate[],
+  overrideCategories = false
+): RuleFiring[] {
   const ordered = rules
     .filter((r) => r.enabled)
     .sort((a, b) => a.priority - b.priority || a.id - b.id)
@@ -114,8 +122,10 @@ export function evaluateRules(rules: Rule[], candidates: RuleCandidate[]): RuleF
       if (claimed.has(c.id)) continue
       if (!matchConditions(rule.conditions, c)) continue
       if (rule.action.type === 'setCategory') {
-        // a transfer or an already-categorized row is not eligible (fill-empty)
-        if (c.categoryId !== null || c.isTransfer) continue
+        // never categorize a transfer; otherwise fill empty, unless the caller
+        // opted in to overwriting an existing category
+        if (c.isTransfer) continue
+        if (c.categoryId !== null && !overrideCategories) continue
       } else if (c.isTransfer) {
         continue
       }

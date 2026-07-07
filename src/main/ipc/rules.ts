@@ -13,6 +13,7 @@ import {
 import {
   RULES_IPC,
   ruleActionSchema,
+  ruleApplyOptionsSchema,
   ruleConditionsSchema,
   ruleCreateSchema,
   ruleReorderSchema,
@@ -102,24 +103,38 @@ function selectCandidates(tx: Tx): RuleCandidate[] {
 /**
  * Run every applicable rule over the untouched rows, write the changes, and log
  * one action_log entry per rule that fired (source 'rule') so each is reviewable
- * and undoable. Shared by the sync handler and the manual "Apply rules now".
+ * and undoable. Shared by the sync handler (fill-empty) and the manual "Apply
+ * rules now", which may pass overrideCategories to overwrite existing categories.
  */
-export function applyRulesInTx(tx: Tx): RulesApplyResult {
-  const firings = evaluateRules(loadApplicableRules(tx), selectCandidates(tx))
+export function applyRulesInTx(tx: Tx, overrideCategories = false): RulesApplyResult {
+  const candidates = selectCandidates(tx)
+  const firings = evaluateRules(loadApplicableRules(tx), candidates, overrideCategories)
+  const priorCategory = new Map(candidates.map((c) => [c.id, c.categoryId]))
   let categorized = 0
   let markedTransfer = 0
+  let rulesFired = 0
   for (const { rule, ids } of firings) {
     if (rule.action.type === 'setCategory') {
       const categoryId = rule.action.categoryId
-      tx.update(transactions).set({ categoryId }).where(inArray(transactions.id, ids)).run()
+      // under override a firing can include rows already at the target; skip
+      // those so we don't write or log a before===after no-op
+      const changedIds = ids.filter((id) => (priorCategory.get(id) ?? null) !== categoryId)
+      if (changedIds.length === 0) continue
+      tx.update(transactions).set({ categoryId }).where(inArray(transactions.id, changedIds)).run()
       recordAction(tx, {
         source: 'rule',
-        label: `Rule "${rule.name}" categorized ${plural(ids.length, 'transaction')}`,
-        changes: ids.map(
-          (id): ActionChange => ({ transactionId: id, field: 'categoryId', before: null, after: categoryId })
+        label: `Rule "${rule.name}" categorized ${plural(changedIds.length, 'transaction')}`,
+        changes: changedIds.map(
+          (id): ActionChange => ({
+            transactionId: id,
+            field: 'categoryId',
+            before: priorCategory.get(id) ?? null,
+            after: categoryId
+          })
         )
       })
-      categorized += ids.length
+      categorized += changedIds.length
+      rulesFired++
     } else {
       tx.update(transactions).set({ isTransfer: true }).where(inArray(transactions.id, ids)).run()
       recordAction(tx, {
@@ -130,15 +145,18 @@ export function applyRulesInTx(tx: Tx): RulesApplyResult {
         )
       })
       markedTransfer += ids.length
+      rulesFired++
     }
   }
-  return { categorized, markedTransfer, rulesFired: firings.length }
+  return { categorized, markedTransfer, rulesFired }
 }
 
 // dry-run: the same evaluation, but instead of writing, enrich each affected row
 // with its display context and group by the rule that would touch it
-function previewRules(tx: Tx): RulePreview {
-  const firings = evaluateRules(loadApplicableRules(tx), selectCandidates(tx))
+function previewRules(tx: Tx, overrideCategories = false): RulePreview {
+  const candidates = selectCandidates(tx)
+  const firings = evaluateRules(loadApplicableRules(tx), candidates, overrideCategories)
+  const priorCategory = new Map(candidates.map((c) => [c.id, c.categoryId]))
   const touched = [...new Set(firings.flatMap((f) => f.ids))]
   if (touched.length === 0) return []
 
@@ -160,14 +178,21 @@ function previewRules(tx: Tx): RulePreview {
   )
   const categoryName = new Map(tx.select().from(categories).all().map((c) => [c.id, c.name]))
 
-  return firings.map((f) => {
-    const targetCategoryName =
-      f.rule.action.type === 'setCategory' ? categoryName.get(f.rule.action.categoryId) ?? null : null
+  return firings.flatMap((f) => {
+    const targetCategoryId = f.rule.action.type === 'setCategory' ? f.rule.action.categoryId : null
+    const targetCategoryName = targetCategoryId !== null ? categoryName.get(targetCategoryId) ?? null : null
     const txns: RulePreviewTransaction[] = f.ids.flatMap((id) => {
       const c = context.get(id)
-      return c ? [{ ...c, targetCategoryName }] : []
+      if (!c) return []
+      const current = priorCategory.get(id) ?? null
+      // drop no-op rows already at the target (only reachable under override)
+      if (targetCategoryId !== null && current === targetCategoryId) return []
+      const currentCategoryName = current !== null ? categoryName.get(current) ?? null : null
+      return [{ ...c, targetCategoryName, currentCategoryName }]
     })
-    return { ruleId: f.rule.id, ruleName: f.rule.name, action: f.rule.action, transactions: txns }
+    // a group whose rows were all no-ops has nothing to preview
+    if (txns.length === 0) return []
+    return [{ ruleId: f.rule.id, ruleName: f.rule.name, action: f.rule.action, transactions: txns }]
   })
 }
 
@@ -227,7 +252,13 @@ export function registerRulesIpc(): void {
     return true
   })
 
-  ipcMain.handle(RULES_IPC.preview, (): RulePreview => db.transaction((tx) => previewRules(tx)))
+  ipcMain.handle(RULES_IPC.preview, (_event, input: unknown): RulePreview => {
+    const { overrideCategories } = ruleApplyOptionsSchema.parse(input ?? {})
+    return db.transaction((tx) => previewRules(tx, overrideCategories))
+  })
 
-  ipcMain.handle(RULES_IPC.apply, (): RulesApplyResult => db.transaction((tx) => applyRulesInTx(tx)))
+  ipcMain.handle(RULES_IPC.apply, (_event, input: unknown): RulesApplyResult => {
+    const { overrideCategories } = ruleApplyOptionsSchema.parse(input ?? {})
+    return db.transaction((tx) => applyRulesInTx(tx, overrideCategories))
+  })
 }

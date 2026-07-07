@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import type { RulePreviewGroup } from '@shared/rules'
@@ -5,6 +6,8 @@ import { cn, ipcErrorMessage, plural, TABLE_BLEED } from '@/lib/utils'
 import { Amount } from '@/components/amount'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
 import {
   Dialog,
   DialogContent,
@@ -25,9 +28,16 @@ export function RulesPreviewDialog({
 }): React.JSX.Element {
   const queryClient = useQueryClient()
 
+  // opt-in overwrite of already-set categories; reset each time the dialog opens
+  // so a destructive choice never silently carries over to the next apply
+  const [overrideCategories, setOverrideCategories] = useState(false)
+  useEffect(() => {
+    if (open) setOverrideCategories(false)
+  }, [open])
+
   const previewQuery = useQuery({
-    queryKey: ['rules', 'preview'],
-    queryFn: () => window.api.rules.preview(),
+    queryKey: ['rules', 'preview', overrideCategories],
+    queryFn: () => window.api.rules.preview({ overrideCategories }),
     enabled: open,
     staleTime: 0,
     gcTime: 0
@@ -37,7 +47,7 @@ export function RulesPreviewDialog({
   const total = groups.reduce((sum, g) => sum + g.transactions.length, 0)
 
   const apply = useMutation({
-    mutationFn: () => window.api.rules.apply(),
+    mutationFn: () => window.api.rules.apply({ overrideCategories }),
     onSuccess: () => {
       onOpenChange(false)
     },
@@ -74,13 +84,25 @@ export function RulesPreviewDialog({
           )}
         </ScrollArea>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button disabled={total === 0 || apply.isPending} onClick={() => apply.mutate()}>
-            {apply.isPending ? 'Applying…' : total === 0 ? 'Nothing to apply' : `Apply to ${total}`}
-          </Button>
+        <DialogFooter className="sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="override-categories"
+              checked={overrideCategories}
+              onCheckedChange={(checked) => setOverrideCategories(checked === true)}
+            />
+            <Label htmlFor="override-categories" className="text-sm font-normal">
+              Override existing categories
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button disabled={total === 0 || apply.isPending} onClick={() => apply.mutate()}>
+              {apply.isPending ? 'Applying…' : total === 0 ? 'Nothing to apply' : `Apply to ${total}`}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -127,7 +149,17 @@ function PreviewGroup({ group }: { group: RulePreviewGroup }): React.JSX.Element
               <Amount value={t.amount} currency={t.currency} />
             </TableCell>
             <TableCell className="whitespace-nowrap">
-              {isTransfer ? 'Transfer' : (t.targetCategoryName ?? '—')}
+              {isTransfer ? (
+                'Transfer'
+              ) : t.currentCategoryName && t.currentCategoryName !== t.targetCategoryName ? (
+                <span>
+                  <span className="text-muted-foreground line-through">{t.currentCategoryName}</span>
+                  {' → '}
+                  {t.targetCategoryName ?? '—'}
+                </span>
+              ) : (
+                (t.targetCategoryName ?? '—')
+              )}
             </TableCell>
           </TableRow>
         ))}

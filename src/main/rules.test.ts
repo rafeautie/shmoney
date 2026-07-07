@@ -118,4 +118,26 @@ describe('evaluateRules', () => {
     expect(firings).toHaveLength(1)
     expect(firings[0].ids).toEqual([1])
   })
+
+  it('override lets setCategory overwrite categorized rows but never transfers', () => {
+    const rules = [rule({ description: { op: 'contains', value: 'starbucks' } }, coffee)]
+    const rows = [
+      candidate({ id: 1 }), // uncategorized
+      candidate({ id: 2, categoryId: 9 }), // already categorized → overwritten
+      candidate({ id: 3, isTransfer: true }) // transfer → still skipped
+    ]
+    const firings = evaluateRules(rules, rows, true)
+    expect(firings).toHaveLength(1)
+    expect(firings[0].ids).toEqual([1, 2])
+  })
+
+  it('override claims a row already at the target so a lower rule cannot re-touch it', () => {
+    const r1 = rule({ description: { op: 'contains', value: 'starbucks' } }, { type: 'setCategory', categoryId: 7 }, { priority: 0 })
+    const r2 = rule({ description: { op: 'contains', value: 'store' } }, { type: 'setCategory', categoryId: 8 }, { priority: 1 })
+    // the row already has r1's target; r1 claims it (a no-op the caller drops)
+    const firings = evaluateRules([r1, r2], [candidate({ id: 1, categoryId: 7 })], true)
+    expect(firings).toHaveLength(1)
+    expect(firings[0].rule.id).toBe(r1.id)
+    expect(firings[0].ids).toEqual([1])
+  })
 })

@@ -114,7 +114,8 @@ export function RulesSettings(): React.JSX.Element {
         <CardTitle className="text-base">Rules</CardTitle>
         <CardDescription>
           Automatically categorize or flag transactions as they sync. Rules run top to bottom and
-          only fill blanks — they never overwrite something you set by hand.
+          only fill blanks, unless you choose to override existing categories when applying them
+          manually.
         </CardDescription>
         <CardAction>
           <Button variant="outline" onClick={() => setPreviewOpen(true)} disabled={rules.length === 0}>

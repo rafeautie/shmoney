@@ -120,6 +120,14 @@ export const ruleReorderSchema = z.object({
 })
 export type RuleReorderInput = z.infer<typeof ruleReorderSchema>
 
+// options for a manual preview/apply. overrideCategories lets setCategory rules
+// overwrite a category the user already set, instead of only filling blanks;
+// off on sync, opt-in from the "Apply rules now" dialog.
+export const ruleApplyOptionsSchema = z.object({
+  overrideCategories: z.boolean().default(false)
+})
+export type RuleApplyOptions = z.infer<typeof ruleApplyOptionsSchema>
+
 // ---------- preview (dry-run) ----------
 
 export interface RulePreviewTransaction {
@@ -133,6 +141,8 @@ export interface RulePreviewTransaction {
   date: number
   /** target category name for setCategory groups; null for markTransfer */
   targetCategoryName: string | null
+  /** the row's current category name, so an override shows what it replaces; null if uncategorized */
+  currentCategoryName: string | null
 }
 
 export interface RulePreviewGroup {

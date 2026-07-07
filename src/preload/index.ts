@@ -42,6 +42,7 @@ import {
 import {
   RULES_IPC,
   type Rule,
+  type RuleApplyOptions,
   type RuleCreateInput,
   type RuleReorderInput,
   type RuleUpdateInput,
@@ -153,9 +154,11 @@ const api = {
     reorder: (input: RuleReorderInput): Promise<boolean> =>
       ipcRenderer.invoke(RULES_IPC.reorder, input),
     /** Dry-run: what "apply" would change, grouped by rule; never writes */
-    preview: (): Promise<RulePreview> => ipcRenderer.invoke(RULES_IPC.preview),
+    preview: (options?: RuleApplyOptions): Promise<RulePreview> =>
+      ipcRenderer.invoke(RULES_IPC.preview, options),
     /** Backfill all untouched transactions; resolves to a change summary */
-    apply: (): Promise<RulesApplyResult> => ipcRenderer.invoke(RULES_IPC.apply)
+    apply: (options?: RuleApplyOptions): Promise<RulesApplyResult> =>
+      ipcRenderer.invoke(RULES_IPC.apply, options)
   },
   settings: {
     getAll: (): Promise<Settings> => ipcRenderer.invoke(SETTINGS_IPC.getAll),
