@@ -144,7 +144,7 @@ export interface RulePreviewGroup {
 
 export type RulePreview = RulePreviewGroup[]
 
-/** Summary of a manual apply, for the confirmation toast. */
+/** Summary of a manual apply, for the confirmation message. */
 export interface RulesApplyResult {
   /** transactions that got a category */
   categorized: number

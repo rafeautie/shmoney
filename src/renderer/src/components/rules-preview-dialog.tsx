@@ -1,7 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
 import { format } from 'date-fns'
-import { toast } from 'sonner'
 import type { RulePreviewGroup } from '@shared/rules'
 import { cn, ipcErrorMessage, plural, TABLE_BLEED } from '@/lib/utils'
 import { Amount } from '@/components/amount'
@@ -26,7 +24,6 @@ export function RulesPreviewDialog({
   onOpenChange: (open: boolean) => void
 }): React.JSX.Element {
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
 
   const previewQuery = useQuery({
     queryKey: ['rules', 'preview'],
@@ -41,16 +38,8 @@ export function RulesPreviewDialog({
 
   const apply = useMutation({
     mutationFn: () => window.api.rules.apply(),
-    onSuccess: (result) => {
+    onSuccess: () => {
       onOpenChange(false)
-      const changed = result.categorized + result.markedTransfer
-      toast(changed > 0 ? `Applied rules to ${plural(changed, 'transaction')}` : 'No transactions changed', {
-        description: changed > 0 ? 'Review or undo them from the Activity page.' : undefined,
-        action:
-          changed > 0
-            ? { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
-            : undefined
-      })
     },
     onSettled: () => queryClient.invalidateQueries()
   })

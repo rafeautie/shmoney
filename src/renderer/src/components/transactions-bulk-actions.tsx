@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon } from '@hugeicons/core-free-icons'
 import type { Transaction } from '@shared/ipc'
@@ -14,10 +13,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { toast } from 'sonner'
 import { CategoryPicker } from '@/components/category-picker'
 import { useAutoCategorize, useLlmReady } from '@/lib/llm'
-import { plural } from '@/lib/utils'
 
 interface TransactionsBulkActionsProps {
   /** The selected transactions currently visible under the active filters */
@@ -35,7 +32,6 @@ export function TransactionsBulkActions({
   onClearSelection
 }: TransactionsBulkActionsProps) {
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const llmReady = useLlmReady()
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -63,12 +59,7 @@ export function TransactionsBulkActions({
 
   const deleteTransactions = useMutation({
     mutationFn: () => window.api.transactions.bulkDelete({ transactionIds }),
-    onSuccess: (deletedIds) => {
-      if (deletedIds.length > 0) {
-        toast(`${plural(deletedIds.length, 'transaction')} deleted`, {
-          action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
-        })
-      }
+    onSuccess: () => {
       setConfirmDelete(false)
     },
     onSettled: () => queryClient.invalidateQueries()

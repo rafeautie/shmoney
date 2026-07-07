@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 
 /** App-wide Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y over the persisted action log. Undo
  * targets the newest applied entry, redo the most recently undone one. Skipped
@@ -24,18 +23,12 @@ export function UndoShortcuts() {
         return
       }
       event.preventDefault()
-      const verb = isRedo ? 'redo' : 'undo'
       const run = isRedo ? window.api.actionLog.redo() : window.api.actionLog.undo()
       run
         .then((result) => {
-          if (!result) {
-            toast(`Nothing to ${verb}`)
-            return
-          }
-          queryClient.invalidateQueries()
-          toast(`${isRedo ? 'Redo' : 'Undo'} ${result.label}`)
+          if (result) queryClient.invalidateQueries()
         })
-        .catch(() => toast.error(`Couldn't ${verb} the last action`))
+        .catch(() => {})
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)

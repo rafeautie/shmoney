@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { toast } from 'sonner'
 import type { LlmDownloadProgress, LlmStatus } from '@shared/llm'
 import type { CategorizeScopeInput } from '@shared/ipc'
 import { ipcErrorMessage, plural } from '@/lib/utils'
+import { useNotify } from '@/lib/notify-store'
 
 export const LLM_STATUS_QUERY_KEY = ['llm', 'status'] as const
 
@@ -64,14 +64,15 @@ export const CATEGORIZE_MUTATION_KEY = ['llm', 'categorize'] as const
 /**
  * Owns a whole auto-categorize run for a scope — a selection, one account, or
  * (empty scope) every transaction: starts it and reports the result. Applies
- * immediately as one undoable action-log entry — the toast's Review action links
- * to the Activity page, the undo surface. Only one run happens at a time app-wide
+ * immediately as one undoable action-log entry — the notification's Review action
+ * links to the Activity page, the undo surface. Only one run happens at a time app-wide
  * (see `anyRunning`), since the worker shares a single chat session. Live progress
  * and cancel are surfaced by the navbar notification center, not here.
  */
 export function useAutoCategorize(scope: CategorizeScopeInput): AutoCategorize {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const notify = useNotify()
   const anyRunning = useIsMutating({ mutationKey: CATEGORIZE_MUTATION_KEY }) > 0
 
   const run = useMutation({
@@ -79,19 +80,19 @@ export function useAutoCategorize(scope: CategorizeScopeInput): AutoCategorize {
     mutationFn: () => window.api.llm.categorize(scope),
     onSuccess: (result) => {
       if (result.categorized > 0) {
-        toast(`Categorized ${plural(result.categorized, 'transaction')}`, {
+        notify(`Categorized ${plural(result.categorized, 'transaction')}`, {
           description: 'Applied Auto suggestions.',
           action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
         })
       } else if (!result.cancelled) {
         // a cancel before anything was applied is a deliberate stop, not a
         // "nothing matched" result, so it stays silent
-        toast('Nothing to categorize', {
+        notify('Nothing to categorize', {
           description: 'Those transactions are already categorized, transfers, or pending.'
         })
       }
     },
-    onError: (error) => toast.error(ipcErrorMessage(error)),
+    onError: (error) => notify.error(ipcErrorMessage(error)),
     onSettled: () => queryClient.invalidateQueries()
   })
 

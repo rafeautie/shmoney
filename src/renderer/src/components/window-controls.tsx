@@ -13,17 +13,17 @@ export function WindowControls() {
 
   return (
     <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
-      <Button variant="ghost" size="icon-sm" onClick={() => window.api.window.minimize()}>
+      <Button variant="ghost" size="icon" onClick={() => window.api.window.minimize()}>
         <HugeiconsIcon icon={MinusSignIcon} strokeWidth={2} />
         <span className="sr-only">Minimize</span>
       </Button>
-      <Button variant="ghost" size="icon-sm" onClick={() => window.api.window.maximizeToggle()}>
+      <Button variant="ghost" size="icon" onClick={() => window.api.window.maximizeToggle()}>
         <HugeiconsIcon icon={isMaximized ? Copy01Icon : SquareIcon} strokeWidth={2} />
         <span className="sr-only">{isMaximized ? 'Restore' : 'Maximize'}</span>
       </Button>
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         className="hover:bg-destructive/15 hover:text-destructive dark:hover:bg-destructive/25"
         onClick={() => window.api.window.close()}
       >

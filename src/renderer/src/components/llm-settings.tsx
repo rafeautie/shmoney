@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import { LLM_MODEL as MODEL } from '@shared/llm'
 import { useLlmDownloadProgress, useLlmStatus } from '@/lib/llm'
 import { ipcErrorMessage } from '@/lib/utils'
@@ -52,7 +51,6 @@ export function LlmSettings() {
   const deleteModel = useMutation({
     mutationFn: () => window.api.llm.deleteModel(),
     onSuccess: () => {
-      toast(`${MODEL.label} deleted`, { description: 'Its files were removed from this device.' })
       setConfirmDelete(false)
     },
     onSettled: invalidate

@@ -1,7 +1,5 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon } from '@hugeicons/core-free-icons'
 import type { SfinError } from '@shared/ipc'
@@ -20,7 +18,6 @@ import {
 
 export function ConnectionSettings() {
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
 
   const connectionQuery = useQuery({
     queryKey: ['connection'],
@@ -33,20 +30,6 @@ export function ConnectionSettings() {
 
   const syncConnection = useMutation({
     mutationFn: () => window.api.connection.sync(),
-    onSuccess: (result) => {
-      if (result.detectedTransfers > 0) {
-        toast(`Detected ${plural(result.detectedTransfers, 'transfer')}`, {
-          description: 'Marked automatically and excluded from income and expenses.',
-          action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
-        })
-      }
-      if (result.rulesApplied > 0) {
-        toast(`Rules updated ${plural(result.rulesApplied, 'transaction')}`, {
-          description: 'Applied automatically on sync.',
-          action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
-        })
-      }
-    },
     onSettled: () => queryClient.invalidateQueries()
   })
 

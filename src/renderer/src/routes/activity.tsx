@@ -8,7 +8,6 @@ import {
   ArrowDown01Icon,
   Clock01Icon
 } from '@hugeicons/core-free-icons'
-import { toast } from 'sonner'
 import type { ActionLogEntry } from '@shared/ipc'
 import { cn, plural } from '@/lib/utils'
 import { Page } from '@/components/page'
@@ -121,12 +120,6 @@ function EntryRow({
   const toggle = useMutation({
     mutationFn: () =>
       undone ? window.api.actionLog.redoEntry(entry.id) : window.api.actionLog.undoEntry(entry.id),
-    onSuccess: (result) => {
-      // compare-and-set: 0 rows changed means a later edit already overrode this
-      if (result.applied === 0) {
-        toast(`Nothing to ${undone ? 'redo' : 'undo'} — a later change supersedes this one`)
-      }
-    },
     onSettled: () => queryClient.invalidateQueries()
   })
 
