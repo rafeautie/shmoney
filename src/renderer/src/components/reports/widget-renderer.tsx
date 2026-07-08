@@ -33,6 +33,7 @@ import { usePrivacy } from '@/lib/settings'
 import { Amount } from '@/components/amount'
 import { TransactionsTable } from '@/components/transactions-table'
 import { Badge } from '@/components/ui/badge'
+import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -141,9 +142,9 @@ function MeasureValue({
 
 function CenteredNote({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
-      {children}
-    </div>
+    <Empty className="h-full p-4">
+      <EmptyDescription className="text-sm">{children}</EmptyDescription>
+    </Empty>
   )
 }
 

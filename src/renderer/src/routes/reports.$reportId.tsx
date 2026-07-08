@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Layout } from 'react-grid-layout'
 
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Add01Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons'
+import { Add01Icon, DashboardSquare01Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons'
 import {
   DEFAULT_REPORT_FILTERS,
   type ReportDetail,
@@ -21,6 +21,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle
+} from '@/components/ui/empty'
 import { ReportGrid } from '@/components/reports/report-grid'
 import { FilterBar } from '@/components/filter-bar'
 import { WidgetEditor } from '@/components/reports/widget-editor'
@@ -210,15 +218,21 @@ function ReportPage() {
       />
 
       {detail.widgets.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed py-16 text-center">
-          <p className="text-sm text-muted-foreground">
-            This report is empty. Add a widget to get started.
-          </p>
-          <Button onClick={() => openEditor(null)}>
-            <HugeiconsIcon icon={Add01Icon} size={16} />
-            Add widget
-          </Button>
-        </div>
+        <Empty className="border py-16">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <HugeiconsIcon icon={DashboardSquare01Icon} />
+            </EmptyMedia>
+            <EmptyTitle>This report is empty</EmptyTitle>
+            <EmptyDescription>Add a widget to get started.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={() => openEditor(null)}>
+              <HugeiconsIcon icon={Add01Icon} size={16} />
+              Add widget
+            </Button>
+          </EmptyContent>
+        </Empty>
       ) : (
         <ReportGrid
           widgets={detail.widgets}

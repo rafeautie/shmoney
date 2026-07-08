@@ -4,6 +4,7 @@ import { Alert02Icon, CheckmarkCircle02Icon } from '@hugeicons/core-free-icons'
 import { LLM_MODEL } from '@shared/llm'
 import { cn, plural } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty'
 import { Progress } from '@/components/ui/progress'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -216,9 +217,14 @@ function NotificationPanel({
         <p className="text-sm font-medium">Notifications</p>
       </div>
       {empty ? (
-        <p className="px-4 py-6 text-center text-xs text-muted-foreground">
-          {"You're all caught up."}
-        </p>
+        <Empty className="gap-2 px-4 py-8">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <HugeiconsIcon icon={CheckmarkCircle02Icon} />
+            </EmptyMedia>
+            <EmptyDescription>{"You're all caught up."}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <ScrollArea viewPortClassName="max-h-96">
           <div className="divide-y">

@@ -15,6 +15,13 @@ import { Amount } from '@/components/amount'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle
+} from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -79,9 +86,17 @@ function ActivityPage() {
           ))}
         </div>
       ) : entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No activity yet. Categorizing, deleting, or marking transfers shows up here.
-        </p>
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <HugeiconsIcon icon={Clock01Icon} />
+            </EmptyMedia>
+            <EmptyTitle>No activity yet</EmptyTitle>
+            <EmptyDescription>
+              Categorizing, deleting, or marking transfers shows up here.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="space-y-6">
           {groups.map((group) => (

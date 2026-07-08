@@ -12,9 +12,15 @@ import {
   type SortingState
 } from '@tanstack/react-table'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon, ArrowUp01Icon, ArrowUpDownIcon } from '@hugeicons/core-free-icons'
+import {
+  ArrowDown01Icon,
+  ArrowUp01Icon,
+  ArrowUpDownIcon,
+  InboxIcon
+} from '@hugeicons/core-free-icons'
 import { TABLE_BLEED, cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription, EmptyMedia } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -149,12 +155,18 @@ export function DataTable<TData>({
         {/* the ! outweighs the base last-row border-0 rule, which shares specificity */}
         <TableBody className="[&_tr:last-child]:border-b!">
           {table.getRowModel().rows.length === 0 ? (
-            <TableRow>
-              <TableCell
-                colSpan={columns.length}
-                className="h-24 text-center text-muted-foreground"
-              >
-                {isLoading ? 'Loading...' : emptyMessage}
+            <TableRow className="hover:bg-transparent">
+              <TableCell colSpan={columns.length} className="h-24">
+                {isLoading ? (
+                  <div className="text-center text-muted-foreground">Loading...</div>
+                ) : (
+                  <Empty className="gap-2 py-2">
+                    <EmptyMedia variant="icon">
+                      <HugeiconsIcon icon={InboxIcon} />
+                    </EmptyMedia>
+                    <EmptyDescription>{emptyMessage}</EmptyDescription>
+                  </Empty>
+                )}
               </TableCell>
             </TableRow>
           ) : (

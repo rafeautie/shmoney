@@ -1,12 +1,21 @@
 import { useMemo } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { BankIcon } from '@hugeicons/core-free-icons'
 import type { Account } from '@shared/ipc'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/auto-categorize-button'
 import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
 import { TABLE_BLEED, cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle
+} from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
@@ -93,9 +102,15 @@ function AccountsList() {
         {accountsQuery.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : institutions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No accounts yet. Connect SimpleFIN in Settings, then sync.
-          </p>
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HugeiconsIcon icon={BankIcon} />
+              </EmptyMedia>
+              <EmptyTitle>No accounts yet</EmptyTitle>
+              <EmptyDescription>Connect SimpleFIN in Settings, then sync.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           institutions.map(([institution, accounts]) => (
             <Card key={institution} className="overflow-hidden pb-0">

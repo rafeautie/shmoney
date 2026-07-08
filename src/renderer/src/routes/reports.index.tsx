@@ -1,12 +1,25 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Add01Icon, ArrowDown01Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons'
+import {
+  Add01Icon,
+  Analytics01Icon,
+  ArrowDown01Icon,
+  MoreVerticalIcon
+} from '@hugeicons/core-free-icons'
 import type { ReportCreateInput, ReportSummary } from '@shared/reports'
 import { SPENDING_OVERVIEW_TEMPLATE } from '@/lib/report-templates'
 import { Page } from '@/components/page'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle
+} from '@/components/ui/empty'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,13 +85,18 @@ function ReportsPage() {
       {reportsQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading...</p>
       ) : reports.length === 0 ? (
-        <Card className="flex flex-col items-center gap-2 py-12 text-center">
-          <CardTitle>No reports yet</CardTitle>
-          <p className="max-w-sm text-sm text-muted-foreground">
-            Create a report to analyze your spending with charts, tables, and stat cards you arrange
-            yourself.
-          </p>
-          <div className="mt-2 flex gap-2">
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <HugeiconsIcon icon={Analytics01Icon} />
+            </EmptyMedia>
+            <EmptyTitle>No reports yet</EmptyTitle>
+            <EmptyDescription>
+              Create a report to analyze your spending with charts, tables, and stat cards you
+              arrange yourself.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent className="flex-row justify-center">
             <Button
               onClick={() => createMutation.mutate(SPENDING_OVERVIEW_TEMPLATE)}
               disabled={createMutation.isPending}
@@ -92,8 +110,8 @@ function ReportsPage() {
             >
               Blank report
             </Button>
-          </div>
-        </Card>
+          </EmptyContent>
+        </Empty>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {reports.map((report) => (

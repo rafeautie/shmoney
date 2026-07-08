@@ -6,13 +6,21 @@ import {
   ArrowUp01Icon,
   Delete02Icon,
   PencilEdit02Icon,
-  PlusSignIcon
+  PlusSignIcon,
+  Tag01Icon
 } from '@hugeicons/core-free-icons'
 import { format } from 'date-fns'
 import type { Rule, RuleConditions } from '@shared/rules'
 import { useApplyRulesOnSync } from '@/lib/settings'
 import { ipcErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle
+} from '@/components/ui/empty'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
@@ -132,7 +140,17 @@ export function RulesSettings(): React.JSX.Element {
         {rulesQuery.isLoading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : rules.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No rules yet.</p>
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HugeiconsIcon icon={Tag01Icon} />
+              </EmptyMedia>
+              <EmptyTitle>No rules yet</EmptyTitle>
+              <EmptyDescription>
+                Add a rule below to categorize or flag transactions automatically.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           rules.map((rule, index) => (
             <div key={rule.id} className="space-y-4">

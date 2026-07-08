@@ -4,6 +4,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Bookmark01Icon, Delete02Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import type { TransactionFilters } from '@shared/transaction-filters'
 import { Button } from '@/components/ui/button'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
@@ -83,9 +84,16 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
       </PopoverTrigger>
       <PopoverContent className="w-72 p-2" align="start">
         {saved.length === 0 ? (
-          <p className="px-2 py-1.5 text-sm text-muted-foreground">
-            No saved filters yet. Name the current filter below to save it.
-          </p>
+          <Empty className="gap-2 px-2 py-4">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HugeiconsIcon icon={Bookmark01Icon} />
+              </EmptyMedia>
+              <EmptyDescription>
+                No saved filters yet. Name the current filter below to save it.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           // pb-px: buttons shift down 1px while pressed (active:translate-y-px),
           // which would otherwise overflow the container and flash a scrollbar

@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { SearchRemoveIcon } from '@hugeicons/core-free-icons'
 import type { RulePreviewGroup } from '@shared/rules'
 import { cn, ipcErrorMessage, plural, TABLE_BLEED } from '@/lib/utils'
 import { Amount } from '@/components/amount'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import {
@@ -72,9 +75,14 @@ export function RulesPreviewDialog({
               {ipcErrorMessage(previewQuery.error)}
             </p>
           ) : total === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No transactions match your rules right now.
-            </p>
+            <Empty className="py-8">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <HugeiconsIcon icon={SearchRemoveIcon} />
+                </EmptyMedia>
+                <EmptyDescription>No transactions match your rules right now.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <div className="flex flex-col gap-6">
               {groups.map((group) => (
