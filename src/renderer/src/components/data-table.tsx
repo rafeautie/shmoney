@@ -135,9 +135,20 @@ export function DataTable<TData>({
     return () => observer.disconnect()
   }, [onLoadMore, hasMore, isFetchingMore])
 
+  // empty/loading renders a single spanning row; stretch the height chain so it
+  // fills the viewport instead of a fixed 96px box (Radix's display:table wrapper
+  // otherwise collapses to content height, breaking the h-full chain)
+  const isEmpty = table.getRowModel().rows.length === 0
+
   return (
-    <ScrollArea viewportRef={scrollRef} className={className}>
-      <table className={cn('w-full caption-bottom text-xs', bleed && TABLE_BLEED)}>
+    <ScrollArea
+      viewportRef={scrollRef}
+      className={className}
+      viewPortClassName={isEmpty ? '[&>div]:h-full' : undefined}
+    >
+      <table
+        className={cn('w-full caption-bottom text-xs', isEmpty && 'h-full', bleed && TABLE_BLEED)}
+      >
         {/* box-shadows stand in for the header's borders, which collapse drops while sticky */}
         <TableHeader className="sticky top-0 z-10 bg-background shadow-[inset_0_1px_0_0_var(--border),inset_0_-1px_0_0_var(--border)] in-data-[slot=card]:bg-card [&_tr]:border-b-0">
           {table.getHeaderGroups().map((headerGroup) => (
@@ -152,11 +163,12 @@ export function DataTable<TData>({
             </TableRow>
           ))}
         </TableHeader>
-        {/* the ! outweighs the base last-row border-0 rule, which shares specificity */}
-        <TableBody className="[&_tr:last-child]:border-b!">
-          {table.getRowModel().rows.length === 0 ? (
+        {/* the ! outweighs the base last-row border-0 rule, which shares specificity;
+            skip it when empty so the full-height empty state has no closing border */}
+        <TableBody className={cn(!isEmpty && '[&_tr:last-child]:border-b!')}>
+          {isEmpty ? (
             <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={columns.length} className="h-24">
+              <TableCell colSpan={columns.length} className="h-full">
                 {isLoading ? (
                   <div className="text-center text-muted-foreground">Loading...</div>
                 ) : (
