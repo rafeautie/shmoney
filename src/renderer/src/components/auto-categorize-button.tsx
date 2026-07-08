@@ -1,5 +1,6 @@
 import type { CategorizeScopeInput } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAutoCategorize, useLlmReady } from '@/lib/llm'
 
 /**
@@ -13,15 +14,30 @@ export function AutoCategorizeButton({ scope }: { scope: CategorizeScopeInput })
   const llmReady = useLlmReady()
   const autoCategorize = useAutoCategorize(scope)
 
-  return (
+  const button = (
     <Button
       variant="outline"
       className="shrink-0"
       disabled={!llmReady || autoCategorize.anyRunning}
-      title={llmReady ? 'Auto-categorize' : 'Download a model in Settings to use this'}
       onClick={() => autoCategorize.start()}
     >
       {autoCategorize.isRunning ? 'Categorizing…' : 'Auto-categorize'}
     </Button>
   )
+
+  // A disabled button emits no pointer events (and a native `title` won't show on
+  // one), so when the model isn't downloaded yet, wrap it in a span that does and
+  // hang a tooltip off that to explain where to enable it on hover.
+  if (!llmReady) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex shrink-0">{button}</span>
+        </TooltipTrigger>
+        <TooltipContent>Download a model in Settings to use this</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return button
 }

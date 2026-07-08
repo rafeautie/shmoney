@@ -8,9 +8,11 @@ import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/auto-categorize-button'
 import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
 import { TABLE_BLEED, cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -110,6 +112,11 @@ function AccountsList() {
               <EmptyTitle>No accounts yet</EmptyTitle>
               <EmptyDescription>Connect SimpleFIN in Settings, then sync.</EmptyDescription>
             </EmptyHeader>
+            <EmptyContent>
+              <Button variant="outline" onClick={() => navigate({ to: '/settings' })}>
+                Go to Settings
+              </Button>
+            </EmptyContent>
           </Empty>
         ) : (
           institutions.map(([institution, accounts]) => (

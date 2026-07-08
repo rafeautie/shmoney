@@ -59,7 +59,15 @@ export function ConnectionSettings() {
     onSuccess: () => {
       setSetupToken('')
       queryClient.invalidateQueries()
-      syncConnection.mutate()
+      // kick off the first sync and announce setup completion when it lands; the
+      // per-call callback fires only for this initial run, not manual re-syncs
+      syncConnection.mutate(undefined, {
+        onSuccess: () =>
+          notify('SimpleFIN connected', {
+            description: 'Your accounts and transactions are ready.',
+            action: { label: 'View accounts', onClick: () => navigate({ to: '/accounts' }) }
+          })
+      })
     }
   })
 
