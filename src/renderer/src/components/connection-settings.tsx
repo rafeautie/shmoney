@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon } from '@hugeicons/core-free-icons'
 import type { SfinError } from '@shared/ipc'
 import { ipcErrorMessage, plural } from '@/lib/utils'
+import { useNotify } from '@/lib/notify-store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,6 +20,8 @@ import {
 
 export function ConnectionSettings() {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const notify = useNotify()
 
   const connectionQuery = useQuery({
     queryKey: ['connection'],
@@ -30,6 +34,22 @@ export function ConnectionSettings() {
 
   const syncConnection = useMutation({
     mutationFn: () => window.api.connection.sync(),
+    // sync applies transfer detection and rules automatically; report what it
+    // touched so those silent mutations stay visible and reviewable
+    onSuccess: (result) => {
+      if (result.detectedTransfers > 0) {
+        notify(`Detected ${plural(result.detectedTransfers, 'transfer')}`, {
+          description: 'Marked automatically and excluded from income and expenses.',
+          action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
+        })
+      }
+      if (result.rulesApplied > 0) {
+        notify(`Rules updated ${plural(result.rulesApplied, 'transaction')}`, {
+          description: 'Applied automatically on sync.',
+          action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
+        })
+      }
+    },
     onSettled: () => queryClient.invalidateQueries()
   })
 

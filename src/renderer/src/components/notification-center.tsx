@@ -13,10 +13,74 @@ import { useNotify, useNotifyStore, type Message } from '@/lib/notify-store'
 
 type CircleState = 'active' | 'error' | 'unseen' | 'idle'
 
+const CIRCUMFERENCE = 2 * Math.PI * 6
+
+const arcBaseProps = {
+  cx: '8',
+  cy: '8',
+  r: '6',
+  strokeWidth: '2',
+  strokeLinecap: 'round' as const,
+  transform: 'rotate(-90 8 8)',
+  strokeDasharray: CIRCUMFERENCE
+}
+
 /**
- * The navbar entry point: a small circle that is always visible. It shows a
- * progress ring while a job runs, turns green (red for errors) when unseen
- * messages are waiting, and is gray when idle.
+ * Fixed placeholder arc for a running job with no measurable progress yet: a
+ * constant quarter-circle segment that the parent spins. Fades in when a job
+ * starts, but snaps out (transition-none) so the handoff to the real progress
+ * arc is an instant swap — never a cross-fade, which would read as the fill
+ * lurching from this 25% placeholder down to the first (usually smaller) percent.
+ */
+function IndeterminateArc({ visible }: { visible: boolean }) {
+  return (
+    <circle
+      {...arcBaseProps}
+      strokeDashoffset={CIRCUMFERENCE * 0.75}
+      className={cn(
+        'stroke-primary duration-500 ease-out',
+        visible ? 'opacity-100 transition-opacity' : 'opacity-0 transition-none'
+      )}
+    />
+  )
+}
+
+/**
+ * The measured progress arc. It snaps straight to the real percent the render it
+ * first appears — the handoff from the indeterminate placeholder — so the fill
+ * never animates in from empty (which, paired with the placeholder fading out,
+ * looked like the progress running backward). After that first frame, growth
+ * between updates eases, and on hide the offset snaps to empty under the opacity
+ * fade so finishing doesn't visibly unwind the progress back down to zero.
+ */
+function ProgressArc({ visible, percent }: { visible: boolean; percent: number }) {
+  const offset = visible ? CIRCUMFERENCE * (1 - percent / 100) : CIRCUMFERENCE
+  const wasVisible = useRef(visible)
+  const appearing = visible && !wasVisible.current
+  useEffect(() => {
+    wasVisible.current = visible
+  }, [visible])
+  return (
+    <circle
+      {...arcBaseProps}
+      strokeDashoffset={offset}
+      className={cn(
+        'stroke-primary duration-500 ease-out',
+        !visible
+          ? 'opacity-0 transition-opacity'
+          : appearing
+            ? 'opacity-100 transition-none'
+            : 'opacity-100 transition-[stroke-dashoffset,opacity]'
+      )}
+    />
+  )
+}
+
+/**
+ * The navbar entry point: a small circle that is always visible. A running job
+ * draws a progress ring that winds in and out; the base ring morphs blue when
+ * unread messages wait, red on an error, and back to gray when idle. Every
+ * change is eased, so the states cross-fade into each other rather than snap.
  */
 function StatusCircle({
   state,
@@ -27,42 +91,58 @@ function StatusCircle({
   percent: number
   indeterminate: boolean
 }) {
-  const circumference = 2 * Math.PI * 6
-  const trackClass =
-    state === 'active'
-      ? 'stroke-muted-foreground/25'
+  const active = state === 'active'
+  const attention = state === 'unseen' || state === 'error'
+  const ringClass =
+    state === 'unseen'
+      ? 'stroke-blue-500'
       : state === 'error'
         ? 'stroke-destructive'
-        : 'stroke-muted-foreground/60'
+        : active
+          ? 'stroke-muted-foreground/25'
+          : 'stroke-muted-foreground/60'
   return (
-    <span className="inline-flex size-5 shrink-0 items-center justify-center">
-      <svg
-        viewBox="0 0 16 16"
-        fill="none"
-        className={cn('size-5', state === 'active' && indeterminate && 'animate-spin')}
-      >
-        {state === 'unseen' ? (
-          <circle cx="8" cy="8" r="6" strokeWidth="2" className="stroke-blue-500" />
-        ) : (
-          <circle cx="8" cy="8" r="5" strokeWidth="2" className={trackClass} />
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      className={cn(
+        // overflow-visible so the unseen state's drop-shadow glow can bloom past
+        // the viewBox instead of being clipped square by the svg's default clip
+        'size-5 shrink-0 overflow-visible',
+        active && indeterminate && 'animate-spin',
+        // a gentle pop once the ring has recolored (delay-150 below), rather
+        // than popping at the exact instant everything else starts moving
+        attention && 'animate-in zoom-in-90 duration-300 delay-150'
+      )}
+    >
+      <circle
+        cx="8"
+        cy="8"
+        r="6"
+        strokeWidth="2"
+        // the arc moves first (see below); the ring's recolor trails slightly so
+        // the two reads as a short sequence instead of everything landing at once
+        className={cn('transition-colors duration-500 ease-out delay-100', ringClass)}
+      />
+      {/* Dedicated glow layer for the completed (unseen) state: a blue ring that
+          coincides with the base ring and carries the drop-shadow. We fade its
+          opacity in/out rather than transitioning the filter — Chromium
+          interpolates drop-shadow discretely, so animating the filter itself just
+          pops. Fading opacity carries the shadow with it. (overflow-visible on the
+          svg lets the glow bloom past the viewBox.) */}
+      <circle
+        cx="8"
+        cy="8"
+        r="6"
+        strokeWidth="2"
+        className={cn(
+          'stroke-blue-500 filter-[drop-shadow(0_0_4px_var(--color-blue-500))] transition-opacity duration-500 ease-out delay-100',
+          state === 'unseen' ? 'opacity-100' : 'opacity-0'
         )}
-        {state === 'active' && (
-          <circle
-            cx="8"
-            cy="8"
-            r="6"
-            strokeWidth="2"
-            strokeLinecap="round"
-            transform="rotate(-90 8 8)"
-            className="stroke-primary transition-[stroke-dashoffset]"
-            strokeDasharray={circumference}
-            strokeDashoffset={
-              indeterminate ? circumference * 0.75 : circumference * (1 - percent / 100)
-            }
-          />
-        )}
-      </svg>
-    </span>
+      />
+      <IndeterminateArc visible={active && indeterminate} />
+      <ProgressArc visible={active && !indeterminate} percent={percent} />
+    </svg>
   )
 }
 
@@ -79,7 +159,7 @@ function JobItem({ job }: { job: Notification }) {
         <p className="text-xs text-muted-foreground">
           {job.canceling ? 'Cancelling…' : job.detail}
         </p>
-        <Button variant="outline" size="sm" disabled={job.canceling} onClick={job.cancel}>
+        <Button variant="outline" size="default" disabled={job.canceling} onClick={job.cancel}>
           Cancel
         </Button>
       </div>
@@ -106,7 +186,7 @@ function MessageItem({ message, onAction }: { message: Message; onAction: () => 
       {message.action && (
         <Button
           variant="outline"
-          size="xs"
+          size="sm"
           className="shrink-0"
           onClick={() => {
             message.action?.onClick()
@@ -140,7 +220,7 @@ function NotificationPanel({
           {"You're all caught up."}
         </p>
       ) : (
-        <ScrollArea className="max-h-96">
+        <ScrollArea viewPortClassName="max-h-96">
           <div className="divide-y">
             {jobs.length > 0 && (
               <div className="space-y-3 p-4">
