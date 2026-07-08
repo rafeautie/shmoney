@@ -229,7 +229,7 @@ function ReportPage() {
             <EmptyDescription>Add a widget to get started.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Button onClick={() => openEditor(null)}>
+            <Button variant="outline" onClick={() => openEditor(null)}>
               <HugeiconsIcon icon={Add01Icon} size={16} />
               Add widget
             </Button>

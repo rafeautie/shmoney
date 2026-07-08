@@ -13,14 +13,15 @@ import { registerRuleSuggestionsIpc } from './ipc/rule-suggestions'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerWindowIpc } from './ipc/window'
 import { registerLlmIpc } from './ipc/llm'
+import { registerDebugIpc } from './ipc/debug'
 import { IPC } from '@shared/ipc'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1100,
     height: 750,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 1200,
+    minHeight: 800,
     show: false,
     autoHideMenuBar: true,
     titleBarStyle: 'hidden',
@@ -72,6 +73,8 @@ app.whenReady().then(() => {
   registerSettingsIpc()
   registerWindowIpc()
   registerLlmIpc()
+  // dev-only diagnostics for the Debug page; never registered in production builds
+  if (is.dev) registerDebugIpc()
 
   createWindow()
 

@@ -188,7 +188,10 @@ export function RulesSettings(): React.JSX.Element {
             checked={ruleSuggestionsEnabled}
             onCheckedChange={setRuleSuggestionsEnabled}
           />
-          <SettingAction label="Apply rules now">
+          <SettingAction
+            label="Apply rules now"
+            description="Run your rules against existing transactions, with a preview first."
+          >
             <Button
               variant="outline"
               onClick={() => setPreviewOpen(true)}

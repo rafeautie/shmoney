@@ -88,3 +88,13 @@ export function useRuleSuggestionsEnabled() {
     )
   }
 }
+
+export function useOnboarding() {
+  const { settings, setSetting } = useSettings()
+  return {
+    onboardingComplete: settings.onboardingComplete,
+    completeOnboarding: useCallback(() => setSetting('onboardingComplete', true), [setSetting]),
+    // re-run the first-run walkthrough (offered on the Settings page)
+    resetOnboarding: useCallback(() => setSetting('onboardingComplete', false), [setSetting])
+  }
+}

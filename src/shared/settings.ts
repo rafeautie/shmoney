@@ -10,7 +10,9 @@ export const settingSchemas = {
   // run user-defined rules automatically on sync (see the rules engine)
   applyRulesOnSync: z.boolean(),
   // suggest new rules when identical transactions get categorized repeatedly
-  ruleSuggestionsEnabled: z.boolean()
+  ruleSuggestionsEnabled: z.boolean(),
+  // whether the first-run onboarding dialog has been finished or skipped
+  onboardingComplete: z.boolean()
 }
 
 export type SettingKey = keyof typeof settingSchemas
@@ -24,7 +26,8 @@ export const SETTINGS_DEFAULTS: Settings = {
   sidebarOpen: true,
   detectTransfers: true,
   applyRulesOnSync: true,
-  ruleSuggestionsEnabled: true
+  ruleSuggestionsEnabled: true,
+  onboardingComplete: false
 }
 
 export const SETTINGS_IPC = {

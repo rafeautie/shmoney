@@ -228,6 +228,11 @@ const api = {
       ipcRenderer.on(IPC.windowMaximizedChanged, listener)
       return () => ipcRenderer.removeListener(IPC.windowMaximizedChanged, listener)
     }
+  },
+  debug: {
+    // dev-only: the raw SimpleFIN /accounts payload. Rejects in production, where
+    // the main-process handler is never registered (see main/ipc/debug).
+    rawAccounts: (): Promise<unknown> => ipcRenderer.invoke(IPC.debugRawAccounts)
   }
 }
 

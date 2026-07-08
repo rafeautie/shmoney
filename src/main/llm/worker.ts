@@ -153,7 +153,7 @@ async function handleLoad(): Promise<null> {
       contextSequence: context.getSequence(),
       // Gemma 4 reasons by default; disable it so a prompt returns the answer
       // directly (features like categorize parse the response as JSON).
-      chatWrapper: new Gemma4ChatWrapper({ reasoning: false })
+      chatWrapper: new Gemma4ChatWrapper()
     })
     loaded = { model, context, session }
     post({ event: 'status', status: { stage: 'ready', error: null } })

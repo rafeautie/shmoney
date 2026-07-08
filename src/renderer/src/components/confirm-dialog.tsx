@@ -35,9 +35,9 @@ export function ConfirmDialog({
 }): React.JSX.Element {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className='min-w-lg'>
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className='max-w-11/12'>{title}</DialogTitle>
           {description != null && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         <DialogFooter>

@@ -1,6 +1,7 @@
 import { Outlet, createRootRoute } from '@tanstack/react-router'
 import { AppSidebar } from '@/components/app-sidebar'
 import { NotificationCenter } from '@/components/notification-center'
+import { Onboarding } from '@/components/onboarding-dialog'
 import { UndoShortcuts } from '@/components/undo-shortcuts'
 import { WindowControls } from '@/components/window-controls'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
@@ -27,7 +28,7 @@ function RootComponent() {
           <SidebarInset className="h-svh overflow-hidden">
             <header className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4 [-webkit-app-region:drag]">
               <SidebarTrigger size="icon" className="-ml-1 [-webkit-app-region:no-drag]" />
-              <div className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2">
+              <div className="flex [-webkit-app-region:no-drag]">
                 <NotificationCenter />
               </div>
               <div className="ml-auto flex items-center gap-1">
@@ -39,6 +40,7 @@ function RootComponent() {
             </main>
           </SidebarInset>
           <UndoShortcuts />
+          <Onboarding />
           <Toaster position="bottom-right" />
         </SidebarProvider>
       </SuggestionsUiProvider>

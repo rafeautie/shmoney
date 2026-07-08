@@ -139,7 +139,7 @@ function EntryRow({
   })
 
   return (
-    <Collapsible className={cn('group/entry bg-muted/50 px-3 py-2.5', undone && 'opacity-60')}>
+    <Collapsible className={cn('group/entry bg-background px-3 py-2.5', undone && 'opacity-60')}>
       <div className="flex items-center gap-3">
         <HugeiconsIcon
           icon={isDetector ? ArrowDataTransferHorizontalIcon : Clock01Icon}

@@ -36,7 +36,7 @@ import {
   DateRangeControl,
   DirectionControl
 } from './filter-controls'
-import { WidgetRenderer } from './widget-renderer'
+import { WidgetCard } from './widget-card'
 
 const TYPE_LABELS: Record<WidgetType, string> = {
   bar: 'Bar chart',
@@ -219,9 +219,16 @@ export function WidgetEditor({
 
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-6 px-4 pb-4">
-            {/* preview */}
-            <div className="h-56 rounded-lg border p-3">
-              <WidgetRenderer widget={previewWidget} reportFilters={reportFilters} />
+            {/* preview: the exact report card, minus the edit/trash controls
+                (editing=false) and the grid resize handles (those live in ReportGrid) */}
+            <div className="h-56 mt-1">
+              <WidgetCard
+                widget={previewWidget}
+                reportFilters={reportFilters}
+                editing={false}
+                onEdit={() => { }}
+                onDelete={() => { }}
+              />
             </div>
 
             {/* basics */}

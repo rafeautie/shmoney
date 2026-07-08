@@ -245,7 +245,10 @@ export const IPC = {
   windowMaximizeToggle: 'window:maximizeToggle',
   windowClose: 'window:close',
   windowIsMaximized: 'window:isMaximized',
-  windowMaximizedChanged: 'window:maximizedChanged'
+  windowMaximizedChanged: 'window:maximizedChanged',
+  // dev-only: raw SimpleFIN /accounts passthrough for the Debug page (handler
+  // registered only when is.dev, so it isn't present in production builds)
+  debugRawAccounts: 'debug:rawAccounts'
 } as const
 
 export const ACTION_LOG_IPC = {

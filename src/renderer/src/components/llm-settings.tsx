@@ -75,6 +75,7 @@ export function LlmSettings() {
                 )}
               </>
             }
+            description="Runs on your device — transaction data never leaves it."
           >
             {stage === 'downloading' && (
               <Button

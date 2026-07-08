@@ -62,7 +62,7 @@ export function RulesPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col sm:max-w-2xl">
+      <DialogContent className="flex flex-col min-w-4xl">
         <DialogHeader>
           <DialogTitle>Apply rules</DialogTitle>
           <DialogDescription>

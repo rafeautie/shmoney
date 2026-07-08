@@ -61,7 +61,7 @@ export function WidgetCard({ widget, reportFilters, editing, onEdit, onDelete }:
   return (
     <Card
       className={cn(
-        'relative flex h-full flex-col gap-2 overflow-hidden pt-3 pb-0',
+        'relative flex h-full flex-col gap-2 pt-3 pb-0 overflow-visible',
         editing && 'border-dashed cursor-grab active:cursor-grabbing'
       )}
     >

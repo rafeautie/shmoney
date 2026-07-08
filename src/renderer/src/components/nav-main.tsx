@@ -3,7 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Activity01Icon,
   Analytics01Icon,
-  Home01Icon,
+  Bug01Icon,
   Settings01Icon,
   Wallet01Icon
 } from '@hugeicons/core-free-icons'
@@ -14,13 +14,18 @@ import {
   SidebarMenuItem
 } from '@/components/ui/sidebar'
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Home', fuzzy: false, icon: Home01Icon },
+const BASE_NAV_ITEMS = [
   { to: '/accounts', label: 'Accounts', fuzzy: true, icon: Wallet01Icon },
   { to: '/reports', label: 'Reports', fuzzy: true, icon: Analytics01Icon },
   { to: '/activity', label: 'Activity', fuzzy: false, icon: Activity01Icon },
   { to: '/settings', label: 'Settings', fuzzy: false, icon: Settings01Icon }
 ] as const
+
+// The Debug page is developer-only; the /debug route redirects away in production
+// too, but hiding the link keeps it out of the shipped UI entirely.
+const DEBUG_NAV_ITEM = { to: '/debug', label: 'Debug', fuzzy: false, icon: Bug01Icon } as const
+
+const NAV_ITEMS = import.meta.env.DEV ? [...BASE_NAV_ITEMS, DEBUG_NAV_ITEM] : BASE_NAV_ITEMS
 
 export function NavMain() {
   const matchRoute = useMatchRoute()

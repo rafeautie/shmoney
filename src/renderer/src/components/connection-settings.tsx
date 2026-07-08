@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon } from '@hugeicons/core-free-icons'
 import { sfinErrorSeverity, type SfinError } from '@shared/ipc'
-import { ipcErrorMessage, plural } from '@/lib/utils'
-import { useNotify } from '@/lib/notify-store'
+import { ipcErrorMessage } from '@/lib/utils'
+import { useOnboarding } from '@/lib/settings'
+import { useConnectSimpleFin } from '@/hooks/use-connect-simplefin'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,16 +13,14 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
+import { SettingsGroup, SettingAction } from './settings-controls'
 import { ConfirmDialog } from './confirm-dialog'
 
 export function ConnectionSettings() {
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
-  const notify = useNotify()
 
   const connectionQuery = useQuery({
     queryKey: ['connection'],
@@ -30,46 +28,9 @@ export function ConnectionSettings() {
   })
   const connection = connectionQuery.data
 
-  const [setupToken, setSetupToken] = useState('')
+  const { setupToken, setSetupToken, connect, syncConnection } = useConnectSimpleFin()
+  const { onboardingComplete, resetOnboarding } = useOnboarding()
   const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
-
-  const syncConnection = useMutation({
-    mutationFn: () => window.api.connection.sync(),
-    // sync applies transfer detection and rules automatically; report what it
-    // touched so those silent mutations stay visible and reviewable
-    onSuccess: (result) => {
-      if (result.detectedTransfers > 0) {
-        notify(`Detected ${plural(result.detectedTransfers, 'transfer')}`, {
-          description: 'Marked automatically and excluded from income and expenses.',
-          action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
-        })
-      }
-      if (result.rulesApplied > 0) {
-        notify(`Rules updated ${plural(result.rulesApplied, 'transaction')}`, {
-          description: 'Applied automatically on sync.',
-          action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
-        })
-      }
-    },
-    onSettled: () => queryClient.invalidateQueries()
-  })
-
-  const connect = useMutation({
-    mutationFn: () => window.api.connection.connect({ setupToken }),
-    onSuccess: () => {
-      setSetupToken('')
-      queryClient.invalidateQueries()
-      // kick off the first sync and announce setup completion when it lands; the
-      // per-call callback fires only for this initial run, not manual re-syncs
-      syncConnection.mutate(undefined, {
-        onSuccess: () =>
-          notify('SimpleFIN connected', {
-            description: 'Your accounts and transactions are ready.',
-            action: { label: 'View accounts', onClick: () => navigate({ to: '/accounts' }) }
-          })
-      })
-    }
-  })
 
   const disconnect = useMutation({
     mutationFn: () => window.api.connection.disconnect(),
@@ -94,31 +55,43 @@ export function ConnectionSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="setup-token">Setup token</Label>
-            <Input
-              id="setup-token"
-              value={setupToken}
-              onChange={(e) => setSetupToken(e.target.value)}
-              placeholder="Base64 setup token"
-            />
-          </div>
+          <SettingsGroup>
+            <div className="flex items-center gap-2 px-4 py-3">
+              <Label htmlFor="setup-token" className="sr-only">
+                Setup token
+              </Label>
+              <Input
+                id="setup-token"
+                value={setupToken}
+                onChange={(e) => setSetupToken(e.target.value)}
+                placeholder="Base64 setup token"
+                className="flex-1"
+              />
+              <Button
+                className="shrink-0"
+                disabled={!setupToken.trim() || connect.isPending}
+                onClick={() => connect.mutate()}
+              >
+                {connect.isPending
+                  ? 'Connecting...'
+                  : syncConnection.isPending && connect.isSuccess
+                    ? 'Syncing...'
+                    : 'Connect'}
+              </Button>
+            </div>
+            <SettingAction
+              label="Getting started guide"
+              description="Replay the first-run walkthrough."
+            >
+              <Button variant="outline" onClick={resetOnboarding} disabled={!onboardingComplete}>
+                Show again
+              </Button>
+            </SettingAction>
+          </SettingsGroup>
           {connect.isError && (
             <p className="text-sm text-destructive">{ipcErrorMessage(connect.error)}</p>
           )}
         </CardContent>
-        <CardFooter>
-          <Button
-            disabled={!setupToken.trim() || connect.isPending}
-            onClick={() => connect.mutate()}
-          >
-            {connect.isPending
-              ? 'Connecting...'
-              : syncConnection.isPending && connect.isSuccess
-                ? 'Syncing...'
-                : 'Connect'}
-          </Button>
-        </CardFooter>
       </Card>
     )
   }
@@ -134,7 +107,7 @@ export function ConnectionSettings() {
             : 'Never synced.'}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-4">
         {connection.lastSyncErrors.length > 0 && (
           <SyncErrorsAlert errors={connection.lastSyncErrors} />
         )}
@@ -148,15 +121,33 @@ export function ConnectionSettings() {
             Disconnect failed: {ipcErrorMessage(disconnect.error)}
           </p>
         )}
+        <SettingsGroup>
+          <SettingAction
+            label="Sync now"
+            description="Fetch the latest balances and transactions."
+          >
+            <Button disabled={syncConnection.isPending} onClick={() => syncConnection.mutate()}>
+              {syncConnection.isPending ? 'Syncing…' : 'Sync'}
+            </Button>
+          </SettingAction>
+          <SettingAction
+            label="Getting started guide"
+            description="Replay the first-run walkthrough."
+          >
+            <Button variant="outline" onClick={resetOnboarding} disabled={!onboardingComplete}>
+              Show again
+            </Button>
+          </SettingAction>
+          <SettingAction
+            label="Disconnect"
+            description="Remove all synced accounts and transactions from this device."
+          >
+            <Button variant="outline" onClick={() => setConfirmingDisconnect(true)}>
+              Disconnect
+            </Button>
+          </SettingAction>
+        </SettingsGroup>
       </CardContent>
-      <CardFooter className="gap-2">
-        <Button disabled={syncConnection.isPending} onClick={() => syncConnection.mutate()}>
-          {syncConnection.isPending ? 'Syncing...' : 'Sync'}
-        </Button>
-        <Button variant="outline" onClick={() => setConfirmingDisconnect(true)}>
-          Disconnect
-        </Button>
-      </CardFooter>
 
       <ConfirmDialog
         open={confirmingDisconnect}

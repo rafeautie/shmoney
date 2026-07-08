@@ -122,7 +122,7 @@ function StatusCircle({
       <circle
         cx="8"
         cy="8"
-        r="6"
+        r="5"
         strokeWidth="2"
         // the arc moves first (see below); the ring's recolor trails slightly so
         // the two reads as a short sequence instead of everything landing at once
@@ -137,7 +137,7 @@ function StatusCircle({
       <circle
         cx="8"
         cy="8"
-        r="6"
+        r="5"
         strokeWidth="2"
         className={cn(
           'stroke-blue-500 filter-[drop-shadow(0_0_4px_var(--color-blue-500))] transition-opacity duration-500 ease-out delay-100',
@@ -291,8 +291,9 @@ function useRuleSuggestionNotice() {
 }
 
 /**
- * Header notification center. An always-visible entry point centered in the app
- * header that summarises in-flight jobs and recent messages; opening it marks
+ * Header notification center. An always-visible entry point at the left of the
+ * app header, right of the sidebar toggle, that summarises in-flight jobs and
+ * recent messages; opening it marks
  * messages seen (clearing the badge), closing it drops the ones already seen.
  */
 export function NotificationCenter() {
@@ -352,7 +353,7 @@ export function NotificationCenter() {
           <StatusCircle state={state} percent={percent} indeterminate={indeterminate} />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="center" className="w-80 p-0">
+      <PopoverContent align="start" className="w-80 p-0">
         <NotificationPanel jobs={jobs} messages={messages} onAction={() => setOpen(false)} />
       </PopoverContent>
     </Popover>

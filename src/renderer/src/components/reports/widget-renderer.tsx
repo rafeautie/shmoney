@@ -36,13 +36,13 @@ import { Badge } from '@/components/ui/badge'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
   TableHeader,
   TableRow
 } from '@/components/ui/table'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   ChartContainer,
   ChartLegend,
@@ -630,34 +630,40 @@ function SummaryTableWidget({
     return <CenteredNote>No transactions match these filters.</CenteredNote>
   }
   return (
-    <div className="relative h-full overflow-auto px-4 pb-4">
+    // full-bleed: the table spans the card edges; the badge stays pinned outside
+    // the scroll region so it doesn't scroll away with the rows
+    <div className="relative h-full">
       <MixedCurrencyBadge currencies={currencies} />
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Group</TableHead>
-            <TableHead className="w-32 text-right">Value</TableHead>
-            <TableHead className="w-16 text-right">%</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {totals.map((t, i) => {
-            const denominator = totalByCurrency.get(t.currency) ?? 0
-            const pct = denominator > 0 ? (Math.abs(t.value) / denominator) * 100 : 0
-            return (
-              <TableRow key={`${t.groupId}-${t.currency}-${i}`}>
-                <TableCell className="truncate font-medium">{t.label}</TableCell>
-                <TableCell className="text-right tabular-nums">
-                  <MeasureValue measure={measure} value={t.value} currency={t.currency} />
-                </TableCell>
-                <TableCell className="text-right text-muted-foreground tabular-nums">
-                  {pct.toFixed(0)}%
-                </TableCell>
-              </TableRow>
-            )
-          })}
-        </TableBody>
-      </Table>
+      <ScrollArea className="h-full">
+        {/* raw <table>, not the Table wrapper: its overflow-x container would
+            become the sticky header's scroll context and break stickiness */}
+        <table className="w-full caption-bottom text-xs">
+          <TableHeader className="sticky top-0 z-10 bg-card">
+            <TableRow>
+              <TableHead>Group</TableHead>
+              <TableHead className="w-32 text-right">Value</TableHead>
+              <TableHead className="w-16 text-right">%</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {totals.map((t, i) => {
+              const denominator = totalByCurrency.get(t.currency) ?? 0
+              const pct = denominator > 0 ? (Math.abs(t.value) / denominator) * 100 : 0
+              return (
+                <TableRow key={`${t.groupId}-${t.currency}-${i}`}>
+                  <TableCell className="truncate font-medium">{t.label}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    <MeasureValue measure={measure} value={t.value} currency={t.currency} />
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground tabular-nums">
+                    {pct.toFixed(0)}%
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </table>
+      </ScrollArea>
     </div>
   )
 }
