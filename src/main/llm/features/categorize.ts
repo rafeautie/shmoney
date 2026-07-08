@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { db } from '../../db'
 import { accounts, categories, transactions } from '../../db/schema'
 import { setCategories } from '../../ipc/transactions'
+import { applyRulesInTx } from '../../ipc/rules'
 import { llmManager, sendToRenderer } from '../manager'
 import { LLM_IPC, type CategorizeResult } from '@shared/llm'
 import type { CategorizeScopeInput } from '@shared/ipc'
@@ -66,13 +67,14 @@ export function cancelCategorize(): void {
 }
 
 /**
- * Categorize a scope of transactions and apply the results immediately as one
- * undoable action-log entry (source 'llm'). The scope is an explicit selection
- * (`transactionIds`), a single `accountId`, or — when both are omitted — every
- * transaction. Whatever the scope, rows that are already categorized, transfers,
- * or pending are excluded, the same rule manual bulk category-set follows. Only
- * one run happens at a time: the worker shares one chat session, so an
- * overlapping run would corrupt it.
+ * Categorize a scope of transactions. The user's rules run first over the scope
+ * (deterministic and free), then the model handles whatever they didn't settle,
+ * applied as one undoable action-log entry (source 'llm'). The scope is an
+ * explicit selection (`transactionIds`), a single `accountId`, or — when both are
+ * omitted — every transaction. Whatever the scope, rows that are already
+ * categorized, transfers, or pending are excluded, the same rule manual bulk
+ * category-set follows. Only one run happens at a time: the worker shares one
+ * chat session, so an overlapping run would corrupt it.
  */
 export async function categorizeTransactions(
   scope: CategorizeScopeInput
@@ -94,6 +96,13 @@ export async function categorizeTransactions(
     : scope.accountId
       ? eq(transactions.accountId, scope.accountId)
       : undefined
+
+  // Deterministic rules first: apply the user's rules across this scope so the
+  // model only spends generations on rows no rule already settled. Same
+  // fill-empty semantics and undoable 'rule' action-log entries as sync/manual
+  // apply; a rule that categorizes a row (or marks it a transfer) drops it from
+  // the eligible set selected below.
+  const ruleResult = db.transaction((tx) => applyRulesInTx(tx, { scope }))
 
   const eligible = db
     .select({
@@ -156,9 +165,10 @@ export async function categorizeTransactions(
       reportProgress(i + 1, groupList.length)
     }
 
-    // apply whatever was categorized before a cancel, as one undoable entry
-    const categorized = changes.length > 0 ? setCategories({ changes, source: 'llm' }) : 0
-    return { categorized, cancelled: signal.aborted }
+    // apply whatever the model categorized before a cancel, as one undoable
+    // entry; the count also includes rows the rules pre-pass settled
+    const llmCategorized = changes.length > 0 ? setCategories({ changes, source: 'llm' }) : 0
+    return { categorized: ruleResult.categorized + llmCategorized, cancelled: signal.aborted }
   } finally {
     if (activeRun === abortController) activeRun = null
   }

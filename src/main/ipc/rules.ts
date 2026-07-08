@@ -82,9 +82,21 @@ function loadApplicableRules(tx: Tx): Rule[] {
   })
 }
 
+// Narrows which rows a run considers: an explicit id list or a single account.
+// Omitted (or empty) means every untouched row, the sync/manual-apply default.
+export interface RuleApplyScope {
+  transactionIds?: number[]
+  accountId?: number
+}
+
 // untouched, actionable rows: pending rows are excluded everywhere (sync drops
 // and re-inserts them) and soft-deleted rows are invisible
-function selectCandidates(tx: Tx): RuleCandidate[] {
+function selectCandidates(tx: Tx, scope?: RuleApplyScope): RuleCandidate[] {
+  const scopeFilter = scope?.transactionIds
+    ? inArray(transactions.id, scope.transactionIds)
+    : scope?.accountId !== undefined
+      ? eq(transactions.accountId, scope.accountId)
+      : undefined
   return tx
     .select({
       id: transactions.id,
@@ -96,18 +108,22 @@ function selectCandidates(tx: Tx): RuleCandidate[] {
       isTransfer: transactions.isTransfer
     })
     .from(transactions)
-    .where(and(eq(transactions.pending, false), isNull(transactions.deletedAt)))
+    .where(and(scopeFilter, eq(transactions.pending, false), isNull(transactions.deletedAt)))
     .all()
 }
 
 /**
  * Run every applicable rule over the untouched rows, write the changes, and log
  * one action_log entry per rule that fired (source 'rule') so each is reviewable
- * and undoable. Shared by the sync handler (fill-empty) and the manual "Apply
- * rules now", which may pass overrideCategories to overwrite existing categories.
+ * and undoable. Shared by the sync handler and the manual "Apply rules now"
+ * (both unscoped; manual apply may pass overrideCategories to overwrite an
+ * existing category) and auto-categorize, which scopes the run to its selection.
  */
-export function applyRulesInTx(tx: Tx, overrideCategories = false): RulesApplyResult {
-  const candidates = selectCandidates(tx)
+export function applyRulesInTx(
+  tx: Tx,
+  { overrideCategories = false, scope }: { overrideCategories?: boolean; scope?: RuleApplyScope } = {}
+): RulesApplyResult {
+  const candidates = selectCandidates(tx, scope)
   const firings = evaluateRules(loadApplicableRules(tx), candidates, overrideCategories)
   const priorCategory = new Map(candidates.map((c) => [c.id, c.categoryId]))
   let categorized = 0
@@ -259,6 +275,6 @@ export function registerRulesIpc(): void {
 
   ipcMain.handle(RULES_IPC.apply, (_event, input: unknown): RulesApplyResult => {
     const { overrideCategories } = ruleApplyOptionsSchema.parse(input ?? {})
-    return db.transaction((tx) => applyRulesInTx(tx, overrideCategories))
+    return db.transaction((tx) => applyRulesInTx(tx, { overrideCategories }))
   })
 }
