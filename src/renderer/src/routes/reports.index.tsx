@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -26,6 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 export const Route = createFileRoute('/reports/')({
   component: ReportsPage
@@ -47,8 +49,10 @@ function ReportsPage() {
     }
   })
 
+  const [deleteTarget, setDeleteTarget] = useState<ReportSummary | null>(null)
   const deleteMutation = useMutation({
     mutationFn: (id: number) => window.api.reports.delete(id),
+    onSuccess: () => setDeleteTarget(null),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['reports'] })
   })
 
@@ -121,10 +125,22 @@ function ReportsPage() {
               onOpen={() =>
                 navigate({ to: '/reports/$reportId', params: { reportId: String(report.id) } })
               }
-              onDelete={() => deleteMutation.mutate(report.id)}
+              onDelete={() => setDeleteTarget(report)}
             />
           ))}
         </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setDeleteTarget(null)}
+          title={`Delete “${deleteTarget.name}”?`}
+          description="This permanently deletes the report and all its widgets."
+          pending={deleteMutation.isPending}
+          pendingLabel="Deleting…"
+          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+        />
       )}
     </Page>
   )

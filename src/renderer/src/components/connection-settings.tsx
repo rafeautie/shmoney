@@ -17,6 +17,7 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
+import { ConfirmDialog } from './confirm-dialog'
 
 export function ConnectionSettings() {
   const queryClient = useQueryClient()
@@ -139,35 +140,26 @@ export function ConnectionSettings() {
             Disconnect failed: {ipcErrorMessage(disconnect.error)}
           </p>
         )}
-        {confirmingDisconnect && (
-          <p className="text-sm text-destructive">
-            Disconnecting deletes all synced accounts and transactions from this device.
-          </p>
-        )}
       </CardContent>
       <CardFooter className="gap-2">
         <Button disabled={syncConnection.isPending} onClick={() => syncConnection.mutate()}>
           {syncConnection.isPending ? 'Syncing...' : 'Sync'}
         </Button>
-        {confirmingDisconnect ? (
-          <>
-            <Button
-              variant="destructive"
-              disabled={disconnect.isPending}
-              onClick={() => disconnect.mutate()}
-            >
-              {disconnect.isPending ? 'Disconnecting...' : 'Yes, disconnect'}
-            </Button>
-            <Button variant="ghost" onClick={() => setConfirmingDisconnect(false)}>
-              Cancel
-            </Button>
-          </>
-        ) : (
-          <Button variant="outline" onClick={() => setConfirmingDisconnect(true)}>
-            Disconnect
-          </Button>
-        )}
+        <Button variant="outline" onClick={() => setConfirmingDisconnect(true)}>
+          Disconnect
+        </Button>
       </CardFooter>
+
+      <ConfirmDialog
+        open={confirmingDisconnect}
+        onOpenChange={setConfirmingDisconnect}
+        title="Disconnect SimpleFIN?"
+        description="Disconnecting deletes all synced accounts and transactions from this device."
+        confirmLabel="Disconnect"
+        pendingLabel="Disconnecting…"
+        pending={disconnect.isPending}
+        onConfirm={() => disconnect.mutate()}
+      />
     </Card>
   )
 }

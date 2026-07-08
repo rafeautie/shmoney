@@ -13,15 +13,8 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
 import { SettingsGroup, SettingAction } from './settings-controls'
+import { ConfirmDialog } from './confirm-dialog'
 
 function formatBytes(bytes: number): string {
   return `${(bytes / 1_000_000_000).toFixed(1)} GB`
@@ -141,29 +134,15 @@ export function LlmSettings() {
         )}
       </CardContent>
 
-      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete {MODEL.label}?</DialogTitle>
-            <DialogDescription>
-              This removes the model file from this device. Auto features stop working until you
-              download it again.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDelete(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={deleteModel.isPending}
-              onClick={() => deleteModel.mutate()}
-            >
-              {deleteModel.isPending ? 'Deleting...' : 'Delete'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete ${MODEL.label}?`}
+        description="This removes the model file from this device. Auto features stop working until you download it again."
+        pending={deleteModel.isPending}
+        pendingLabel="Deleting…"
+        onConfirm={() => deleteModel.mutate()}
+      />
     </Card>
   )
 }

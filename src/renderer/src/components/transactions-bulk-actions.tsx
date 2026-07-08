@@ -5,14 +5,7 @@ import { Cancel01Icon } from '@hugeicons/core-free-icons'
 import type { Transaction } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CategoryPicker } from '@/components/category-picker'
 import { useAutoCategorize, useLlmReady } from '@/lib/llm'
 
@@ -164,35 +157,16 @@ export function TransactionsBulkActions({
         </Button>
       </div>
 
-      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Delete{' '}
-              {transactions.length === 1
-                ? 'this transaction'
-                : `${transactions.length} transactions`}
-              ?
-            </DialogTitle>
-            <DialogDescription>
-              They are removed from shmoney and stay deleted on future syncs. You can undo this with
-              Ctrl+Z.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDelete(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={deleteTransactions.isPending}
-              onClick={() => deleteTransactions.mutate()}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete ${
+          transactions.length === 1 ? 'this transaction' : `${transactions.length} transactions`
+        }?`}
+        description="They are removed from shmoney and stay deleted on future syncs. You can undo this with Ctrl+Z."
+        pending={deleteTransactions.isPending}
+        onConfirm={() => deleteTransactions.mutate()}
+      />
     </div>
   )
 }

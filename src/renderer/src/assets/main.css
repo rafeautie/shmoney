@@ -159,11 +159,6 @@
 .react-grid-item > .react-resizable-handle {
   transition: opacity 150ms ease;
 }
-/* Hide the handles while a widget's delete confirmation overlay is showing. */
-.react-grid-item:has([data-delete-confirm]) > .react-resizable-handle {
-  opacity: 0;
-  pointer-events: none;
-}
 .react-grid-item > .react-resizable-handle::after {
   content: '';
   position: absolute;

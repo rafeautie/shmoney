@@ -33,6 +33,7 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
+import { ConfirmDialog } from './confirm-dialog'
 import { RuleEditor, type RuleDraft } from './rules-editor'
 import { RulesPreviewDialog } from './rules-preview-dialog'
 import { RuleSuggestionsDialog } from './rule-suggestions-dialog'
@@ -187,10 +188,7 @@ export function RulesSettings(): React.JSX.Element {
             checked={ruleSuggestionsEnabled}
             onCheckedChange={setRuleSuggestionsEnabled}
           />
-          <SettingAction
-            label="Apply rules now"
-            description="Run your rules over your existing transactions."
-          >
+          <SettingAction label="Apply rules now">
             <Button
               variant="outline"
               onClick={() => setPreviewOpen(true)}
@@ -206,7 +204,7 @@ export function RulesSettings(): React.JSX.Element {
           {rulesQuery.isLoading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : rules.length === 0 ? (
-            <Empty className="border border-dotted border-muted-foreground/30 bg-background">
+            <Empty className="border border-muted-foreground/30 bg-background">
               <EmptyHeader>
                 <EmptyMedia variant="icon">
                   <HugeiconsIcon icon={Tag01Icon} />
@@ -309,6 +307,7 @@ function RuleRow({
   onEdit: () => void
 }): React.JSX.Element {
   const queryClient = useQueryClient()
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const toggle = useMutation({
     mutationFn: (enabled: boolean) => window.api.rules.update({ id: rule.id, enabled }),
@@ -316,6 +315,7 @@ function RuleRow({
   })
   const remove = useMutation({
     mutationFn: () => window.api.rules.delete(rule.id),
+    onSuccess: () => setConfirmOpen(false),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['rules'] })
   })
 
@@ -341,8 +341,7 @@ function RuleRow({
           variant="ghost"
           size="icon-sm"
           aria-label={`Delete rule ${rule.name}`}
-          disabled={remove.isPending}
-          onClick={() => remove.mutate()}
+          onClick={() => setConfirmOpen(true)}
         >
           <HugeiconsIcon icon={Delete02Icon} size={14} />
         </Button>
@@ -351,6 +350,15 @@ function RuleRow({
         checked={rule.enabled}
         onCheckedChange={(on) => toggle.mutate(on)}
         aria-label={`Enable rule ${rule.name}`}
+      />
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={`Delete “${rule.name}”?`}
+        description="Removes this rule. Transactions it already categorized keep their categories."
+        pending={remove.isPending}
+        pendingLabel="Deleting…"
+        onConfirm={() => remove.mutate()}
       />
     </div>
   )

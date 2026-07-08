@@ -8,6 +8,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 /** Order-insensitive deep-equality key: saved filters round-trip through JSON,
  * so their key order can differ from freshly-built filter objects. */
@@ -35,6 +36,7 @@ interface SavedFiltersMenuProps {
 export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuProps) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null)
   const queryClient = useQueryClient()
 
   const savedQuery = useQuery({
@@ -56,6 +58,7 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
   })
   const deleteMutation = useMutation({
     mutationFn: (id: number) => window.api.savedFilters.delete(id),
+    onSuccess: () => setDeleteTarget(null),
     onSettled: invalidate
   })
 
@@ -119,7 +122,7 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
                   size="sm"
                   className="text-muted-foreground opacity-0 group-hover:opacity-100"
                   aria-label={`Delete saved filter ${filter.name}`}
-                  onClick={() => deleteMutation.mutate(filter.id)}
+                  onClick={() => setDeleteTarget({ id: filter.id, name: filter.name })}
                 >
                   <HugeiconsIcon icon={Delete02Icon} size={14} />
                 </Button>
@@ -148,6 +151,17 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
           </Button>
         </div>
       </PopoverContent>
+      {deleteTarget && (
+        <ConfirmDialog
+          open
+          onOpenChange={(o) => !o && setDeleteTarget(null)}
+          title={`Delete “${deleteTarget.name}”?`}
+          description="Removes this saved filter. Your transactions aren’t affected."
+          pending={deleteMutation.isPending}
+          pendingLabel="Deleting…"
+          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+        />
+      )}
     </Popover>
   )
 }

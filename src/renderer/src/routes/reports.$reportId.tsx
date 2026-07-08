@@ -32,6 +32,7 @@ import {
 import { ReportGrid } from '@/components/reports/report-grid'
 import { FilterBar } from '@/components/filter-bar'
 import { WidgetEditor } from '@/components/reports/widget-editor'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 export const Route = createFileRoute('/reports/$reportId')({
   component: ReportPage
@@ -45,6 +46,7 @@ function ReportPage() {
   const [editing, setEditing] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorWidget, setEditorWidget] = useState<ReportWidget | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const detailQuery = useQuery({
     queryKey: ['report', id],
@@ -203,7 +205,7 @@ function ReportPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem variant="destructive" onSelect={() => deleteMutation.mutate()}>
+              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
                 Delete report
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -256,6 +258,16 @@ function ReportPage() {
           w: 6,
           h: 5
         }}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`Delete “${detail.report.name}”?`}
+        description="This permanently deletes the report and all its widgets."
+        pending={deleteMutation.isPending}
+        pendingLabel="Deleting…"
+        onConfirm={() => deleteMutation.mutate()}
       />
     </Page>
   )

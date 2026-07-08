@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { WidgetRenderer } from './widget-renderer'
 
 const FILTER_LABELS: Record<string, string> = {
@@ -79,22 +80,16 @@ export function WidgetCard({ widget, reportFilters, editing, onEdit, onDelete }:
           </div>
         )}
       </div>
-      {confirmingDelete && (
-        <div
-          data-delete-confirm
-          className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card/90 backdrop-blur-sm"
-        >
-          <p className="text-sm font-medium">Delete this widget?</p>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setConfirmingDelete(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" size="sm" onClick={onDelete}>
-              Delete
-            </Button>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title="Delete this widget?"
+        description="This removes the widget from the report."
+        onConfirm={() => {
+          onDelete()
+          setConfirmingDelete(false)
+        }}
+      />
       <div className="min-h-0 flex-1">
         <WidgetRenderer widget={widget} reportFilters={reportFilters} />
       </div>
