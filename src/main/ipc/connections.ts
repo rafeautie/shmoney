@@ -1,5 +1,5 @@
 import { ipcMain, safeStorage } from 'electron'
-import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, gte, inArray, isNull, lte } from 'drizzle-orm'
 import { db } from '../db'
 import { connections, accounts, transactions, settings, actionLog } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
@@ -7,7 +7,7 @@ import { claimAccessUrl, fetchAccounts, parseAmount } from '../simplefin'
 import { transactionsPage, transactionDate } from './transactions-page'
 import { recordAction } from './action-log'
 import { applyRulesInTx } from './rules'
-import { detectTransferPairs } from '../transfers'
+import { detectTransferPairs, TRANSFER_WINDOW_SECONDS } from '../transfers'
 import {
   IPC,
   connectInputSchema,
@@ -120,17 +120,21 @@ async function syncConnection(): Promise<SyncResult> {
       }
     }
 
-    // detect transfers over all currently-unmarked rows (cheap: bucketed by
-    // amount), marking both legs and logging one 'detector' entry to undo from
+    // detect transfers (cheap: bucketed by amount). Candidates are all unmarked
+    // rows plus any already-marked legs near them in time, so a leg the user
+    // marked by hand in an earlier sync still completes when its partner shows
+    // up now. Only the newly-matched (previously unmarked) legs get flipped, and
+    // one 'detector' entry is logged to undo from.
     let detectedTransfers = 0
     if (detectEnabled) {
-      const candidates = tx
-        .select({
-          id: transactions.id,
-          accountId: transactions.accountId,
-          amount: transactions.amount,
-          date: transactionDate
-        })
+      const candidateColumns = {
+        id: transactions.id,
+        accountId: transactions.accountId,
+        amount: transactions.amount,
+        date: transactionDate
+      }
+      const unmarked = tx
+        .select(candidateColumns)
         .from(transactions)
         .where(
           and(
@@ -140,21 +144,51 @@ async function syncConnection(): Promise<SyncResult> {
           )
         )
         .all()
-      const pairs = detectTransferPairs(candidates)
-      if (pairs.length > 0) {
-        const ids = pairs.flat()
-        tx.update(transactions).set({ isTransfer: true }).where(inArray(transactions.id, ids)).run()
-        recordAction(tx, {
-          source: 'detector',
-          label: `Detected ${pairs.length} transfer${pairs.length === 1 ? '' : 's'}`,
-          changes: ids.map((id) => ({
-            transactionId: id,
-            field: 'isTransfer',
-            before: false,
-            after: true
-          }))
-        })
-        detectedTransfers = pairs.length
+
+      if (unmarked.length > 0) {
+        // a marked leg can only pair with an unmarked one within the window, so
+        // only pull marked rows near the unmarked date range — keeps this bounded
+        // as transfer history accumulates rather than re-scanning every past leg
+        let minDate = Infinity
+        let maxDate = -Infinity
+        for (const r of unmarked) {
+          if (r.date < minDate) minDate = r.date
+          if (r.date > maxDate) maxDate = r.date
+        }
+        const marked = tx
+          .select(candidateColumns)
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.pending, false),
+              isNull(transactions.deletedAt),
+              eq(transactions.isTransfer, true),
+              gte(transactionDate, minDate - TRANSFER_WINDOW_SECONDS),
+              lte(transactionDate, maxDate + TRANSFER_WINDOW_SECONDS)
+            )
+          )
+          .all()
+
+        const candidates = [
+          ...unmarked.map((r) => ({ ...r, isTransfer: false })),
+          ...marked.map((r) => ({ ...r, isTransfer: true }))
+        ]
+        const pairs = detectTransferPairs(candidates)
+        const ids = pairs.flatMap((p) => p.toMark)
+        if (ids.length > 0) {
+          tx.update(transactions).set({ isTransfer: true }).where(inArray(transactions.id, ids)).run()
+          recordAction(tx, {
+            source: 'detector',
+            label: `Detected ${pairs.length} transfer${pairs.length === 1 ? '' : 's'}`,
+            changes: ids.map((id) => ({
+              transactionId: id,
+              field: 'isTransfer',
+              before: false,
+              after: true
+            }))
+          })
+          detectedTransfers = pairs.length
+        }
       }
     }
 

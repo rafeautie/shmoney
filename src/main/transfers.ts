@@ -12,16 +12,36 @@ export interface TransferCandidate {
   amount: number
   /** unix seconds */
   date: number
+  /** whether this leg is already marked as a transfer */
+  isTransfer: boolean
+}
+
+export interface TransferPair {
+  /** both legs of the pair, low id first */
+  ids: [number, number]
+  /** the subset of legs that were previously unmarked and must be flipped */
+  toMark: number[]
 }
 
 /**
- * Pair up inter-account transfers among unmarked transactions. A pair is an
- * equal-and-opposite amount in two different accounts posted within a few days.
- * Only unambiguous 1:1 matches are returned — if a leg could pair with more than
- * one candidate, none of them are matched (a wrong pairing silently corrupts
- * reports, so we defer to manual marking). Returns [lowId, highId] pairs.
+ * Pair up inter-account transfers. A pair is an equal-and-opposite amount in two
+ * different accounts posted within a few days. Only unambiguous 1:1 matches are
+ * returned — if a leg could pair with more than one candidate, none of them are
+ * matched (a wrong pairing silently corrupts reports, so we defer to manual
+ * marking).
+ *
+ * Rows already marked as transfers are included so a leg the user marked by hand
+ * in an earlier sync still completes when its partner arrives. Their edges still
+ * count toward the 1:1 exclusivity check, which is what keeps an already-paired
+ * marked leg from being poached by a new lookalike: it already has a partner, so
+ * it has two candidates and matches none. A pair whose legs are both already
+ * marked is a known transfer and yields no work.
+ *
+ * Each returned pair lists the legs to flip in `toMark` (empty legs are the ones
+ * that were already marked, so they're left untouched — re-marking them would
+ * log a bogus false→true change that undo could then reverse).
  */
-export function detectTransferPairs(rows: TransferCandidate[]): [number, number][] {
+export function detectTransferPairs(rows: TransferCandidate[]): TransferPair[] {
   // bucket by magnitude so only equal-and-opposite amounts are ever compared
   const byMagnitude = new Map<number, TransferCandidate[]>()
   for (const row of rows) {
@@ -56,16 +76,24 @@ export function detectTransferPairs(rows: TransferCandidate[]): [number, number]
     }
   }
 
-  const pairs: [number, number][] = []
+  const marked = new Map(rows.map((r) => [r.id, r.isTransfer]))
+  const pairs: TransferPair[] = []
   const paired = new Set<number>()
   for (const [id, candidates] of partners) {
     if (candidates.length !== 1 || paired.has(id)) continue
     const other = candidates[0]
     // require the match to be mutual and equally exclusive
     if (partners.get(other)?.length !== 1) continue
+    const idMarked = marked.get(id) === true
+    const otherMarked = marked.get(other) === true
+    // both legs already marked: a known transfer, nothing to do
+    if (idMarked && otherMarked) continue
     paired.add(id)
     paired.add(other)
-    pairs.push(id < other ? [id, other] : [other, id])
+    const toMark: number[] = []
+    if (!idMarked) toMark.push(id)
+    if (!otherMarked) toMark.push(other)
+    pairs.push({ ids: id < other ? [id, other] : [other, id], toMark })
   }
   return pairs
 }
