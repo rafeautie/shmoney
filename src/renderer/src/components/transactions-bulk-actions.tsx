@@ -99,7 +99,7 @@ export function TransactionsBulkActions({
   if (transactions.length === 0) return null
 
   return (
-    <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 flex-col gap-1.5 rounded-xl border bg-background p-1.5 shadow-lg">
+    <div className="absolute bottom-6 left-1/2 z-20 flex -translate-x-1/2 flex-col gap-1.5 rounded-xl border bg-popover p-1.5 shadow-lg">
       <div className="flex items-center gap-1.5">
         <span className="px-2.5 text-sm whitespace-nowrap text-muted-foreground">
           {transactions.length} selected

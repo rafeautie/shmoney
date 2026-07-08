@@ -93,9 +93,9 @@ const api = {
   },
   actionLog: {
     list: (): Promise<ActionLogEntry[]> => ipcRenderer.invoke(ACTION_LOG_IPC.list),
-    /** Undo the newest applied entry; null if there's nothing to undo */
+    /** Undo your newest action from this session; null if there's nothing to undo */
     undo: (): Promise<UndoResult | null> => ipcRenderer.invoke(ACTION_LOG_IPC.undo),
-    /** Redo the most recently undone entry; null if there's nothing to redo */
+    /** Redo your most recently undone action from this session; null if nothing to redo */
     redo: (): Promise<UndoResult | null> => ipcRenderer.invoke(ACTION_LOG_IPC.redo),
     undoEntry: (id: number): Promise<UndoResult> =>
       ipcRenderer.invoke(ACTION_LOG_IPC.undoEntry, id),

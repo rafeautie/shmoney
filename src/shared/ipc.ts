@@ -178,6 +178,8 @@ export interface ActionLogEntry {
 
 /** Result of undo/redo: applied = rows actually changed (0 = fully superseded). */
 export interface UndoResult {
+  /** the entry that was undone/redone, so callers can reverse that exact one */
+  id: number
   label: string
   applied: number
 }

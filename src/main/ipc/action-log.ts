@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { and, desc, eq, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, actionLog, transactions } from '../db/schema'
 import { transactionDate } from './transactions-page'
@@ -27,6 +27,11 @@ const EDITABLE_FIELDS = {
 // how many recent entries the Activity page shows (undo/redo still reach older
 // rows by id; this only bounds the list payload)
 const LIST_LIMIT = 200
+
+// newest entry id at launch. Keyboard undo/redo only reach entries created after
+// this, so a stray Ctrl+Z can't rewind a previous session's work. Set once when
+// the IPC is registered at startup.
+let sessionBaselineId = 0
 
 /**
  * Append an entry to the audit log within an existing transaction. Callers pass
@@ -95,18 +100,25 @@ function applyEntry(entryId: number, direction: 'undo' | 'redo'): UndoResult {
       .where(eq(actionLog.id, entryId))
       .run()
 
-    return { label: entry.label, applied }
+    return { id: entryId, label: entry.label, applied }
   })
 }
 
-// Ctrl+Z: the newest still-applied entry. Ctrl+Y: the most recently undone one.
-// The visible history holds all entries independently, so redo isn't cleared by
-// doing new work — the guard in applyEntry keeps re-applying an old entry safe.
+// Ctrl+Z / Ctrl+Y are deliberately narrow: they reach only your own actions
+// (source 'user') from the current session (id past the launch baseline), so a
+// stray keystroke on any page can't rewind automated changes or a previous
+// session's work — those stay reversible from the Activity page. Undo takes the
+// newest still-applied such entry; redo the most recently undone one. Redo isn't
+// cleared by new work, and applyEntry's guard keeps re-applying an old entry safe.
+function userSessionScope(): SQL {
+  return and(eq(actionLog.source, 'user'), gt(actionLog.id, sessionBaselineId)) as SQL
+}
+
 function undoNewest(): UndoResult | null {
   const entry = db
     .select({ id: actionLog.id })
     .from(actionLog)
-    .where(isNull(actionLog.undoneAt))
+    .where(and(userSessionScope(), isNull(actionLog.undoneAt)))
     .orderBy(desc(actionLog.id))
     .limit(1)
     .get()
@@ -117,7 +129,7 @@ function redoNewest(): UndoResult | null {
   const entry = db
     .select({ id: actionLog.id })
     .from(actionLog)
-    .where(isNotNull(actionLog.undoneAt))
+    .where(and(userSessionScope(), isNotNull(actionLog.undoneAt)))
     .orderBy(desc(actionLog.undoneAt), desc(actionLog.id))
     .limit(1)
     .get()
@@ -167,6 +179,16 @@ function listEntries(): ActionLogEntry[] {
 }
 
 export function registerActionLogIpc(): void {
+  // snapshot the newest entry so keyboard undo/redo can tell this session's
+  // actions apart from earlier ones
+  const newest = db
+    .select({ id: actionLog.id })
+    .from(actionLog)
+    .orderBy(desc(actionLog.id))
+    .limit(1)
+    .get()
+  sessionBaselineId = newest?.id ?? 0
+
   ipcMain.handle(ACTION_LOG_IPC.list, () => listEntries())
   ipcMain.handle(ACTION_LOG_IPC.undo, () => undoNewest())
   ipcMain.handle(ACTION_LOG_IPC.redo, () => redoNewest())
