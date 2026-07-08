@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon } from '@hugeicons/core-free-icons'
-import type { SfinError } from '@shared/ipc'
+import { sfinErrorSeverity, type SfinError } from '@shared/ipc'
 import { ipcErrorMessage, plural } from '@/lib/utils'
 import { useNotify } from '@/lib/notify-store'
 import { Button } from '@/components/ui/button'
@@ -165,17 +165,56 @@ export function ConnectionSettings() {
 }
 
 function SyncErrorsAlert({ errors }: { errors: SfinError[] }) {
+  // Auth failures need the user to act; retry-advised/bridge notices clear on a
+  // later sync, so surface those far more quietly. Developer-facing entries
+  // (gen.api) match neither bucket and are intentionally not shown to the user.
+  const actionNeeded = errors.filter((e) => sfinErrorSeverity(e) === 'action')
+  const transient = errors.filter((e) => sfinErrorSeverity(e) === 'transient')
+  return (
+    <>
+      {actionNeeded.length > 0 && (
+        <SyncNotice tone="error" title="SimpleFIN needs your attention" errors={actionNeeded} />
+      )}
+      {transient.length > 0 && (
+        <SyncNotice
+          tone="muted"
+          title="SimpleFIN couldn’t fetch everything last sync"
+          hint="These usually clear on the next sync."
+          errors={transient}
+        />
+      )}
+    </>
+  )
+}
+
+function SyncNotice({
+  tone,
+  title,
+  hint,
+  errors
+}: {
+  tone: 'error' | 'muted'
+  title: string
+  hint?: string
+  errors: SfinError[]
+}) {
+  const isError = tone === 'error'
   return (
     <div
-      role="alert"
-      className="flex gap-3 rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-destructive dark:bg-destructive/15"
+      role={isError ? 'alert' : 'status'}
+      className={
+        isError
+          ? 'flex gap-3 rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-destructive dark:bg-destructive/15'
+          : 'flex gap-3 rounded-lg border border-border bg-muted/50 p-3 text-muted-foreground'
+      }
     >
       <HugeiconsIcon icon={Alert02Icon} size={18} className="mt-0.5 shrink-0" />
       <div className="min-w-0 space-y-1.5">
-        <p className="text-sm font-medium">
-          SimpleFIN reported {plural(errors.length, 'issue')} on the last sync
+        <p className={isError ? 'text-sm font-medium' : 'text-sm font-medium text-foreground'}>
+          {title}
         </p>
-        <ul className="space-y-1 text-sm text-destructive/90">
+        {hint && <p className="text-xs">{hint}</p>}
+        <ul className={isError ? 'space-y-1 text-sm text-destructive/90' : 'space-y-1 text-sm'}>
           {errors.map((error, i) => (
             <li key={`${error.code}-${i}`} className="leading-snug">
               {error.msg}

@@ -1,9 +1,26 @@
 import { z } from 'zod'
 
-/** A non-fatal warning from SimpleFIN's errlist (e.g. an account needing re-auth at the bridge). */
+/** A single entry from SimpleFIN's errlist. `code` is `prefix.subcode`; see {@link sfinErrorSeverity}. */
 export interface SfinError {
   code: string
   msg: string
+}
+
+/**
+ * How the user should treat an errlist entry:
+ * - 'action'    an auth failure (`gen.auth` / `con.auth`) — nothing syncs correctly
+ *               until they reconnect or re-authorize the institution at the bridge.
+ * - 'transient' a retry-advised account error (`act.failed` / `act.missingdata`) or a
+ *               bridge notice (e.g. a capped date range) that clears on a later sync.
+ * - 'developer' API misuse (`gen.api`), which the protocol marks "meant for the
+ *               developer and not the user" — log it, never show it on the card.
+ */
+export type SfinErrorSeverity = 'action' | 'transient' | 'developer'
+
+/** Classify an errlist entry per https://www.simplefin.org/protocol.html#error */
+export function sfinErrorSeverity({ code }: SfinError): SfinErrorSeverity {
+  if (code === 'gen.api') return 'developer'
+  return code === 'gen.auth' || code === 'con.auth' ? 'action' : 'transient'
 }
 
 export interface Connection {
