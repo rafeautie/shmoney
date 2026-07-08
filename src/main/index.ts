@@ -9,6 +9,7 @@ import { registerActionLogIpc } from './ipc/action-log'
 import { registerReportsIpc } from './ipc/reports'
 import { registerSavedFiltersIpc } from './ipc/saved-filters'
 import { registerRulesIpc } from './ipc/rules'
+import { registerRuleSuggestionsIpc } from './ipc/rule-suggestions'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerWindowIpc } from './ipc/window'
 import { registerLlmIpc } from './ipc/llm'
@@ -67,6 +68,7 @@ app.whenReady().then(() => {
   registerReportsIpc()
   registerSavedFiltersIpc()
   registerRulesIpc()
+  registerRuleSuggestionsIpc()
   registerSettingsIpc()
   registerWindowIpc()
   registerLlmIpc()

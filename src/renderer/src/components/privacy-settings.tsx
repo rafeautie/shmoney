@@ -1,7 +1,6 @@
 import { usePrivacy } from '@/lib/settings'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { SettingsGroup, SettingToggle } from './settings-controls'
 
 export function PrivacySettings() {
   const { blurAmounts, setBlurAmounts } = usePrivacy()
@@ -13,10 +12,9 @@ export function PrivacySettings() {
         <CardDescription>Hide sensitive numbers when someone might be looking.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-2">
-          <Switch id="blur-amounts" checked={blurAmounts} onCheckedChange={setBlurAmounts} />
-          <Label htmlFor="blur-amounts">Blur amounts</Label>
-        </div>
+        <SettingsGroup>
+          <SettingToggle label="Blur amounts" checked={blurAmounts} onCheckedChange={setBlurAmounts} />
+        </SettingsGroup>
       </CardContent>
     </Card>
   )

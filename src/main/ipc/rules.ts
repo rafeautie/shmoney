@@ -1,11 +1,11 @@
 import { ipcMain } from 'electron'
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, rules, transactions } from '../db/schema'
 import type { RuleRow } from '../db/schema'
 import { recordAction } from './action-log'
 import { transactionDate } from './transactions-page'
-import { evaluateRules, type RuleCandidate } from '../rules'
+import { compileConditions } from '../rules'
 import {
   idSchema,
   type ActionChange
@@ -33,10 +33,27 @@ function nowSec(): number {
   return Math.floor(Date.now() / 1000)
 }
 
+// upgrade a stored condition blob from the pre-multi-phrase shape: a description
+// text condition held a single `value`; it now holds a `phrases` array. A legacy
+// regex op is intentionally left un-normalized so it fails the schema and the
+// rule is dropped (a regex can't be re-expressed as a literal phrase).
+function normalizeConditions(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object') return raw
+  const c = raw as Record<string, unknown>
+  const d = c.description
+  if (d && typeof d === 'object' && 'value' in d && !('phrases' in d)) {
+    const legacy = d as { op?: unknown; value?: unknown }
+    if (legacy.op === 'contains' || legacy.op === 'equals') {
+      return { ...c, description: { op: legacy.op, phrases: [legacy.value] } }
+    }
+  }
+  return raw
+}
+
 // parse a stored row into a Rule; drop it (rather than crash) if its JSON no
 // longer matches the schema — mirrors saved-filters' defensive listing
 function toRule(row: RuleRow): Rule | null {
-  const conditions = ruleConditionsSchema.safeParse(row.conditions)
+  const conditions = ruleConditionsSchema.safeParse(normalizeConditions(row.conditions))
   const action = ruleActionSchema.safeParse(row.action)
   if (!conditions.success || !action.success) {
     console.warn(`rule ${row.id} ("${row.name}") failed to parse, skipping`)
@@ -82,6 +99,12 @@ function loadApplicableRules(tx: Tx): Rule[] {
   })
 }
 
+// enabled, applicable rules in priority order — used by the suggestion detector
+// to skip descriptions an existing rule already handles
+export function loadEnabledRules(): Rule[] {
+  return db.transaction((tx) => loadApplicableRules(tx).filter((r) => r.enabled))
+}
+
 // Narrows which rows a run considers: an explicit id list or a single account.
 // Omitted (or empty) means every untouched row, the sync/manual-apply default.
 export interface RuleApplyScope {
@@ -89,27 +112,27 @@ export interface RuleApplyScope {
   accountId?: number
 }
 
-// untouched, actionable rows: pending rows are excluded everywhere (sync drops
-// and re-inserts them) and soft-deleted rows are invisible
-function selectCandidates(tx: Tx, scope?: RuleApplyScope): RuleCandidate[] {
+// rows a run may touch: within scope, not pending (sync drops and re-inserts
+// them, so any change would be lost) and not soft-deleted
+function baseFilter(scope?: RuleApplyScope): SQL {
   const scopeFilter = scope?.transactionIds
     ? inArray(transactions.id, scope.transactionIds)
     : scope?.accountId !== undefined
       ? eq(transactions.accountId, scope.accountId)
       : undefined
-  return tx
-    .select({
-      id: transactions.id,
-      accountId: transactions.accountId,
-      amount: transactions.amount,
-      description: transactions.description,
-      date: transactionDate,
-      categoryId: transactions.categoryId,
-      isTransfer: transactions.isTransfer
-    })
-    .from(transactions)
-    .where(and(scopeFilter, eq(transactions.pending, false), isNull(transactions.deletedAt)))
-    .all()
+  return and(scopeFilter, eq(transactions.pending, false), isNull(transactions.deletedAt))!
+}
+
+// which matched rows a rule's action may claim: setCategory never touches a
+// transfer and (unless overriding) only fills a blank category; markTransfer
+// only touches unmarked rows
+function eligibility(rule: Rule, overrideCategories: boolean): SQL {
+  if (rule.action.type === 'setCategory') {
+    return overrideCategories
+      ? eq(transactions.isTransfer, false)
+      : and(eq(transactions.isTransfer, false), isNull(transactions.categoryId))!
+  }
+  return eq(transactions.isTransfer, false)
 }
 
 /**
@@ -123,35 +146,49 @@ export function applyRulesInTx(
   tx: Tx,
   { overrideCategories = false, scope }: { overrideCategories?: boolean; scope?: RuleApplyScope } = {}
 ): RulesApplyResult {
-  const candidates = selectCandidates(tx, scope)
-  const firings = evaluateRules(loadApplicableRules(tx), candidates, overrideCategories)
-  const priorCategory = new Map(candidates.map((c) => [c.id, c.categoryId]))
+  const base = baseFilter(scope)
+  const claimed = new Set<number>()
   let categorized = 0
   let markedTransfer = 0
   let rulesFired = 0
-  for (const { rule, ids } of firings) {
+
+  for (const rule of loadApplicableRules(tx)) {
+    // matching runs in SQL; the first rule to claim a row owns it, so later
+    // rules skip anything already claimed (this holds across both actions, so a
+    // row can't end up both categorized and marked as a transfer)
+    const matched = tx
+      .select({ id: transactions.id, categoryId: transactions.categoryId })
+      .from(transactions)
+      .where(and(base, eligibility(rule, overrideCategories), compileConditions(rule.conditions)))
+      .all()
+      .filter((r) => !claimed.has(r.id))
+    if (matched.length === 0) continue
+    for (const r of matched) claimed.add(r.id)
+
     if (rule.action.type === 'setCategory') {
       const categoryId = rule.action.categoryId
-      // under override a firing can include rows already at the target; skip
+      // under override a match can include rows already at the target; skip
       // those so we don't write or log a before===after no-op
-      const changedIds = ids.filter((id) => (priorCategory.get(id) ?? null) !== categoryId)
-      if (changedIds.length === 0) continue
-      tx.update(transactions).set({ categoryId }).where(inArray(transactions.id, changedIds)).run()
+      const changed = matched.filter((r) => (r.categoryId ?? null) !== categoryId)
+      if (changed.length === 0) continue
+      const ids = changed.map((r) => r.id)
+      tx.update(transactions).set({ categoryId }).where(inArray(transactions.id, ids)).run()
       recordAction(tx, {
         source: 'rule',
-        label: `Rule "${rule.name}" categorized ${plural(changedIds.length, 'transaction')}`,
-        changes: changedIds.map(
-          (id): ActionChange => ({
-            transactionId: id,
+        label: `Rule "${rule.name}" categorized ${plural(ids.length, 'transaction')}`,
+        changes: changed.map(
+          (r): ActionChange => ({
+            transactionId: r.id,
             field: 'categoryId',
-            before: priorCategory.get(id) ?? null,
+            before: r.categoryId ?? null,
             after: categoryId
           })
         )
       })
-      categorized += changedIds.length
+      categorized += ids.length
       rulesFired++
     } else {
+      const ids = matched.map((r) => r.id)
       tx.update(transactions).set({ isTransfer: true }).where(inArray(transactions.id, ids)).run()
       recordAction(tx, {
         source: 'rule',
@@ -167,13 +204,29 @@ export function applyRulesInTx(
   return { categorized, markedTransfer, rulesFired }
 }
 
-// dry-run: the same evaluation, but instead of writing, enrich each affected row
+// dry-run: the same matching, but instead of writing, enrich each affected row
 // with its display context and group by the rule that would touch it
 function previewRules(tx: Tx, overrideCategories = false): RulePreview {
-  const candidates = selectCandidates(tx)
-  const firings = evaluateRules(loadApplicableRules(tx), candidates, overrideCategories)
-  const priorCategory = new Map(candidates.map((c) => [c.id, c.categoryId]))
-  const touched = [...new Set(firings.flatMap((f) => f.ids))]
+  const base = baseFilter() // preview always considers every untouched row
+  const claimed = new Set<number>()
+  // per rule, the rows it would change (after no-op filtering), in priority order
+  const groups: { rule: Rule; rows: { id: number; categoryId: number | null }[] }[] = []
+  for (const rule of loadApplicableRules(tx)) {
+    const matched = tx
+      .select({ id: transactions.id, categoryId: transactions.categoryId })
+      .from(transactions)
+      .where(and(base, eligibility(rule, overrideCategories), compileConditions(rule.conditions)))
+      .all()
+      .filter((r) => !claimed.has(r.id))
+    if (matched.length === 0) continue
+    for (const r of matched) claimed.add(r.id)
+    const target = rule.action.type === 'setCategory' ? rule.action.categoryId : null
+    // drop no-op rows already at the target (only reachable under override)
+    const rows = target !== null ? matched.filter((r) => (r.categoryId ?? null) !== target) : matched
+    if (rows.length > 0) groups.push({ rule, rows })
+  }
+
+  const touched = [...new Set(groups.flatMap((g) => g.rows.map((r) => r.id)))]
   if (touched.length === 0) return []
 
   const context = new Map(
@@ -194,21 +247,17 @@ function previewRules(tx: Tx, overrideCategories = false): RulePreview {
   )
   const categoryName = new Map(tx.select().from(categories).all().map((c) => [c.id, c.name]))
 
-  return firings.flatMap((f) => {
-    const targetCategoryId = f.rule.action.type === 'setCategory' ? f.rule.action.categoryId : null
+  return groups.flatMap((g) => {
+    const targetCategoryId = g.rule.action.type === 'setCategory' ? g.rule.action.categoryId : null
     const targetCategoryName = targetCategoryId !== null ? categoryName.get(targetCategoryId) ?? null : null
-    const txns: RulePreviewTransaction[] = f.ids.flatMap((id) => {
-      const c = context.get(id)
+    const txns: RulePreviewTransaction[] = g.rows.flatMap((r) => {
+      const c = context.get(r.id)
       if (!c) return []
-      const current = priorCategory.get(id) ?? null
-      // drop no-op rows already at the target (only reachable under override)
-      if (targetCategoryId !== null && current === targetCategoryId) return []
-      const currentCategoryName = current !== null ? categoryName.get(current) ?? null : null
+      const currentCategoryName = r.categoryId !== null ? categoryName.get(r.categoryId) ?? null : null
       return [{ ...c, targetCategoryName, currentCategoryName }]
     })
-    // a group whose rows were all no-ops has nothing to preview
     if (txns.length === 0) return []
-    return [{ ruleId: f.rule.id, ruleName: f.rule.name, action: f.rule.action, transactions: txns }]
+    return [{ ruleId: g.rule.id, ruleName: g.rule.name, action: g.rule.action, transactions: txns }]
   })
 }
 

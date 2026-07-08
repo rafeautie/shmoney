@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
+import { SettingsGroup, SettingAction } from './settings-controls'
 
 function formatBytes(bytes: number): string {
   return `${(bytes / 1_000_000_000).toFixed(1)} GB`
@@ -71,12 +72,17 @@ export function LlmSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{MODEL.label}</span>
-          {isDownloaded && diskSize.data != null && (
-            <Badge variant="secondary">{formatBytes(diskSize.data)}</Badge>
-          )}
-          <div className="ml-auto flex gap-2">
+        <SettingsGroup>
+          <SettingAction
+            label={
+              <>
+                {MODEL.label}
+                {isDownloaded && diskSize.data != null && (
+                  <Badge variant="secondary">{formatBytes(diskSize.data)}</Badge>
+                )}
+              </>
+            }
+          >
             {stage === 'downloading' && (
               <Button
                 variant="outline"
@@ -104,8 +110,8 @@ export function LlmSettings() {
                 Delete
               </Button>
             )}
-          </div>
-        </div>
+          </SettingAction>
+        </SettingsGroup>
 
         {stage === 'downloading' && (
           <div className="space-y-1.5">

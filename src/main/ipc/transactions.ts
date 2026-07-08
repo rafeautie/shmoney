@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { db } from '../db'
 import { categories, transactions } from '../db/schema'
 import { recordAction } from './action-log'
+import { detectRuleSuggestions } from './rule-suggestions'
 import {
   IPC,
   transactionIdsSchema,
@@ -35,7 +36,7 @@ export function setCategories({ changes, source }: TransactionsSetCategoriesInpu
       .all()
     if (found.length !== categoryIds.length) throw new Error('Category not found')
   }
-  return db.transaction((tx) => {
+  const logged = db.transaction((tx) => {
     const ids = changes.map((c) => c.transactionId)
     // current categories for the non-pending targets, so undo can restore each
     const before = new Map(
@@ -61,8 +62,24 @@ export function setCategories({ changes, source }: TransactionsSetCategoriesInpu
         changes: logged
       })
     }
-    return logged.length
+    return logged
   })
+
+  // turn repeated identical categorizations into a rule suggestion — after the
+  // commit and off the response path, so it can never delay or fail the write
+  const categorized = logged.flatMap((c) =>
+    typeof c.after === 'number' ? [{ transactionId: c.transactionId, categoryId: c.after }] : []
+  )
+  if (categorized.length > 0) {
+    setImmediate(() => {
+      try {
+        detectRuleSuggestions(categorized, source === 'llm' ? 'llm' : 'user')
+      } catch (e) {
+        console.warn('rule suggestion detection failed', e)
+      }
+    })
+  }
+  return logged.length
 }
 
 export function registerTransactionsIpc(): void {

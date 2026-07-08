@@ -9,12 +9,12 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
+import { SettingsGroup, SettingAction } from './settings-controls'
 
 export function CategoriesSettings() {
   const queryClient = useQueryClient()
@@ -67,11 +67,6 @@ export function CategoriesSettings() {
           Group your categories and assign them to transactions. Hover a category to rename or
           delete it.
         </CardDescription>
-        <CardAction>
-          <Button variant="destructive" onClick={() => setConfirmingReset(true)}>
-            Reset to defaults
-          </Button>
-        </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
         {categoriesQuery.isLoading ? (
@@ -120,6 +115,16 @@ export function CategoriesSettings() {
         {createGroup.isError && (
           <p className="text-sm text-destructive">{ipcErrorMessage(createGroup.error)}</p>
         )}
+        <SettingsGroup>
+          <SettingAction
+            label="Reset to defaults"
+            description="Restore the default groups and categories; all transactions become Uncategorized."
+          >
+            <Button variant="destructive" onClick={() => setConfirmingReset(true)}>
+              Reset
+            </Button>
+          </SettingAction>
+        </SettingsGroup>
         {resetDefaults.isError && (
           <p className="text-sm text-destructive">
             Reset failed: {ipcErrorMessage(resetDefaults.error)}

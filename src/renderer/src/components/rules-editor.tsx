@@ -17,6 +17,7 @@ import {
   SheetTitle
 } from '@/components/ui/sheet'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
 import {
   Select,
   SelectContent,
@@ -26,12 +27,20 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { PhraseInput } from './phrase-input'
 
 // ---- dollar <-> milliunit helpers ----
 const toMilli = (dollars: string): number => Math.round(parseFloat(dollars) * 1000)
 const toDollars = (milli: number): string => String(milli / 1000)
 
-type DescOp = 'contains' | 'equals' | 'regex'
+// a pre-filled starting point for a new rule (e.g. from a rule suggestion)
+export interface RuleDraft {
+  name: string
+  conditions: RuleConditions
+  action: RuleAction
+}
+
+type DescOp = 'contains' | 'equals'
 type AmtOp = 'eq' | 'gt' | 'lt' | 'gte' | 'lte' | 'between'
 type Direction = 'any' | 'in' | 'out'
 type ActionType = 'setCategory' | 'markTransfer'
@@ -47,26 +56,50 @@ const AMT_OP_LABELS: Record<AmtOp, string> = {
 
 export function RuleEditor({
   rule,
+  draft,
+  draftKey,
   open,
-  onOpenChange
+  onOpenChange,
+  onSaved
 }: {
   rule: Rule | null
+  /** pre-fills a NEW rule's fields (rule takes precedence when editing) */
+  draft?: RuleDraft | null
+  /** distinguishes one draft from the next so the form remounts and reseeds */
+  draftKey?: string
   open: boolean
   onOpenChange: (open: boolean) => void
+  onSaved?: (rule: Rule, wasCreate: boolean) => void
 }): React.JSX.Element {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex flex-col gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
-        {/* key resets all draft state when switching between rules / new */}
+        {/* key resets all draft state when switching between rules / drafts / new */}
         {open && (
-          <RuleForm key={rule?.id ?? 'new'} rule={rule} onDone={() => onOpenChange(false)} />
+          <RuleForm
+            key={rule?.id ?? draftKey ?? 'new'}
+            rule={rule}
+            draft={draft ?? null}
+            onSaved={onSaved}
+            onDone={() => onOpenChange(false)}
+          />
         )}
       </SheetContent>
     </Sheet>
   )
 }
 
-function RuleForm({ rule, onDone }: { rule: Rule | null; onDone: () => void }): React.JSX.Element {
+function RuleForm({
+  rule,
+  draft,
+  onSaved,
+  onDone
+}: {
+  rule: Rule | null
+  draft: RuleDraft | null
+  onSaved?: (rule: Rule, wasCreate: boolean) => void
+  onDone: () => void
+}): React.JSX.Element {
   const queryClient = useQueryClient()
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
@@ -77,11 +110,12 @@ function RuleForm({ rule, onDone }: { rule: Rule | null; onDone: () => void }): 
     queryFn: () => window.api.accounts.list()
   })
 
-  const c = rule?.conditions
-  const [name, setName] = useState(rule?.name ?? '')
+  const src = rule ?? draft
+  const c = src?.conditions
+  const [name, setName] = useState(src?.name ?? '')
 
   const [descOp, setDescOp] = useState<DescOp>(c?.description?.op ?? 'contains')
-  const [descValue, setDescValue] = useState(c?.description?.value ?? '')
+  const [phrases, setPhrases] = useState<string[]>(c?.description?.phrases ?? [])
 
   const [amtOp, setAmtOp] = useState<AmtOp>(c?.amount?.op ?? 'gt')
   const [amtValue, setAmtValue] = useState(c?.amount ? toDollars(c.amount.value) : '')
@@ -105,14 +139,14 @@ function RuleForm({ rule, onDone }: { rule: Rule | null; onDone: () => void }): 
     c?.date?.dayOfMonthMax !== undefined ? String(c.date.dayOfMonthMax) : ''
   )
 
-  const [actionType, setActionType] = useState<ActionType>(rule?.action.type ?? 'setCategory')
+  const [actionType, setActionType] = useState<ActionType>(src?.action.type ?? 'setCategory')
   const [categoryId, setCategoryId] = useState<number | null>(
-    rule?.action.type === 'setCategory' ? rule.action.categoryId : null
+    src?.action.type === 'setCategory' ? src.action.categoryId : null
   )
 
   function buildConditions(): RuleConditions {
     const conditions: RuleConditions = {}
-    if (descValue.trim()) conditions.description = { op: descOp, value: descValue.trim() }
+    if (phrases.length > 0) conditions.description = { op: descOp, phrases }
     if (amtValue.trim()) {
       conditions.amount = {
         op: amtOp,
@@ -132,7 +166,7 @@ function RuleForm({ rule, onDone }: { rule: Rule | null; onDone: () => void }): 
   }
 
   const hasCondition =
-    descValue.trim() !== '' ||
+    phrases.length > 0 ||
     amtValue.trim() !== '' ||
     accountId !== null ||
     dateAfter !== undefined ||
@@ -153,7 +187,10 @@ function RuleForm({ rule, onDone }: { rule: Rule | null; onDone: () => void }): 
         ? window.api.rules.update({ id: rule.id, name: name.trim(), conditions, action })
         : window.api.rules.create({ name: name.trim(), conditions, action })
     },
-    onSuccess: onDone,
+    onSuccess: (saved) => {
+      onSaved?.(saved, !rule)
+      onDone()
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['rules'] })
   })
 
@@ -188,13 +225,13 @@ function RuleForm({ rule, onDone }: { rule: Rule | null; onDone: () => void }): 
             />
           </div>
 
-          <fieldset className="flex flex-col gap-3 rounded-lg border p-4">
+          <fieldset className="flex flex-col gap-4 rounded-lg border p-4">
             <legend className="px-1 text-sm font-medium">When a transaction matches all of…</legend>
 
             {/* Description */}
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-muted-foreground">Description</Label>
-              <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
+              <Label className="font-medium">Description</Label>
+              <div className="flex flex-col gap-2">
                 <Select value={descOp} onValueChange={(v) => setDescOp(v as DescOp)}>
                   <SelectTrigger className="w-32 shrink-0">
                     <SelectValue />
@@ -202,20 +239,21 @@ function RuleForm({ rule, onDone }: { rule: Rule | null; onDone: () => void }): 
                   <SelectContent>
                     <SelectItem value="contains">contains</SelectItem>
                     <SelectItem value="equals">equals</SelectItem>
-                    <SelectItem value="regex">matches regex</SelectItem>
                   </SelectContent>
                 </Select>
-                <Input
-                  value={descValue}
-                  onChange={(event) => setDescValue(event.target.value)}
-                  placeholder="leave blank to ignore"
-                />
+                <PhraseInput value={phrases} onChange={setPhrases} placeholder="add a phrase" />
+                <p className="text-xs text-muted-foreground">
+                  Matches if the description {descOp === 'equals' ? 'is' : 'contains'} any phrase;
+                  leave empty to ignore.
+                </p>
               </div>
             </div>
 
+            <Separator className="-mx-4 data-horizontal:w-auto" />
+
             {/* Amount */}
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-muted-foreground">Amount</Label>
+            <div className="flex flex-col gap-2">
+              <Label className="font-medium">Amount</Label>
               <div className="flex flex-wrap gap-2">
                 <Select value={direction} onValueChange={(v) => setDirection(v as Direction)}>
                   <SelectTrigger className="w-32 shrink-0">
@@ -271,9 +309,11 @@ function RuleForm({ rule, onDone }: { rule: Rule | null; onDone: () => void }): 
               </p>
             </div>
 
+            <Separator className="-mx-4 data-horizontal:w-auto" />
+
             {/* Account */}
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-muted-foreground">Account</Label>
+            <div className="flex flex-col gap-2">
+              <Label className="font-medium">Account</Label>
               <Select
                 value={accountId === null ? 'any' : String(accountId)}
                 onValueChange={(v) => setAccountId(v === 'any' ? null : Number(v))}
@@ -294,9 +334,11 @@ function RuleForm({ rule, onDone }: { rule: Rule | null; onDone: () => void }): 
               </Select>
             </div>
 
+            <Separator className="-mx-4 data-horizontal:w-auto" />
+
             {/* Date */}
-            <div className="flex flex-col gap-1.5">
-              <Label className="text-muted-foreground">Date</Label>
+            <div className="flex flex-col gap-2">
+              <Label className="font-medium">Date</Label>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-muted-foreground">on/after</span>
                 <DateField value={dateAfter} onChange={setDateAfter} />

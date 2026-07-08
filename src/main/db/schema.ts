@@ -170,6 +170,31 @@ export const rules = sqliteTable('rules', {
   updatedAt: integer('updated_at').notNull()
 })
 
+// "you categorized these identical transactions repeatedly — make it a rule?"
+// One row per (description, category) the detector spotted. Kept forever so a
+// dismissed pair is never re-suggested (the unique index spans every status);
+// the settings surface shows the pending ones.
+export const ruleSuggestions = sqliteTable(
+  'rule_suggestions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    // the exact transaction description the cluster shares
+    descriptionKey: text('description_key').notNull(),
+    categoryId: integer('category_id')
+      .notNull()
+      .references(() => categories.id, { onDelete: 'cascade' }),
+    // matching-transaction count when first spotted (the live list recomputes it)
+    matchCount: integer('match_count').notNull(),
+    // what categorized the cluster: 'user' | 'llm'
+    source: text('source').notNull(),
+    // 'pending' | 'dismissed' | 'accepted'
+    status: text('status').notNull().default('pending'),
+    createdAt: integer('created_at').notNull(),
+    updatedAt: integer('updated_at').notNull()
+  },
+  (t) => [uniqueIndex('rule_suggestions_key_category_ux').on(t.descriptionKey, t.categoryId)]
+)
+
 export type ConnectionRow = typeof connections.$inferSelect
 export type AccountRow = typeof accounts.$inferSelect
 export type TransactionRow = typeof transactions.$inferSelect
@@ -181,3 +206,4 @@ export type SavedFilterRow = typeof savedFilters.$inferSelect
 export type SettingRow = typeof settings.$inferSelect
 export type ActionLogRow = typeof actionLog.$inferSelect
 export type RuleRow = typeof rules.$inferSelect
+export type RuleSuggestionRow = typeof ruleSuggestions.$inferSelect

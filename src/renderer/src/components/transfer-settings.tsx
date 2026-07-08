@@ -1,7 +1,6 @@
 import { useDetectTransfers } from '@/lib/settings'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { SettingsGroup, SettingToggle } from './settings-controls'
 
 export function TransferSettings() {
   const { detectTransfers, setDetectTransfers } = useDetectTransfers()
@@ -16,14 +15,13 @@ export function TransferSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-2">
-          <Switch
-            id="detect-transfers"
+        <SettingsGroup>
+          <SettingToggle
+            label="Detect transfers between accounts on sync"
             checked={detectTransfers}
             onCheckedChange={setDetectTransfers}
           />
-          <Label htmlFor="detect-transfers">Detect transfers between accounts on sync</Label>
-        </div>
+        </SettingsGroup>
       </CardContent>
     </Card>
   )

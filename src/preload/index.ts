@@ -50,6 +50,12 @@ import {
   type RulesApplyResult
 } from '@shared/rules'
 import {
+  RULE_SUGGESTIONS_CREATED,
+  RULE_SUGGESTIONS_IPC,
+  type RuleSuggestion,
+  type RuleSuggestionsCreatedEvent
+} from '@shared/rule-suggestions'
+import {
   REPORTS_IPC,
   type Report,
   type ReportCreateInput,
@@ -159,6 +165,20 @@ const api = {
     /** Backfill all untouched transactions; resolves to a change summary */
     apply: (options?: RuleApplyOptions): Promise<RulesApplyResult> =>
       ipcRenderer.invoke(RULES_IPC.apply, options)
+  },
+  ruleSuggestions: {
+    list: (): Promise<RuleSuggestion[]> => ipcRenderer.invoke(RULE_SUGGESTIONS_IPC.list),
+    dismiss: (id: number): Promise<boolean> => ipcRenderer.invoke(RULE_SUGGESTIONS_IPC.dismiss, id),
+    accept: (id: number): Promise<boolean> => ipcRenderer.invoke(RULE_SUGGESTIONS_IPC.accept, id),
+    /** Fires when the detector records new suggestions; returns an unsubscribe */
+    onCreated: (callback: (event: RuleSuggestionsCreatedEvent) => void): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        event: RuleSuggestionsCreatedEvent
+      ): void => callback(event)
+      ipcRenderer.on(RULE_SUGGESTIONS_CREATED, listener)
+      return () => ipcRenderer.removeListener(RULE_SUGGESTIONS_CREATED, listener)
+    }
   },
   settings: {
     getAll: (): Promise<Settings> => ipcRenderer.invoke(SETTINGS_IPC.getAll),

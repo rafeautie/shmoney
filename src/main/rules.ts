@@ -1,140 +1,95 @@
-// Pure rule-matching logic, kept free of DB/IPC so it can be reasoned about and
-// unit-tested in isolation (mirrors transfers.ts). The apply/preview handlers
-// feed it candidate rows and act on whatever firings come back.
-
-import { getDate } from 'date-fns'
+// Compiles a rule's conditions into a parameterized SQL predicate, so matching
+// runs in the database rather than in JS over loaded rows (mirrors the LIKE
+// filters in reports/query.ts). The apply/preview handlers AND this against
+// their base filters to find the rows a rule touches. Kept free of the live db
+// handle and Electron so it can be unit-tested in isolation.
+import { and, eq, or, sql, type SQL } from 'drizzle-orm'
+import { transactions } from './db/schema'
 import type {
-  Rule,
   RuleAmountCondition,
   RuleConditions,
   RuleDateCondition,
   RuleTextCondition
 } from '../shared/rules'
 
-export interface RuleCandidate {
-  id: number
-  accountId: number
-  /** integer milliunits; sign encodes direction */
-  amount: number
-  description: string
-  /** unix seconds; 0 when unknown */
-  date: number
-  categoryId: number | null
-  isTransfer: boolean
+// effective transaction date in unix seconds, 0 when unknown. Mirrors
+// transactionDate in ipc/transactions-page.ts, duplicated here so this module
+// stays free of the db/Electron import chain and remains unit-testable.
+const effectiveDate = sql`coalesce(nullif(${transactions.posted}, 0), ${transactions.transactedAt}, 0)`
+
+// escape LIKE's wildcards so a phrase matches literally (mirrors reports/query.ts)
+function escapeLike(term: string): string {
+  return term.replace(/[\\%_]/g, (c) => `\\${c}`)
 }
 
-/** One rule and the transactions it will change, in evaluation order. */
-export interface RuleFiring {
-  rule: Rule
-  ids: number[]
+function textPredicate(cond: RuleTextCondition): SQL {
+  // lower() both sides so matching is case-insensitive regardless of the
+  // case_sensitive_like pragma (parity with the old toLowerCase compare)
+  const col = sql`lower(${transactions.description})`
+  const parts = cond.phrases.map((phrase) =>
+    cond.op === 'contains'
+      ? sql`${col} like lower(${'%' + escapeLike(phrase) + '%'}) escape '\\'`
+      : sql`${col} = lower(${phrase})`
+  )
+  return or(...parts)!
 }
 
-function matchText(cond: RuleTextCondition, description: string): boolean {
-  const haystack = description.toLowerCase()
-  const needle = cond.value.toLowerCase()
-  switch (cond.op) {
-    case 'contains':
-      return haystack.includes(needle)
-    case 'equals':
-      return haystack === needle
-    case 'regex':
-      try {
-        // case-insensitive for parity with contains/equals; a malformed regex
-        // should have been rejected at save time, but never crash a sync
-        return new RegExp(cond.value, 'i').test(description)
-      } catch {
-        return false
-      }
-  }
-}
-
-function matchAmount(cond: RuleAmountCondition, amount: number): boolean {
-  if (cond.direction === 'in' && amount <= 0) return false
-  if (cond.direction === 'out' && amount >= 0) return false
-  const magnitude = Math.abs(amount)
+function amountPredicate(cond: RuleAmountCondition): SQL {
+  // compares magnitude so the user never reasons about the sign
+  const magnitude = sql`abs(${transactions.amount})`
+  const parts: SQL[] = []
+  if (cond.direction === 'in') parts.push(sql`${transactions.amount} > 0`)
+  if (cond.direction === 'out') parts.push(sql`${transactions.amount} < 0`)
   switch (cond.op) {
     case 'eq':
-      return magnitude === cond.value
+      parts.push(sql`${magnitude} = ${cond.value}`)
+      break
     case 'gt':
-      return magnitude > cond.value
+      parts.push(sql`${magnitude} > ${cond.value}`)
+      break
     case 'lt':
-      return magnitude < cond.value
+      parts.push(sql`${magnitude} < ${cond.value}`)
+      break
     case 'gte':
-      return magnitude >= cond.value
+      parts.push(sql`${magnitude} >= ${cond.value}`)
+      break
     case 'lte':
-      return magnitude <= cond.value
+      parts.push(sql`${magnitude} <= ${cond.value}`)
+      break
     case 'between':
       // value2 presence guaranteed by the schema refine
-      return magnitude >= cond.value && magnitude <= (cond.value2 ?? cond.value)
+      parts.push(sql`${magnitude} >= ${cond.value} and ${magnitude} <= ${cond.value2 ?? cond.value}`)
+      break
   }
+  return and(...parts)!
 }
 
-function matchDate(cond: RuleDateCondition, date: number): boolean {
-  // a row with an unknown date can't satisfy a date condition
-  if (date === 0) return false
-  if (cond.after !== undefined && date < cond.after) return false
-  if (cond.before !== undefined && date > cond.before) return false
+function datePredicate(cond: RuleDateCondition): SQL {
+  const parts: SQL[] = [sql`${effectiveDate} != 0`] // an unknown date satisfies nothing
+  if (cond.after !== undefined) parts.push(sql`${effectiveDate} >= ${cond.after}`)
+  if (cond.before !== undefined) parts.push(sql`${effectiveDate} <= ${cond.before}`)
   if (cond.dayOfMonthMin !== undefined || cond.dayOfMonthMax !== undefined) {
-    const dom = getDate(new Date(date * 1000))
-    if (cond.dayOfMonthMin !== undefined && dom < cond.dayOfMonthMin) return false
-    if (cond.dayOfMonthMax !== undefined && dom > cond.dayOfMonthMax) return false
+    // 'localtime' so day-of-month follows the user's calendar, as getDate() did
+    const dom = sql`cast(strftime('%d', ${effectiveDate}, 'unixepoch', 'localtime') as integer)`
+    if (cond.dayOfMonthMin !== undefined) parts.push(sql`${dom} >= ${cond.dayOfMonthMin}`)
+    if (cond.dayOfMonthMax !== undefined) parts.push(sql`${dom} <= ${cond.dayOfMonthMax}`)
   }
-  return true
-}
-
-/** Every present condition must match (AND). */
-export function matchConditions(conditions: RuleConditions, candidate: RuleCandidate): boolean {
-  if (conditions.description && !matchText(conditions.description, candidate.description)) return false
-  if (conditions.amount && !matchAmount(conditions.amount, candidate.amount)) return false
-  if (conditions.accountId !== undefined && candidate.accountId !== conditions.accountId) return false
-  if (conditions.date && !matchDate(conditions.date, candidate.date)) return false
-  return true
+  return and(...parts)!
 }
 
 /**
- * Work out which rules change which transactions. Enabled rules run in priority
- * order (ties by id). By default rules only *fill empty* fields — setCategory
- * touches uncategorized, non-transfer rows; markTransfer touches unmarked rows.
- * With `overrideCategories` (a manual, opt-in apply) a setCategory rule also
- * claims already-categorized non-transfer rows so it can overwrite them; a
- * transfer is still never categorized. The first rule that claims a transaction
- * owns it; later rules skip a claimed row, so a transaction is handled by
- * exactly one rule and can't end up both categorized and marked as a transfer.
- * A rule that merely *matches* an ineligible row doesn't claim it. Note a claim
- * may be a no-op (a row already at the target category): it still blocks lower
- * rules, and the caller drops it from what it writes/logs.
+ * A parameterized SQL predicate true for the transactions a rule's conditions
+ * match. Every present condition is ANDed (mirrors the old matchConditions);
+ * ruleConditionsSchema guarantees at least one condition, so the result is never
+ * empty.
  */
-export function evaluateRules(
-  rules: Rule[],
-  candidates: RuleCandidate[],
-  overrideCategories = false
-): RuleFiring[] {
-  const ordered = rules
-    .filter((r) => r.enabled)
-    .sort((a, b) => a.priority - b.priority || a.id - b.id)
-
-  const claimed = new Set<number>()
-  const firings: RuleFiring[] = []
-
-  for (const rule of ordered) {
-    const ids: number[] = []
-    for (const c of candidates) {
-      if (claimed.has(c.id)) continue
-      if (!matchConditions(rule.conditions, c)) continue
-      if (rule.action.type === 'setCategory') {
-        // never categorize a transfer; otherwise fill empty, unless the caller
-        // opted in to overwriting an existing category
-        if (c.isTransfer) continue
-        if (c.categoryId !== null && !overrideCategories) continue
-      } else if (c.isTransfer) {
-        continue
-      }
-      ids.push(c.id)
-    }
-    if (ids.length === 0) continue
-    for (const id of ids) claimed.add(id)
-    firings.push({ rule, ids })
+export function compileConditions(conditions: RuleConditions): SQL {
+  const parts: SQL[] = []
+  if (conditions.description) parts.push(textPredicate(conditions.description))
+  if (conditions.amount) parts.push(amountPredicate(conditions.amount))
+  if (conditions.accountId !== undefined) {
+    parts.push(eq(transactions.accountId, conditions.accountId))
   }
-
-  return firings
+  if (conditions.date) parts.push(datePredicate(conditions.date))
+  return and(...parts)!
 }

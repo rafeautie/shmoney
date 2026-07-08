@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon, CheckmarkCircle02Icon } from '@hugeicons/core-free-icons'
 import { LLM_MODEL } from '@shared/llm'
 import { cn, plural } from '@/lib/utils'
+import { useSuggestionsUi } from '@/lib/suggestions-ui'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty'
 import { Progress } from '@/components/ui/progress'
@@ -263,6 +266,30 @@ function useDownloadCompleteNotice() {
   }, [stage, notify])
 }
 
+/** Surfaces new rule suggestions: a message whose action opens the suggestions
+ * dialog on the settings page. The durable copy lives in the settings card. */
+function useRuleSuggestionNotice() {
+  const notify = useNotify()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { setOpen } = useSuggestionsUi()
+  useEffect(() => {
+    return window.api.ruleSuggestions.onCreated(({ count }) => {
+      void queryClient.invalidateQueries({ queryKey: ['ruleSuggestions'] })
+      notify(count === 1 ? 'New rule suggestion' : `${count} rule suggestions`, {
+        description: 'Turn repeated categorizing into a rule.',
+        action: {
+          label: 'Review',
+          onClick: () => {
+            void navigate({ to: '/settings' })
+            setOpen(true)
+          }
+        }
+      })
+    })
+  }, [notify, navigate, queryClient, setOpen])
+}
+
 /**
  * Header notification center. An always-visible entry point centered in the app
  * header that summarises in-flight jobs and recent messages; opening it marks
@@ -270,6 +297,7 @@ function useDownloadCompleteNotice() {
  */
 export function NotificationCenter() {
   useDownloadCompleteNotice()
+  useRuleSuggestionNotice()
   const jobs = useNotifications()
   const { messages, markAllSeen, pruneSeen } = useNotifyStore()
   const [open, setOpen] = useState(false)

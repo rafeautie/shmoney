@@ -5,25 +5,11 @@ import { z } from 'zod'
 // are disallowed (a match-everything rule is a foot-gun), enforced by the
 // refine on ruleConditionsSchema below.
 
-export const ruleTextConditionSchema = z
-  .object({
-    op: z.enum(['contains', 'equals', 'regex']),
-    value: z.string().trim().min(1).max(200)
-  })
-  // reject a regex that won't compile at author time rather than silently
-  // never-matching it during a sync
-  .refine(
-    (c) => {
-      if (c.op !== 'regex') return true
-      try {
-        new RegExp(c.value)
-        return true
-      } catch {
-        return false
-      }
-    },
-    { message: 'Invalid regular expression' }
-  )
+export const ruleTextConditionSchema = z.object({
+  op: z.enum(['contains', 'equals']),
+  // OR semantics: the description matches if it contains/equals ANY phrase
+  phrases: z.array(z.string().trim().min(1).max(200)).min(1).max(50)
+})
 
 export const ruleAmountConditionSchema = z
   .object({

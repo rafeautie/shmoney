@@ -1,143 +1,94 @@
 import { describe, it, expect } from 'vitest'
-import type { Rule, RuleConditions } from '../shared/rules'
-import { evaluateRules, matchConditions, type RuleCandidate } from './rules'
+import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
+import type { RuleConditions } from '../shared/rules'
+import { compileConditions } from './rules'
 
-// local-time epoch seconds, so day-of-month checks are timezone-stable
-const at = (y: number, m: number, d: number): number =>
-  Math.floor(new Date(y, m - 1, d, 12, 0, 0).getTime() / 1000)
-
-function candidate(over: Partial<RuleCandidate> = {}): RuleCandidate {
-  return {
-    id: 1,
-    accountId: 1,
-    amount: -5000, // $5 out
-    description: 'STARBUCKS STORE 123',
-    date: at(2026, 7, 15),
-    categoryId: null,
-    isTransfer: false,
-    ...over
-  }
+// Matching now runs in the database: compileConditions builds a parameterized
+// SQL predicate rather than testing rows in JS. better-sqlite3 is built for
+// Electron's ABI and won't load under vitest, so we assert the generated SQL and
+// its bound params here; end-to-end matching is validated in the running app.
+const dialect = new SQLiteSyncDialect()
+function compile(conditions: RuleConditions): { sql: string; params: unknown[] } {
+  const { sql, params } = dialect.sqlToQuery(compileConditions(conditions))
+  return { sql: sql.toLowerCase(), params }
 }
 
-let nextId = 1
-function rule(conditions: RuleConditions, action: Rule['action'], over: Partial<Rule> = {}): Rule {
-  return { id: nextId++, name: `rule ${nextId}`, enabled: true, priority: 0, conditions, action, ...over }
-}
+describe('compileConditions', () => {
+  describe('description', () => {
+    it('contains is a case-insensitive LIKE with escaped wildcards', () => {
+      const { sql, params } = compile({ description: { op: 'contains', phrases: ['Star%bucks'] } })
+      expect(sql).toContain('like lower(')
+      expect(sql).toContain('escape')
+      // % and _ in a phrase are escaped so they match literally
+      expect(params).toEqual(['%Star\\%bucks%'])
+    })
 
-const coffee: Rule['action'] = { type: 'setCategory', categoryId: 7 }
+    it('contains matches ANY phrase (OR)', () => {
+      const { sql, params } = compile({
+        description: { op: 'contains', phrases: ['starbucks', 'sbux'] }
+      })
+      expect(sql).toContain(' or ')
+      expect(params).toEqual(['%starbucks%', '%sbux%'])
+    })
 
-describe('matchConditions', () => {
-  it('description contains is case-insensitive', () => {
-    expect(matchConditions({ description: { op: 'contains', value: 'starbucks' } }, candidate())).toBe(true)
-    expect(matchConditions({ description: { op: 'contains', value: 'peets' } }, candidate())).toBe(false)
+    it('equals compares the whole string, case-insensitive', () => {
+      const { sql, params } = compile({
+        description: { op: 'equals', phrases: ['starbucks store 123'] }
+      })
+      expect(sql).toContain('lower(')
+      expect(sql).toContain('=')
+      expect(params).toEqual(['starbucks store 123'])
+    })
+
+    it('equals matches ANY phrase (OR)', () => {
+      const { sql, params } = compile({ description: { op: 'equals', phrases: ['a', 'b'] } })
+      expect(sql).toContain(' or ')
+      expect(params).toEqual(['a', 'b'])
+    })
   })
 
-  it('description equals matches the whole string, case-insensitive', () => {
-    expect(matchConditions({ description: { op: 'equals', value: 'starbucks store 123' } }, candidate())).toBe(true)
-    expect(matchConditions({ description: { op: 'equals', value: 'starbucks' } }, candidate())).toBe(false)
+  describe('amount', () => {
+    it('compares magnitude for each operator', () => {
+      const gte = compile({ amount: { op: 'gte', value: 5000 } })
+      expect(gte.sql).toContain('abs(')
+      expect(gte.sql).toContain('>=')
+      expect(gte.params).toContain(5000)
+
+      const between = compile({ amount: { op: 'between', value: 4000, value2: 6000 } })
+      expect(between.params).toEqual([4000, 6000])
+    })
+
+    it('adds a direction guard', () => {
+      expect(compile({ amount: { op: 'lte', value: 5000, direction: 'out' } }).sql).toContain('< 0')
+      expect(compile({ amount: { op: 'lte', value: 5000, direction: 'in' } }).sql).toContain('> 0')
+    })
   })
 
-  it('description regex matches, and a bad regex never throws', () => {
-    expect(matchConditions({ description: { op: 'regex', value: 'star.*123' } }, candidate())).toBe(true)
-    expect(matchConditions({ description: { op: 'regex', value: '(' } }, candidate())).toBe(false)
+  describe('date', () => {
+    it('excludes unknown dates and applies bounds', () => {
+      const { sql, params } = compile({ date: { after: 1000, before: 2000 } })
+      expect(sql).toContain('!= 0')
+      expect(params).toEqual(expect.arrayContaining([1000, 2000]))
+    })
+
+    it('day-of-month uses local-time strftime', () => {
+      const { sql, params } = compile({ date: { dayOfMonthMin: 14, dayOfMonthMax: 16 } })
+      expect(sql).toContain("strftime('%d'")
+      expect(sql).toContain('localtime')
+      expect(params).toEqual(expect.arrayContaining([14, 16]))
+    })
   })
 
-  it('amount compares magnitude with direction', () => {
-    // $5 out
-    expect(matchConditions({ amount: { op: 'gte', value: 5000 } }, candidate())).toBe(true)
-    expect(matchConditions({ amount: { op: 'gt', value: 5000 } }, candidate())).toBe(false)
-    expect(matchConditions({ amount: { op: 'lte', value: 5000, direction: 'out' } }, candidate())).toBe(true)
-    // wrong direction: this is money out, not in
-    expect(matchConditions({ amount: { op: 'lte', value: 5000, direction: 'in' } }, candidate())).toBe(false)
-    expect(matchConditions({ amount: { op: 'between', value: 4000, value2: 6000 } }, candidate())).toBe(true)
-    expect(matchConditions({ amount: { op: 'between', value: 6000, value2: 7000 } }, candidate())).toBe(false)
+  it('account matches exactly', () => {
+    expect(compile({ accountId: 7 }).params).toContain(7)
   })
 
-  it('accountId must match exactly', () => {
-    expect(matchConditions({ accountId: 1 }, candidate())).toBe(true)
-    expect(matchConditions({ accountId: 2 }, candidate())).toBe(false)
-  })
-
-  it('date bounds and day-of-month', () => {
-    expect(matchConditions({ date: { after: at(2026, 7, 1) } }, candidate())).toBe(true)
-    expect(matchConditions({ date: { after: at(2026, 8, 1) } }, candidate())).toBe(false)
-    expect(matchConditions({ date: { before: at(2026, 7, 31) } }, candidate())).toBe(true)
-    expect(matchConditions({ date: { dayOfMonthMin: 14, dayOfMonthMax: 16 } }, candidate())).toBe(true)
-    expect(matchConditions({ date: { dayOfMonthMin: 1, dayOfMonthMax: 10 } }, candidate())).toBe(false)
-    // unknown date can't satisfy a date condition
-    expect(matchConditions({ date: { after: at(2026, 1, 1) } }, candidate({ date: 0 }))).toBe(false)
-  })
-
-  it('all present conditions must match (AND)', () => {
-    const cond: RuleConditions = {
-      description: { op: 'contains', value: 'starbucks' },
+  it('ANDs every present condition', () => {
+    const { sql, params } = compile({
+      description: { op: 'contains', phrases: ['starbucks'] },
       amount: { op: 'lte', value: 10000, direction: 'out' }
-    }
-    expect(matchConditions(cond, candidate())).toBe(true)
-    expect(matchConditions(cond, candidate({ amount: -20000 }))).toBe(false)
-  })
-})
-
-describe('evaluateRules', () => {
-  it('categorizes only uncategorized, non-transfer rows (fill-empty)', () => {
-    const rules = [rule({ description: { op: 'contains', value: 'starbucks' } }, coffee)]
-    const rows = [
-      candidate({ id: 1 }),
-      candidate({ id: 2, categoryId: 9 }), // already categorized
-      candidate({ id: 3, isTransfer: true }) // already a transfer
-    ]
-    const firings = evaluateRules(rules, rows)
-    expect(firings).toHaveLength(1)
-    expect(firings[0].ids).toEqual([1])
-  })
-
-  it('the first rule to act claims a row; later rules skip it', () => {
-    const r1 = rule({ description: { op: 'contains', value: 'starbucks' } }, coffee, { priority: 0 })
-    const r2 = rule({ description: { op: 'contains', value: 'store' } }, { type: 'markTransfer' }, { priority: 1 })
-    const firings = evaluateRules([r1, r2], [candidate({ id: 1 })])
-    // r1 categorizes it; r2 must not also mark it a transfer
-    expect(firings).toHaveLength(1)
-    expect(firings[0].rule.id).toBe(r1.id)
-  })
-
-  it('runs rules in priority order', () => {
-    const low = rule({ description: { op: 'contains', value: 'starbucks' } }, { type: 'setCategory', categoryId: 1 }, { priority: 5 })
-    const high = rule({ description: { op: 'contains', value: 'starbucks' } }, { type: 'setCategory', categoryId: 2 }, { priority: 1 })
-    const firings = evaluateRules([low, high], [candidate({ id: 1 })])
-    expect(firings[0].rule.id).toBe(high.id) // priority 1 wins the row
-  })
-
-  it('skips disabled rules', () => {
-    const off = rule({ description: { op: 'contains', value: 'starbucks' } }, coffee, { enabled: false })
-    expect(evaluateRules([off], [candidate()])).toHaveLength(0)
-  })
-
-  it('markTransfer only touches unmarked rows', () => {
-    const r = rule({ description: { op: 'contains', value: 'starbucks' } }, { type: 'markTransfer' })
-    const firings = evaluateRules([r], [candidate({ id: 1 }), candidate({ id: 2, isTransfer: true })])
-    expect(firings).toHaveLength(1)
-    expect(firings[0].ids).toEqual([1])
-  })
-
-  it('override lets setCategory overwrite categorized rows but never transfers', () => {
-    const rules = [rule({ description: { op: 'contains', value: 'starbucks' } }, coffee)]
-    const rows = [
-      candidate({ id: 1 }), // uncategorized
-      candidate({ id: 2, categoryId: 9 }), // already categorized → overwritten
-      candidate({ id: 3, isTransfer: true }) // transfer → still skipped
-    ]
-    const firings = evaluateRules(rules, rows, true)
-    expect(firings).toHaveLength(1)
-    expect(firings[0].ids).toEqual([1, 2])
-  })
-
-  it('override claims a row already at the target so a lower rule cannot re-touch it', () => {
-    const r1 = rule({ description: { op: 'contains', value: 'starbucks' } }, { type: 'setCategory', categoryId: 7 }, { priority: 0 })
-    const r2 = rule({ description: { op: 'contains', value: 'store' } }, { type: 'setCategory', categoryId: 8 }, { priority: 1 })
-    // the row already has r1's target; r1 claims it (a no-op the caller drops)
-    const firings = evaluateRules([r1, r2], [candidate({ id: 1, categoryId: 7 })], true)
-    expect(firings).toHaveLength(1)
-    expect(firings[0].rule.id).toBe(r1.id)
-    expect(firings[0].ids).toEqual([1])
+    })
+    expect(sql).toContain(' and ')
+    expect(params).toEqual(expect.arrayContaining(['%starbucks%', 10000]))
   })
 })

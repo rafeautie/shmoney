@@ -77,3 +77,14 @@ export function useApplyRulesOnSync() {
     )
   }
 }
+
+export function useRuleSuggestionsEnabled() {
+  const { settings, setSetting } = useSettings()
+  return {
+    ruleSuggestionsEnabled: settings.ruleSuggestionsEnabled,
+    setRuleSuggestionsEnabled: useCallback(
+      (on: boolean) => setSetting('ruleSuggestionsEnabled', on),
+      [setSetting]
+    )
+  }
+}

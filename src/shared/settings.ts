@@ -8,7 +8,9 @@ export const settingSchemas = {
   // auto-detect inter-account transfers on sync (see the transfer detector)
   detectTransfers: z.boolean(),
   // run user-defined rules automatically on sync (see the rules engine)
-  applyRulesOnSync: z.boolean()
+  applyRulesOnSync: z.boolean(),
+  // suggest new rules when identical transactions get categorized repeatedly
+  ruleSuggestionsEnabled: z.boolean()
 }
 
 export type SettingKey = keyof typeof settingSchemas
@@ -21,7 +23,8 @@ export const SETTINGS_DEFAULTS: Settings = {
   blurAmounts: false,
   sidebarOpen: true,
   detectTransfers: true,
-  applyRulesOnSync: true
+  applyRulesOnSync: true,
+  ruleSuggestionsEnabled: true
 }
 
 export const SETTINGS_IPC = {

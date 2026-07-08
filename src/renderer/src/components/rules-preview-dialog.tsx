@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { SearchRemoveIcon } from '@hugeicons/core-free-icons'
@@ -43,7 +43,10 @@ export function RulesPreviewDialog({
     queryFn: () => window.api.rules.preview({ overrideCategories }),
     enabled: open,
     staleTime: 0,
-    gcTime: 0
+    gcTime: 0,
+    // keep the current preview on screen while toggling override re-runs it, so
+    // the dialog updates in place instead of flashing the "Checking…" state
+    placeholderData: keepPreviousData
   })
 
   const groups = previewQuery.data ?? []
