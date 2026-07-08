@@ -81,9 +81,21 @@ function loadApplicableRules(tx: Tx): Rule[] {
   })
 }
 
+// Narrows which rows a run considers: an explicit id list or a single account.
+// Omitted (or empty) means every untouched row, the sync/manual-apply default.
+export interface RuleApplyScope {
+  transactionIds?: number[]
+  accountId?: number
+}
+
 // untouched, actionable rows: pending rows are excluded everywhere (sync drops
 // and re-inserts them) and soft-deleted rows are invisible
-function selectCandidates(tx: Tx): RuleCandidate[] {
+function selectCandidates(tx: Tx, scope?: RuleApplyScope): RuleCandidate[] {
+  const scopeFilter = scope?.transactionIds
+    ? inArray(transactions.id, scope.transactionIds)
+    : scope?.accountId !== undefined
+      ? eq(transactions.accountId, scope.accountId)
+      : undefined
   return tx
     .select({
       id: transactions.id,
@@ -95,17 +107,18 @@ function selectCandidates(tx: Tx): RuleCandidate[] {
       isTransfer: transactions.isTransfer
     })
     .from(transactions)
-    .where(and(eq(transactions.pending, false), isNull(transactions.deletedAt)))
+    .where(and(scopeFilter, eq(transactions.pending, false), isNull(transactions.deletedAt)))
     .all()
 }
 
 /**
  * Run every applicable rule over the untouched rows, write the changes, and log
  * one action_log entry per rule that fired (source 'rule') so each is reviewable
- * and undoable. Shared by the sync handler and the manual "Apply rules now".
+ * and undoable. Shared by the sync handler and the manual "Apply rules now"
+ * (both unscoped) and auto-categorize, which scopes the run to its selection.
  */
-export function applyRulesInTx(tx: Tx): RulesApplyResult {
-  const firings = evaluateRules(loadApplicableRules(tx), selectCandidates(tx))
+export function applyRulesInTx(tx: Tx, scope?: RuleApplyScope): RulesApplyResult {
+  const firings = evaluateRules(loadApplicableRules(tx), selectCandidates(tx, scope))
   let categorized = 0
   let markedTransfer = 0
   for (const { rule, ids } of firings) {
