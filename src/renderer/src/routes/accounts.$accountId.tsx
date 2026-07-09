@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/auto-categorize-button'
 import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
+import { HoldingsTable } from '@/components/holdings-table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export const Route = createFileRoute('/accounts/$accountId')({
   component: AccountDetailPage
@@ -17,6 +19,16 @@ function AccountDetailPage() {
     queryFn: () => window.api.accounts.get(id)
   })
   const account = accountQuery.data
+  const hasHoldings = (account?.holdingsCount ?? 0) > 0
+
+  const transactionsTable = (
+    <FilteredTransactionsTable
+      queryKey={['accounts', id, 'transactions']}
+      fetchPage={(query) => window.api.accounts.transactions({ accountId: id, ...query })}
+      lockedAccount
+      className="min-h-0 flex-1"
+    />
+  )
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -35,12 +47,24 @@ function AccountDetailPage() {
         <AutoCategorizeButton scope={{ accountId: id }} />
       </div>
 
-      <FilteredTransactionsTable
-        queryKey={['accounts', id, 'transactions']}
-        fetchPage={(query) => window.api.accounts.transactions({ accountId: id, ...query })}
-        lockedAccount
-        className="min-h-0 flex-1"
-      />
+      {hasHoldings && account ? (
+        <Tabs defaultValue="holdings" className="flex min-h-0 flex-1 flex-col gap-4">
+          <div className="px-6">
+            <TabsList>
+              <TabsTrigger value="holdings">Holdings</TabsTrigger>
+              <TabsTrigger value="transactions">Transactions</TabsTrigger>
+            </TabsList>
+          </div>
+          <TabsContent value="holdings" className="flex min-h-0 flex-1 flex-col">
+            <HoldingsTable accountId={id} currency={account.currency} />
+          </TabsContent>
+          <TabsContent value="transactions" className="flex min-h-0 flex-1 flex-col">
+            {transactionsTable}
+          </TabsContent>
+        </Tabs>
+      ) : (
+        transactionsTable
+      )}
     </div>
   )
 }

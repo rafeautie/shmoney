@@ -47,6 +47,12 @@ export function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
 }
 
+/** Share/quantity count with up to 8 fractional digits, trailing zeros trimmed
+ * (handles both large lots like 15359.23 and tiny crypto fractions like 0.01725554). */
+export function formatShares(value: string | number): string {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 }).format(Number(value))
+}
+
 export function formatAmount(milliunits: number, currency: string): string {
   const value = milliunits / 1000
   try {

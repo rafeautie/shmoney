@@ -1,7 +1,7 @@
 import { ipcMain, safeStorage } from 'electron'
-import { and, asc, eq, gte, inArray, isNull, lte } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm'
 import { db } from '../db'
-import { connections, accounts, transactions, settings, actionLog } from '../db/schema'
+import { connections, accounts, holdings, transactions, settings, actionLog } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
 import { claimAccessUrl, fetchAccounts, parseAmount } from '../simplefin'
 import { transactionsPage, transactionDate } from './transactions-page'
@@ -115,6 +115,26 @@ async function syncConnection(): Promise<SyncResult> {
           .onConflictDoUpdate({
             target: [transactions.accountId, transactions.simplefinId],
             set: txnValues
+          })
+          .run()
+      }
+
+      // holdings carry no user-owned columns, so replace the whole set per account:
+      // this also drops positions the account no longer reports (e.g. sold)
+      tx.delete(holdings).where(eq(holdings.accountId, accountRow.id)).run()
+      for (const holding of account.holdings) {
+        tx.insert(holdings)
+          .values({
+            accountId: accountRow.id,
+            simplefinId: holding.id,
+            symbol: holding.symbol,
+            description: holding.description,
+            currency: holding.currency,
+            shares: holding.shares,
+            marketValue: parseAmount(holding.market_value),
+            costBasis: parseAmount(holding.cost_basis),
+            purchasePrice: parseAmount(holding.purchase_price),
+            createdAt: holding.created
           })
           .run()
       }
@@ -259,16 +279,38 @@ export function registerConnectionsIpc(): void {
   })
 
   ipcMain.handle(IPC.accountsList, () => {
+    const counts = new Map(
+      db
+        .select({ accountId: holdings.accountId, n: count() })
+        .from(holdings)
+        .groupBy(holdings.accountId)
+        .all()
+        .map((r) => [r.accountId, r.n])
+    )
     return db
       .select()
       .from(accounts)
       .orderBy(asc(accounts.institutionName), asc(accounts.name))
       .all()
+      .map((a) => ({ ...a, holdingsCount: counts.get(a.id) ?? 0 }))
   })
 
   ipcMain.handle(IPC.accountsGet, (_event, input: unknown) => {
     const id = accountIdSchema.parse(input)
-    return db.select().from(accounts).where(eq(accounts.id, id)).get() ?? null
+    const row = db.select().from(accounts).where(eq(accounts.id, id)).get()
+    if (!row) return null
+    const c = db.select({ n: count() }).from(holdings).where(eq(holdings.accountId, id)).get()
+    return { ...row, holdingsCount: c?.n ?? 0 }
+  })
+
+  ipcMain.handle(IPC.accountHoldings, (_event, input: unknown) => {
+    const id = accountIdSchema.parse(input)
+    return db
+      .select()
+      .from(holdings)
+      .where(eq(holdings.accountId, id))
+      .orderBy(desc(holdings.marketValue))
+      .all()
   })
 
   ipcMain.handle(IPC.accountTransactions, (_event, input: unknown) => {

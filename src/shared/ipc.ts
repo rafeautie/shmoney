@@ -48,6 +48,28 @@ export interface Account {
   balance: number
   availableBalance: number | null
   balanceDate: number
+  /** number of investment positions on this account; 0 = not an investment account */
+  holdingsCount: number
+}
+
+export interface Holding {
+  id: number
+  accountId: number
+  simplefinId: string
+  symbol: string
+  description: string
+  /** raw SimpleFIN currency (may be '' or a ticker); display money in the account's currency */
+  currency: string
+  /** exact decimal string from SimpleFIN (fractional shares, up to ~8 dp) */
+  shares: string
+  /** Integer milliunits (value * 1000), in the account's currency */
+  marketValue: number
+  /** Integer milliunits; 0 when the institution doesn't report it */
+  costBasis: number
+  /** Integer milliunits; 0 when not reported */
+  purchasePrice: number
+  /** unix seconds when the holding was created at the bridge */
+  createdAt: number
 }
 
 export interface Transaction {
@@ -228,6 +250,7 @@ export const IPC = {
   connectionDisconnect: 'connection:disconnect',
   accountsList: 'accounts:list',
   accountsGet: 'accounts:get',
+  accountHoldings: 'accounts:holdings',
   accountTransactions: 'accounts:transactions',
   transactionsList: 'transactions:list',
   transactionsSetCategories: 'transactions:setCategories',

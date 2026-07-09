@@ -15,6 +15,7 @@ import {
   type CategoryRenameInput,
   type ConnectInput,
   type Connection,
+  type Holding,
   type Page,
   type SyncResult,
   type Transaction,
@@ -82,6 +83,7 @@ const api = {
   accounts: {
     list: (): Promise<Account[]> => ipcRenderer.invoke(IPC.accountsList),
     get: (id: number): Promise<Account | null> => ipcRenderer.invoke(IPC.accountsGet, id),
+    holdings: (id: number): Promise<Holding[]> => ipcRenderer.invoke(IPC.accountHoldings, id),
     transactions: (query: FilteredAccountTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(IPC.accountTransactions, query)
   },

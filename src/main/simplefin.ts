@@ -13,6 +13,18 @@ const sfinTransactionSchema = z.looseObject({
   transacted_at: z.number().optional()
 })
 
+const sfinHoldingSchema = z.looseObject({
+  id: z.string(),
+  symbol: z.string().default(''),
+  description: z.string().default(''),
+  currency: z.string().default(''),
+  shares: z.string(),
+  market_value: z.string(),
+  cost_basis: z.string().default('0'),
+  purchase_price: z.string().default('0'),
+  created: z.number().default(0)
+})
+
 const sfinAccountSchema = z.looseObject({
   id: z.string(),
   name: z.string(),
@@ -21,7 +33,8 @@ const sfinAccountSchema = z.looseObject({
   balance: z.string(),
   'available-balance': z.string().optional(),
   'balance-date': z.number(),
-  transactions: z.array(sfinTransactionSchema).default([])
+  transactions: z.array(sfinTransactionSchema).default([]),
+  holdings: z.array(sfinHoldingSchema).default([])
 })
 
 const sfinConnectionSchema = z.looseObject({

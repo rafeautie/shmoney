@@ -38,6 +38,35 @@ export const accounts = sqliteTable(
   (t) => [uniqueIndex('accounts_connection_sfid_ux').on(t.connectionId, t.simplefinId)]
 )
 
+// per-account investment positions, refreshed on every sync. A read-only snapshot
+// with no user-owned columns, so sync replaces the whole set per account (see the
+// delete-then-insert in connections.ts) rather than upserting.
+export const holdings = sqliteTable(
+  'holdings',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    accountId: integer('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    simplefinId: text('simplefin_id').notNull(),
+    symbol: text('symbol').notNull(),
+    description: text('description').notNull(),
+    // raw SimpleFIN value; often '' or a crypto ticker, so money is displayed in
+    // the account's currency instead — market_value is denominated in that.
+    currency: text('currency').notNull(),
+    // exact decimal string (fractional shares run to ~8 dp); milliunits would round
+    shares: text('shares').notNull(),
+    // integer milliunits (value * 1000), matching accounts/transactions
+    marketValue: integer('market_value').notNull(),
+    // milliunits; 0 when the institution doesn't report it (common for crypto)
+    costBasis: integer('cost_basis').notNull(),
+    purchasePrice: integer('purchase_price').notNull(),
+    // holding.created, unix seconds
+    createdAt: integer('created_at').notNull()
+  },
+  (t) => [uniqueIndex('holdings_account_sfid_ux').on(t.accountId, t.simplefinId)]
+)
+
 export const categoryGroups = sqliteTable(
   'category_groups',
   {
@@ -197,6 +226,7 @@ export const ruleSuggestions = sqliteTable(
 
 export type ConnectionRow = typeof connections.$inferSelect
 export type AccountRow = typeof accounts.$inferSelect
+export type HoldingRow = typeof holdings.$inferSelect
 export type TransactionRow = typeof transactions.$inferSelect
 export type CategoryGroupRow = typeof categoryGroups.$inferSelect
 export type CategoryRow = typeof categories.$inferSelect

@@ -1,4 +1,4 @@
-import { cn, formatAmount } from '@/lib/utils'
+import { cn, formatAmount, formatShares } from '@/lib/utils'
 import { usePrivacy } from '@/lib/settings'
 
 interface AmountProps {
@@ -24,6 +24,23 @@ export function Amount({ value, currency, colored = true, className }: AmountPro
       )}
     >
       {formatAmount(value, currency)}
+    </span>
+  )
+}
+
+interface SharesProps {
+  /** Exact decimal string (or number) of shares/units held */
+  value: string | number
+  className?: string
+}
+
+/** A share/unit count; blurred by the same privacy toggle as {@link Amount}. */
+export function Shares({ value, className }: SharesProps) {
+  const { blurAmounts } = usePrivacy()
+
+  return (
+    <span className={cn('tabular-nums', blurAmounts && 'blur-sm select-none', className)}>
+      {formatShares(value)}
     </span>
   )
 }
