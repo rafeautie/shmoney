@@ -53,12 +53,7 @@ function AccountsPage() {
     <Tabs defaultValue="accounts" className="flex min-h-0 flex-1 flex-col gap-0">
       <div className="space-y-4 px-6 pt-6 pb-4">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight">Accounts</h2>
-            <p className="text-muted-foreground">
-              Balances grouped by institution, and every transaction across your accounts.
-            </p>
-          </div>
+          <NetWorth />
           {/* empty scope → categorize every uncategorized transaction */}
           <AutoCategorizeButton scope={{}} />
         </div>
@@ -81,6 +76,40 @@ function AccountsPage() {
         />
       </TabsContent>
     </Tabs>
+  )
+}
+
+// Balances are signed, so summing them yields net worth (credit card debt
+// subtracts naturally). Totals are kept per currency — cross-currency sums
+// would be meaningless without exchange rates.
+function NetWorth() {
+  const accountsQuery = useQuery({
+    queryKey: ['accounts'],
+    queryFn: () => window.api.accounts.list()
+  })
+
+  const totals = useMemo(() => {
+    const byCurrency = new Map<string, number>()
+    for (const account of accountsQuery.data ?? []) {
+      byCurrency.set(account.currency, (byCurrency.get(account.currency) ?? 0) + account.balance)
+    }
+    return [...byCurrency.entries()]
+  }, [accountsQuery.data])
+
+  // Until accounts exist there is no net worth to show; fall back to the page name.
+  if (totals.length === 0) {
+    return <h2 className="text-2xl font-semibold tracking-tight">Accounts</h2>
+  }
+
+  return (
+    <div>
+      <p className="text-sm text-muted-foreground">Net worth</p>
+      <h2 className="flex flex-col items-start text-2xl font-semibold tracking-tight">
+        {totals.map(([currency, total]) => (
+          <Amount key={currency} value={total} currency={currency} />
+        ))}
+      </h2>
+    </div>
   )
 }
 
