@@ -1,4 +1,5 @@
 import { resolve } from 'node:path'
+import { createRequire } from 'node:module'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import { tanstackRouter } from '@tanstack/router-plugin/vite'
@@ -30,6 +31,11 @@ export default defineConfig({
     }
   },
   renderer: {
+    define: {
+      __APP_VERSION__: JSON.stringify(
+        (createRequire(import.meta.url)('./package.json') as { version: string }).version
+      )
+    },
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
