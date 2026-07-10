@@ -156,7 +156,7 @@ function ReportPage() {
   if (detailQuery.isLoading) {
     return (
       <Page>
-        <p className="text-sm text-muted-foreground">Loading...</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       </Page>
     )
   }

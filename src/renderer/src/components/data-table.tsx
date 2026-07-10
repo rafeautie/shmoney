@@ -170,7 +170,7 @@ export function DataTable<TData>({
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={columns.length} className="h-full">
                 {isLoading ? (
-                  <div className="text-center text-muted-foreground">Loading...</div>
+                  <div className="text-center text-muted-foreground">Loading…</div>
                 ) : (
                   <Empty className="gap-2 py-2">
                     <EmptyMedia variant="icon">
@@ -203,7 +203,7 @@ export function DataTable<TData>({
                 colSpan={columns.length}
                 className="h-12 text-center text-muted-foreground"
               >
-                Loading more...
+                Loading more…
               </TableCell>
             </TableRow>
           )}

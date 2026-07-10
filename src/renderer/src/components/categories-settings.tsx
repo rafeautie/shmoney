@@ -51,7 +51,7 @@ export function CategoriesSettings() {
       </CardHeader>
       <CardContent className="space-y-4">
         {categoriesQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading...</p>
+          <p className="text-sm text-muted-foreground">Loading…</p>
         ) : (
           <>
             {categoriesQuery.data?.groups.map((group) => (
@@ -165,7 +165,7 @@ function GroupSection({ group }: { group: CategoryGroup }) {
               className="w-60"
             />
             <Button type="submit" disabled={!renameDraft.trim() || renameGroup.isPending}>
-              {renameGroup.isPending ? 'Saving...' : 'Save'}
+              {renameGroup.isPending ? 'Saving…' : 'Save'}
             </Button>
             <Button type="button" variant="ghost" onClick={() => setRenameDraft(null)}>
               Cancel
@@ -316,7 +316,7 @@ function CategoryChip({ category }: { category: Category }) {
           type="submit"
           disabled={!renameDraft.trim() || renameDraft.trim() === category.name || rename.isPending}
         >
-          {rename.isPending ? 'Saving...' : 'Save'}
+          {rename.isPending ? 'Saving…' : 'Save'}
         </Button>
         <Button type="button" variant="ghost" onClick={() => setMode('view')}>
           Cancel

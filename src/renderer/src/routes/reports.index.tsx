@@ -87,7 +87,7 @@ function ReportsPage() {
       </div>
 
       {reportsQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading...</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : reports.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>

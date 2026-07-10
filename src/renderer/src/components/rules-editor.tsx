@@ -411,7 +411,7 @@ function RuleForm({
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Rules only fill blanks — they never overwrite a category or transfer you set yourself.
+              Rules only fill blanks; they never overwrite a category or transfer you set yourself.
             </p>
           </fieldset>
 

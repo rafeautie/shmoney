@@ -120,7 +120,7 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
               <Button onClick={viewAccounts}>View accounts</Button>
             ) : (
               <Button disabled={!setupToken.trim() || busy} onClick={() => connect.mutate()}>
-                {connecting ? 'Connecting...' : syncing ? 'Syncing...' : 'Connect'}
+                {connecting ? 'Connecting…' : syncing ? 'Syncing…' : 'Connect'}
               </Button>
             )}
           </div>
@@ -152,7 +152,7 @@ function WelcomeStep(): React.JSX.Element {
       <DialogHeader>
         <DialogTitle>Welcome to shmoney!</DialogTitle>
         <DialogDescription>
-          A private money tracker that brings every account into one place — spending, income, and
+          A private money tracker that brings every account into one place: spending, income, and
           balances at a glance.
         </DialogDescription>
       </DialogHeader>
@@ -162,7 +162,7 @@ function WelcomeStep(): React.JSX.Element {
       </p>
       <Callout icon={Shield01Icon}>
         <span className="font-medium text-foreground">Private by design.</span> Your accounts and
-        transactions are stored only on this device — never uploaded to the cloud.
+        transactions are stored only on this device, never uploaded to the cloud.
       </Callout>
     </>
   )
@@ -188,7 +188,7 @@ function FeaturesStep(): React.JSX.Element {
           Charts and tables that show where your money goes.
         </FeatureItem>
         <FeatureItem icon={Exchange01Icon} title="Transfers handled for you">
-          Movements between your own accounts stay out of spending.
+          Movements between your own accounts stay out of your income and expense totals.
         </FeatureItem>
       </div>
     </>
@@ -201,7 +201,7 @@ function SimpleFinStep(): React.JSX.Element {
       <DialogHeader>
         <DialogTitle>Connect with SimpleFIN</DialogTitle>
         <DialogDescription>
-          shmoney links to your banks through SimpleFIN, a read-only bridge — it never sees or
+          shmoney links to your banks through SimpleFIN, a read-only bridge that never sees or
           stores your bank login.
         </DialogDescription>
       </DialogHeader>
@@ -219,7 +219,7 @@ function SimpleFinStep(): React.JSX.Element {
           and create an account.
         </NumberedItem>
         <NumberedItem n={2}>Connect your banks, then create a setup token.</NumberedItem>
-        <NumberedItem n={3}>Copy the token — you&apos;ll paste it on the next step.</NumberedItem>
+        <NumberedItem n={3}>Copy the token. You&apos;ll paste it on the next step.</NumberedItem>
       </ol>
       <p className="text-muted-foreground">
         The token is exchanged once for an access key stored encrypted on this device.
@@ -256,7 +256,7 @@ function PasteTokenStep({
     ? 'shmoney is connected and your accounts are synced.'
     : busy
       ? 'Hang tight while shmoney links your accounts and pulls in your data.'
-      : 'Almost done — paste the SimpleFIN token to link your accounts and run your first sync.'
+      : 'Almost done: paste the SimpleFIN token to link your accounts and run your first sync.'
 
   return (
     <>

@@ -78,7 +78,7 @@ function DebugPage() {
       />
       <JsonCard
         title="Stored accounts"
-        description="Accounts as persisted after the last sync — compare against the raw payload above."
+        description="Accounts as persisted after the last sync. Compare against the raw payload above."
         data={accounts.data}
         isFetching={accounts.isLoading}
         error={accounts.error}

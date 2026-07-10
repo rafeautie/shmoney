@@ -140,7 +140,7 @@ function AccountsList() {
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-6 px-6 pb-6 py-1">
           {accountsQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <p className="text-sm text-muted-foreground">Loading…</p>
           ) : institutions.length === 0 ? (
             <Empty className="border">
               <EmptyHeader>
@@ -209,8 +209,8 @@ function AccountsList() {
                                   </TooltipTrigger>
                                   <TooltipContent>
                                     Available balance as reported by your institution. Its meaning
-                                    varies by account type — e.g. available cash for investments or
-                                    remaining credit for some cards.
+                                    varies by account type (e.g. available cash for investments or
+                                    remaining credit for some cards).
                                   </TooltipContent>
                                 </Tooltip>
                               )}

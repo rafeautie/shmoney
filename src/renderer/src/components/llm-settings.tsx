@@ -75,7 +75,7 @@ export function LlmSettings() {
                 )}
               </>
             }
-            description="Runs on your device — transaction data never leaves it."
+            description="Runs on your device, so transaction data never leaves it."
           >
             {stage === 'downloading' && (
               <Button
@@ -93,7 +93,7 @@ export function LlmSettings() {
                 onClick={() => download.mutate()}
               >
                 {download.isPending
-                  ? 'Starting...'
+                  ? 'Starting…'
                   : stage === 'error'
                     ? 'Retry download'
                     : 'Download'}
@@ -119,7 +119,7 @@ export function LlmSettings() {
             <p className="text-xs text-muted-foreground">
               {progress
                 ? `${formatBytes(progress.downloadedBytes)} / ${formatBytes(progress.totalBytes)}`
-                : 'Starting download...'}
+                : 'Starting download…'}
             </p>
           </div>
         )}

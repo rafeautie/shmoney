@@ -41,7 +41,7 @@ export function ConnectionSettings() {
   })
 
   if (connectionQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading...</p>
+    return <p className="text-sm text-muted-foreground">Loading…</p>
   }
 
   if (!connection) {
@@ -73,9 +73,9 @@ export function ConnectionSettings() {
                 onClick={() => connect.mutate()}
               >
                 {connect.isPending
-                  ? 'Connecting...'
+                  ? 'Connecting…'
                   : syncConnection.isPending && connect.isSuccess
-                    ? 'Syncing...'
+                    ? 'Syncing…'
                     : 'Connect'}
               </Button>
             </div>

@@ -205,7 +205,7 @@ function TimeSeriesChart({
   )
 
   if (tooManyBuckets) {
-    return <CenteredNote>Too many data points — pick a coarser time grain.</CenteredNote>
+    return <CenteredNote>Too many data points. Pick a coarser time grain.</CenteredNote>
   }
   if (rows.length === 0) {
     return <CenteredNote>No transactions match these filters.</CenteredNote>

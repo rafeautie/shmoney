@@ -212,8 +212,8 @@ export function WidgetEditor({
         <SheetHeader>
           <SheetTitle>{widget ? 'Edit widget' : 'Add widget'}</SheetTitle>
           <SheetDescription>
-            Choose what to measure and how to display it. Filters can inherit from the report or
-            override it.
+            Choose what to measure and how to display it. Filters can inherit from the report's
+            filters or override them.
           </SheetDescription>
         </SheetHeader>
 
