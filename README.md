@@ -15,7 +15,7 @@ Track every account, categorize spending with an on-device AI, and build custom 
 
 <img src="docs/screenshots/accounts.png" alt="Accounts overview with net worth header" width="850" />
 
-<sub>Screenshots use the built-in privacy blur, one click hides every number in the app.</sub>
+<sub>Screenshots show SimpleFIN demo data, synced and auto-categorized by the app itself.</sub>
 
 </div>
 
@@ -39,6 +39,10 @@ Connect once with a [SimpleFIN](https://www.simplefin.org/) token and pull balan
 ### 🧠 On-device AI categorization
 
 Download the model once from Settings (about 4 GB) and hit Auto-categorize. Deterministic rules run first for free, then the LLM handles the leftovers. Output is grammar-constrained JSON, so the model can only ever answer with real category IDs. Identical merchants are batched into a single generation, and the whole run is cancellable and undoable.
+
+<div align="center">
+<img src="docs/screenshots/transactions.png" alt="Transactions table with auto-assigned categories" width="850" />
+</div>
 
 <div align="center">
 <img src="docs/screenshots/settings-llm.png" alt="Local LLM, categories, and rules in Settings" width="850" />
