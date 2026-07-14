@@ -108,7 +108,7 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       h: 4
     },
     {
-      title: 'Relevant transactions',
+      title: 'Transactions',
       type: 'transactions',
       config: {
         query: { measure: 'sum', groupBy: 'none', timeGrain: 'none', cumulative: false },
