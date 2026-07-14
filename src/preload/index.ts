@@ -4,6 +4,7 @@ import {
   ACTION_LOG_IPC,
   IPC,
   type Account,
+  type SetInvertBalanceInput,
   type ActionLogEntry,
   type CategorizeScopeInput,
   type CategoriesList,
@@ -82,6 +83,8 @@ const api = {
   accounts: {
     list: (): Promise<Account[]> => ipcRenderer.invoke(IPC.accountsList),
     get: (id: number): Promise<Account | null> => ipcRenderer.invoke(IPC.accountsGet, id),
+    setInvertBalance: (input: SetInvertBalanceInput): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.accountsSetInvertBalance, input),
     holdings: (id: number): Promise<Holding[]> => ipcRenderer.invoke(IPC.accountHoldings, id),
     transactions: (query: FilteredAccountTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(IPC.accountTransactions, query)

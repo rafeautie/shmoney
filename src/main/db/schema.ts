@@ -33,7 +33,10 @@ export const accounts = sqliteTable(
     // amounts are integer milliunits (value * 1000) so SQL aggregates stay exact
     balance: integer('balance').notNull(),
     availableBalance: integer('available_balance'),
-    balanceDate: integer('balance_date').notNull()
+    balanceDate: integer('balance_date').notNull(),
+    // user override for institutions that report the balance with the wrong sign;
+    // stored raw and flipped at read time so sync can keep overwriting `balance`
+    invertBalance: integer('invert_balance', { mode: 'boolean' }).notNull().default(false)
   },
   (t) => [uniqueIndex('accounts_connection_sfid_ux').on(t.connectionId, t.simplefinId)]
 )

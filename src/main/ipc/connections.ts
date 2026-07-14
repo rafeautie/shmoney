@@ -20,6 +20,7 @@ import {
   IPC,
   connectInputSchema,
   accountIdSchema,
+  setInvertBalanceInputSchema,
   type Connection,
   type SyncResult
 } from '@shared/ipc'
@@ -294,6 +295,19 @@ export function registerConnectionsIpc(): void {
     return true
   })
 
+  // stored balances stay raw as synced; the invert override is applied here at
+  // read time so every consumer (detail page, list, net worth) sees the fix
+  function applyInvert<T extends { invertBalance: boolean; balance: number; availableBalance: number | null }>(
+    a: T
+  ): T {
+    if (!a.invertBalance) return a
+    return {
+      ...a,
+      balance: -a.balance,
+      availableBalance: a.availableBalance === null ? null : -a.availableBalance
+    }
+  }
+
   ipcMain.handle(IPC.accountsList, () => {
     const counts = new Map(
       db
@@ -308,7 +322,7 @@ export function registerConnectionsIpc(): void {
       .from(accounts)
       .orderBy(asc(accounts.institutionName), asc(accounts.name))
       .all()
-      .map((a) => ({ ...a, holdingsCount: counts.get(a.id) ?? 0 }))
+      .map((a) => applyInvert({ ...a, holdingsCount: counts.get(a.id) ?? 0 }))
   })
 
   ipcMain.handle(IPC.accountsGet, (_event, input: unknown) => {
@@ -316,7 +330,13 @@ export function registerConnectionsIpc(): void {
     const row = db.select().from(accounts).where(eq(accounts.id, id)).get()
     if (!row) return null
     const c = db.select({ n: count() }).from(holdings).where(eq(holdings.accountId, id)).get()
-    return { ...row, holdingsCount: c?.n ?? 0 }
+    return applyInvert({ ...row, holdingsCount: c?.n ?? 0 })
+  })
+
+  ipcMain.handle(IPC.accountsSetInvertBalance, (_event, input: unknown) => {
+    const { accountId, invertBalance } = setInvertBalanceInputSchema.parse(input)
+    db.update(accounts).set({ invertBalance }).where(eq(accounts.id, accountId)).run()
+    return true
   })
 
   ipcMain.handle(IPC.accountHoldings, (_event, input: unknown) => {

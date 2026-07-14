@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { AccountSettingsSheet } from '@/components/account-settings-sheet'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/auto-categorize-button'
 import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
@@ -44,7 +45,10 @@ function AccountDetailPage() {
             )}
           </p>
         </div>
-        <AutoCategorizeButton scope={{ accountId: id }} />
+        <div className="flex shrink-0 items-center gap-2">
+          <AutoCategorizeButton scope={{ accountId: id }} />
+          {account && <AccountSettingsSheet accountId={id} invertBalance={account.invertBalance} />}
+        </div>
       </div>
 
       {hasHoldings && account ? (

@@ -1,0 +1,1 @@
+ALTER TABLE `accounts` ADD `invert_balance` integer DEFAULT false NOT NULL;
