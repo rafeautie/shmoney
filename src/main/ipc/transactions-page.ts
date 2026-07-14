@@ -41,7 +41,7 @@ export function transactionsPage(
       pending: transactions.pending,
       categoryId: transactions.categoryId,
       categoryName: categories.name,
-      isTransfer: transactions.isTransfer
+      categorySystemKey: categories.systemKey
     })
     .from(transactions)
     .innerJoin(accounts, eq(transactions.accountId, accounts.id))
@@ -51,6 +51,11 @@ export function transactionsPage(
     .limit(q.pageSize)
     .offset(q.page * q.pageSize)
     .all()
+    // isTransfer is derived for display: membership in the Transfers system category
+    .map(({ categorySystemKey, ...row }) => ({
+      ...row,
+      isTransfer: categorySystemKey === 'transfers'
+    }))
   const total =
     db
       .select({ value: count() })

@@ -15,11 +15,13 @@ import {
 export const transactionFiltersSchema = reportFiltersSchema
 export type TransactionFilters = ReportFilters
 
-// the table defaults to showing everything (reports default to 12 months)
+// the table defaults to showing everything, transfers included
+// (reports default to 12 months with transfers excluded)
 export const DEFAULT_TRANSACTION_FILTERS: TransactionFilters = {
   dateRange: { kind: 'all' },
   direction: 'all',
-  includePending: true
+  includePending: true,
+  includeTransfers: true
 }
 
 // ---------- resolved shape (crosses IPC) ----------

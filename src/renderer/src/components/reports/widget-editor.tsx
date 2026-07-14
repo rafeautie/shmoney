@@ -534,6 +534,20 @@ export function WidgetEditor({
                     onCheckedChange={(includePending) => patchOverrides({ includePending })}
                   />
                 </OverrideRow>
+
+                <OverrideRow
+                  label="Include transfers"
+                  active={overrides.includeTransfers !== undefined}
+                  onToggle={(on) =>
+                    patchOverrides({ includeTransfers: on ? base.includeTransfers : undefined })
+                  }
+                >
+                  <Switch
+                    checked={overrides.includeTransfers ?? base.includeTransfers}
+                    disabled={overrides.includeTransfers === undefined}
+                    onCheckedChange={(includeTransfers) => patchOverrides({ includeTransfers })}
+                  />
+                </OverrideRow>
               </div>
             </div>
           </div>

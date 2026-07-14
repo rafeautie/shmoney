@@ -69,6 +69,28 @@ export function CategoriesSettings() {
                 <CategoryList groupId={null} categories={categoriesQuery.data?.ungrouped ?? []} />
               </div>
             </div>
+            <div className="space-y-4">
+              <Separator className="-mx-(--card-spacing) data-horizontal:w-auto" />
+              <div className="flex flex-col gap-2">
+                <div className="flex min-h-7 items-center gap-2">
+                  <h3 className="text-sm font-medium text-muted-foreground">System</h3>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {(categoriesQuery.data?.system ?? []).map((category) => (
+                    <span
+                      key={category.id}
+                      className="inline-flex h-7 items-center rounded-md bg-secondary px-2.5 py-1 text-xs text-secondary-foreground"
+                    >
+                      {category.name}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Used by shmoney for built-in behavior like transfer detection; they can&apos;t be
+                  renamed or deleted.
+                </p>
+              </div>
+            </div>
           </>
         )}
         <Separator className="-mx-(--card-spacing) data-horizontal:w-auto" />
@@ -99,7 +121,7 @@ export function CategoriesSettings() {
         <SettingsGroup>
           <SettingAction
             label="Reset to defaults"
-            description="Restore the default groups and categories; all transactions become Uncategorized."
+            description="Restore the default groups and categories; transactions in them become Uncategorized. System categories and their transactions are kept."
           >
             <Button variant="destructive" onClick={() => setConfirmingReset(true)}>
               Reset
@@ -115,7 +137,7 @@ export function CategoriesSettings() {
           open={confirmingReset}
           onOpenChange={setConfirmingReset}
           title="Reset to defaults?"
-          description="This restores the default groups and categories and sets ALL transactions to Uncategorized."
+          description="This restores the default groups and categories and sets their transactions to Uncategorized. System categories (and the transactions assigned to them) are kept."
           confirmLabel="Reset"
           pendingLabel="Resetting…"
           pending={resetDefaults.isPending}

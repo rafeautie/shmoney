@@ -1,7 +1,15 @@
 import { ipcMain, safeStorage } from 'electron'
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm'
 import { db } from '../db'
-import { connections, accounts, holdings, transactions, settings, actionLog } from '../db/schema'
+import {
+  connections,
+  accounts,
+  categories,
+  holdings,
+  transactions,
+  settings,
+  actionLog
+} from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
 import { claimAccessUrl, fetchAccounts, parseAmount } from '../simplefin'
 import { transactionsPage, transactionDate } from './transactions-page'
@@ -140,13 +148,19 @@ async function syncConnection(): Promise<SyncResult> {
       }
     }
 
-    // detect transfers (cheap: bucketed by amount). Candidates are all unmarked
-    // rows plus any already-marked legs near them in time, so a leg the user
-    // marked by hand in an earlier sync still completes when its partner shows
-    // up now. Only the newly-matched (previously unmarked) legs get flipped, and
-    // one 'detector' entry is logged to undo from.
+    // detect transfers (cheap: bucketed by amount) and file them under the
+    // Transfers system category. Only uncategorized rows are candidates to flip
+    // — a category the user set is never overwritten — but legs already in
+    // Transfers still join the candidate pool, so a leg the user marked by hand
+    // in an earlier sync completes when its partner shows up now. One 'detector'
+    // entry is logged to undo from.
     let detectedTransfers = 0
-    if (detectEnabled) {
+    const transfersCategoryId = tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.systemKey, 'transfers'))
+      .get()?.id
+    if (detectEnabled && transfersCategoryId !== undefined) {
       const candidateColumns = {
         id: transactions.id,
         accountId: transactions.accountId,
@@ -160,7 +174,7 @@ async function syncConnection(): Promise<SyncResult> {
           and(
             eq(transactions.pending, false),
             isNull(transactions.deletedAt),
-            eq(transactions.isTransfer, false)
+            isNull(transactions.categoryId)
           )
         )
         .all()
@@ -182,7 +196,7 @@ async function syncConnection(): Promise<SyncResult> {
             and(
               eq(transactions.pending, false),
               isNull(transactions.deletedAt),
-              eq(transactions.isTransfer, true),
+              eq(transactions.categoryId, transfersCategoryId),
               gte(transactionDate, minDate - TRANSFER_WINDOW_SECONDS),
               lte(transactionDate, maxDate + TRANSFER_WINDOW_SECONDS)
             )
@@ -196,15 +210,18 @@ async function syncConnection(): Promise<SyncResult> {
         const pairs = detectTransferPairs(candidates)
         const ids = pairs.flatMap((p) => p.toMark)
         if (ids.length > 0) {
-          tx.update(transactions).set({ isTransfer: true }).where(inArray(transactions.id, ids)).run()
+          tx.update(transactions)
+            .set({ categoryId: transfersCategoryId })
+            .where(inArray(transactions.id, ids))
+            .run()
           recordAction(tx, {
             source: 'detector',
             label: `Detected ${pairs.length} transfer${pairs.length === 1 ? '' : 's'}`,
             changes: ids.map((id) => ({
               transactionId: id,
-              field: 'isTransfer',
-              before: false,
-              after: true
+              field: 'categoryId',
+              before: null,
+              after: transfersCategoryId
             }))
           })
           detectedTransfers = pairs.length
@@ -217,8 +234,7 @@ async function syncConnection(): Promise<SyncResult> {
     // detector, each firing rule logs its own action_log entry, so it's undoable.
     let rulesApplied = 0
     if (rulesEnabled) {
-      const applied = applyRulesInTx(tx)
-      rulesApplied = applied.categorized + applied.markedTransfer
+      rulesApplied = applyRulesInTx(tx).categorized
     }
 
     // persist this sync's errlist so the connection card can surface it; a clean

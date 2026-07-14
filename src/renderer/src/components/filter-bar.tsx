@@ -79,7 +79,9 @@ export function FilterBar({ filters, onChange, defaultFilters, hideAccounts }: F
   const moreCount =
     (filters.amountMin !== undefined || filters.amountMax !== undefined ? 1 : 0) +
     (filters.descriptionSearch ? 1 : 0) +
-    (filters.includePending ? 0 : 1)
+    (filters.includePending ? 0 : 1) +
+    // transfers default differs by context (shown in transactions, hidden in reports)
+    (filters.includeTransfers !== defaultFilters.includeTransfers ? 1 : 0)
 
   const isDefault = JSON.stringify(filters) === JSON.stringify(defaultFilters)
 
@@ -135,6 +137,13 @@ export function FilterBar({ filters, onChange, defaultFilters, hideAccounts }: F
             <Switch
               checked={filters.includePending}
               onCheckedChange={(includePending) => onChange({ ...filters, includePending })}
+            />
+          </label>
+          <label className="flex items-center justify-between text-sm">
+            Include transfers
+            <Switch
+              checked={filters.includeTransfers}
+              onCheckedChange={(includeTransfers) => onChange({ ...filters, includeTransfers })}
             />
           </label>
         </PopoverContent>

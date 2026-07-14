@@ -19,8 +19,13 @@ function listCategories(): CategoriesList {
   const groups = db.select().from(categoryGroups).orderBy(asc(categoryGroups.id)).all()
   const rows = db.select().from(categories).orderBy(asc(categories.name)).all()
   const ungrouped: Category[] = []
+  const system: Category[] = []
   const byGroup = new Map<number, Category[]>()
   for (const row of rows) {
+    if (row.systemKey !== null) {
+      system.push(row)
+      continue
+    }
     if (row.groupId === null) {
       ungrouped.push(row)
       continue
@@ -31,12 +36,24 @@ function listCategories(): CategoriesList {
   }
   return {
     groups: groups.map((group) => ({ ...group, categories: byGroup.get(group.id) ?? [] })),
-    ungrouped
+    ungrouped,
+    system
   }
 }
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Error && error.message.includes('UNIQUE constraint failed')
+}
+
+// system categories back built-in behavior (e.g. Transfers), so rename/delete
+// must reject them rather than silently break it
+function assertNotSystem(id: number): void {
+  const row = db
+    .select({ systemKey: categories.systemKey })
+    .from(categories)
+    .where(eq(categories.id, id))
+    .get()
+  if (row?.systemKey != null) throw new Error("System categories can't be changed")
 }
 
 export function registerCategoriesIpc(): void {
@@ -101,6 +118,7 @@ export function registerCategoriesIpc(): void {
 
   ipcMain.handle(IPC.categoriesRename, (_event, input: unknown) => {
     const { id, name } = categoryRenameSchema.parse(input)
+    assertNotSystem(id)
     try {
       const row = db.update(categories).set({ name }).where(eq(categories.id, id)).returning().get()
       if (!row) throw new Error('Category not found')
@@ -115,6 +133,7 @@ export function registerCategoriesIpc(): void {
 
   ipcMain.handle(IPC.categoriesDelete, (_event, input: unknown) => {
     const id = idSchema.parse(input)
+    assertNotSystem(id)
     // FK sets assigned transactions' category to null
     db.delete(categories).where(eq(categories.id, id)).run()
     return true

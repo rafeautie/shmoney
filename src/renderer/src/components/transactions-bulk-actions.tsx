@@ -30,8 +30,6 @@ export function TransactionsBulkActions({
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const transactionIds = transactions.map((transaction) => transaction.id)
-  // toggle direction: if every selected row is already a transfer, the action unmarks
-  const allTransfers = transactions.length > 0 && transactions.every((t) => t.isTransfer)
 
   const autoCategorize = useAutoCategorize({ transactionIds })
 
@@ -41,12 +39,6 @@ export function TransactionsBulkActions({
         changes: transactions.map((t) => ({ transactionId: t.id, categoryId }))
       }),
     onSuccess: () => setCategoryOpen(false),
-    onSettled: () => queryClient.invalidateQueries()
-  })
-
-  const setTransfer = useMutation({
-    mutationFn: () =>
-      window.api.transactions.setTransfer({ transactionIds, isTransfer: !allTransfers }),
     onSettled: () => queryClient.invalidateQueries()
   })
 
@@ -75,19 +67,18 @@ export function TransactionsBulkActions({
       ) {
         return
       }
-      if (!['d', 'c', 't', 'a'].includes(event.key)) return
+      if (!['d', 'c', 'a'].includes(event.key)) return
       // the popover focuses its search input before this key's default text
       // insertion runs, so without this the shortcut letter gets typed into it
       event.preventDefault()
       if (event.key === 'd') setConfirmDelete(true)
       if (event.key === 'c') setCategoryOpen(true)
-      if (event.key === 't') setTransfer.mutate()
       if (event.key === 'a' && llmReady && !autoCategorize.anyRunning) autoCategorize.start()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions.length, allTransfers, llmReady, busy, autoCategorize.anyRunning])
+  }, [transactions.length, llmReady, busy, autoCategorize.anyRunning])
 
   if (transactions.length === 0) return null
 
@@ -116,16 +107,6 @@ export function TransactionsBulkActions({
             />
           </PopoverContent>
         </Popover>
-        <Button
-          variant="ghost"
-          size="lg"
-          className="text-sm"
-          title={allTransfers ? 'Unmark transfer (t)' : 'Mark as transfer (t)'}
-          disabled={setTransfer.isPending || busy}
-          onClick={() => setTransfer.mutate()}
-        >
-          {allTransfers ? 'Unmark transfer' : 'Mark as transfer'}
-        </Button>
         <Button
           variant="ghost"
           size="lg"

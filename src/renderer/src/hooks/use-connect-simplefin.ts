@@ -22,7 +22,7 @@ export function useConnectSimpleFin(options?: { onConnected?: () => void }) {
     onSuccess: (result) => {
       if (result.detectedTransfers > 0) {
         notify(`Detected ${plural(result.detectedTransfers, 'transfer')}`, {
-          description: 'Marked automatically and excluded from income and expenses.',
+          description: 'Filed under the Transfers category; reports exclude them by default.',
           action: { label: 'Review', onClick: () => navigate({ to: '/activity' }) }
         })
       }

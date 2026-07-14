@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, rules, transactions } from '../db/schema'
+import { notTransferSql } from '../db/system-categories'
 import type { RuleRow } from '../db/schema'
 import { recordAction } from './action-log'
 import { transactionDate } from './transactions-page'
@@ -81,19 +82,17 @@ function loadRules(tx: Tx): Rule[] {
     })
 }
 
-// rules that are safe to run now: drops setCategory rules whose target category
-// was deleted (applying one would violate the FK and abort the whole sync)
+// rules that are safe to run now: drops rules whose target category was
+// deleted (applying one would violate the FK and abort the whole sync)
 function loadApplicableRules(tx: Tx): Rule[] {
   const all = loadRules(tx)
-  const wanted = [
-    ...new Set(all.flatMap((r) => (r.action.type === 'setCategory' ? [r.action.categoryId] : [])))
-  ]
+  const wanted = [...new Set(all.map((r) => r.action.categoryId))]
   if (wanted.length === 0) return all
   const existing = new Set(
     tx.select({ id: categories.id }).from(categories).where(inArray(categories.id, wanted)).all().map((c) => c.id)
   )
   return all.filter((r) => {
-    if (r.action.type !== 'setCategory' || existing.has(r.action.categoryId)) return true
+    if (existing.has(r.action.categoryId)) return true
     console.warn(`rule ${r.id} ("${r.name}") targets a deleted category, skipping`)
     return false
   })
@@ -123,16 +122,11 @@ function baseFilter(scope?: RuleApplyScope): SQL {
   return and(scopeFilter, eq(transactions.pending, false), isNull(transactions.deletedAt))!
 }
 
-// which matched rows a rule's action may claim: setCategory never touches a
-// transfer and (unless overriding) only fills a blank category; markTransfer
-// only touches unmarked rows
-function eligibility(rule: Rule, overrideCategories: boolean): SQL {
-  if (rule.action.type === 'setCategory') {
-    return overrideCategories
-      ? eq(transactions.isTransfer, false)
-      : and(eq(transactions.isTransfer, false), isNull(transactions.categoryId))!
-  }
-  return eq(transactions.isTransfer, false)
+// which matched rows a rule may claim: only blank categories unless overriding,
+// and even an override never touches a row filed under Transfers — silently
+// turning a transfer into income/expense would corrupt reports
+function eligibility(overrideCategories: boolean): SQL {
+  return overrideCategories ? notTransferSql() : isNull(transactions.categoryId)
 }
 
 /**
@@ -149,59 +143,43 @@ export function applyRulesInTx(
   const base = baseFilter(scope)
   const claimed = new Set<number>()
   let categorized = 0
-  let markedTransfer = 0
   let rulesFired = 0
 
   for (const rule of loadApplicableRules(tx)) {
     // matching runs in SQL; the first rule to claim a row owns it, so later
-    // rules skip anything already claimed (this holds across both actions, so a
-    // row can't end up both categorized and marked as a transfer)
+    // rules skip anything already claimed
     const matched = tx
       .select({ id: transactions.id, categoryId: transactions.categoryId })
       .from(transactions)
-      .where(and(base, eligibility(rule, overrideCategories), compileConditions(rule.conditions)))
+      .where(and(base, eligibility(overrideCategories), compileConditions(rule.conditions)))
       .all()
       .filter((r) => !claimed.has(r.id))
     if (matched.length === 0) continue
     for (const r of matched) claimed.add(r.id)
 
-    if (rule.action.type === 'setCategory') {
-      const categoryId = rule.action.categoryId
-      // under override a match can include rows already at the target; skip
-      // those so we don't write or log a before===after no-op
-      const changed = matched.filter((r) => (r.categoryId ?? null) !== categoryId)
-      if (changed.length === 0) continue
-      const ids = changed.map((r) => r.id)
-      tx.update(transactions).set({ categoryId }).where(inArray(transactions.id, ids)).run()
-      recordAction(tx, {
-        source: 'rule',
-        label: `Rule "${rule.name}" categorized ${plural(ids.length, 'transaction')}`,
-        changes: changed.map(
-          (r): ActionChange => ({
-            transactionId: r.id,
-            field: 'categoryId',
-            before: r.categoryId ?? null,
-            after: categoryId
-          })
-        )
-      })
-      categorized += ids.length
-      rulesFired++
-    } else {
-      const ids = matched.map((r) => r.id)
-      tx.update(transactions).set({ isTransfer: true }).where(inArray(transactions.id, ids)).run()
-      recordAction(tx, {
-        source: 'rule',
-        label: `Rule "${rule.name}" marked ${plural(ids.length, 'transaction')} as transfer`,
-        changes: ids.map(
-          (id): ActionChange => ({ transactionId: id, field: 'isTransfer', before: false, after: true })
-        )
-      })
-      markedTransfer += ids.length
-      rulesFired++
-    }
+    const categoryId = rule.action.categoryId
+    // under override a match can include rows already at the target; skip
+    // those so we don't write or log a before===after no-op
+    const changed = matched.filter((r) => (r.categoryId ?? null) !== categoryId)
+    if (changed.length === 0) continue
+    const ids = changed.map((r) => r.id)
+    tx.update(transactions).set({ categoryId }).where(inArray(transactions.id, ids)).run()
+    recordAction(tx, {
+      source: 'rule',
+      label: `Rule "${rule.name}" categorized ${plural(ids.length, 'transaction')}`,
+      changes: changed.map(
+        (r): ActionChange => ({
+          transactionId: r.id,
+          field: 'categoryId',
+          before: r.categoryId ?? null,
+          after: categoryId
+        })
+      )
+    })
+    categorized += ids.length
+    rulesFired++
   }
-  return { categorized, markedTransfer, rulesFired }
+  return { categorized, rulesFired }
 }
 
 // dry-run: the same matching, but instead of writing, enrich each affected row
@@ -215,14 +193,13 @@ function previewRules(tx: Tx, overrideCategories = false): RulePreview {
     const matched = tx
       .select({ id: transactions.id, categoryId: transactions.categoryId })
       .from(transactions)
-      .where(and(base, eligibility(rule, overrideCategories), compileConditions(rule.conditions)))
+      .where(and(base, eligibility(overrideCategories), compileConditions(rule.conditions)))
       .all()
       .filter((r) => !claimed.has(r.id))
     if (matched.length === 0) continue
     for (const r of matched) claimed.add(r.id)
-    const target = rule.action.type === 'setCategory' ? rule.action.categoryId : null
     // drop no-op rows already at the target (only reachable under override)
-    const rows = target !== null ? matched.filter((r) => (r.categoryId ?? null) !== target) : matched
+    const rows = matched.filter((r) => (r.categoryId ?? null) !== rule.action.categoryId)
     if (rows.length > 0) groups.push({ rule, rows })
   }
 
@@ -248,8 +225,7 @@ function previewRules(tx: Tx, overrideCategories = false): RulePreview {
   const categoryName = new Map(tx.select().from(categories).all().map((c) => [c.id, c.name]))
 
   return groups.flatMap((g) => {
-    const targetCategoryId = g.rule.action.type === 'setCategory' ? g.rule.action.categoryId : null
-    const targetCategoryName = targetCategoryId !== null ? categoryName.get(targetCategoryId) ?? null : null
+    const targetCategoryName = categoryName.get(g.rule.action.categoryId) ?? null
     const txns: RulePreviewTransaction[] = g.rows.flatMap((r) => {
       const c = context.get(r.id)
       if (!c) return []

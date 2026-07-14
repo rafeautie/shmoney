@@ -225,11 +225,7 @@ export function RulesSettings(): React.JSX.Element {
                   <RuleRow
                     rule={rule}
                     conditionText={describeRule(rule.conditions, accountName)}
-                    actionText={
-                      rule.action.type === 'markTransfer'
-                        ? 'mark as transfer'
-                        : `set category to ${categoryName.get(rule.action.categoryId) ?? 'unknown'}`
-                    }
+                    actionText={`set category to ${categoryName.get(rule.action.categoryId) ?? 'unknown'}`}
                     isFirst={index === 0}
                     isLast={index === rules.length - 1}
                     onMoveUp={() => move(index, -1)}

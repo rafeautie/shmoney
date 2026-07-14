@@ -20,8 +20,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 // drizzle schema props), so a change can never target an arbitrary column.
 const EDITABLE_FIELDS = {
   categoryId: transactions.categoryId,
-  deletedAt: transactions.deletedAt,
-  isTransfer: transactions.isTransfer
+  deletedAt: transactions.deletedAt
 } as const
 
 // how many recent entries the Activity page shows (undo/redo still reach older
@@ -50,12 +49,11 @@ export function recordAction(
   return row.id
 }
 
-// null-safe equality against the current stored value; booleans compare as 0/1
+// null-safe equality against the current stored value
 function currentValueIs(field: ActionField, value: ActionChange['before']): SQL {
   const col = EDITABLE_FIELDS[field]
   if (value === null) return isNull(col)
-  const raw = typeof value === 'boolean' ? (value ? 1 : 0) : value
-  return sql`${col} = ${raw}`
+  return sql`${col} = ${value}`
 }
 
 // write one field on one row, but only if it still holds the value this action
@@ -70,13 +68,9 @@ function setGuarded(
   const where = and(eq(transactions.id, transactionId), currentValueIs(field, guard))
   switch (field) {
     case 'categoryId':
-      return tx.update(transactions).set({ categoryId: target as number | null }).where(where).run()
-        .changes
+      return tx.update(transactions).set({ categoryId: target }).where(where).run().changes
     case 'deletedAt':
-      return tx.update(transactions).set({ deletedAt: target as number | null }).where(where).run()
-        .changes
-    case 'isTransfer':
-      return tx.update(transactions).set({ isTransfer: target as boolean }).where(where).run().changes
+      return tx.update(transactions).set({ deletedAt: target }).where(where).run().changes
   }
 }
 

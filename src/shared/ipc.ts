@@ -33,7 +33,7 @@ export interface Connection {
 export interface SyncResult extends Connection {
   /** transfer pairs the detector auto-marked during this sync */
   detectedTransfers: number
-  /** transactions changed by rules during this sync (categorized or marked) */
+  /** transactions categorized by rules during this sync */
   rulesApplied: number
 }
 
@@ -85,7 +85,7 @@ export interface Transaction {
   pending: boolean
   categoryId: number | null
   categoryName: string | null
-  /** transfer between accounts — excluded from income/expense */
+  /** derived: in the Transfers system category — excluded from income/expense */
   isTransfer: boolean
 }
 
@@ -94,6 +94,8 @@ export interface Category {
   /** null = ungrouped */
   groupId: number | null
   name: string
+  /** non-null marks a system category ('transfers' | 'income'): not renameable or deletable */
+  systemKey: string | null
 }
 
 export interface CategoryGroup {
@@ -105,6 +107,8 @@ export interface CategoryGroup {
 export interface CategoriesList {
   groups: CategoryGroup[]
   ungrouped: Category[]
+  /** system categories (Transfers, Income): listed separately, not editable */
+  system: Category[]
 }
 
 export interface Page<T> {
@@ -171,27 +175,20 @@ export const categorizeScopeSchema = z.object({
 })
 export type CategorizeScopeInput = z.infer<typeof categorizeScopeSchema>
 
-// marks/unmarks a set of transactions as transfers; skips pending rows
-export const transactionsSetTransferSchema = z.object({
-  transactionIds: z.array(idSchema).min(1),
-  isTransfer: z.boolean()
-})
-export type TransactionsSetTransferInput = z.infer<typeof transactionsSetTransferSchema>
-
 // ---------- action log (audit trail + undo/redo) ----------
 
 export type ActionSource = 'user' | 'detector' | 'rule' | 'llm'
 
 // the transaction columns undo/redo may rewrite. These strings double as the
 // drizzle set-keys in the main-process engine, so they must match schema props.
-export type ActionField = 'categoryId' | 'deletedAt' | 'isTransfer'
+export type ActionField = 'categoryId' | 'deletedAt'
 
 export interface ActionChange {
   transactionId: number
   field: ActionField
-  /** raw stored values: number|null for categoryId/deletedAt, boolean for isTransfer */
-  before: number | boolean | null
-  after: number | boolean | null
+  /** raw stored values (number|null for both fields) */
+  before: number | null
+  after: number | null
 }
 
 /** A change enriched with its transaction's current context, for the Activity list. */
@@ -255,7 +252,6 @@ export const IPC = {
   transactionsList: 'transactions:list',
   transactionsSetCategories: 'transactions:setCategories',
   transactionsBulkDelete: 'transactions:bulkDelete',
-  transactionsSetTransfer: 'transactions:setTransfer',
   categoriesList: 'categories:list',
   categoriesCreateGroup: 'categories:createGroup',
   categoriesRenameGroup: 'categories:renameGroup',

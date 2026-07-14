@@ -62,6 +62,11 @@ export function CategoryPicker({ selectedCategoryId, disabled, onSelect }: Categ
             {categoriesQuery.data.ungrouped.map((category) => item(category, 'Ungrouped'))}
           </CommandGroup>
         )}
+        {categoriesQuery.data && categoriesQuery.data.system.length > 0 && (
+          <CommandGroup heading="System">
+            {categoriesQuery.data.system.map((category) => item(category, 'System'))}
+          </CommandGroup>
+        )}
       </CommandList>
     </Command>
   )

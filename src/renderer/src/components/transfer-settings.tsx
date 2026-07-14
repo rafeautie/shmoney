@@ -10,8 +10,9 @@ export function TransferSettings() {
       <CardHeader>
         <CardTitle className="text-base">Transfers</CardTitle>
         <CardDescription>
-          Money moved between your own accounts isn&apos;t income or spending. Detected transfers are
-          excluded from income and expense totals; review or undo them from the Activity page.
+          Money moved between your own accounts isn&apos;t income or spending. Detected transfers
+          are filed under the Transfers category, which reports exclude by default; review or undo
+          them from the Activity page.
         </CardDescription>
       </CardHeader>
       <CardContent>

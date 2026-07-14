@@ -21,7 +21,8 @@ const FILTER_LABELS: Record<string, string> = {
   amountMin: 'min amount',
   amountMax: 'max amount',
   descriptionSearch: 'search',
-  includePending: 'pending'
+  includePending: 'pending',
+  includeTransfers: 'transfers'
 }
 
 function OverrideBadge({ widget }: { widget: ReportWidget }) {

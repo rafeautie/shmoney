@@ -43,7 +43,6 @@ export interface RuleDraft {
 type DescOp = 'contains' | 'equals'
 type AmtOp = 'eq' | 'gt' | 'lt' | 'gte' | 'lte' | 'between'
 type Direction = 'any' | 'in' | 'out'
-type ActionType = 'setCategory' | 'markTransfer'
 
 const AMT_OP_LABELS: Record<AmtOp, string> = {
   eq: 'is exactly',
@@ -139,10 +138,7 @@ function RuleForm({
     c?.date?.dayOfMonthMax !== undefined ? String(c.date.dayOfMonthMax) : ''
   )
 
-  const [actionType, setActionType] = useState<ActionType>(src?.action.type ?? 'setCategory')
-  const [categoryId, setCategoryId] = useState<number | null>(
-    src?.action.type === 'setCategory' ? src.action.categoryId : null
-  )
+  const [categoryId, setCategoryId] = useState<number | null>(src?.action.categoryId ?? null)
 
   function buildConditions(): RuleConditions {
     const conditions: RuleConditions = {}
@@ -173,15 +169,11 @@ function RuleForm({
     dateBefore !== undefined ||
     domMin.trim() !== '' ||
     domMax.trim() !== ''
-  const actionReady = actionType === 'markTransfer' || categoryId !== null
-  const canSave = name.trim() !== '' && hasCondition && actionReady
+  const canSave = name.trim() !== '' && hasCondition && categoryId !== null
 
   const save = useMutation({
     mutationFn: () => {
-      const action: RuleAction =
-        actionType === 'setCategory'
-          ? { type: 'setCategory', categoryId: categoryId! }
-          : { type: 'markTransfer' }
+      const action: RuleAction = { type: 'setCategory', categoryId: categoryId! }
       const conditions = buildConditions()
       return rule
         ? window.api.rules.update({ id: rule.id, name: name.trim(), conditions, action })
@@ -372,46 +364,46 @@ function RuleForm({
 
           <fieldset className="flex flex-col gap-3 rounded-lg border p-4">
             <legend className="px-1 text-sm font-medium">…do this</legend>
-            <div className="flex flex-wrap gap-2">
-              <Select value={actionType} onValueChange={(v) => setActionType(v as ActionType)}>
-                <SelectTrigger className="w-44 shrink-0">
-                  <SelectValue />
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm">Set category to</span>
+              <Select
+                value={categoryId === null ? '' : String(categoryId)}
+                onValueChange={(v) => setCategoryId(Number(v))}
+              >
+                <SelectTrigger className="min-w-40 flex-1">
+                  <SelectValue placeholder="Choose a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="setCategory">Set category to</SelectItem>
-                  <SelectItem value="markTransfer">Mark as transfer</SelectItem>
+                  {categories?.groups.map((group) => (
+                    <SelectGroup key={group.id}>
+                      <SelectLabel>{group.name}</SelectLabel>
+                      {group.categories.map((category) => (
+                        <SelectItem key={category.id} value={String(category.id)}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                  {categories?.ungrouped.map((category) => (
+                    <SelectItem key={category.id} value={String(category.id)}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                  {categories && categories.system.length > 0 && (
+                    <SelectGroup>
+                      <SelectLabel>System</SelectLabel>
+                      {categories.system.map((category) => (
+                        <SelectItem key={category.id} value={String(category.id)}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  )}
                 </SelectContent>
               </Select>
-              {actionType === 'setCategory' && (
-                <Select
-                  value={categoryId === null ? '' : String(categoryId)}
-                  onValueChange={(v) => setCategoryId(Number(v))}
-                >
-                  <SelectTrigger className="min-w-40 flex-1">
-                    <SelectValue placeholder="Choose a category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories?.groups.map((group) => (
-                      <SelectGroup key={group.id}>
-                        <SelectLabel>{group.name}</SelectLabel>
-                        {group.categories.map((category) => (
-                          <SelectItem key={category.id} value={String(category.id)}>
-                            {category.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    ))}
-                    {categories?.ungrouped.map((category) => (
-                      <SelectItem key={category.id} value={String(category.id)}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Rules only fill blanks; they never overwrite a category or transfer you set yourself.
+              Rules only fill blanks; they never overwrite a category you set yourself.
             </p>
           </fieldset>
 

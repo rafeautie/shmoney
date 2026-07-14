@@ -53,7 +53,7 @@ const filterFieldsSchema = z.object({
   /** pairs with categoryIds: also match rows with no category */
   includeUncategorized: z.boolean().optional(),
   categoryGroupIds: z.array(idSchema).optional(),
-  // 'transfer' shows only inter-account transfers; income/expense exclude them
+  // 'transfer' shows only inter-account transfers (regardless of includeTransfers)
   direction: z.enum(['all', 'income', 'expense', 'transfer']),
   /** milliunits, compared against abs(amount) */
   amountMin: z.number().int().optional(),
@@ -65,19 +65,23 @@ const filterFieldsSchema = z.object({
    * noise; the amount range filter covers amounts precisely.
    */
   search: z.string().trim().optional(),
-  includePending: z.boolean()
+  includePending: z.boolean(),
+  /** rows in the Transfers system category; reports exclude them by default */
+  includeTransfers: z.boolean()
 })
 
 export const reportFiltersSchema = filterFieldsSchema.extend({
   direction: filterFieldsSchema.shape.direction.default('all'),
-  includePending: filterFieldsSchema.shape.includePending.default(true)
+  includePending: filterFieldsSchema.shape.includePending.default(true),
+  includeTransfers: filterFieldsSchema.shape.includeTransfers.default(false)
 })
 export type ReportFilters = z.infer<typeof reportFiltersSchema>
 
 export const DEFAULT_REPORT_FILTERS: ReportFilters = {
   dateRange: { kind: 'relative', unit: 'month', count: 12, includeCurrent: true },
   direction: 'all',
-  includePending: true
+  includePending: true,
+  includeTransfers: false
 }
 
 export const widgetFiltersSchema = z.object({

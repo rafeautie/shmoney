@@ -82,14 +82,21 @@ export const categories = sqliteTable(
     id: integer('id').primaryKey({ autoIncrement: true }),
     // null = ungrouped
     groupId: integer('group_id').references(() => categoryGroups.id, { onDelete: 'cascade' }),
-    name: text('name').notNull()
+    name: text('name').notNull(),
+    // non-null marks a system category ('transfers' | 'income'): seeded rows the
+    // app relies on for built-in behavior, protected from rename/delete/reset.
+    // Code looks categories up by this key, never by name.
+    systemKey: text('system_key')
   },
   (t) => [
     uniqueIndex('categories_group_name_ux').on(t.groupId, t.name),
     // SQLite treats NULLs as distinct in unique indexes, so ungrouped names need their own
     uniqueIndex('categories_ungrouped_name_ux')
       .on(t.name)
-      .where(sql`${t.groupId} is null`)
+      .where(sql`${t.groupId} is null`),
+    uniqueIndex('categories_system_key_ux')
+      .on(t.systemKey)
+      .where(sql`${t.systemKey} is not null`)
   ]
 )
 
@@ -109,10 +116,7 @@ export const transactions = sqliteTable(
     categoryId: integer('category_id').references(() => categories.id, { onDelete: 'set null' }),
     // soft delete (unix seconds): read paths exclude these rows; sync upserts
     // must never touch this column or deletes would revert on every sync
-    deletedAt: integer('deleted_at'),
-    // user-owned classification: a transfer between accounts is neither income
-    // nor expense. Like categoryId/deletedAt, sync upserts must never touch it.
-    isTransfer: integer('is_transfer', { mode: 'boolean' }).notNull().default(false)
+    deletedAt: integer('deleted_at')
   },
   (t) => [uniqueIndex('transactions_account_sfid_ux').on(t.accountId, t.simplefinId)]
 )

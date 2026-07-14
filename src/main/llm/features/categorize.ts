@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import { db } from '../../db'
 import { accounts, categories, transactions } from '../../db/schema'
 import { setCategories } from '../../ipc/transactions'
@@ -81,9 +81,13 @@ export async function categorizeTransactions(
 ): Promise<CategorizeResult> {
   if (activeRun) throw new Error('A categorize run is already in progress.')
 
+  // Transfers is excluded from the offered list: the detector pairs transfers
+  // structurally, and a small model guessing them from descriptions alone
+  // would corrupt reports. Income (also a system category) stays offered.
   const allCategories = db
     .select({ id: categories.id, name: categories.name })
     .from(categories)
+    .where(or(isNull(categories.systemKey), ne(categories.systemKey, 'transfers')))
     .all()
   if (allCategories.length === 0) return { categorized: 0, cancelled: false }
   const categoryIds = new Set(allCategories.map((c) => c.id))
@@ -100,8 +104,8 @@ export async function categorizeTransactions(
   // Deterministic rules first: apply the user's rules across this scope so the
   // model only spends generations on rows no rule already settled. Same
   // fill-empty semantics and undoable 'rule' action-log entries as sync/manual
-  // apply; a rule that categorizes a row (or marks it a transfer) drops it from
-  // the eligible set selected below.
+  // apply; a rule that categorizes a row drops it from the eligible set
+  // selected below.
   const ruleResult = db.transaction((tx) => applyRulesInTx(tx, { scope }))
 
   const eligible = db
@@ -116,10 +120,10 @@ export async function categorizeTransactions(
     .where(
       and(
         scopeFilter,
+        // uncategorized-only also excludes transfers: they're a category now
         isNull(transactions.categoryId),
         isNull(transactions.deletedAt),
-        eq(transactions.pending, false),
-        eq(transactions.isTransfer, false)
+        eq(transactions.pending, false)
       )
     )
     .all()

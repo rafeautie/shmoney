@@ -56,12 +56,12 @@ export const ruleConditionsSchema = z
   )
 
 // ---------- action ----------
-// One action per rule. Both write a user-owned field the sync upsert preserves,
-// so applying a rule is safe and undoable (see action_log).
+// One action per rule. It writes a user-owned field the sync upsert preserves,
+// so applying a rule is safe and undoable (see action_log). Marking a transfer
+// is setCategory targeting the Transfers system category.
 
 export const ruleActionSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('setCategory'), categoryId: z.number().int().positive() }),
-  z.object({ type: z.literal('markTransfer') })
+  z.object({ type: z.literal('setCategory'), categoryId: z.number().int().positive() })
 ])
 
 export type RuleTextCondition = z.infer<typeof ruleTextConditionSchema>
@@ -125,7 +125,7 @@ export interface RulePreviewTransaction {
   currency: string
   /** unix seconds */
   date: number
-  /** target category name for setCategory groups; null for markTransfer */
+  /** the rule's target category name; null if that category no longer resolves */
   targetCategoryName: string | null
   /** the row's current category name, so an override shows what it replaces; null if uncategorized */
   currentCategoryName: string | null
@@ -144,8 +144,6 @@ export type RulePreview = RulePreviewGroup[]
 export interface RulesApplyResult {
   /** transactions that got a category */
   categorized: number
-  /** transactions newly marked as transfers */
-  markedTransfer: number
   /** rules that changed at least one row */
   rulesFired: number
 }

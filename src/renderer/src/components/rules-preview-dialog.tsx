@@ -121,7 +121,6 @@ export function RulesPreviewDialog({
 }
 
 function PreviewGroup({ group }: { group: RulePreviewGroup }): React.JSX.Element {
-  const isTransfer = group.action.type === 'markTransfer'
   return (
     <table className={cn('w-full caption-bottom text-xs', TABLE_BLEED)}>
       {/* sticky so the rule label + column headers stay pinned while the rows
@@ -133,9 +132,7 @@ function PreviewGroup({ group }: { group: RulePreviewGroup }): React.JSX.Element
             <span className="flex items-center gap-2">
               <span className="text-sm font-medium text-foreground">{group.ruleName}</span>
               <Badge variant="secondary">{plural(group.transactions.length, 'transaction')}</Badge>
-              <span className="text-xs font-normal text-muted-foreground">
-                {isTransfer ? '→ Mark as transfer' : '→ Set category'}
-              </span>
+              <span className="text-xs font-normal text-muted-foreground">→ Set category</span>
             </span>
           </TableHead>
         </TableRow>
@@ -160,9 +157,7 @@ function PreviewGroup({ group }: { group: RulePreviewGroup }): React.JSX.Element
               <Amount value={t.amount} currency={t.currency} />
             </TableCell>
             <TableCell className="whitespace-nowrap">
-              {isTransfer ? (
-                'Transfer'
-              ) : t.currentCategoryName && t.currentCategoryName !== t.targetCategoryName ? (
+              {t.currentCategoryName && t.currentCategoryName !== t.targetCategoryName ? (
                 <span>
                   <span className="text-muted-foreground line-through">{t.currentCategoryName}</span>
                   {' → '}

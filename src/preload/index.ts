@@ -21,7 +21,6 @@ import {
   type Transaction,
   type TransactionIdsInput,
   type TransactionsSetCategoriesInput,
-  type TransactionsSetTransferInput,
   type UndoResult
 } from '@shared/ipc'
 import {
@@ -95,10 +94,7 @@ const api = {
       ipcRenderer.invoke(IPC.transactionsSetCategories, input),
     /** Soft delete; skips pending rows, resolves to the ids actually deleted */
     bulkDelete: (input: TransactionIdsInput): Promise<number[]> =>
-      ipcRenderer.invoke(IPC.transactionsBulkDelete, input),
-    /** Mark/unmark transfers; skips pending rows, resolves to rows updated */
-    setTransfer: (input: TransactionsSetTransferInput): Promise<number> =>
-      ipcRenderer.invoke(IPC.transactionsSetTransfer, input)
+      ipcRenderer.invoke(IPC.transactionsBulkDelete, input)
   },
   actionLog: {
     list: (): Promise<ActionLogEntry[]> => ipcRenderer.invoke(ACTION_LOG_IPC.list),

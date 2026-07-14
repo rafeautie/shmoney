@@ -8,7 +8,6 @@ import {
   IPC,
   transactionIdsSchema,
   transactionsSetCategoriesSchema,
-  transactionsSetTransferSchema,
   type ActionChange,
   type TransactionsSetCategoriesInput
 } from '@shared/ipc'
@@ -112,32 +111,6 @@ export function registerTransactionsIpc(): void {
         })
       }
       return rows.map((r) => r.id)
-    })
-  })
-
-  ipcMain.handle(IPC.transactionsSetTransfer, (_event, input: unknown) => {
-    const { transactionIds, isTransfer } = transactionsSetTransferSchema.parse(input)
-    return db.transaction((tx) => {
-      const rows = tx
-        .select({ id: transactions.id, isTransfer: transactions.isTransfer })
-        .from(transactions)
-        .where(and(inArray(transactions.id, transactionIds), notPending))
-        .all()
-      const logged: ActionChange[] = []
-      for (const row of rows) {
-        if (row.isTransfer === isTransfer) continue // already in the wanted state
-        tx.update(transactions).set({ isTransfer }).where(eq(transactions.id, row.id)).run()
-        logged.push({ transactionId: row.id, field: 'isTransfer', before: row.isTransfer, after: isTransfer })
-      }
-      if (logged.length > 0) {
-        const noun = plural(logged.length, 'transaction')
-        recordAction(tx, {
-          source: 'user',
-          label: isTransfer ? `Mark ${noun} as transfer` : `Unmark ${noun} as transfer`,
-          changes: logged
-        })
-      }
-      return logged.length
     })
   })
 }

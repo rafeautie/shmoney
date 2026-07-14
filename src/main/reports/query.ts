@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, categoryGroups, transactions } from '../db/schema'
+import { isTransferSql, notTransferSql } from '../db/system-categories'
 import { transactionDate } from '../ipc/transactions-page'
 import type {
   Measure,
@@ -38,12 +39,12 @@ function measureSql(measure: Measure): SQL<number> {
       return sql<number>`count(*)`
     case 'avg':
       return sql<number>`coalesce(avg(${transactions.amount}), 0)`
-    // transfers between accounts are neither income nor expense, so they never
-    // count toward these measures regardless of the direction filter
+    // purely sign-based; transfers are kept out by the includeTransfers filter
+    // (off by default in reports), not baked into the measure
     case 'income':
-      return sql<number>`coalesce(sum(case when ${transactions.amount} > 0 and ${transactions.isTransfer} = 0 then ${transactions.amount} else 0 end), 0)`
+      return sql<number>`coalesce(sum(case when ${transactions.amount} > 0 then ${transactions.amount} else 0 end), 0)`
     case 'expense':
-      return sql<number>`coalesce(sum(case when ${transactions.amount} < 0 and ${transactions.isTransfer} = 0 then -${transactions.amount} else 0 end), 0)`
+      return sql<number>`coalesce(sum(case when ${transactions.amount} < 0 then -${transactions.amount} else 0 end), 0)`
   }
 }
 
@@ -74,10 +75,12 @@ export function buildWhere(
     preds.push(or(...parts)!)
   }
   if (f.categoryGroupIds?.length) preds.push(inArray(categories.groupId, f.categoryGroupIds))
-  // income/expense exclude transfers; 'transfer' shows only them
-  if (f.direction === 'income') preds.push(sql`${transactions.amount} > 0 and ${transactions.isTransfer} = 0`)
-  if (f.direction === 'expense') preds.push(sql`${transactions.amount} < 0 and ${transactions.isTransfer} = 0`)
-  if (f.direction === 'transfer') preds.push(sql`${transactions.isTransfer} = 1`)
+  if (f.direction === 'income') preds.push(sql`${transactions.amount} > 0`)
+  if (f.direction === 'expense') preds.push(sql`${transactions.amount} < 0`)
+  // transfers are excluded unless the filter opts in; the 'transfer' direction
+  // overrides that and shows only them
+  if (f.direction === 'transfer') preds.push(isTransferSql())
+  else if (!f.includeTransfers) preds.push(notTransferSql())
   if (f.amountMin !== undefined) preds.push(sql`abs(${transactions.amount}) >= ${f.amountMin}`)
   if (f.amountMax !== undefined) preds.push(sql`abs(${transactions.amount}) <= ${f.amountMax}`)
   if (f.descriptionSearch) {
