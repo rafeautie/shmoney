@@ -376,6 +376,22 @@ export function CategoriesControl({
                 ))}
               </CommandGroup>
             )}
+            {data && data.system.length > 0 && (
+              <CommandGroup heading="System">
+                {data.system.map((category) => (
+                  <CommandItem
+                    key={category.id}
+                    value={`System ${category.name}`}
+                    onSelect={() => toggle(category.id)}
+                  >
+                    {category.name}
+                    {selected.has(category.id) && (
+                      <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
@@ -385,7 +401,7 @@ export function CategoriesControl({
 
 // ---------- direction ----------
 
-type Direction = 'all' | 'income' | 'expense' | 'transfer'
+type Direction = 'all' | 'income' | 'expense'
 
 export function DirectionControl({
   value,
@@ -405,7 +421,6 @@ export function DirectionControl({
         <SelectItem value="all">All directions</SelectItem>
         <SelectItem value="income">Income only</SelectItem>
         <SelectItem value="expense">Expenses only</SelectItem>
-        <SelectItem value="transfer">Transfers only</SelectItem>
       </SelectContent>
     </Select>
   )

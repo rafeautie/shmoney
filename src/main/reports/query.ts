@@ -1,7 +1,7 @@
 import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, categoryGroups, transactions } from '../db/schema'
-import { isTransferSql, notTransferSql } from '../db/system-categories'
+import { notTransferSql } from '../db/system-categories'
 import { transactionDate } from '../ipc/transactions-page'
 import type {
   Measure,
@@ -77,10 +77,10 @@ export function buildWhere(
   if (f.categoryGroupIds?.length) preds.push(inArray(categories.groupId, f.categoryGroupIds))
   if (f.direction === 'income') preds.push(sql`${transactions.amount} > 0`)
   if (f.direction === 'expense') preds.push(sql`${transactions.amount} < 0`)
-  // transfers are excluded unless the filter opts in; the 'transfer' direction
-  // overrides that and shows only them
-  if (f.direction === 'transfer') preds.push(isTransferSql())
-  else if (!f.includeTransfers) preds.push(notTransferSql())
+  // transfers are excluded unless the filter opts in. An explicit category
+  // selection skips the exclusion: chosen categories already narrow the rows,
+  // and picking Transfers there IS opting in — the exclusion would fight it
+  if (!f.includeTransfers && !f.categoryIds?.length) preds.push(notTransferSql())
   if (f.amountMin !== undefined) preds.push(sql`abs(${transactions.amount}) >= ${f.amountMin}`)
   if (f.amountMax !== undefined) preds.push(sql`abs(${transactions.amount}) <= ${f.amountMax}`)
   if (f.descriptionSearch) {
