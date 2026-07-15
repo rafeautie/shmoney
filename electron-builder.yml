@@ -26,7 +26,10 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 mac:
-  target: dmg
+  # electron-updater on macOS reads updates from the zip, not the dmg
+  target:
+    - dmg
+    - zip
   category: public.app-category.productivity
   files:
     - '!node_modules/@node-llama-cpp/{linux-arm64,linux-armv7l,linux-riscv64,linux-x64,linux-x64-cuda,linux-x64-cuda-ext,linux-x64-vulkan,win-arm64,win-x64,win-x64-cuda,win-x64-cuda-ext,win-x64-vulkan}/**/*'

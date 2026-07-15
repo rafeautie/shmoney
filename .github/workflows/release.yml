@@ -8,8 +8,18 @@ permissions:
   contents: write
 
 jobs:
-  release-windows:
-    runs-on: windows-latest
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            args: --win
+          - os: macos-latest
+            args: --mac
+          - os: ubuntu-latest
+            args: --linux
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -35,9 +45,11 @@ jobs:
 
       - run: npm run build
 
-      # uploads the setup exe, its blockmap, and latest.yml to a draft release;
+      # uploads platform artifacts and update metadata to a shared draft release;
       # publishing the draft in the GitHub UI is the final release gate
       - name: Package and publish
-        run: npx electron-builder --win --publish always
+        run: npx electron-builder ${{ matrix.args }} --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # no signing certificate in CI; skip keychain identity lookup on macOS
+          CSC_IDENTITY_AUTO_DISCOVERY: false
