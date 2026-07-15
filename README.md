@@ -33,6 +33,10 @@ Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and 
 - ↩️ **Activity log with undo.** Every change is recorded and reversible, even across restarts.
 - 📈 **Investments and net worth.** Holdings with market value and cost basis, and per-currency net worth.
 
+## 🔜 Coming soon
+
+- 🇪🇺 **European bank sync.** Connect to European banks alongside SimpleFIN.
+
 ## 🔒 Privacy and data
 
 - All application data lives in a SQLite file in your OS user-data directory. You can back it up, move it, or inspect it with any SQLite tool.
