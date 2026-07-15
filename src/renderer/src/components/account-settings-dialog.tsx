@@ -4,20 +4,20 @@ import { Settings01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import { SettingsGroup, SettingToggle } from '@/components/settings-controls'
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger
-} from '@/components/ui/sheet'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from '@/components/ui/dialog'
 
 /**
- * Header action on the account detail page: a gear button that opens a sidebar of
+ * Header action on the account detail page: a gear button that opens a dialog of
  * per-account overrides. Currently a single toggle to invert the balance sign, for
  * institutions that report a negative balance when the account holds positive value.
  */
-export function AccountSettingsSheet({
+export function AccountSettingsDialog({
   accountId,
   invertBalance
 }: {
@@ -32,18 +32,18 @@ export function AccountSettingsSheet({
   })
 
   return (
-    <Sheet>
-      <SheetTrigger asChild>
+    <Dialog>
+      <DialogTrigger asChild>
         <Button variant="outline" size="icon" className="shrink-0" aria-label="Account settings">
           <HugeiconsIcon icon={Settings01Icon} />
         </Button>
-      </SheetTrigger>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Account settings</SheetTitle>
-          <SheetDescription>Overrides that apply only to this account.</SheetDescription>
-        </SheetHeader>
-        <div className="px-4">
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Account settings</DialogTitle>
+          <DialogDescription>Overrides that apply only to this account.</DialogDescription>
+        </DialogHeader>
+        <div>
           <SettingsGroup>
             <SettingToggle
               label="Invert balance sign"
@@ -56,7 +56,7 @@ export function AccountSettingsSheet({
             positive value. Only the displayed balance is flipped; transactions are unchanged.
           </p>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }

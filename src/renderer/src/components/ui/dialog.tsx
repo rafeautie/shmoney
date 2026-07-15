@@ -44,19 +44,42 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onPointerDownOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  const contentRef = React.useRef<HTMLDivElement>(null)
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Content
+        ref={contentRef}
         data-slot="dialog-content"
         className={cn(
           'fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-xs/relaxed text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
           className
         )}
+        // An open Radix Select (or other popper) blanks pointer-events on the dialog
+        // while open, so dismissing its popup with a click inside the dialog is
+        // reported as an outside pointer-down that would close the dialog. Keep it
+        // open when the click physically landed within the dialog's bounds; genuine
+        // backdrop clicks still close it. A caller's own handler still runs.
+        onPointerDownOutside={(event) => {
+          const rect = contentRef.current?.getBoundingClientRect()
+          if (rect) {
+            const { clientX, clientY } = event.detail.originalEvent
+            if (
+              clientX >= rect.left &&
+              clientX <= rect.right &&
+              clientY >= rect.top &&
+              clientY <= rect.bottom
+            ) {
+              event.preventDefault()
+            }
+          }
+          onPointerDownOutside?.(event)
+        }}
         {...props}
       >
         {children}

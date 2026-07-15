@@ -9,13 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle
-} from '@/components/ui/sheet'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -71,8 +71,8 @@ export function RuleEditor({
   onSaved?: (rule: Rule, wasCreate: boolean) => void
 }): React.JSX.Element {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex flex-col gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex flex-col gap-0 p-0 sm:max-w-2xl">
         {/* key resets all draft state when switching between rules / drafts / new */}
         {open && (
           <RuleForm
@@ -83,8 +83,8 @@ export function RuleEditor({
             onDone={() => onOpenChange(false)}
           />
         )}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -197,15 +197,15 @@ function RuleForm({
         if (canSave) save.mutate()
       }}
     >
-      <SheetHeader>
-        <SheetTitle>{rule ? 'Edit rule' : 'New rule'}</SheetTitle>
-        <SheetDescription>
+      <DialogHeader className="p-4">
+        <DialogTitle>{rule ? 'Edit rule' : 'New rule'}</DialogTitle>
+        <DialogDescription>
           A rule applies its action to transactions matching every condition you set.
-        </SheetDescription>
-      </SheetHeader>
+        </DialogDescription>
+      </DialogHeader>
 
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="flex flex-col gap-5 px-6 pb-4">
+      <ScrollArea className="border-t" viewPortClassName="max-h-[60vh]">
+        <div className="flex flex-col gap-5 p-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="rule-name">Name</Label>
             <Input
@@ -413,14 +413,14 @@ function RuleForm({
         </div>
       </ScrollArea>
 
-      <SheetFooter className="flex-row justify-end gap-2 border-t">
+      <DialogFooter className="border-t p-4">
         <Button type="button" variant="outline" onClick={onDone}>
           Cancel
         </Button>
         <Button type="submit" disabled={!canSave || save.isPending}>
           {save.isPending ? 'Saving…' : rule ? 'Save rule' : 'Create rule'}
         </Button>
-      </SheetFooter>
+      </DialogFooter>
     </form>
   )
 }

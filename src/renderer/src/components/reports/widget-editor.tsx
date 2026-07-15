@@ -23,13 +23,13 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle
-} from '@/components/ui/sheet'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog'
 import {
   AccountsControl,
   AmountRangeControl,
@@ -224,21 +224,21 @@ export function WidgetEditor({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex flex-col gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-2xl">
-        <SheetHeader>
-          <SheetTitle>{widget ? 'Edit widget' : 'Add widget'}</SheetTitle>
-          <SheetDescription>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex flex-col gap-0 p-0 sm:max-w-2xl">
+        <DialogHeader className="p-4">
+          <DialogTitle>{widget ? 'Edit widget' : 'Add widget'}</DialogTitle>
+          <DialogDescription>
             Choose what to measure and how to display it. Filters can inherit from the report's
             filters or override them.
-          </SheetDescription>
-        </SheetHeader>
+          </DialogDescription>
+        </DialogHeader>
 
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-6 px-4 pb-4">
+        <ScrollArea className="border-t" viewPortClassName="max-h-[60vh]">
+          <div className="space-y-6 p-4">
             {/* preview: the exact report card, minus the edit/trash controls
                 (editing=false) and the grid resize handles (those live in ReportGrid) */}
-            <div className="h-56 mt-1">
+            <div className="h-56">
               <WidgetCard
                 widget={previewWidget}
                 reportFilters={reportFilters}
@@ -602,16 +602,16 @@ export function WidgetEditor({
           </div>
         </ScrollArea>
 
-        <SheetFooter className="flex-row justify-end gap-2 border-t">
+        <DialogFooter className="border-t p-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
             {widget ? 'Save changes' : 'Add widget'}
           </Button>
-        </SheetFooter>
-      </SheetContent>
-    </Sheet>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
