@@ -41,6 +41,22 @@ Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and 
 
 shmoney is under active development and has not reached a stable release. The database schema may change between versions.
 
+## 🛠️ Building from source
+
+You need Node.js 22+ and npm.
+
+```bash
+git clone https://github.com/rafeautie/shmoney.git
+cd shmoney
+npm install
+npm run dev          # development app with hot reload
+npm run build:win    # packaged installer (also build:mac, build:linux)
+```
+
+## 🤝 Contributing
+
+Bug reports, ideas, and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Security issues should go through [private vulnerability reporting](SECURITY.md) instead of public issues.
+
 ## 📜 License
 
 shmoney is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). You are free to use, modify, and share it for any noncommercial purpose; commercial use is not permitted. If you are interested in a commercial license, open an issue.
