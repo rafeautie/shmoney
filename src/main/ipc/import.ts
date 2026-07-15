@@ -31,9 +31,7 @@ import {
 const pickFileInputSchema = z
   .object({
     filePath: z.string().optional(),
-    dropped: z
-      .object({ fileName: z.string(), bytes: z.instanceof(Uint8Array) })
-      .optional()
+    dropped: z.object({ fileName: z.string(), bytes: z.instanceof(Uint8Array) }).optional()
   })
   .optional()
 
@@ -42,7 +40,9 @@ const FILE_FILTERS = [
   { name: 'All files', extensions: ['*'] }
 ]
 
-async function pickFileBytes(input: unknown): Promise<{ fileName: string; bytes: Uint8Array } | null> {
+async function pickFileBytes(
+  input: unknown
+): Promise<{ fileName: string; bytes: Uint8Array } | null> {
   const parsed = pickFileInputSchema.parse(input)
   if (parsed?.dropped) return parsed.dropped
   if (is.dev && parsed?.filePath) {
@@ -63,7 +63,13 @@ export function registerImportIpc(): void {
     const format = sniffFormat(fileName, text)
     if (format === 'csv') {
       const { headers, rows } = parseCsv(text)
-      return { kind: 'csv', fileName, headers, rows, suggestedMapping: detectCsvMapping(headers, rows) }
+      return {
+        kind: 'csv',
+        fileName,
+        headers,
+        rows,
+        suggestedMapping: detectCsvMapping(headers, rows)
+      }
     }
     const parsed = format === 'ofx' ? parseOfx(text) : parseQif(text)
     return { kind: 'rows', fileName, format, rows: assignExternalIds(parsed) }

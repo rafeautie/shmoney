@@ -17,13 +17,7 @@ import { useSuggestionsUi } from '@/lib/suggestions-ui'
 import { ipcErrorMessage } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle
-} from '@/components/ui/empty'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Switch } from '@/components/ui/switch'
 import {
   Card,
@@ -71,8 +65,10 @@ function describeRule(conditions: RuleConditions, accountName: Map<number, strin
   }
   const date = conditions.date
   if (date) {
-    if (date.after !== undefined) parts.push(`on/after ${format(new Date(date.after * 1000), 'MMM d, yyyy')}`)
-    if (date.before !== undefined) parts.push(`on/before ${format(new Date(date.before * 1000), 'MMM d, yyyy')}`)
+    if (date.after !== undefined)
+      parts.push(`on/after ${format(new Date(date.after * 1000), 'MMM d, yyyy')}`)
+    if (date.before !== undefined)
+      parts.push(`on/before ${format(new Date(date.before * 1000), 'MMM d, yyyy')}`)
     if (date.dayOfMonthMin !== undefined || date.dayOfMonthMax !== undefined) {
       parts.push(`day of month ${date.dayOfMonthMin ?? 1}–${date.dayOfMonthMax ?? 31}`)
     }
@@ -87,8 +83,14 @@ export function RulesSettings(): React.JSX.Element {
   const { open: suggestionsOpen, setOpen: setSuggestionsOpen } = useSuggestionsUi()
 
   const rulesQuery = useQuery({ queryKey: ['rules'], queryFn: () => window.api.rules.list() })
-  const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: () => window.api.categories.list() })
-  const accountsQuery = useQuery({ queryKey: ['accounts'], queryFn: () => window.api.accounts.list() })
+  const categoriesQuery = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => window.api.categories.list()
+  })
+  const accountsQuery = useQuery({
+    queryKey: ['accounts'],
+    queryFn: () => window.api.accounts.list()
+  })
   const suggestionsQuery = useQuery({
     queryKey: ['ruleSuggestions'],
     queryFn: () => window.api.ruleSuggestions.list()
@@ -323,17 +325,36 @@ function RuleRow({
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{rule.name}</div>
         <div className="truncate text-xs text-muted-foreground">
-          {conditionText.length > 0 ? `If ${conditionText.join(' and ')} → ${actionText}` : actionText}
+          {conditionText.length > 0
+            ? `If ${conditionText.join(' and ')} → ${actionText}`
+            : actionText}
         </div>
       </div>
       <div className="flex shrink-0 items-center">
-        <Button variant="ghost" size="icon-sm" disabled={isFirst} aria-label="Move up" onClick={onMoveUp}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={isFirst}
+          aria-label="Move up"
+          onClick={onMoveUp}
+        >
           <HugeiconsIcon icon={ArrowUp01Icon} size={14} />
         </Button>
-        <Button variant="ghost" size="icon-sm" disabled={isLast} aria-label="Move down" onClick={onMoveDown}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          disabled={isLast}
+          aria-label="Move down"
+          onClick={onMoveDown}
+        >
           <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
         </Button>
-        <Button variant="ghost" size="icon-sm" aria-label={`Edit rule ${rule.name}`} onClick={onEdit}>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Edit rule ${rule.name}`}
+          onClick={onEdit}
+        >
           <HugeiconsIcon icon={PencilEdit02Icon} size={14} />
         </Button>
         <Button

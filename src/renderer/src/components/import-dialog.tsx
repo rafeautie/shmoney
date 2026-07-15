@@ -84,6 +84,7 @@ export function ImportDialog({
   // a stale file/selection must never carry over into the next import
   useEffect(() => {
     if (!open) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- wholesale reset on reopen is the point; the extra render on a closed->open transition is harmless
     setStep('file')
     setFile(null)
     setMapping(null)
@@ -149,6 +150,7 @@ export function ImportDialog({
     if (!preview.data) return
     const next: Record<string, boolean> = {}
     for (const row of preview.data.rows) next[row.externalId] = row.status === 'new'
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds the user-editable selection once per preview result; deriving it in render would clobber user edits
     setIncluded(next)
   }, [preview.data])
 

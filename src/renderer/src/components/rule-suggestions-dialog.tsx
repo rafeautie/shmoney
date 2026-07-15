@@ -67,8 +67,10 @@ export function RuleSuggestionsDialog({
             <div className="flex flex-col divide-y ">
               {suggestions.map((suggestion) => (
                 <div key={suggestion.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className='w-full'>
-                    <div className="truncate text-sm font-medium max-w-100">{suggestion.descriptionKey}</div>
+                  <div className="w-full">
+                    <div className="truncate text-sm font-medium max-w-100">
+                      {suggestion.descriptionKey}
+                    </div>
                     <div className="truncate text-xs text-muted-foreground">
                       {plural(suggestion.matchCount, 'transaction')} → {suggestion.categoryName}
                     </div>

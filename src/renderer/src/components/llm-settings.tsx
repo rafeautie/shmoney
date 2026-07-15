@@ -6,13 +6,7 @@ import { ipcErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { SettingsGroup, SettingAction } from './settings-controls'
 import { ConfirmDialog } from './confirm-dialog'
 
@@ -60,8 +54,8 @@ export function LlmSettings() {
         <CardTitle className="text-base">Local LLM</CardTitle>
         <CardDescription>
           {MODEL.label}. Downloaded once and stored on this device, then loads into memory
-          automatically the first time an Auto feature, like auto-categorize, needs it. Delete it any
-          time to reclaim the disk space.
+          automatically the first time an Auto feature, like auto-categorize, needs it. Delete it
+          any time to reclaim the disk space.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

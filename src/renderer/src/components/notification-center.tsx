@@ -57,6 +57,9 @@ function IndeterminateArc({ visible }: { visible: boolean }) {
  * between updates eases, and on hide the offset snaps to empty under the opacity
  * fade so finishing doesn't visibly unwind the progress back down to zero.
  */
+/* eslint-disable react-hooks/refs -- previous-value ref: `appearing` must stay true
+   for exactly the first committed frame after visible flips on (see comment above);
+   mirroring it into state would re-render and drop the transition-none frame */
 function ProgressArc({ visible, percent }: { visible: boolean; percent: number }) {
   const offset = visible ? CIRCUMFERENCE * (1 - percent / 100) : CIRCUMFERENCE
   const wasVisible = useRef(visible)
@@ -79,6 +82,7 @@ function ProgressArc({ visible, percent }: { visible: boolean; percent: number }
     />
   )
 }
+/* eslint-enable react-hooks/refs */
 
 /**
  * The navbar entry point: a small circle that is always visible. A running job

@@ -83,10 +83,20 @@ export function detectCsvMapping(headers: string[], rows: string[][]): CsvMappin
   const debitColumn = findColumn(headers, ['debit', 'withdrawal', 'money out'])
   const creditColumn = findColumn(headers, ['credit', 'deposit', 'money in'])
   if (amountColumn !== -1) {
-    return { dateColumn, dateFormat, descriptionColumn, amount: { kind: 'single', column: amountColumn } }
+    return {
+      dateColumn,
+      dateFormat,
+      descriptionColumn,
+      amount: { kind: 'single', column: amountColumn }
+    }
   }
   if (debitColumn !== -1 && creditColumn !== -1) {
-    return { dateColumn, dateFormat, descriptionColumn, amount: { kind: 'debitCredit', debitColumn, creditColumn } }
+    return {
+      dateColumn,
+      dateFormat,
+      descriptionColumn,
+      amount: { kind: 'debitCredit', debitColumn, creditColumn }
+    }
   }
   return null
 }

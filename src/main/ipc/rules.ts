@@ -7,10 +7,7 @@ import type { RuleRow } from '../db/schema'
 import { recordAction } from './action-log'
 import { transactionDate } from './transactions-page'
 import { compileConditions } from '../rules'
-import {
-  idSchema,
-  type ActionChange
-} from '@shared/ipc'
+import { idSchema, type ActionChange } from '@shared/ipc'
 import {
   RULES_IPC,
   ruleActionSchema,
@@ -89,7 +86,12 @@ function loadApplicableRules(tx: Tx): Rule[] {
   const wanted = [...new Set(all.map((r) => r.action.categoryId))]
   if (wanted.length === 0) return all
   const existing = new Set(
-    tx.select({ id: categories.id }).from(categories).where(inArray(categories.id, wanted)).all().map((c) => c.id)
+    tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(inArray(categories.id, wanted))
+      .all()
+      .map((c) => c.id)
   )
   return all.filter((r) => {
     if (existing.has(r.action.categoryId)) return true
@@ -138,7 +140,10 @@ function eligibility(overrideCategories: boolean): SQL {
  */
 export function applyRulesInTx(
   tx: Tx,
-  { overrideCategories = false, scope }: { overrideCategories?: boolean; scope?: RuleApplyScope } = {}
+  {
+    overrideCategories = false,
+    scope
+  }: { overrideCategories?: boolean; scope?: RuleApplyScope } = {}
 ): RulesApplyResult {
   const base = baseFilter(scope)
   const claimed = new Set<number>()
@@ -167,14 +172,12 @@ export function applyRulesInTx(
     recordAction(tx, {
       source: 'rule',
       label: `Rule "${rule.name}" categorized ${plural(ids.length, 'transaction')}`,
-      changes: changed.map(
-        (r): ActionChange => ({
-          transactionId: r.id,
-          field: 'categoryId',
-          before: r.categoryId ?? null,
-          after: categoryId
-        })
-      )
+      changes: changed.map((r): ActionChange => ({
+        transactionId: r.id,
+        field: 'categoryId',
+        before: r.categoryId ?? null,
+        after: categoryId
+      }))
     })
     categorized += ids.length
     rulesFired++
@@ -222,14 +225,21 @@ function previewRules(tx: Tx, overrideCategories = false): RulePreview {
       .all()
       .map((r) => [r.id, r])
   )
-  const categoryName = new Map(tx.select().from(categories).all().map((c) => [c.id, c.name]))
+  const categoryName = new Map(
+    tx
+      .select()
+      .from(categories)
+      .all()
+      .map((c) => [c.id, c.name])
+  )
 
   return groups.flatMap((g) => {
     const targetCategoryName = categoryName.get(g.rule.action.categoryId) ?? null
     const txns: RulePreviewTransaction[] = g.rows.flatMap((r) => {
       const c = context.get(r.id)
       if (!c) return []
-      const currentCategoryName = r.categoryId !== null ? categoryName.get(r.categoryId) ?? null : null
+      const currentCategoryName =
+        r.categoryId !== null ? (categoryName.get(r.categoryId) ?? null) : null
       return [{ ...c, targetCategoryName, currentCategoryName }]
     })
     if (txns.length === 0) return []
@@ -245,7 +255,10 @@ export function registerRulesIpc(): void {
     const now = nowSec()
     return db.transaction((tx) => {
       const next =
-        tx.select({ v: sql<number>`coalesce(max(${rules.priority}), -1)` }).from(rules).get()?.v ?? -1
+        tx
+          .select({ v: sql<number>`coalesce(max(${rules.priority}), -1)` })
+          .from(rules)
+          .get()?.v ?? -1
       const row = tx
         .insert(rules)
         .values({ name, conditions, action, priority: next + 1, createdAt: now, updatedAt: now })

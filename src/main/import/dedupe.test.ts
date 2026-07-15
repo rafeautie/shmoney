@@ -40,7 +40,11 @@ describe('assignExternalIds', () => {
   })
 
   it('rows differing in amount or day hash differently', () => {
-    const [a, b, c] = assignExternalIds([row(), row({ amount: -4600 }), row({ posted: DAY + 86400 })])
+    const [a, b, c] = assignExternalIds([
+      row(),
+      row({ amount: -4600 }),
+      row({ posted: DAY + 86400 })
+    ])
     expect(new Set([a.externalId, b.externalId, c.externalId]).size).toBe(3)
   })
 })

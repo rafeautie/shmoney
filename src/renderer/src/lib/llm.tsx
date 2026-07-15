@@ -42,6 +42,7 @@ export function useLlmDownloadProgress(): LlmDownloadProgress | null {
   useEffect(() => window.api.llm.onDownloadProgress(setProgress), [])
   // clear between downloads so a later one doesn't flash the previous final value
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets push-fed state when the run ends; there is no render-derivable source for it
     if (!downloading) setProgress(null)
   }, [downloading])
 

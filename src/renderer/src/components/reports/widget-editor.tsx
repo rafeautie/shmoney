@@ -243,8 +243,8 @@ export function WidgetEditor({
                 widget={previewWidget}
                 reportFilters={reportFilters}
                 editing={false}
-                onEdit={() => { }}
-                onDelete={() => { }}
+                onEdit={() => {}}
+                onDelete={() => {}}
               />
             </div>
 

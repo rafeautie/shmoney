@@ -163,9 +163,7 @@ T-5.00
 PMINCE PIES
 ^`
     const rows = parseQif(qif)
-    expect(rows).toEqual([
-      { posted: noon(2023, 11, 25), amount: -5000, description: 'MINCE PIES' }
-    ])
+    expect(rows).toEqual([{ posted: noon(2023, 11, 25), amount: -5000, description: 'MINCE PIES' }])
   })
 
   it("handles Quicken apostrophe years (12/25'04)", () => {

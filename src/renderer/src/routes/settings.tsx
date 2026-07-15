@@ -17,7 +17,9 @@ function SettingsPage() {
     <Page className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Settings</h2>
-        <p className="text-muted-foreground">Manage your connection, categories, rules, and privacy.</p>
+        <p className="text-muted-foreground">
+          Manage your connection, categories, rules, and privacy.
+        </p>
       </div>
 
       <ConnectionSettings />

@@ -27,13 +27,23 @@ export function assignExternalIds(rows: ParsedRow[]): NormalizedImportRow[] {
   const seen = new Map<string, number>()
   return rows.map((row) => {
     if (row.fitid !== undefined) {
-      return { posted: row.posted, amount: row.amount, description: row.description, externalId: `import:fitid:${row.fitid}` }
+      return {
+        posted: row.posted,
+        amount: row.amount,
+        description: row.description,
+        externalId: `import:fitid:${row.fitid}`
+      }
     }
     const key = `${localDay(row.posted)}|${row.amount}|${normalizeDescription(row.description)}`
     const n = seen.get(key) ?? 0
     seen.set(key, n + 1)
     const hash = createHash('sha256').update(key).digest('hex')
-    return { posted: row.posted, amount: row.amount, description: row.description, externalId: `import:h1:${hash}:${n}` }
+    return {
+      posted: row.posted,
+      amount: row.amount,
+      description: row.description,
+      externalId: `import:h1:${hash}:${n}`
+    }
   })
 }
 

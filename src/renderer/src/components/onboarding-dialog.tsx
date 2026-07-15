@@ -370,7 +370,13 @@ function FeatureItem({
   )
 }
 
-function Callout({ icon, children }: { icon: IconType; children: React.ReactNode }): React.JSX.Element {
+function Callout({
+  icon,
+  children
+}: {
+  icon: IconType
+  children: React.ReactNode
+}): React.JSX.Element {
   return (
     <div className="flex gap-2.5 rounded-lg border bg-muted/40 p-3">
       <HugeiconsIcon icon={icon} size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
@@ -379,7 +385,13 @@ function Callout({ icon, children }: { icon: IconType; children: React.ReactNode
   )
 }
 
-function NumberedItem({ n, children }: { n: number; children: React.ReactNode }): React.JSX.Element {
+function NumberedItem({
+  n,
+  children
+}: {
+  n: number
+  children: React.ReactNode
+}): React.JSX.Element {
   return (
     <li className="flex gap-2.5">
       <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[0.65rem] font-medium text-muted-foreground">

@@ -91,9 +91,7 @@ describe('normalizeCsvRows', () => {
   it('normalizes rows to unix seconds and milliunits', () => {
     const { rows, errors } = normalizeCsvRows([['1/15/2024', ' COFFEE ', '-4.50']], mapping)
     expect(errors).toEqual([])
-    expect(rows).toEqual([
-      { posted: noon(2024, 0, 15), amount: -4500, description: 'COFFEE' }
-    ])
+    expect(rows).toEqual([{ posted: noon(2024, 0, 15), amount: -4500, description: 'COFFEE' }])
   })
 
   it('reports unparseable rows with 1-based line numbers and keeps going', () => {

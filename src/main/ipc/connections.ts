@@ -303,9 +303,9 @@ export function registerConnectionsIpc(): void {
 
   // stored balances stay raw as synced; the invert override is applied here at
   // read time so every consumer (detail page, list, net worth) sees the fix
-  function applyInvert<T extends { invertBalance: boolean; balance: number; availableBalance: number | null }>(
-    a: T
-  ): T {
+  function applyInvert<
+    T extends { invertBalance: boolean; balance: number; availableBalance: number | null }
+  >(a: T): T {
     if (!a.invertBalance) return a
     return {
       ...a,

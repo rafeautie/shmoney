@@ -35,6 +35,7 @@ export function RulesPreviewDialog({
   // so a destructive choice never silently carries over to the next apply
   const [overrideCategories, setOverrideCategories] = useState(false)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate reset on reopen; the extra render on a closed->open transition is harmless
     if (open) setOverrideCategories(false)
   }, [open])
 
@@ -111,7 +112,11 @@ export function RulesPreviewDialog({
               Cancel
             </Button>
             <Button disabled={total === 0 || apply.isPending} onClick={() => apply.mutate()}>
-              {apply.isPending ? 'Applying…' : total === 0 ? 'Nothing to apply' : `Apply to ${total}`}
+              {apply.isPending
+                ? 'Applying…'
+                : total === 0
+                  ? 'Nothing to apply'
+                  : `Apply to ${total}`}
             </Button>
           </div>
         </DialogFooter>
@@ -151,7 +156,9 @@ function PreviewGroup({ group }: { group: RulePreviewGroup }): React.JSX.Element
             <TableCell className="whitespace-nowrap text-muted-foreground">
               {t.date ? format(new Date(t.date * 1000), 'MMM d') : '—'}
             </TableCell>
-            <TableCell className="whitespace-nowrap text-muted-foreground">{t.accountName}</TableCell>
+            <TableCell className="whitespace-nowrap text-muted-foreground">
+              {t.accountName}
+            </TableCell>
             <TableCell className="max-w-0 truncate">{t.description}</TableCell>
             <TableCell className="text-right whitespace-nowrap">
               <Amount value={t.amount} currency={t.currency} />
@@ -159,7 +166,9 @@ function PreviewGroup({ group }: { group: RulePreviewGroup }): React.JSX.Element
             <TableCell className="whitespace-nowrap">
               {t.currentCategoryName && t.currentCategoryName !== t.targetCategoryName ? (
                 <span>
-                  <span className="text-muted-foreground line-through">{t.currentCategoryName}</span>
+                  <span className="text-muted-foreground line-through">
+                    {t.currentCategoryName}
+                  </span>
                   {' → '}
                   {t.targetCategoryName ?? '—'}
                 </span>

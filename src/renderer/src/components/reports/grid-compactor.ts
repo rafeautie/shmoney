@@ -225,8 +225,7 @@ function applySwap(items: LayoutItem[], a: LayoutItem, active: ActiveGridOperati
       0,
       Math.min(a[axis] + a[size], cand[axis] + cand[size]) - Math.max(a[axis], cand[axis])
     )
-    const beyond =
-      dir > 0 ? a[axis] + a[size] > cand[axis] + cand[size] : a[axis] < cand[axis]
+    const beyond = dir > 0 ? a[axis] + a[size] > cand[axis] + cand[size] : a[axis] < cand[axis]
     const engaged = overlap >= Math.min(a[size], cand[size]) / 2
     const held = active.swapWith.includes(cand.i) && overlap > 0
     if (beyond || engaged || held) walk.push(cand)

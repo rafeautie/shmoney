@@ -191,7 +191,9 @@ async function handleUnload(): Promise<null> {
 
 // The worker protocol carries the schema as a plain object so the manager needn't
 // import node-llama-cpp; cast to the library's schema type here.
-async function compileGrammar(schema: object) {
+type CompiledGrammar = Awaited<ReturnType<Llama['createGrammarForJsonSchema']>>
+
+async function compileGrammar(schema: object): Promise<CompiledGrammar> {
   const llamaInstance = await ensureLlama()
   return llamaInstance.createGrammarForJsonSchema(
     schema as Parameters<Llama['createGrammarForJsonSchema']>[0]

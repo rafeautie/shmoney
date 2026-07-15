@@ -149,7 +149,7 @@ export function DateRangeControl({
                   ),
                   end: Math.floor(
                     new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59).getTime() /
-                    1000
+                      1000
                   )
                 })
               }}

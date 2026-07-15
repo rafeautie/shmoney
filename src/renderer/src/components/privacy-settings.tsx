@@ -13,7 +13,11 @@ export function PrivacySettings() {
       </CardHeader>
       <CardContent>
         <SettingsGroup>
-          <SettingToggle label="Blur amounts" checked={blurAmounts} onCheckedChange={setBlurAmounts} />
+          <SettingToggle
+            label="Blur amounts"
+            checked={blurAmounts}
+            onCheckedChange={setBlurAmounts}
+          />
         </SettingsGroup>
       </CardContent>
     </Card>

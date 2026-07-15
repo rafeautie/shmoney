@@ -81,6 +81,7 @@ export function useNotify(): Notify {
   const { push } = useStore()
   return useMemo(() => {
     const notify = ((title, options) => push({ title, variant: 'default', ...options })) as Notify
+    // eslint-disable-next-line react-hooks/immutability -- construction of the callable-with-method shape inside the memo, not a mutation of shared state
     notify.error = (title, options) => push({ title, variant: 'error', ...options })
     return notify
   }, [push])

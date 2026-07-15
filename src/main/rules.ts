@@ -58,7 +58,9 @@ function amountPredicate(cond: RuleAmountCondition): SQL {
       break
     case 'between':
       // value2 presence guaranteed by the schema refine
-      parts.push(sql`${magnitude} >= ${cond.value} and ${magnitude} <= ${cond.value2 ?? cond.value}`)
+      parts.push(
+        sql`${magnitude} >= ${cond.value} and ${magnitude} <= ${cond.value2 ?? cond.value}`
+      )
       break
   }
   return and(...parts)!

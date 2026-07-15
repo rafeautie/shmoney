@@ -9,8 +9,10 @@ import {
   InputGroupText
 } from '@/components/ui/input-group'
 
-interface NumberInputProps
-  extends Omit<React.ComponentProps<'input'>, 'value' | 'onChange' | 'prefix' | 'type'> {
+interface NumberInputProps extends Omit<
+  React.ComponentProps<'input'>,
+  'value' | 'onChange' | 'prefix' | 'type'
+> {
   /** raw text, so callers keep their own parsing/validation */
   value: string
   onValueChange: (value: string) => void
@@ -68,8 +70,18 @@ export function NumberInput({
       />
       <InputGroupAddon align="inline-end" className="cursor-default gap-0 py-0 pr-1">
         <div className="flex flex-col">
-          <StepperButton label="Increase" icon={ArrowUp01Icon} disabled={disabled} onClick={() => nudge(1)} />
-          <StepperButton label="Decrease" icon={ArrowDown01Icon} disabled={disabled} onClick={() => nudge(-1)} />
+          <StepperButton
+            label="Increase"
+            icon={ArrowUp01Icon}
+            disabled={disabled}
+            onClick={() => nudge(1)}
+          />
+          <StepperButton
+            label="Decrease"
+            icon={ArrowDown01Icon}
+            disabled={disabled}
+            onClick={() => nudge(-1)}
+          />
         </div>
       </InputGroupAddon>
     </InputGroup>

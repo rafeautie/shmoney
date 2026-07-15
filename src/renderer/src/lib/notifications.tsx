@@ -26,6 +26,7 @@ function useCancelable(
 ): { canceling: boolean; cancel: () => void } {
   const [canceling, setCanceling] = useState(false)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clears the transient "Cancelling…" flag when the run actually ends
     if (!active) setCanceling(false)
   }, [active])
   return {
@@ -69,6 +70,7 @@ function useCategorizeNotification(): Notification | null {
   useEffect(() => window.api.llm.onCategorizeProgress(setProgress), [])
   // drop a finished run's final numbers so the next run opens on "Loading model…"
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets push-fed state when the run ends; there is no render-derivable source for it
     if (!running) setProgress(null)
   }, [running])
 

@@ -7,6 +7,16 @@ export default tseslint.config(
   { ignores: ['**/node_modules', '**/out', '**/dist', '**/drizzle', '**/*.gen.ts'] },
   tseslint.configs.recommended,
   {
+    rules: {
+      // an underscore prefix marks a deliberately unused binding (e.g. omitting a
+      // field via destructuring rest, or an interface-mandated parameter)
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }
+      ]
+    }
+  },
+  {
     files: ['src/renderer/**/*.{ts,tsx}'],
     plugins: {
       'react-hooks': reactHooks,
@@ -35,6 +45,14 @@ export default tseslint.config(
     // TanStack Router route files pass their component via `component:` rather than
     // exporting it directly, which this rule's static analysis can't follow.
     files: ['src/renderer/src/routes/**/*.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off'
+    }
+  },
+  {
+    // lib modules bundle hooks, stores, and providers together by design; they are
+    // not fast-refresh boundaries, so the component-only export rule doesn't apply.
+    files: ['src/renderer/src/lib/**/*.{ts,tsx}'],
     rules: {
       'react-refresh/only-export-components': 'off'
     }

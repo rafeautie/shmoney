@@ -67,6 +67,7 @@ export function ReportGrid({
   const { width, containerRef, mounted } = useSettledContainerWidth(150)
 
   const activeOpRef = useRef<ActiveGridOperation | null>(null)
+  // eslint-disable-next-line react-hooks/refs -- the compactor only dereferences the ref inside react-grid-layout callbacks (drag/resize), never during render
   const compactor = useMemo(() => createReportCompactor(activeOpRef), [])
   const beginOperation = useCallback(
     (kind: ActiveGridOperation['kind']) => (opLayout: Layout, oldItem: LayoutItem | null) => {

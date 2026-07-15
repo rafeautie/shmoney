@@ -90,11 +90,7 @@ function DebugPage() {
         isFetching={settings.isLoading}
         error={settings.error}
       />
-      <JsonCard
-        title="Environment"
-        description="Renderer mode and runtime versions."
-        data={env}
-      />
+      <JsonCard title="Environment" description="Renderer mode and runtime versions." data={env} />
     </Page>
   )
 }
