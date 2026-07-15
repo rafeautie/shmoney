@@ -40,3 +40,9 @@ Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and 
 ## 🚧 Status
 
 shmoney is under active development and has not reached a stable release. The database schema may change between versions.
+
+## 📜 License
+
+shmoney is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). You are free to use, modify, and share it for any noncommercial purpose; commercial use is not permitted. If you are interested in a commercial license, open an issue.
+
+The shmoney name and logo are not covered by the license: forks and derived works must use a different name and logo.

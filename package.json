@@ -1,9 +1,15 @@
 {
   "name": "shmoney",
   "version": "0.1.0",
-  "description": "Electron + React + TypeScript desktop app",
+  "description": "Local-first personal finance desktop app: accounts, budgets, reports, and on-device AI categorization",
   "main": "./out/main/index.js",
-  "author": "shmoney",
+  "author": "Rafe Autie",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "homepage": "https://github.com/rafeautie/shmoney",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rafeautie/shmoney.git"
+  },
   "private": true,
   "type": "module",
   "scripts": {
