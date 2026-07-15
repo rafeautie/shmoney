@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # postinstall runs `electron-builder install-app-deps`, rebuilding
+      # better-sqlite3 / node-llama-cpp against the packaged Electron
+      - run: npm ci
+
+      # latest.yml takes its version from package.json, not the tag; a mismatch
+      # would publish a release that updaters resolve to the wrong version
+      - name: Verify tag matches package.json version
+        shell: bash
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "v$PKG_VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+      - run: npm run build
+
+      # uploads the setup exe, its blockmap, and latest.yml to a draft release;
+      # publishing the draft in the GitHub UI is the final release gate
+      - name: Package and publish
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

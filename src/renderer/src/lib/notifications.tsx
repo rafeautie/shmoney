@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useIsMutating } from '@tanstack/react-query'
 import { LLM_MODEL, type CategorizeProgress } from '@shared/llm'
 import { CATEGORIZE_MUTATION_KEY, useLlmDownloadProgress, useLlmStatus } from '@/lib/llm'
+import { useUpdateState } from '@/lib/updates'
 
 export interface Notification {
   id: string
@@ -17,6 +18,7 @@ export interface Notification {
 }
 
 function formatBytes(bytes: number): string {
+  if (bytes < 1_000_000_000) return `${Math.round(bytes / 1_000_000)} MB`
   return `${(bytes / 1_000_000_000).toFixed(1)} GB`
 }
 
@@ -98,13 +100,30 @@ function useCategorizeNotification(): Notification | null {
   }
 }
 
+function useUpdateDownloadNotification(): Notification | null {
+  const state = useUpdateState().data
+  if (state?.status !== 'downloading') return null
+  return {
+    id: 'app-update',
+    title: state.version ? `Downloading update v${state.version}` : 'Downloading update',
+    percent: state.progress?.percent ?? null,
+    detail: state.progress
+      ? `${formatBytes(state.progress.transferred)} / ${formatBytes(state.progress.total)}`
+      : 'Starting download…',
+    // no cancel: electron-updater has no clean cancel, and the download is silent anyway
+    canceling: false
+  }
+}
+
 /**
  * The in-flight background jobs the navbar notification center shows — currently
- * the model download and an auto-categorize run. Each is a global singleton, so
- * this observes their existing status/mutation signals rather than owning them.
+ * the model download, an auto-categorize run, and an app-update download. Each is
+ * a global singleton, so this observes their existing status/mutation signals
+ * rather than owning them.
  */
 export function useNotifications(): Notification[] {
   const download = useDownloadNotification()
   const categorize = useCategorizeNotification()
-  return [download, categorize].filter((n): n is Notification => n !== null)
+  const update = useUpdateDownloadNotification()
+  return [download, categorize, update].filter((n): n is Notification => n !== null)
 }

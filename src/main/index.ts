@@ -16,6 +16,7 @@ import { registerStorageIpc } from './ipc/storage'
 import { registerImportIpc } from './ipc/import'
 import { registerWindowIpc } from './ipc/window'
 import { registerLlmIpc } from './ipc/llm'
+import { registerUpdatesIpc, startUpdateChecks } from './ipc/updates'
 import { registerDebugIpc } from './ipc/debug'
 import { IPC } from '@shared/ipc'
 import icon from '../../build/icon.png?asset'
@@ -73,37 +74,54 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
-  electronApp.setAppUserModelId('com.shmoney.app')
-
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
+// single instance: a second launch exits immediately and hands focus to the
+// running one — two instances would race on the SQLite file, and NSIS can't
+// cleanly replace a running app during an update
+if (!app.requestSingleInstanceLock()) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) {
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
   })
 
-  runMigrations()
-  registerConnectionsIpc()
-  registerCategoriesIpc()
-  registerTransactionsIpc()
-  registerActionLogIpc()
-  registerReportsIpc()
-  registerBudgetsIpc()
-  registerSavedFiltersIpc()
-  registerRulesIpc()
-  registerRuleSuggestionsIpc()
-  registerSettingsIpc()
-  registerStorageIpc()
-  registerImportIpc()
-  registerWindowIpc()
-  registerLlmIpc()
-  // dev-only diagnostics for the Debug page; never registered in production builds
-  if (is.dev) registerDebugIpc()
+  app.whenReady().then(() => {
+    electronApp.setAppUserModelId('com.shmoney.app')
 
-  createWindow()
+    app.on('browser-window-created', (_, window) => {
+      optimizer.watchWindowShortcuts(window)
+    })
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    runMigrations()
+    registerConnectionsIpc()
+    registerCategoriesIpc()
+    registerTransactionsIpc()
+    registerActionLogIpc()
+    registerReportsIpc()
+    registerBudgetsIpc()
+    registerSavedFiltersIpc()
+    registerRulesIpc()
+    registerRuleSuggestionsIpc()
+    registerSettingsIpc()
+    registerStorageIpc()
+    registerImportIpc()
+    registerWindowIpc()
+    registerLlmIpc()
+    registerUpdatesIpc()
+    // dev-only diagnostics for the Debug page; never registered in production builds
+    if (is.dev) registerDebugIpc()
+
+    createWindow()
+    startUpdateChecks()
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
   })
-})
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

@@ -42,4 +42,9 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
-publish: null
+# also emits resources/app-update.yml, which electron-updater needs at runtime;
+# local builds never publish (no token in env) — CI passes --publish always
+publish:
+  provider: github
+  owner: rafeautie
+  repo: shmoney

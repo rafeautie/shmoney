@@ -79,6 +79,7 @@ import {
   type ImportPreviewInput,
   type PickFileResult
 } from '@shared/import'
+import { UPDATES_IPC, type UpdateState } from '@shared/updates'
 import {
   BUDGETS_IPC,
   type BudgetRemoveInput,
@@ -263,6 +264,19 @@ const api = {
         callback(progress)
       ipcRenderer.on(LLM_IPC.categorizeProgress, listener)
       return () => ipcRenderer.removeListener(LLM_IPC.categorizeProgress, listener)
+    }
+  },
+  updates: {
+    getState: (): Promise<UpdateState> => ipcRenderer.invoke(UPDATES_IPC.getState),
+    /** Manual check; resolves to the state once the check has started */
+    check: (): Promise<UpdateState> => ipcRenderer.invoke(UPDATES_IPC.check),
+    /** Quit and run the downloaded installer; no-op unless an update is downloaded */
+    quitAndInstall: (): Promise<void> => ipcRenderer.invoke(UPDATES_IPC.quitAndInstall),
+    onStateChanged: (callback: (state: UpdateState) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, state: UpdateState): void =>
+        callback(state)
+      ipcRenderer.on(UPDATES_IPC.stateChanged, listener)
+      return () => ipcRenderer.removeListener(UPDATES_IPC.stateChanged, listener)
     }
   },
   window: {

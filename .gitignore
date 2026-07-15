@@ -13,3 +13,5 @@ release
 src/renderer/src/routeTree.gen.ts
 src/renderer/src/generated/
 .vite
+# local update-flow testing (see docs/RELEASING.md)
+dev-app-update.yml

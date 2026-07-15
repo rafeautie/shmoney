@@ -12,6 +12,7 @@ import { Progress } from '@/components/ui/progress'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useLlmStatus } from '@/lib/llm'
+import { useUpdateState } from '@/lib/updates'
 import { useNotifications, type Notification } from '@/lib/notifications'
 import { useNotify, useNotifyStore, type Message } from '@/lib/notify-store'
 
@@ -273,6 +274,24 @@ function useDownloadCompleteNotice() {
   }, [stage, notify])
 }
 
+/** Fires the "restart to update" message when an app-update download finishes.
+ * The initial undefined → 'downloaded' transition fires too, on purpose: it
+ * covers a download that completed before this mounted. */
+function useUpdateReadyNotice() {
+  const state = useUpdateState().data
+  const notify = useNotify()
+  const prev = useRef(state?.status)
+  useEffect(() => {
+    if (state?.status === 'downloaded' && prev.current !== 'downloaded') {
+      notify(state.version ? `Update ready — v${state.version}` : 'Update ready', {
+        description: 'Restart shmoney to finish installing.',
+        action: { label: 'Restart', onClick: () => void window.api.updates.quitAndInstall() }
+      })
+    }
+    prev.current = state?.status
+  }, [state, notify])
+}
+
 /** Surfaces new rule suggestions: a message whose action opens the suggestions
  * dialog on the settings page. The durable copy lives in the settings card. */
 function useRuleSuggestionNotice() {
@@ -305,6 +324,7 @@ function useRuleSuggestionNotice() {
  */
 export function NotificationCenter() {
   useDownloadCompleteNotice()
+  useUpdateReadyNotice()
   useRuleSuggestionNotice()
   const jobs = useNotifications()
   const { messages, markAllSeen, pruneSeen } = useNotifyStore()
