@@ -1,8 +1,10 @@
 // Runs as a dedicated Electron utilityProcess. This is the ONLY file that
 // imports node-llama-cpp: the main process and renderer never touch it
 // directly, so a crash or heavy generation here can't take down the UI.
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
+import { pipeline } from 'node:stream/promises'
 import {
   getLlama,
   createModelDownloader,
@@ -109,6 +111,22 @@ async function handleDownload(): Promise<null> {
     }
   } finally {
     activeDownload = null
+  }
+
+  // Verify the finished file against the pinned hash before ever reporting it
+  // as downloaded; a mismatched file (corrupted or tampered upstream) is
+  // deleted on the spot so it can never be loaded.
+  if (!record.canceled) {
+    const filePath = modelFilePath(LLM_MODEL.fileName)
+    const hash = crypto.createHash('sha256')
+    await pipeline(fs.createReadStream(filePath), hash)
+    const actual = hash.digest('hex')
+    if (actual !== LLM_MODEL.sha256) {
+      await fs.promises.rm(filePath, { force: true })
+      const error = 'Downloaded model failed checksum verification and was deleted'
+      post({ event: 'status', status: { stage: 'error', error } })
+      throw new Error(`${error} (expected ${LLM_MODEL.sha256}, got ${actual})`)
+    }
   }
 
   // A cancel removes the partial file, so the model is back to notDownloaded; a

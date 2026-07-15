@@ -7,6 +7,9 @@ export interface LlmModel {
   hfUri: string
   /** local file name the downloaded model is saved as, in the app's models dir */
   fileName: string
+  /** pinned SHA-256 of the GGUF file; a downloaded file that doesn't match is
+   * rejected and deleted, so a tampered upstream repo can't hand us a model */
+  sha256: string
   /** context window created at load time; the model supports far more, but a
    * small window bounds KV-cache memory for short categorization prompts */
   contextSize: number
@@ -16,6 +19,7 @@ export const LLM_MODEL: LlmModel = {
   label: 'Gemma 4 E2B',
   hfUri: 'hf:giladgd/gemma-4-E2B-it-GGUF:Q6_K',
   fileName: 'gemma-4-E2B-it-qat.gguf',
+  sha256: '42753994ab08613272606e9949cb16709abc4f6ef870ac4462337f32d16e6800',
   contextSize: 4096
 }
 
