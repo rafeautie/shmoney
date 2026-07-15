@@ -8,7 +8,22 @@ permissions:
   contents: write
 
 jobs:
+  # electron-builder races when parallel jobs each look for the draft release
+  # and create their own; pre-creating it gives all platforms one draft to
+  # upload into
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create draft release
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag --title "$GITHUB_REF_NAME"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   release:
+    needs: draft
     strategy:
       fail-fast: false
       matrix:
