@@ -7,6 +7,7 @@ import { registerCategoriesIpc } from './ipc/categories'
 import { registerTransactionsIpc } from './ipc/transactions'
 import { registerActionLogIpc } from './ipc/action-log'
 import { registerReportsIpc } from './ipc/reports'
+import { registerBudgetsIpc } from './ipc/budgets'
 import { registerSavedFiltersIpc } from './ipc/saved-filters'
 import { registerRulesIpc } from './ipc/rules'
 import { registerRuleSuggestionsIpc } from './ipc/rule-suggestions'
@@ -67,6 +68,7 @@ app.whenReady().then(() => {
   registerTransactionsIpc()
   registerActionLogIpc()
   registerReportsIpc()
+  registerBudgetsIpc()
   registerSavedFiltersIpc()
   registerRulesIpc()
   registerRuleSuggestionsIpc()

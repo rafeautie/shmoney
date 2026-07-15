@@ -47,7 +47,8 @@ const TYPE_LABELS: Record<WidgetType, string> = {
   radial: 'Radial chart',
   stat: 'Stat card',
   summaryTable: 'Summary table',
-  transactions: 'Transactions table'
+  transactions: 'Transactions table',
+  budget: 'Budget'
 }
 
 const MEASURE_LABELS = {
@@ -99,6 +100,12 @@ const GROUPED_TYPES: WidgetType[] = ['pie', 'radar', 'radial', 'summaryTable']
 
 function normalizeForType(config: WidgetConfig, type: WidgetType): WidgetConfig {
   const query = { ...config.query }
+  // budget widgets fetch envelope summaries, not aggregates; only the filter
+  // date range matters (it picks the viewed month), so pin the query fields
+  if (type === 'budget') {
+    query.timeGrain = 'none'
+    query.groupBy = 'none'
+  }
   if (NO_TIME_TYPES.includes(type)) query.timeGrain = 'none'
   if ((type === 'line' || type === 'area') && query.timeGrain === 'none') query.timeGrain = 'month'
   if (GROUPED_TYPES.includes(type) && query.groupBy === 'none') {
@@ -167,6 +174,7 @@ export function WidgetEditor({
   const query = config.query
   const filters = config.filters
   const isTransactions = draft.type === 'transactions'
+  const isBudget = draft.type === 'budget'
   const isChart = draft.type === 'line' || draft.type === 'bar' || draft.type === 'area'
   const hasTimeAxis = !NO_TIME_TYPES.includes(draft.type) && query.timeGrain !== 'none'
 
@@ -262,7 +270,7 @@ export function WidgetEditor({
             </div>
 
             {/* data */}
-            {!isTransactions && (
+            {!isTransactions && !isBudget && (
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold">Data</h4>
                 <div className="grid grid-cols-2 gap-3">

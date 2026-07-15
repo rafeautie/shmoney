@@ -71,6 +71,15 @@ import {
   type WidgetLayoutsInput,
   type WidgetUpdateInput
 } from '@shared/reports'
+import {
+  BUDGETS_IPC,
+  type BudgetRemoveInput,
+  type BudgetRemoveResult,
+  type BudgetRestoreInput,
+  type BudgetSetFillInput,
+  type BudgetSummary,
+  type BudgetSummaryQuery
+} from '@shared/budgets'
 
 const api = {
   connection: {
@@ -144,6 +153,18 @@ const api = {
       ipcRenderer.invoke(REPORTS_IPC.runQuery, query),
     transactions: (query: ReportTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(REPORTS_IPC.transactions, query)
+  },
+  budgets: {
+    summary: (query: BudgetSummaryQuery): Promise<BudgetSummary> =>
+      ipcRenderer.invoke(BUDGETS_IPC.summary, query),
+    /** Upsert one month's fill; creating an envelope is the same call */
+    setFill: (input: BudgetSetFillInput): Promise<boolean> =>
+      ipcRenderer.invoke(BUDGETS_IPC.setFill, input),
+    /** Deletes all of a category's fill rows; resolves to the snapshot for undo */
+    remove: (input: BudgetRemoveInput): Promise<BudgetRemoveResult> =>
+      ipcRenderer.invoke(BUDGETS_IPC.remove, input),
+    restore: (input: BudgetRestoreInput): Promise<boolean> =>
+      ipcRenderer.invoke(BUDGETS_IPC.restore, input)
   },
   savedFilters: {
     list: (): Promise<SavedFilter[]> => ipcRenderer.invoke(SAVED_FILTERS_IPC.list),

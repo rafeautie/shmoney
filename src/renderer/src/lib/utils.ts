@@ -62,3 +62,10 @@ export function formatAmount(milliunits: number, currency: string): string {
     return `${value.toFixed(2)} ${currency}`
   }
 }
+
+/** "$12.34" (or plain "12.34") → integer milliunits; null when not a valid amount */
+export function parseDollars(input: string): number | null {
+  const n = Number(input.replace(/[$,\s]/g, ''))
+  if (!Number.isFinite(n) || n < 0) return null
+  return Math.round(n * 1000)
+}

@@ -7,6 +7,9 @@ import {
   ArrowLeftIcon,
   ArrowRightIcon,
   Exchange01Icon,
+  MailOpen01Icon,
+  PiggyBankIcon,
+  RepeatIcon,
   Shield01Icon,
   Tag01Icon,
   Tick02Icon,
@@ -29,7 +32,7 @@ import {
 
 type IconType = React.ComponentProps<typeof HugeiconsIcon>['icon']
 
-const STEP_COUNT = 4
+const STEP_COUNT = 5
 
 /** First-run onboarding. Auto-opens whenever onboarding hasn't been finished or
  * skipped — fresh installs default to not-complete. Users can replay it any time
@@ -84,8 +87,9 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
         <div className="mt-5 flex-1 space-y-4 overflow-y-auto">
           {step === 0 && <WelcomeStep />}
           {step === 1 && <FeaturesStep />}
-          {step === 2 && <SimpleFinStep />}
-          {step === 3 && (
+          {step === 2 && <BudgetsStep />}
+          {step === 3 && <SimpleFinStep />}
+          {step === 4 && (
             <PasteTokenStep
               setupToken={setupToken}
               onChange={setSetupToken}
@@ -191,6 +195,36 @@ function FeaturesStep(): React.JSX.Element {
           Movements between your own accounts stay out of your income and expense totals.
         </FeatureItem>
       </div>
+    </>
+  )
+}
+
+function BudgetsStep(): React.JSX.Element {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Budget with envelopes</DialogTitle>
+        <DialogDescription>
+          The Budget page uses envelope budgeting: decide up front what each kind of spending gets,
+          and always know what's left.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-3">
+        <FeatureItem icon={MailOpen01Icon} title="An envelope per category">
+          Pick the categories you care about and fill each with a set amount every month.
+        </FeatureItem>
+        <FeatureItem icon={RepeatIcon} title="Leftovers roll forward">
+          Spend less than the fill and the rest stays in the envelope, building up for bigger or
+          irregular expenses.
+        </FeatureItem>
+        <FeatureItem icon={PiggyBankIcon} title="Overspending stays visible">
+          Go over and the envelope carries a negative balance into next month, so slips never hide.
+        </FeatureItem>
+      </div>
+      <p className="text-muted-foreground">
+        Find it under <span className="font-medium text-foreground">Budget</span> in the sidebar
+        once your accounts are connected.
+      </p>
     </>
   )
 }

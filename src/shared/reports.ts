@@ -130,7 +130,8 @@ export const widgetTypeSchema = z.enum([
   'radial',
   'stat',
   'summaryTable',
-  'transactions'
+  'transactions',
+  'budget'
 ])
 export type WidgetType = z.infer<typeof widgetTypeSchema>
 

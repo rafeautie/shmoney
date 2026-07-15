@@ -4,6 +4,7 @@ import {
   Activity01Icon,
   Analytics01Icon,
   Bug01Icon,
+  PiggyBankIcon,
   Settings01Icon,
   Wallet01Icon
 } from '@hugeicons/core-free-icons'
@@ -16,6 +17,7 @@ import {
 
 const BASE_NAV_ITEMS = [
   { to: '/accounts', label: 'Accounts', fuzzy: true, icon: Wallet01Icon },
+  { to: '/budget', label: 'Budget', fuzzy: true, icon: PiggyBankIcon },
   { to: '/reports', label: 'Reports', fuzzy: true, icon: Analytics01Icon },
   { to: '/activity', label: 'Activity', fuzzy: false, icon: Activity01Icon },
   { to: '/settings', label: 'Settings', fuzzy: false, icon: Settings01Icon }

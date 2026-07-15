@@ -231,6 +231,24 @@ export const ruleSuggestions = sqliteTable(
   (t) => [uniqueIndex('rule_suggestions_key_category_ux').on(t.descriptionKey, t.categoryId)]
 )
 
+// envelope budgets: sparse per-month fill amounts. The effective fill for month
+// M is the row with the greatest month <= M (inherit-forward); an envelope
+// exists for a category iff it has any row, and starts at its min(month).
+export const budgets = sqliteTable(
+  'budgets',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    categoryId: integer('category_id')
+      .notNull()
+      .references(() => categories.id, { onDelete: 'cascade' }),
+    // 'YYYY-MM', matching the reports month-bucket label
+    month: text('month').notNull(),
+    // integer milliunits, >= 0 (enforced in zod)
+    amount: integer('amount').notNull()
+  },
+  (t) => [uniqueIndex('budgets_category_month_ux').on(t.categoryId, t.month)]
+)
+
 export type ConnectionRow = typeof connections.$inferSelect
 export type AccountRow = typeof accounts.$inferSelect
 export type HoldingRow = typeof holdings.$inferSelect
@@ -244,3 +262,4 @@ export type SettingRow = typeof settings.$inferSelect
 export type ActionLogRow = typeof actionLog.$inferSelect
 export type RuleRow = typeof rules.$inferSelect
 export type RuleSuggestionRow = typeof ruleSuggestions.$inferSelect
+export type BudgetRow = typeof budgets.$inferSelect

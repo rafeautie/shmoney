@@ -1,4 +1,7 @@
 import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { format } from 'date-fns'
 import {
   Area,
   AreaChart,
@@ -28,9 +31,11 @@ import type {
   TimeGrain,
   WidgetConfig
 } from '@shared/reports'
+import type { BudgetSummary } from '@shared/budgets'
 import { cn, formatAmount } from '@/lib/utils'
 import { usePrivacy } from '@/lib/settings'
 import { Amount } from '@/components/amount'
+import { EnvelopeProgressRow } from '@/components/budget/envelope-progress'
 import { TransactionsTable } from '@/components/transactions-table'
 import { Badge } from '@/components/ui/badge'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
@@ -692,6 +697,75 @@ function TransactionsWidget({
   )
 }
 
+// ---------- budget ----------
+
+function BudgetWidget({
+  config,
+  reportFilters
+}: {
+  config: WidgetConfig
+  reportFilters: ReportFilters
+}) {
+  const resolved = useResolvedQuery(config, reportFilters)
+  // show the envelopes for the month the filtered range ends in, so "Last
+  // month" reports budget-match their charts; unbounded ranges mean today
+  const month = format(
+    resolved.filters.dateEnd !== null ? new Date(resolved.filters.dateEnd * 1000) : new Date(),
+    'yyyy-MM'
+  )
+  const query = useQuery({
+    queryKey: ['budget-summary', month],
+    queryFn: () => window.api.budgets.summary({ month }),
+    placeholderData: (prev: BudgetSummary | undefined) => prev
+  })
+
+  if (query.isLoading) return <WidgetSkeleton />
+  if (query.isError) {
+    return <CenteredNote>Failed to load: {String(query.error)}</CenteredNote>
+  }
+  const summary = query.data!
+
+  if (summary.envelopes.length === 0) {
+    return (
+      <Empty className="h-full">
+        <EmptyDescription>
+          No envelopes for {format(new Date(`${month}-01T00:00`), 'MMMM yyyy')}.{' '}
+          <Link to="/budget" className="underline underline-offset-2">
+            Set up your budget
+          </Link>
+        </EmptyDescription>
+      </Empty>
+    )
+  }
+
+  return (
+    <ScrollArea className="h-full min-h-0">
+      <div className="space-y-3 p-4 pt-1">
+        <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+          <span>{format(new Date(`${month}-01T00:00`), 'MMMM yyyy')}</span>
+          <span>
+            <Amount value={summary.totals.balance} currency={summary.currency} colored={false} />{' '}
+            available
+          </span>
+        </div>
+        {summary.envelopes.map((envelope) => (
+          <EnvelopeProgressRow
+            key={envelope.categoryId}
+            envelope={envelope}
+            currency={summary.currency}
+          />
+        ))}
+        {summary.unbudgetedSpent > 0 && (
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>Unbudgeted spending</span>
+            <Amount value={summary.unbudgetedSpent} currency={summary.currency} colored={false} />
+          </div>
+        )}
+      </div>
+    </ScrollArea>
+  )
+}
+
 // ---------- dispatcher ----------
 
 function AggregateWidget({
@@ -774,6 +848,9 @@ export function WidgetRenderer({
     return (
       <TransactionsWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
     )
+  }
+  if (widget.type === 'budget') {
+    return <BudgetWidget config={widget.config} reportFilters={reportFilters} />
   }
   return <AggregateWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
 }

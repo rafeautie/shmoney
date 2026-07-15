@@ -14,7 +14,7 @@ import type {
 
 // bucket labels must match bucketLabelFor() in src/shared/reports.ts exactly,
 // since the renderer zero-fills gaps by enumerating the same labels
-function bucketSql(grain: Exclude<TimeGrain, 'none'>): SQL<string> {
+export function bucketSql(grain: Exclude<TimeGrain, 'none'>): SQL<string> {
   const d = sql`${transactionDate}, 'unixepoch', 'localtime'`
   switch (grain) {
     case 'day':

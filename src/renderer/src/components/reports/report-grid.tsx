@@ -43,7 +43,8 @@ const MIN_SIZES: Record<WidgetType, { minW: number; minH: number }> = {
   radar: { minW: 4, minH: 3 },
   radial: { minW: 4, minH: 3 },
   summaryTable: { minW: 4, minH: 3 },
-  transactions: { minW: 5, minH: 4 }
+  transactions: { minW: 5, minH: 4 },
+  budget: { minW: 4, minH: 3 }
 }
 
 interface ReportGridProps {
