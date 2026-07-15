@@ -1,3 +1,6 @@
+// must stay the first import: redirects dev userData before db/index.ts opens
+// the database at import time
+import './dev-paths'
 import { join } from 'node:path'
 import { app, shell, BrowserWindow } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
