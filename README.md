@@ -23,15 +23,15 @@ Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and 
 
 ## ✨ Features
 
-- 🏦 **Bank sync via SimpleFIN.** Connect with a SimpleFIN token to pull balances, transactions, and investment holdings from your institutions. Sync is idempotent: it never overwrites your categories or resurrects deleted rows, and amounts are stored as integer milliunits to avoid floating-point errors.
-- 📄 **File import.** Import CSV, TSV, OFX, QFX, or QIF exports into manual accounts, with column mapping and duplicate detection. Imported transactions go through the same rules and categorization as synced ones.
-- 🤖 **On-device AI categorization.** An optional local LLM (via llama.cpp) categorizes transactions that rules do not cover. The model is downloaded once from Settings and runs offline. Output is grammar-constrained to valid category IDs, and every run is cancellable and undoable.
-- ⚡ **Rules engine.** Rules match on description, amount, direction, account, and date, and run in priority order on every sync. The app also suggests new rules based on how you categorize manually.
-- ✉️ **Envelope budgeting.** Assign monthly amounts to category envelopes and track what remains as you spend.
-- 📊 **Custom reports.** Drag-and-drop dashboards built from chart, table, and stat widgets, with filtering by date, account, category, direction, amount, and text search. Filters can be saved and reused.
-- 🔁 **Transfer detection.** Equal-and-opposite transactions between your own accounts within a 3-day window are paired and excluded from income and spending totals. Only unambiguous 1:1 matches are marked.
-- ↩️ **Activity log with undo.** Every mutation, whether manual, from a rule, from the AI, or from a detector, is recorded and reversible, including across restarts.
-- 📈 **Investments and net worth.** Per-account holdings with market value and cost basis, and a net worth summary across all accounts, per currency.
+- 🏦 **Bank sync via SimpleFIN.** Pull balances, transactions, and investment holdings without handing over bank credentials.
+- 📄 **File import.** CSV, TSV, OFX, QFX, and QIF, with column mapping and duplicate detection.
+- 🤖 **On-device AI categorization.** An optional local LLM (via llama.cpp) categorizes transactions, fully offline.
+- ⚡ **Rules engine.** Prioritized rules run on every sync; the app suggests new ones from how you categorize.
+- ✉️ **Envelope budgeting.** Assign monthly amounts to category envelopes and track what remains.
+- 📊 **Custom reports.** Drag-and-drop dashboards with chart, table, and stat widgets, plus saved filters.
+- 🔁 **Transfer detection.** Money moved between your own accounts is excluded from income and spending.
+- ↩️ **Activity log with undo.** Every change is recorded and reversible, even across restarts.
+- 📈 **Investments and net worth.** Holdings with market value and cost basis, and per-currency net worth.
 
 ## 🔒 Privacy and data
 
