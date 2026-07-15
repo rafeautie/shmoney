@@ -20,13 +20,8 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText
-} from '@/components/ui/input-group'
 import { Label } from '@/components/ui/label'
+import { NumberInput } from '@/components/ui/number-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, parseDollars } from '@/lib/utils'
 
@@ -161,22 +156,18 @@ export function AddEnvelopeDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="envelope-amount">Monthly fill</Label>
-            <InputGroup>
-              <InputGroupAddon>
-                <InputGroupText>$</InputGroupText>
-              </InputGroupAddon>
-              <InputGroupInput
-                id="envelope-amount"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && canSubmit && category && parsedAmount !== null) {
-                    create.mutate({ categoryId: category.id, month, amount: parsedAmount })
-                  }
-                }}
-              />
-            </InputGroup>
+            <NumberInput
+              id="envelope-amount"
+              placeholder="0.00"
+              prefix="$"
+              value={amount}
+              onValueChange={setAmount}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && canSubmit && category && parsedAmount !== null) {
+                  create.mutate({ categoryId: category.id, month, amount: parsedAmount })
+                }
+              }}
+            />
           </div>
         </div>
         <DialogFooter>

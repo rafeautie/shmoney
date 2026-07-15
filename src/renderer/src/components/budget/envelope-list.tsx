@@ -7,7 +7,7 @@ import type { BudgetSummary, EnvelopeSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
 import { BalanceBadge, EnvelopeBar } from '@/components/budget/envelope-progress'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { NumberInput } from '@/components/ui/number-input'
 import {
   Table,
   TableBody,
@@ -57,7 +57,9 @@ export function EnvelopeList({ summary }: { summary: BudgetSummary }) {
   })
 
   return (
-    <Table>
+    // edge columns drop their outer padding so the table sits flush with the
+    // page content, aligned with the heading and summary cards above
+    <Table className="[&_td:first-child]:pl-0 [&_th:first-child]:pl-0 [&_td:last-child]:pr-0 [&_th:last-child]:pr-0">
       <TableHeader>
         <TableRow>
           <TableHead>Category</TableHead>
@@ -170,16 +172,17 @@ function FillCell({
   }
 
   return (
-    <Input
+    <NumberInput
       autoFocus
+      prefix="$"
       value={draft}
-      onChange={(e) => setDraft(e.target.value)}
+      onValueChange={setDraft}
       onBlur={commit}
       onKeyDown={(e) => {
         if (e.key === 'Enter') commit()
         if (e.key === 'Escape') setEditing(false)
       }}
-      className="h-7 w-24"
+      className="w-28"
     />
   )
 }
