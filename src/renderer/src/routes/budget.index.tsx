@@ -119,9 +119,8 @@ function BudgetPage() {
             </EmptyMedia>
             <EmptyTitle>No envelopes yet</EmptyTitle>
             <EmptyDescription>
-              Create an envelope for each category you want to budget. You fill it with a set amount
-              every month; leftovers roll forward, and overspending carries a negative balance you
-              can see.
+              Budget a monthly amount per category. Leftovers roll forward; overspending carries a
+              negative balance.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
