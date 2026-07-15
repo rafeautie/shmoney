@@ -8,6 +8,7 @@ import {
   DialogTitle,
   DialogTrigger
 } from '@/components/ui/dialog'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import licenses from '@/generated/licenses.json'
 
 // licenses.json is keyed by "name@version"; split on the last @ so scoped
@@ -54,7 +55,7 @@ export function LicensesDialog() {
           View licenses
         </Button>
       </DialogTrigger>
-      <DialogContent className="flex max-h-[80vh] flex-col sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Licenses &amp; credits</DialogTitle>
           <DialogDescription>
@@ -62,13 +63,13 @@ export function LicensesDialog() {
             to each project.
           </DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border">
+        <ScrollArea className="rounded-lg border" viewPortClassName="max-h-[60vh]">
           <div className="divide-y">
             {PACKAGES.map((pkg) => (
               <PackageRow key={`${pkg.name}@${pkg.version}`} pkg={pkg} />
             ))}
           </div>
-        </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   )
