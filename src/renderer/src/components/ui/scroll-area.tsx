@@ -8,16 +8,19 @@ function ScrollArea({
   viewPortClassName,
   children,
   viewportRef,
+  horizontal = false,
   ...props
 }: React.ComponentProps<typeof ScrollAreaPrimitive.Root> & {
   viewportRef?: React.Ref<HTMLDivElement>
   viewPortClassName?: string
+  /** also render a horizontal scrollbar (for wide content like tables) */
+  horizontal?: boolean
 }) {
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area"
       className={cn('relative', className)}
-      type='scroll'
+      type="scroll"
       {...props}
     >
       <ScrollAreaPrimitive.Viewport
@@ -31,6 +34,7 @@ function ScrollArea({
         {children}
       </ScrollAreaPrimitive.Viewport>
       <ScrollBar />
+      {horizontal && <ScrollBar orientation="horizontal" />}
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   )

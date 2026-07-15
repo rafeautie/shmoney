@@ -134,6 +134,13 @@
       "when": 1784072762915,
       "tag": "0018_cool_spirit",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1784088669314,
+      "tag": "0019_normal_mantis",
+      "breakpoints": true
     }
   ]
 }

@@ -12,6 +12,7 @@ import { registerSavedFiltersIpc } from './ipc/saved-filters'
 import { registerRulesIpc } from './ipc/rules'
 import { registerRuleSuggestionsIpc } from './ipc/rule-suggestions'
 import { registerSettingsIpc } from './ipc/settings'
+import { registerImportIpc } from './ipc/import'
 import { registerWindowIpc } from './ipc/window'
 import { registerLlmIpc } from './ipc/llm'
 import { registerDebugIpc } from './ipc/debug'
@@ -73,6 +74,7 @@ app.whenReady().then(() => {
   registerRulesIpc()
   registerRuleSuggestionsIpc()
   registerSettingsIpc()
+  registerImportIpc()
   registerWindowIpc()
   registerLlmIpc()
   // dev-only diagnostics for the Debug page; never registered in production builds

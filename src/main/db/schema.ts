@@ -23,10 +23,12 @@ export const accounts = sqliteTable(
   'accounts',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    connectionId: integer('connection_id')
-      .notNull()
-      .references(() => connections.id, { onDelete: 'cascade' }),
-    simplefinId: text('simplefin_id').notNull(),
+    // null connectionId/simplefinId marks a manual account (created by file
+    // import): sync never touches it and disconnect's cascade leaves it alone
+    connectionId: integer('connection_id').references(() => connections.id, {
+      onDelete: 'cascade'
+    }),
+    simplefinId: text('simplefin_id'),
     institutionName: text('institution_name'),
     name: text('name').notNull(),
     currency: text('currency').notNull(),

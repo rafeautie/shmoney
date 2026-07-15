@@ -133,10 +133,7 @@ function BudgetPage() {
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button onClick={() => setAddOpen(true)}>
-                <HugeiconsIcon icon={Add01Icon} size={16} />
-                Add your first envelope
-              </Button>
+              <Button onClick={() => setAddOpen(true)}>Add your first envelope</Button>
             </EmptyContent>
           </Empty>
         </div>

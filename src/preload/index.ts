@@ -72,6 +72,14 @@ import {
   type WidgetUpdateInput
 } from '@shared/reports'
 import {
+  IMPORT_IPC,
+  type ImportApplyInput,
+  type ImportApplyResult,
+  type ImportPreview,
+  type ImportPreviewInput,
+  type PickFileResult
+} from '@shared/import'
+import {
   BUDGETS_IPC,
   type BudgetRemoveInput,
   type BudgetRemoveResult,
@@ -198,6 +206,23 @@ const api = {
       ipcRenderer.on(RULE_SUGGESTIONS_CREATED, listener)
       return () => ipcRenderer.removeListener(RULE_SUGGESTIONS_CREATED, listener)
     }
+  },
+  import: {
+    /**
+     * Parse a transaction file: `dropped` bytes from drag-and-drop, or (input
+     * omitted) the native open dialog; null when canceled. filePath is a
+     * dev-only bypass.
+     */
+    pickFile: (input?: {
+      filePath?: string
+      dropped?: { fileName: string; bytes: Uint8Array }
+    }): Promise<PickFileResult> => ipcRenderer.invoke(IMPORT_IPC.pickFile, input),
+    /** Dry-run: normalized rows with duplicate statuses; never writes */
+    preview: (input: ImportPreviewInput): Promise<ImportPreview> =>
+      ipcRenderer.invoke(IMPORT_IPC.preview, input),
+    /** Inserts the given rows (skipping id conflicts); undo via the Activity page */
+    apply: (input: ImportApplyInput): Promise<ImportApplyResult> =>
+      ipcRenderer.invoke(IMPORT_IPC.apply, input)
   },
   settings: {
     getAll: (): Promise<Settings> => ipcRenderer.invoke(SETTINGS_IPC.getAll),

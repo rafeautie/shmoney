@@ -33,13 +33,13 @@ import { buildWhere } from '../reports/query'
 const FIRST_SYNC_WINDOW_SECONDS = 90 * 24 * 60 * 60
 const RESYNC_OVERLAP_SECONDS = 7 * 24 * 60 * 60
 
-function detectTransfersEnabled(): boolean {
+export function detectTransfersEnabled(): boolean {
   const row = db.select().from(settings).where(eq(settings.key, 'detectTransfers')).get()
   // default on; only an explicit stored `false` disables it
   return row ? row.value !== false : true
 }
 
-function applyRulesOnSyncEnabled(): boolean {
+export function applyRulesOnSyncEnabled(): boolean {
   const row = db.select().from(settings).where(eq(settings.key, 'applyRulesOnSync')).get()
   // default on; only an explicit stored `false` disables it
   return row ? row.value !== false : true
@@ -57,6 +57,91 @@ function toConnection(row: ConnectionRow): Connection {
 // the app supports a single SimpleFIN connection; oldest row wins if legacy data has more
 function connectionRow(): ConnectionRow | undefined {
   return db.select().from(connections).orderBy(asc(connections.id)).limit(1).get()
+}
+
+// the drizzle transaction handle passed to db.transaction() callbacks
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+// detect transfers (cheap: bucketed by amount) and file them under the
+// Transfers system category. Only uncategorized rows are candidates to flip
+// — a category the user set is never overwritten — but legs already in
+// Transfers still join the candidate pool, so a leg the user marked by hand
+// in an earlier sync completes when its partner shows up now. One 'detector'
+// entry is logged to undo from. Shared by sync and file import; callers gate
+// on detectTransfersEnabled(). Returns the number of pairs detected.
+export function detectAndMarkTransfersInTx(tx: Tx): number {
+  const transfersCategoryId = tx
+    .select({ id: categories.id })
+    .from(categories)
+    .where(eq(categories.systemKey, 'transfers'))
+    .get()?.id
+  if (transfersCategoryId === undefined) return 0
+
+  const candidateColumns = {
+    id: transactions.id,
+    accountId: transactions.accountId,
+    amount: transactions.amount,
+    date: transactionDate
+  }
+  const unmarked = tx
+    .select(candidateColumns)
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.pending, false),
+        isNull(transactions.deletedAt),
+        isNull(transactions.categoryId)
+      )
+    )
+    .all()
+  if (unmarked.length === 0) return 0
+
+  // a marked leg can only pair with an unmarked one within the window, so
+  // only pull marked rows near the unmarked date range — keeps this bounded
+  // as transfer history accumulates rather than re-scanning every past leg
+  let minDate = Infinity
+  let maxDate = -Infinity
+  for (const r of unmarked) {
+    if (r.date < minDate) minDate = r.date
+    if (r.date > maxDate) maxDate = r.date
+  }
+  const marked = tx
+    .select(candidateColumns)
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.pending, false),
+        isNull(transactions.deletedAt),
+        eq(transactions.categoryId, transfersCategoryId),
+        gte(transactionDate, minDate - TRANSFER_WINDOW_SECONDS),
+        lte(transactionDate, maxDate + TRANSFER_WINDOW_SECONDS)
+      )
+    )
+    .all()
+
+  const candidates = [
+    ...unmarked.map((r) => ({ ...r, isTransfer: false })),
+    ...marked.map((r) => ({ ...r, isTransfer: true }))
+  ]
+  const pairs = detectTransferPairs(candidates)
+  const ids = pairs.flatMap((p) => p.toMark)
+  if (ids.length === 0) return 0
+
+  tx.update(transactions)
+    .set({ categoryId: transfersCategoryId })
+    .where(inArray(transactions.id, ids))
+    .run()
+  recordAction(tx, {
+    source: 'detector',
+    label: `Detected ${pairs.length} transfer${pairs.length === 1 ? '' : 's'}`,
+    changes: ids.map((id) => ({
+      transactionId: id,
+      field: 'categoryId',
+      before: null,
+      after: transfersCategoryId
+    }))
+  })
+  return pairs.length
 }
 
 async function syncConnection(): Promise<SyncResult> {
@@ -149,86 +234,7 @@ async function syncConnection(): Promise<SyncResult> {
       }
     }
 
-    // detect transfers (cheap: bucketed by amount) and file them under the
-    // Transfers system category. Only uncategorized rows are candidates to flip
-    // — a category the user set is never overwritten — but legs already in
-    // Transfers still join the candidate pool, so a leg the user marked by hand
-    // in an earlier sync completes when its partner shows up now. One 'detector'
-    // entry is logged to undo from.
-    let detectedTransfers = 0
-    const transfersCategoryId = tx
-      .select({ id: categories.id })
-      .from(categories)
-      .where(eq(categories.systemKey, 'transfers'))
-      .get()?.id
-    if (detectEnabled && transfersCategoryId !== undefined) {
-      const candidateColumns = {
-        id: transactions.id,
-        accountId: transactions.accountId,
-        amount: transactions.amount,
-        date: transactionDate
-      }
-      const unmarked = tx
-        .select(candidateColumns)
-        .from(transactions)
-        .where(
-          and(
-            eq(transactions.pending, false),
-            isNull(transactions.deletedAt),
-            isNull(transactions.categoryId)
-          )
-        )
-        .all()
-
-      if (unmarked.length > 0) {
-        // a marked leg can only pair with an unmarked one within the window, so
-        // only pull marked rows near the unmarked date range — keeps this bounded
-        // as transfer history accumulates rather than re-scanning every past leg
-        let minDate = Infinity
-        let maxDate = -Infinity
-        for (const r of unmarked) {
-          if (r.date < minDate) minDate = r.date
-          if (r.date > maxDate) maxDate = r.date
-        }
-        const marked = tx
-          .select(candidateColumns)
-          .from(transactions)
-          .where(
-            and(
-              eq(transactions.pending, false),
-              isNull(transactions.deletedAt),
-              eq(transactions.categoryId, transfersCategoryId),
-              gte(transactionDate, minDate - TRANSFER_WINDOW_SECONDS),
-              lte(transactionDate, maxDate + TRANSFER_WINDOW_SECONDS)
-            )
-          )
-          .all()
-
-        const candidates = [
-          ...unmarked.map((r) => ({ ...r, isTransfer: false })),
-          ...marked.map((r) => ({ ...r, isTransfer: true }))
-        ]
-        const pairs = detectTransferPairs(candidates)
-        const ids = pairs.flatMap((p) => p.toMark)
-        if (ids.length > 0) {
-          tx.update(transactions)
-            .set({ categoryId: transfersCategoryId })
-            .where(inArray(transactions.id, ids))
-            .run()
-          recordAction(tx, {
-            source: 'detector',
-            label: `Detected ${pairs.length} transfer${pairs.length === 1 ? '' : 's'}`,
-            changes: ids.map((id) => ({
-              transactionId: id,
-              field: 'categoryId',
-              before: null,
-              after: transfersCategoryId
-            }))
-          })
-          detectedTransfers = pairs.length
-        }
-      }
-    }
+    const detectedTransfers = detectEnabled ? detectAndMarkTransfersInTx(tx) : 0
 
     // apply user rules over what's left. The detector runs first (structural,
     // high-confidence pairs); rules fill the remaining untouched rows. Like the

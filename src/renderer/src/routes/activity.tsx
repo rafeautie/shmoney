@@ -155,7 +155,9 @@ function EntryRow({
           </div>
         </CollapsibleTrigger>
         {isAutomated && (
-          <Badge variant="secondary">{entry.source === 'rule' ? 'Rule' : 'Auto'}</Badge>
+          <Badge variant="secondary">
+            {entry.source === 'rule' ? 'Rule' : entry.source === 'import' ? 'Import' : 'Auto'}
+          </Badge>
         )}
         {undone && <Badge variant="outline">Undone</Badge>}
         <Button

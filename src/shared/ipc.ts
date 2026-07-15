@@ -39,8 +39,9 @@ export interface SyncResult extends Connection {
 
 export interface Account {
   id: number
-  connectionId: number
-  simplefinId: string
+  /** null ⇔ manual account created by file import */
+  connectionId: number | null
+  simplefinId: string | null
   institutionName: string | null
   name: string
   currency: string
@@ -185,7 +186,7 @@ export type CategorizeScopeInput = z.infer<typeof categorizeScopeSchema>
 
 // ---------- action log (audit trail + undo/redo) ----------
 
-export type ActionSource = 'user' | 'detector' | 'rule' | 'llm'
+export type ActionSource = 'user' | 'detector' | 'rule' | 'llm' | 'import'
 
 // the transaction columns undo/redo may rewrite. These strings double as the
 // drizzle set-keys in the main-process engine, so they must match schema props.

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -6,6 +6,7 @@ import { BankIcon } from '@hugeicons/core-free-icons'
 import type { Account } from '@shared/ipc'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/auto-categorize-button'
+import { ImportDialog } from '@/components/import-dialog'
 import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
 import { TABLE_BLEED, cn, plural } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -49,14 +50,21 @@ function hasDistinctAvailable(account: Account): boolean {
 }
 
 function AccountsPage() {
+  const [importOpen, setImportOpen] = useState(false)
   return (
     <Tabs defaultValue="accounts" className="flex min-h-0 flex-1 flex-col gap-0">
       <div className="space-y-4 px-6 pt-6 pb-4">
         <div className="flex items-start justify-between gap-4">
           <NetWorth />
-          {/* empty scope → categorize every uncategorized transaction */}
-          <AutoCategorizeButton scope={{}} />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              Import
+            </Button>
+            {/* empty scope → categorize every uncategorized transaction */}
+            <AutoCategorizeButton scope={{}} />
+          </div>
         </div>
+        <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
         <TabsList>
           <TabsTrigger value="accounts">Accounts</TabsTrigger>
           <TabsTrigger value="transactions">All transactions</TabsTrigger>
