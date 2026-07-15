@@ -4,10 +4,9 @@ Releases are built and published to GitHub Releases by CI when a version tag is 
 
 ## Cutting a release
 
-1. `npm version patch` (or `minor` / `major`) — bumps package.json, commits, and creates the `vX.Y.Z` tag. The tag must match package.json; CI fails fast on drift.
-2. `git push --follow-tags`
-3. CI (`.github/workflows/release.yml`) builds the Windows installer and uploads `shmoney-X.Y.Z-setup.exe`, its `.blockmap`, and `latest.yml` to a **draft** release.
-4. Sanity-check the draft's artifacts on GitHub, then click **Publish release**. Updaters ignore drafts, so nothing ships until this step.
+1. `npm run release` (or `release:minor` / `release:major`) — bumps package.json, commits, creates the `vX.Y.Z` tag, and pushes with `--follow-tags`. The tag must match package.json; CI fails fast on drift.
+2. CI (`.github/workflows/release.yml`) builds the Windows installer and uploads `shmoney-X.Y.Z-setup.exe`, its `.blockmap`, and `latest.yml` to a **draft** release.
+3. Sanity-check the draft's artifacts on GitHub, then click **Publish release**. Updaters ignore drafts, so nothing ships until this step.
 
 Installed apps pick the release up on next launch or within 4 hours. If the user ignores the Restart prompt, the update still installs on the next normal quit.
 
