@@ -1,6 +1,5 @@
-import { Link } from '@tanstack/react-router'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { LicensesDialog } from './licenses-dialog'
 import { SettingsGroup, SettingAction } from './settings-controls'
 
 export function AboutSettings() {
@@ -16,9 +15,7 @@ export function AboutSettings() {
             label="Open source licenses"
             description="The open source software shmoney is built with."
           >
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/licenses">View licenses</Link>
-            </Button>
+            <LicensesDialog />
           </SettingAction>
         </SettingsGroup>
       </CardContent>
