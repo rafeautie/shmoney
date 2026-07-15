@@ -5,14 +5,11 @@
 <h1 align="center">shmoney</h1>
 
 <p align="center">
-  <img alt="Electron" src="https://shieldcn.dev/badge/Electron.svg?variant=branded&logo=electron&size=xs" />
-  <img alt="React 19" src="https://shieldcn.dev/badge/React_19.svg?variant=branded&logo=react&size=xs" />
-  <img alt="TypeScript" src="https://shieldcn.dev/badge/TypeScript.svg?variant=branded&logo=typescript&size=xs" />
   <img alt="SQLite" src="https://shieldcn.dev/badge/SQLite.svg?variant=branded&logo=sqlite&size=xs" />
-  <img alt="llama.cpp local AI" src="https://shieldcn.dev/badge/llama.cpp-local_AI.svg?logo=false&color=8A2BE2&size=xs" />
-  <img alt="Windows, macOS, Linux" src="https://shieldcn.dev/badge/Windows_%7C_macOS_%7C_Linux.svg?logo=false&color=31C48D&size=xs" />
-  <a href="https://github.com/rafeautie/shmoney/releases"><img alt="GitHub release" src="https://shieldcn.dev/github/release/rafeautie/shmoney.svg?color=8250df&size=xs" /></a>
-  <a href="LICENSE.md"><img alt="License" src="https://shieldcn.dev/github/license/rafeautie/shmoney.svg?color=2da44e&size=xs" /></a>
+  <img alt="badge" src="https://shieldcn.dev/badge/Local%20LLM-Gemma%204%20E2B-3b82f6.svg?size=xs&amp;font=geist&amp;split=true&amp;logo=false&amp;logoColor=3f89ff&amp;color=3178ec&amp;valueColor=ffffff&amp;labelTextColor=f8f8f8">
+  <img alt="badge" src="https://shieldcn.dev/badge/Windows.svg?variant=destructive&amp;size=xs&amp;font=geist&amp;split=true&amp;logo=ri%3AFaWindows&amp;logoColor=3f89ff&amp;valueColor=ffffff&amp;labelTextColor=f8f8f8&amp;gap=0">
+  <img alt="badge" src="https://shieldcn.dev/badge/MacOS.svg?variant=destructive&amp;size=xs&amp;font=geist&amp;split=true&amp;logo=apple&amp;logoColor=ffffff&amp;valueColor=ffffff&amp;labelTextColor=f8f8f8&amp;gap=0">
+  <img alt="badge" src="https://shieldcn.dev/badge/Linux.svg?variant=destructive&amp;size=xs&amp;font=geist&amp;split=true&amp;logo=ri%3APiLinuxLogo&amp;logoColor=ffffff&amp;valueColor=E95420&amp;labelTextColor=E95420&amp;gap=0">
 </p>
 
 shmoney is a local-first personal finance app for the desktop. It tracks your accounts, transactions, budgets, and investments in a single SQLite database on your own machine. There is no cloud backend, no user account, and no telemetry.
