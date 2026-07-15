@@ -18,6 +18,7 @@ import { registerWindowIpc } from './ipc/window'
 import { registerLlmIpc } from './ipc/llm'
 import { registerDebugIpc } from './ipc/debug'
 import { IPC } from '@shared/ipc'
+import icon from '../../build/icon.png?asset'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -28,6 +29,9 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     titleBarStyle: 'hidden',
+    // packaged Windows/macOS builds take the icon from the executable;
+    // this covers dev mode and Linux
+    icon,
     webPreferences: {
       // sandboxed preloads cannot use ESM, so the preload is built as CJS
       preload: join(__dirname, '../preload/index.cjs'),
