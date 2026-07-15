@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 import {
   ACTION_LOG_IPC,
   IPC,
@@ -276,22 +275,13 @@ const api = {
   debug: {
     // dev-only: the raw SimpleFIN /accounts payload. Rejects in production, where
     // the main-process handler is never registered (see main/ipc/debug).
-    rawAccounts: (): Promise<unknown> => ipcRenderer.invoke(IPC.debugRawAccounts)
+    rawAccounts: (): Promise<unknown> => ipcRenderer.invoke(IPC.debugRawAccounts),
+    versions: { ...process.versions } as Record<string, string | undefined>
   }
 }
 
-if (process.contextIsolated) {
-  try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
-    contextBridge.exposeInMainWorld('api', api)
-  } catch (error) {
-    console.error(error)
-  }
-} else {
-  // @ts-ignore (define in dts, only hit when contextIsolation is disabled)
-  window.electron = electronAPI
-  // @ts-ignore (define in dts, only hit when contextIsolation is disabled)
-  window.api = api
-}
+// The window always runs with contextIsolation enabled (see main/index.ts), so the
+// bridge is the only path; only the curated `api` object is ever exposed.
+contextBridge.exposeInMainWorld('api', api)
 
 export type Api = typeof api

@@ -23,10 +23,18 @@ export default defineConfig({
     }
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    // the sandboxed preload cannot require node_modules, so everything it
+    // imports (via @shared) must be bundled rather than externalized
+    plugins: [externalizeDepsPlugin({ exclude: ['zod', 'date-fns'] })],
     resolve: {
       alias: {
         '@shared': resolve('src/shared')
+      }
+    },
+    build: {
+      rollupOptions: {
+        // sandboxed preload scripts (main/index.ts sets sandbox: true) cannot use ESM
+        output: { format: 'cjs' }
       }
     }
   },

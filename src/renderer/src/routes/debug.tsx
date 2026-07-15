@@ -48,7 +48,7 @@ function DebugPage() {
 
   const env = {
     mode: import.meta.env.MODE,
-    versions: window.electron.process.versions,
+    versions: window.api.debug.versions,
     userAgent: navigator.userAgent
   }
 

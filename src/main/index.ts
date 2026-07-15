@@ -28,8 +28,11 @@ function createWindow(): void {
     autoHideMenuBar: true,
     titleBarStyle: 'hidden',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false
+      // sandboxed preloads cannot use ESM, so the preload is built as CJS
+      preload: join(__dirname, '../preload/index.cjs'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false
     }
   })
 
@@ -45,8 +48,17 @@ function createWindow(): void {
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    // only hand real web links to the OS, never file:/custom-protocol URLs
+    if (details.url.startsWith('https://')) shell.openExternal(details.url)
     return { action: 'deny' }
+  })
+
+  // The app is a local SPA; the page itself must never navigate anywhere else
+  // (dev-server reloads in dev, same-URL reloads in production are the exceptions).
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const devUrl = is.dev && process.env['ELECTRON_RENDERER_URL']
+    const allowed = devUrl ? url.startsWith(devUrl) : url === mainWindow.webContents.getURL()
+    if (!allowed) event.preventDefault()
   })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
