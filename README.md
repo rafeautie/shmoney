@@ -55,7 +55,7 @@ npm run build:win    # packaged installer (also build:mac, build:linux)
 
 ## 🤝 Contributing
 
-Bug reports, ideas, and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Security issues should go through [private vulnerability reporting](SECURITY.md) instead of public issues.
+Bug reports and feature requests are welcome via [GitHub issues](https://github.com/rafeautie/shmoney/issues) — see [CONTRIBUTING.md](CONTRIBUTING.md). Pull requests are not accepted. Security issues should go through [private vulnerability reporting](SECURITY.md) instead of public issues.
 
 ## 📜 License
 

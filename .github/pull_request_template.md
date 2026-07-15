@@ -1,9 +1,5 @@
-## What does this PR do?
+## ⚠️ This project does not accept pull requests
 
-<!-- A short description of the change and why it's needed. Link the issue if one exists. -->
+shmoney is developed and maintained solely by the project owner, and PRs are closed without review — see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-## Checklist
-
-- [ ] `npm run typecheck`, `npm run lint`, and `npm run test` pass locally
-- [ ] Schema changes include a generated migration in `drizzle/` (if applicable)
-- [ ] I agree to the [contribution license terms](../CONTRIBUTING.md#contribution-license-terms)
+If you'd like to contribute, please open a [bug report or feature request](https://github.com/rafeautie/shmoney/issues) instead.
