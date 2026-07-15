@@ -13,7 +13,6 @@ import type { BudgetSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
 import { AddEnvelopeDialog } from '@/components/budget/add-envelope-dialog'
 import { EnvelopeList } from '@/components/budget/envelope-list'
-import { Page } from '@/components/page'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -66,75 +65,83 @@ function BudgetPage() {
   const nextDisabled = !hasEnvelopes || month >= maxMonth
 
   return (
-    <Page className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Budget</h2>
-          <p className="text-muted-foreground">
-            Envelope budgeting: fill each category monthly, and what you don't spend rolls forward.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            disabled={prevDisabled}
-            onClick={() => setMonth((m) => shiftMonth(m, -1))}
-          >
-            <HugeiconsIcon icon={ArrowLeft01Icon} size={16} />
-            <span className="sr-only">Previous month</span>
-          </Button>
-          <span className="w-36 text-center text-sm font-medium">{monthLabel(month)}</span>
-          <Button
-            variant="outline"
-            size="icon"
-            disabled={nextDisabled}
-            onClick={() => setMonth((m) => shiftMonth(m, 1))}
-          >
-            <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
-            <span className="sr-only">Next month</span>
-          </Button>
-          {month !== today && (
-            <Button variant="ghost" onClick={() => setMonth(today)}>
-              Today
+    // full-height flex column so the envelope table can bleed to the app
+    // edges and own its scrolling, like the transactions table
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="space-y-6 px-6 pt-6 pb-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight">Budget</h2>
+            <p className="text-muted-foreground">
+              Envelope budgeting: fill each category monthly, and what you don't spend rolls
+              forward.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={prevDisabled}
+              onClick={() => setMonth((m) => shiftMonth(m, -1))}
+            >
+              <HugeiconsIcon icon={ArrowLeft01Icon} size={16} />
+              <span className="sr-only">Previous month</span>
             </Button>
-          )}
-          <Button onClick={() => setAddOpen(true)}>
-            <HugeiconsIcon icon={Add01Icon} size={16} />
-            Add envelope
-          </Button>
+            <span className="w-36 text-center text-sm font-medium">{monthLabel(month)}</span>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={nextDisabled}
+              onClick={() => setMonth((m) => shiftMonth(m, 1))}
+            >
+              <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+              <span className="sr-only">Next month</span>
+            </Button>
+            {month !== today && (
+              <Button variant="ghost" onClick={() => setMonth(today)}>
+                Today
+              </Button>
+            )}
+            <Button onClick={() => setAddOpen(true)}>
+              <HugeiconsIcon icon={Add01Icon} size={16} />
+              Add envelope
+            </Button>
+          </div>
         </div>
+
+        {summary !== undefined && summary.envelopes.length > 0 && (
+          <SummaryCards summary={summary} />
+        )}
       </div>
 
       {summary === undefined ? (
-        <div className="space-y-4">
+        <div className="space-y-4 px-6">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
       ) : summary.envelopes.length === 0 ? (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={PiggyBankIcon} />
-            </EmptyMedia>
-            <EmptyTitle>No envelopes yet</EmptyTitle>
-            <EmptyDescription>
-              Budget a monthly amount per category. Leftovers roll forward; overspending carries a
-              negative balance.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button onClick={() => setAddOpen(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={16} />
-              Add your first envelope
-            </Button>
-          </EmptyContent>
-        </Empty>
+        <div className="px-6 pb-6">
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HugeiconsIcon icon={PiggyBankIcon} />
+              </EmptyMedia>
+              <EmptyTitle>No envelopes yet</EmptyTitle>
+              <EmptyDescription>
+                Budget a monthly amount per category. Leftovers roll forward; overspending carries a
+                negative balance.
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button onClick={() => setAddOpen(true)}>
+                <HugeiconsIcon icon={Add01Icon} size={16} />
+                Add your first envelope
+              </Button>
+            </EmptyContent>
+          </Empty>
+        </div>
       ) : (
-        <>
-          <SummaryCards summary={summary} />
-          <EnvelopeList summary={summary} />
-        </>
+        <EnvelopeList summary={summary} className="min-h-0 flex-1" />
       )}
 
       <AddEnvelopeDialog
@@ -143,7 +150,7 @@ function BudgetPage() {
         month={month}
         budgetedIds={summary?.envelopes.map((e) => e.categoryId) ?? []}
       />
-    </Page>
+    </div>
   )
 }
 
