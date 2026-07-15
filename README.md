@@ -18,7 +18,7 @@
 
 <p align="center">
   <picture><source media="(prefers-color-scheme: dark)" srcset="https://www.shieldcn.dev/github/release/rafeautie/shmoney.svg?size=xs&amp;mode=dark"><img alt="Release" src="https://www.shieldcn.dev/github/release/rafeautie/shmoney.svg?size=xs&amp;mode=light"></picture>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="https://www.shieldcn.dev/github/ci/rafeautie/shmoney.svg?variant=secondary&amp;size=xs&amp;mode=dark"><img alt="CI" src="https://www.shieldcn.dev/github/ci/rafeautie/shmoney.svg?variant=secondary&amp;size=xs&amp;mode=light"></picture>
+  <a href="https://github.com/rafeautie/shmoney/actions"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=light"></picture></a>
 </p>
 
 shmoney is a local-first personal finance app for the desktop. It tracks your accounts, transactions, budgets, and investments in a single SQLite database on your own machine. There is no cloud backend, no user account, and no telemetry.
