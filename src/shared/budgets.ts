@@ -6,10 +6,8 @@ export const BUDGETS_IPC = {
   summary: 'budgets:summary',
   // upsert of a month's fill; also how an envelope is created
   setFill: 'budgets:setFill',
-  // deletes every fill row for the category; returns them for undo
-  remove: 'budgets:remove',
-  // undo of remove: re-inserts a removed envelope's fill rows
-  restore: 'budgets:restore'
+  // deletes every fill row for the category; returns the action-log id for undo
+  remove: 'budgets:remove'
 } as const
 
 // ---------- schemas ----------
@@ -30,18 +28,6 @@ export type BudgetSetFillInput = z.infer<typeof budgetSetFillSchema>
 
 export const budgetRemoveSchema = z.object({ categoryId: z.number().int().positive() })
 export type BudgetRemoveInput = z.infer<typeof budgetRemoveSchema>
-
-export const budgetFillSchema = z.object({
-  month: monthSchema,
-  amount: z.number().int().nonnegative()
-})
-export type BudgetFill = z.infer<typeof budgetFillSchema>
-
-export const budgetRestoreSchema = z.object({
-  categoryId: z.number().int().positive(),
-  fills: z.array(budgetFillSchema).min(1)
-})
-export type BudgetRestoreInput = z.infer<typeof budgetRestoreSchema>
 
 // ---------- results ----------
 
@@ -73,5 +59,6 @@ export interface BudgetSummary {
 }
 
 export interface BudgetRemoveResult {
-  fills: BudgetFill[]
+  /** action-log entry to replay for undo; null when there was nothing to remove */
+  actionId: number | null
 }

@@ -1,7 +1,8 @@
 import { ipcMain } from 'electron'
 import { and, desc, eq, gt, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
-import { accounts, actionLog, transactions } from '../db/schema'
+import { accounts, actionLog, budgets, categories, transactions } from '../db/schema'
+import { dominantCurrency } from '../budgets/summary'
 import { transactionDate } from './transactions-page'
 import {
   ACTION_LOG_IPC,
@@ -10,6 +11,8 @@ import {
   type ActionField,
   type ActionLogEntry,
   type ActionSource,
+  type BudgetActionChange,
+  type TransactionActionChange,
   type UndoResult
 } from '@shared/ipc'
 
@@ -43,14 +46,19 @@ export function recordAction(
 ): number {
   const row = tx
     .insert(actionLog)
-    .values({ createdAt: Date.now(), source: entry.source, label: entry.label, changes: entry.changes })
+    .values({
+      createdAt: Date.now(),
+      source: entry.source,
+      label: entry.label,
+      changes: entry.changes
+    })
     .returning({ id: actionLog.id })
     .get()
   return row.id
 }
 
 // null-safe equality against the current stored value
-function currentValueIs(field: ActionField, value: ActionChange['before']): SQL {
+function currentValueIs(field: ActionField, value: number | null): SQL {
   const col = EDITABLE_FIELDS[field]
   if (value === null) return isNull(col)
   return sql`${col} = ${value}`
@@ -62,8 +70,8 @@ function setGuarded(
   tx: Tx,
   field: ActionField,
   transactionId: number,
-  target: ActionChange['before'],
-  guard: ActionChange['before']
+  target: number | null,
+  guard: number | null
 ): number {
   const where = and(eq(transactions.id, transactionId), currentValueIs(field, guard))
   switch (field) {
@@ -72,6 +80,44 @@ function setGuarded(
     case 'deletedAt':
       return tx.update(transactions).set({ deletedAt: target }).where(where).run().changes
   }
+}
+
+// same guarded semantics for a budget fill row, where null means "no row":
+// delete only if the amount is still the guard, insert only if still absent,
+// update only from the guarded amount. Superseded states are skipped.
+function setBudgetGuarded(
+  tx: Tx,
+  change: BudgetActionChange,
+  target: number | null,
+  guard: number | null
+): number {
+  const key = and(eq(budgets.categoryId, change.categoryId), eq(budgets.month, change.month))
+  if (target === null) {
+    if (guard === null) return 0
+    return tx
+      .delete(budgets)
+      .where(and(key, eq(budgets.amount, guard)))
+      .run().changes
+  }
+  if (guard === null) {
+    // the category may have been deleted since (fills cascade away); skip then
+    const cat = tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.id, change.categoryId))
+      .get()
+    if (!cat) return 0
+    return tx
+      .insert(budgets)
+      .values({ categoryId: change.categoryId, month: change.month, amount: target })
+      .onConflictDoNothing()
+      .run().changes
+  }
+  return tx
+    .update(budgets)
+    .set({ amount: target })
+    .where(and(key, eq(budgets.amount, guard)))
+    .run().changes
 }
 
 // undo rewinds each field to `before` (guarding on `after`); redo does the
@@ -86,7 +132,10 @@ function applyEntry(entryId: number, direction: 'undo' | 'redo'): UndoResult {
     for (const change of entry.changes) {
       const target = direction === 'undo' ? change.before : change.after
       const guard = direction === 'undo' ? change.after : change.before
-      applied += setGuarded(tx, change.field, change.transactionId, target, guard)
+      applied +=
+        change.field === 'budgetAmount'
+          ? setBudgetGuarded(tx, change, target, guard)
+          : setGuarded(tx, change.field, change.transactionId, target, guard)
     }
 
     tx.update(actionLog)
@@ -130,11 +179,19 @@ function redoNewest(): UndoResult | null {
   return entry ? applyEntry(entry.id, 'redo') : null
 }
 
-// the most recent entries, each change joined to its transaction's current
-// context (null when that transaction was later removed, e.g. on disconnect)
+// the most recent entries, each change joined to its current context: a
+// transaction change to its transaction (null when later removed, e.g. on
+// disconnect), a budget change to its category name
 function listEntries(): ActionLogEntry[] {
   const rows = db.select().from(actionLog).orderBy(desc(actionLog.id)).limit(LIST_LIMIT).all()
-  const txIds = [...new Set(rows.flatMap((r) => r.changes.map((c) => c.transactionId)))]
+  const allChanges = rows.flatMap((r) => r.changes)
+  const txIds = [
+    ...new Set(
+      allChanges
+        .filter((c): c is TransactionActionChange => c.field !== 'budgetAmount')
+        .map((c) => c.transactionId)
+    )
+  ]
   const context = txIds.length
     ? db
         .select({
@@ -152,6 +209,23 @@ function listEntries(): ActionLogEntry[] {
     : []
   const byId = new Map(context.map((c) => [c.id, c]))
 
+  const budgetCatIds = [
+    ...new Set(
+      allChanges
+        .filter((c): c is BudgetActionChange => c.field === 'budgetAmount')
+        .map((c) => c.categoryId)
+    )
+  ]
+  const budgetCats = budgetCatIds.length
+    ? db
+        .select({ id: categories.id, name: categories.name })
+        .from(categories)
+        .where(inArray(categories.id, budgetCatIds))
+        .all()
+    : []
+  const catById = new Map(budgetCats.map((c) => [c.id, c.name]))
+  const currency = budgetCatIds.length ? dominantCurrency() : 'USD'
+
   return rows.map((row) => ({
     id: row.id,
     createdAt: row.createdAt,
@@ -159,6 +233,9 @@ function listEntries(): ActionLogEntry[] {
     label: row.label,
     undoneAt: row.undoneAt,
     changes: row.changes.map((change) => {
+      if (change.field === 'budgetAmount') {
+        return { ...change, categoryName: catById.get(change.categoryId) ?? null, currency }
+      }
       const t = byId.get(change.transactionId)
       return {
         ...change,

@@ -15,13 +15,7 @@ import { Amount } from '@/components/amount'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import {
-  Empty,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle
-} from '@/components/ui/empty'
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -75,7 +69,8 @@ function ActivityPage() {
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Activity</h2>
         <p className="text-muted-foreground">
-          Every change to your transactions, manual or automatic. Undo or redo any of them.
+          Every change to your transactions and budgets, manual or automatic. Undo or redo any of
+          them.
         </p>
       </div>
 
@@ -131,6 +126,8 @@ function EntryRow({
   const isAutomated = entry.source !== 'user'
   // category-set entries (manual, rule, or auto) show which category each row got
   const isCategoryEntry = entry.changes.some((c) => c.field === 'categoryId')
+  // envelope fill entries: one change per (category, month), no transaction context
+  const isBudgetEntry = entry.changes.some((c) => c.field === 'budgetAmount')
 
   const toggle = useMutation({
     mutationFn: () =>
@@ -153,7 +150,7 @@ function EntryRow({
             </div>
             <div className="text-xs text-muted-foreground">
               {format(new Date(entry.createdAt), 'p')} ·{' '}
-              {plural(entry.changes.length, 'transaction')}
+              {plural(entry.changes.length, isBudgetEntry ? 'change' : 'transaction')}
             </div>
           </div>
         </CollapsibleTrigger>
@@ -161,7 +158,12 @@ function EntryRow({
           <Badge variant="secondary">{entry.source === 'rule' ? 'Rule' : 'Auto'}</Badge>
         )}
         {undone && <Badge variant="outline">Undone</Badge>}
-        <Button variant="ghost" size="sm" disabled={toggle.isPending} onClick={() => toggle.mutate()}>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={toggle.isPending}
+          onClick={() => toggle.mutate()}
+        >
           {undone ? 'Redo' : 'Undo'}
         </Button>
         <CollapsibleTrigger>
@@ -179,7 +181,9 @@ function EntryRow({
             <TableRow>
               <TableHead className="font-normal text-muted-foreground">Date</TableHead>
               <TableHead className="font-normal text-muted-foreground">Account</TableHead>
-              <TableHead className="w-full font-normal text-muted-foreground">Description</TableHead>
+              <TableHead className="w-full font-normal text-muted-foreground">
+                Description
+              </TableHead>
               <TableHead className="text-right font-normal text-muted-foreground">Amount</TableHead>
               {isCategoryEntry && (
                 <TableHead className="font-normal text-muted-foreground">Category</TableHead>
@@ -187,38 +191,67 @@ function EntryRow({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {entry.changes.map((change) => (
-              <TableRow key={change.transactionId} className="hover:bg-transparent">
-                {change.description === null ? (
-                  <TableCell
-                    colSpan={isCategoryEntry ? 5 : 4}
-                    className="text-muted-foreground italic"
-                  >
-                    Transaction no longer exists
-                  </TableCell>
-                ) : (
-                  <>
-                    <TableCell className="text-muted-foreground">
-                      {change.date ? new Date(change.date * 1000).toLocaleDateString() : '—'}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{change.accountName}</TableCell>
-                    <TableCell className="w-full max-w-0 truncate">{change.description}</TableCell>
-                    <TableCell className="text-right">
-                      {change.amount !== null && change.currency && (
-                        <Amount value={change.amount} currency={change.currency} />
-                      )}
-                    </TableCell>
-                    {isCategoryEntry && (
-                      <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {typeof change.after === 'number'
-                          ? (categoryName.get(change.after) ?? 'Unknown category')
-                          : 'Uncategorized'}
-                      </TableCell>
+            {entry.changes.map((change) =>
+              change.field === 'budgetAmount' ? (
+                <TableRow
+                  key={`${change.categoryId}:${change.month}`}
+                  className="hover:bg-transparent"
+                >
+                  <TableCell className="text-muted-foreground">{change.month}</TableCell>
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="w-full max-w-0 truncate">
+                    {change.categoryName !== null ? (
+                      `${change.categoryName} envelope`
+                    ) : (
+                      <span className="text-muted-foreground italic">
+                        Category no longer exists
+                      </span>
                     )}
-                  </>
-                )}
-              </TableRow>
-            ))}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {change.after !== null ? (
+                      <Amount value={change.after} currency={change.currency} colored={false} />
+                    ) : (
+                      <span className="text-muted-foreground">Removed</span>
+                    )}
+                  </TableCell>
+                  {isCategoryEntry && <TableCell />}
+                </TableRow>
+              ) : (
+                <TableRow key={change.transactionId} className="hover:bg-transparent">
+                  {change.description === null ? (
+                    <TableCell
+                      colSpan={isCategoryEntry ? 5 : 4}
+                      className="text-muted-foreground italic"
+                    >
+                      Transaction no longer exists
+                    </TableCell>
+                  ) : (
+                    <>
+                      <TableCell className="text-muted-foreground">
+                        {change.date ? new Date(change.date * 1000).toLocaleDateString() : '—'}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{change.accountName}</TableCell>
+                      <TableCell className="w-full max-w-0 truncate">
+                        {change.description}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {change.amount !== null && change.currency && (
+                          <Amount value={change.amount} currency={change.currency} />
+                        )}
+                      </TableCell>
+                      {isCategoryEntry && (
+                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                          {typeof change.after === 'number'
+                            ? (categoryName.get(change.after) ?? 'Unknown category')
+                            : 'Uncategorized'}
+                        </TableCell>
+                      )}
+                    </>
+                  )}
+                </TableRow>
+              )
+            )}
           </TableBody>
         </Table>
       </CollapsibleContent>

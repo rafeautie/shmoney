@@ -8,7 +8,7 @@ import {
   IPC,
   transactionIdsSchema,
   transactionsSetCategoriesSchema,
-  type ActionChange,
+  type TransactionActionChange,
   type TransactionsSetCategoriesInput
 } from '@shared/ipc'
 
@@ -46,7 +46,7 @@ export function setCategories({ changes, source }: TransactionsSetCategoriesInpu
         .all()
         .map((r) => [r.id, r.categoryId])
     )
-    const logged: ActionChange[] = []
+    const logged: TransactionActionChange[] = []
     for (const { transactionId, categoryId } of changes) {
       if (!before.has(transactionId)) continue // missing or pending: skip
       const prev = before.get(transactionId)!

@@ -191,7 +191,7 @@ export type ActionSource = 'user' | 'detector' | 'rule' | 'llm'
 // drizzle set-keys in the main-process engine, so they must match schema props.
 export type ActionField = 'categoryId' | 'deletedAt'
 
-export interface ActionChange {
+export interface TransactionActionChange {
   transactionId: number
   field: ActionField
   /** raw stored values (number|null for both fields) */
@@ -199,15 +199,33 @@ export interface ActionChange {
   after: number | null
 }
 
-/** A change enriched with its transaction's current context, for the Activity list. */
-export interface ActionLogChange extends ActionChange {
-  /** null when the transaction no longer exists (e.g. after a disconnect) */
-  description: string | null
-  accountName: string | null
-  amount: number | null
-  currency: string | null
-  date: number | null
+/** A budget fill change for one (category, month); null = no fill row. */
+export interface BudgetActionChange {
+  field: 'budgetAmount'
+  categoryId: number
+  month: string
+  before: number | null
+  after: number | null
 }
+
+export type ActionChange = TransactionActionChange | BudgetActionChange
+
+/** A change enriched with its current context, for the Activity list. */
+export type ActionLogChange =
+  | (TransactionActionChange & {
+      /** null when the transaction no longer exists (e.g. after a disconnect) */
+      description: string | null
+      accountName: string | null
+      amount: number | null
+      currency: string | null
+      date: number | null
+    })
+  | (BudgetActionChange & {
+      /** null when the category no longer exists */
+      categoryName: string | null
+      /** dominant account currency, for display */
+      currency: string
+    })
 
 export interface ActionLogEntry {
   id: number

@@ -53,6 +53,7 @@ export function AddEnvelopeDialog({
       window.api.budgets.setFill(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['budget-summary'] })
+      queryClient.invalidateQueries({ queryKey: ['actionLog'] })
       onOpenChange(false)
     }
   })

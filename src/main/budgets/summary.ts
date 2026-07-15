@@ -12,7 +12,7 @@ const expenseSql = sql<number>`coalesce(sum(case when ${transactions.amount} < 0
 
 // budgets are scalar amounts, so they can't keep currencies apart the way
 // report series do; display everything in the most common account currency
-function dominantCurrency(): string {
+export function dominantCurrency(): string {
   const row = db
     .select({ currency: accounts.currency })
     .from(accounts)

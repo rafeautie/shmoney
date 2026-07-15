@@ -20,7 +20,10 @@ import { parseDollars } from '@/lib/utils'
 
 export function EnvelopeList({ summary }: { summary: BudgetSummary }) {
   const queryClient = useQueryClient()
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['budget-summary'] })
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['budget-summary'] })
+    queryClient.invalidateQueries({ queryKey: ['actionLog'] })
+  }
 
   const setFill = useMutation({
     mutationFn: (input: { categoryId: number; month: string; amount: number }) =>
@@ -32,15 +35,18 @@ export function EnvelopeList({ summary }: { summary: BudgetSummary }) {
     mutationFn: (envelope: EnvelopeSummary) =>
       window.api.budgets.remove({ categoryId: envelope.categoryId }).then((result) => ({
         envelope,
-        fills: result.fills
+        actionId: result.actionId
       })),
-    onSuccess: ({ envelope, fills }) => {
+    onSuccess: ({ envelope, actionId }) => {
+      if (actionId === null) return
+      // the removal is an action-log entry, so the toast's Undo replays the
+      // same entry Ctrl+Z would — one undo path, no separate restore call
       toast(`Removed the ${envelope.categoryName} envelope`, {
         action: {
           label: 'Undo',
           onClick: () => {
-            window.api.budgets
-              .restore({ categoryId: envelope.categoryId, fills })
+            window.api.actionLog
+              .undoEntry(actionId)
               .then(invalidate)
               .catch(() => {})
           }
