@@ -48,7 +48,12 @@ function AccountDetailPage() {
         <div className="flex shrink-0 items-center gap-2">
           <AutoCategorizeButton scope={{ accountId: id }} />
           {account && (
-            <AccountSettingsDialog accountId={id} invertBalance={account.invertBalance} />
+            <AccountSettingsDialog
+              accountId={id}
+              accountName={account.name}
+              isManual={account.connectionId === null}
+              invertBalance={account.invertBalance}
+            />
           )}
         </div>
       </div>

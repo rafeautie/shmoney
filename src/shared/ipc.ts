@@ -275,6 +275,7 @@ export const IPC = {
   accountsList: 'accounts:list',
   accountsGet: 'accounts:get',
   accountsSetInvertBalance: 'accounts:setInvertBalance',
+  accountsDelete: 'accounts:delete',
   accountHoldings: 'accounts:holdings',
   accountTransactions: 'accounts:transactions',
   transactionsList: 'transactions:list',

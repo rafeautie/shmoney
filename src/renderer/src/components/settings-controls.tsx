@@ -9,22 +9,28 @@ export function SettingsGroup({ children }: { children: React.ReactNode }): Reac
   return <div className="divide-y rounded-lg border">{children}</div>
 }
 
-// One labelled switch row: label on the left, switch on the right.
+// One labelled switch row: label (and optional description) on the left, switch
+// on the right.
 export function SettingToggle({
   label,
+  description,
   checked,
   onCheckedChange
 }: {
   label: string
+  description?: React.ReactNode
   checked: boolean
   onCheckedChange: (checked: boolean) => void
 }): React.JSX.Element {
   const id = useId()
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3">
-      <Label htmlFor={id} className="font-normal">
-        {label}
-      </Label>
+      <div className="min-w-0 space-y-0.5">
+        <Label htmlFor={id} className="font-normal">
+          {label}
+        </Label>
+        {description != null && <p className="text-xs text-muted-foreground">{description}</p>}
+      </div>
       <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} />
     </div>
   )

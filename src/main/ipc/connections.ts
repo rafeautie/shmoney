@@ -345,6 +345,19 @@ export function registerConnectionsIpc(): void {
     return true
   })
 
+  ipcMain.handle(IPC.accountsDelete, (_event, input: unknown) => {
+    const id = accountIdSchema.parse(input)
+    const row = db.select().from(accounts).where(eq(accounts.id, id)).get()
+    if (!row) throw new Error('Account not found')
+    // a synced account would just be recreated by the next sync's upsert;
+    // those are removed by disconnecting SimpleFIN instead
+    if (row.connectionId !== null) throw new Error('Only manual accounts can be deleted')
+    // cascades to transactions and holdings; action_log entries pointing at the
+    // deleted transactions are safe — undo/redo's guarded writes no-op on missing rows
+    db.delete(accounts).where(eq(accounts.id, id)).run()
+    return true
+  })
+
   ipcMain.handle(IPC.accountHoldings, (_event, input: unknown) => {
     const id = accountIdSchema.parse(input)
     return db
