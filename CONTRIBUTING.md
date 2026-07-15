@@ -33,7 +33,7 @@ Useful scripts:
 
 ## Reporting bugs and requesting features
 
-Open a [GitHub issue](https://github.com/rafeautie/shmoney/issues). For bugs, include your OS, the app version (Settings → About), and steps to reproduce. **Never attach your database file or SimpleFIN credentials to an issue.**
+Open a [GitHub issue](https://github.com/rafeautie/shmoney/issues). For bugs, include your OS, the app version (Settings → About), and steps to reproduce. **Never attach your database file or SimpleFIN credentials to an issue.** For suspected security problems, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
 
 ## Contribution license terms
 
