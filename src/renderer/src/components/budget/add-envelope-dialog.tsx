@@ -20,7 +20,12 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText
+} from '@/components/ui/input-group'
 import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, parseDollars } from '@/lib/utils'
@@ -98,7 +103,9 @@ export function AddEnvelopeDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Category</Label>
-            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+            {/* modal: the popover portals outside the DialogContent, and the modal
+                dialog's scroll lock would otherwise swallow wheel events over the list */}
+            <Popover modal open={pickerOpen} onOpenChange={setPickerOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -154,17 +161,25 @@ export function AddEnvelopeDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="envelope-amount">Monthly fill</Label>
-            <Input
-              id="envelope-amount"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && canSubmit && category && parsedAmount !== null) {
-                  create.mutate({ categoryId: category.id, month, amount: parsedAmount })
-                }
-              }}
-            />
+            <InputGroup>
+              <InputGroupAddon>
+                <InputGroupText>$</InputGroupText>
+              </InputGroupAddon>
+              <InputGroupInput
+                id="envelope-amount"
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && canSubmit && category && parsedAmount !== null) {
+                    create.mutate({ categoryId: category.id, month, amount: parsedAmount })
+                  }
+                }}
+              />
+            </InputGroup>
           </div>
         </div>
         <DialogFooter>
