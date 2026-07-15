@@ -167,9 +167,6 @@ export function AddEnvelopeDialog({
               </InputGroupAddon>
               <InputGroupInput
                 id="envelope-amount"
-                type="number"
-                min={0}
-                step="0.01"
                 placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
