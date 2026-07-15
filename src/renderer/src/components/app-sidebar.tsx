@@ -1,6 +1,13 @@
 import type { ComponentProps } from 'react'
+import { Link, useMatchRoute } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Moon02Icon, Sun02Icon, ViewIcon, ViewOffIcon } from '@hugeicons/core-free-icons'
+import {
+  Moon02Icon,
+  Settings01Icon,
+  Sun02Icon,
+  ViewIcon,
+  ViewOffIcon
+} from '@hugeicons/core-free-icons'
 import { usePrivacy, useTheme } from '@/lib/settings'
 import { Logo } from '@/components/logo'
 import { NavMain } from '@/components/nav-main'
@@ -44,10 +51,30 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <ThemeToggle />
           </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SettingsLink />
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  )
+}
+
+function SettingsLink() {
+  const matchRoute = useMatchRoute()
+
+  return (
+    <SidebarMenuButton
+      asChild
+      isActive={!!matchRoute({ to: '/settings', fuzzy: false })}
+      tooltip="Settings"
+    >
+      <Link to="/settings">
+        <HugeiconsIcon icon={Settings01Icon} size={16} />
+        <span>Settings</span>
+      </Link>
+    </SidebarMenuButton>
   )
 }
 
