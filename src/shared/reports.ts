@@ -147,6 +147,10 @@ export const widgetQuerySchema = z.object({
 })
 export type WidgetQuery = z.infer<typeof widgetQuerySchema>
 
+/** budget widgets: which visualization of the envelope summary to render */
+export const budgetViewSchema = z.enum(['list', 'bars', 'balances', 'donut', 'radial'])
+export type BudgetView = z.infer<typeof budgetViewSchema>
+
 export const widgetConfigSchema = z.object({
   query: widgetQuerySchema,
   filters: widgetFiltersSchema,
@@ -154,7 +158,8 @@ export const widgetConfigSchema = z.object({
     .object({
       stacked: z.boolean().optional(),
       donut: z.boolean().optional(),
-      showLegend: z.boolean().optional()
+      showLegend: z.boolean().optional(),
+      budgetView: budgetViewSchema.optional()
     })
     .optional()
 })

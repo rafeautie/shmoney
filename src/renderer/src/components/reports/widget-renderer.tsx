@@ -31,7 +31,7 @@ import type {
   TimeGrain,
   WidgetConfig
 } from '@shared/reports'
-import type { BudgetSummary } from '@shared/budgets'
+import type { BudgetSummary, EnvelopeSummary } from '@shared/budgets'
 import { cn, formatAmount } from '@/lib/utils'
 import { usePrivacy } from '@/lib/settings'
 import { Amount } from '@/components/amount'
@@ -40,13 +40,7 @@ import { TransactionsTable } from '@/components/transactions-table'
 import { Badge } from '@/components/ui/badge'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table'
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   ChartContainer,
@@ -738,31 +732,244 @@ function BudgetWidget({
     )
   }
 
+  const view = config.display?.budgetView ?? 'list'
   return (
-    <ScrollArea className="h-full min-h-0">
-      <div className="space-y-3 p-4 pt-1">
-        <div className="flex items-baseline justify-between text-xs text-muted-foreground">
-          <span>{format(new Date(`${month}-01T00:00`), 'MMMM yyyy')}</span>
-          <span>
-            <Amount value={summary.totals.balance} currency={summary.currency} colored={false} />{' '}
-            available
-          </span>
-        </div>
-        {summary.envelopes.map((envelope) => (
-          <EnvelopeProgressRow
-            key={envelope.categoryId}
-            envelope={envelope}
-            currency={summary.currency}
-          />
-        ))}
-        {summary.unbudgetedSpent > 0 && (
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Unbudgeted spending</span>
-            <Amount value={summary.unbudgetedSpent} currency={summary.currency} colored={false} />
-          </div>
-        )}
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-baseline justify-between px-4 pt-1 pb-2 text-xs text-muted-foreground">
+        <span>{format(new Date(`${month}-01T00:00`), 'MMMM yyyy')}</span>
+        <span>
+          <Amount value={summary.totals.balance} currency={summary.currency} colored={false} />{' '}
+          available
+        </span>
       </div>
-    </ScrollArea>
+      {view === 'list' ? (
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-3 px-4 pb-4">
+            {summary.envelopes.map((envelope) => (
+              <EnvelopeProgressRow
+                key={envelope.categoryId}
+                envelope={envelope}
+                currency={summary.currency}
+              />
+            ))}
+            {summary.unbudgetedSpent > 0 && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Unbudgeted spending</span>
+                <Amount
+                  value={summary.unbudgetedSpent}
+                  currency={summary.currency}
+                  colored={false}
+                />
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      ) : view === 'bars' ? (
+        <BudgetBarsChart envelopes={summary.envelopes} currency={summary.currency} />
+      ) : view === 'balances' ? (
+        <BudgetBalancesChart envelopes={summary.envelopes} currency={summary.currency} />
+      ) : view === 'donut' ? (
+        <BudgetDonutChart
+          envelopes={summary.envelopes}
+          currency={summary.currency}
+          showLegend={config.display?.showLegend ?? false}
+        />
+      ) : (
+        <BudgetGaugeChart totals={summary.totals} currency={summary.currency} />
+      )}
+    </div>
+  )
+}
+
+/** Spent vs budgeted, one bar pair per envelope. */
+function BudgetBarsChart({
+  envelopes,
+  currency
+}: {
+  envelopes: EnvelopeSummary[]
+  currency: string
+}) {
+  const { blurAmounts } = usePrivacy()
+  const data = envelopes.map((e) => ({ label: e.categoryName, budgeted: e.fill, spent: e.spent }))
+  const chartConfig: ChartConfig = {
+    budgeted: { label: 'Budgeted', color: paletteColor(0) },
+    spent: { label: 'Spent', color: paletteColor(1) }
+  }
+  return (
+    <div className="min-h-0 flex-1 px-4 pb-4">
+      <ChartContainer
+        config={chartConfig}
+        className={cn('aspect-auto h-full w-full', blurAmounts && BLUR_Y_TICK_LABELS)}
+      >
+        <BarChart data={data} margin={{ top: 8, right: 8 }}>
+          <CartesianGrid vertical={false} />
+          <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={56}
+            tickFormatter={tickFormatter('expense', currency)}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                formatter={(value, name, item) => (
+                  <TooltipRow
+                    color={item.color}
+                    label={chartConfig[name as string]?.label ?? name}
+                    measure="expense"
+                    value={value as number}
+                    currency={currency}
+                  />
+                )}
+              />
+            }
+          />
+          <ChartLegend content={<ChartLegendContent />} />
+          <Bar dataKey="budgeted" fill="var(--color-budgeted)" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="spent" fill="var(--color-spent)" radius={[2, 2, 0, 0]} />
+        </BarChart>
+      </ChartContainer>
+    </div>
+  )
+}
+
+/** Rollover balance per envelope; negative balances render destructive. */
+function BudgetBalancesChart({
+  envelopes,
+  currency
+}: {
+  envelopes: EnvelopeSummary[]
+  currency: string
+}) {
+  const { blurAmounts } = usePrivacy()
+  const data = envelopes.map((e) => ({ label: e.categoryName, balance: e.balance }))
+  const chartConfig: ChartConfig = { balance: { label: 'Available' } }
+  return (
+    <div className="min-h-0 flex-1 px-4 pb-4">
+      <ChartContainer
+        config={chartConfig}
+        className={cn('aspect-auto h-full w-full', blurAmounts && BLUR_Y_TICK_LABELS)}
+      >
+        <BarChart data={data} margin={{ top: 8, right: 8 }}>
+          <CartesianGrid vertical={false} />
+          <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={56}
+            tickFormatter={tickFormatter('sum', currency)}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                hideLabel
+                formatter={(value, _name, item) => (
+                  <TooltipRow
+                    label={item.payload?.label}
+                    measure="sum"
+                    value={value as number}
+                    currency={currency}
+                  />
+                )}
+              />
+            }
+          />
+          <Bar dataKey="balance" radius={[2, 2, 0, 0]}>
+            {data.map((d, i) => (
+              <Cell key={d.label} fill={d.balance < 0 ? 'var(--destructive)' : paletteColor(i)} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ChartContainer>
+    </div>
+  )
+}
+
+/** How this month's total budget is allocated across envelopes. */
+function BudgetDonutChart({
+  envelopes,
+  currency,
+  showLegend
+}: {
+  envelopes: EnvelopeSummary[]
+  currency: string
+  showLegend: boolean
+}) {
+  const slices = envelopes.filter((e) => e.fill > 0)
+  if (slices.length === 0) {
+    return <CenteredNote>No envelopes with a fill this month.</CenteredNote>
+  }
+  const chartConfig: ChartConfig = Object.fromEntries(
+    slices.map((e) => [e.categoryName, { label: e.categoryName }])
+  )
+  const data = slices.map((e, i) => ({
+    label: e.categoryName,
+    value: e.fill,
+    fill: paletteColor(i)
+  }))
+  return (
+    <div className="min-h-0 flex-1 px-4 pb-4">
+      <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+        <PieChart>
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                hideLabel
+                formatter={(value, _name, item) => (
+                  <TooltipRow
+                    label={item.payload?.label}
+                    measure="expense"
+                    value={value as number}
+                    currency={currency}
+                  />
+                )}
+              />
+            }
+          />
+          {showLegend ? <ChartLegend content={<ChartLegendContent nameKey="label" />} /> : null}
+          <Pie data={data} dataKey="value" nameKey="label" innerRadius="55%" strokeWidth={2} />
+        </PieChart>
+      </ChartContainer>
+    </div>
+  )
+}
+
+/** Overall utilization: total spent as a share of total budgeted. */
+function BudgetGaugeChart({
+  totals,
+  currency
+}: {
+  totals: { fill: number; spent: number }
+  currency: string
+}) {
+  const pct = totals.fill > 0 ? (totals.spent / totals.fill) * 100 : totals.spent > 0 ? 100 : 0
+  const over = pct > 100
+  const data = [{ value: Math.min(100, pct), fill: over ? 'var(--destructive)' : 'var(--chart-1)' }]
+  return (
+    <div className="relative min-h-0 flex-1 px-4 pb-4">
+      <ChartContainer config={{ value: { label: 'Used' } }} className="aspect-auto h-full w-full">
+        <RadialBarChart
+          data={data}
+          startAngle={90}
+          endAngle={-270}
+          innerRadius="72%"
+          outerRadius="100%"
+        >
+          <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
+          <RadialBar dataKey="value" background cornerRadius={4} />
+        </RadialBarChart>
+      </ChartContainer>
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 pb-4">
+        <span className={cn('text-2xl font-semibold tracking-tight', over && 'text-destructive')}>
+          {Math.round(pct)}%
+        </span>
+        <span className="text-xs text-muted-foreground">
+          <Amount value={totals.spent} currency={currency} colored={false} /> of{' '}
+          <Amount value={totals.fill} currency={currency} colored={false} />
+        </span>
+      </div>
+    </div>
   )
 }
 

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   DEFAULT_REPORT_FILTERS,
   DEFAULT_WIDGET_CONFIG,
+  type BudgetView,
   type ReportFilters,
   type ReportWidget,
   type WidgetConfig,
@@ -49,6 +50,14 @@ const TYPE_LABELS: Record<WidgetType, string> = {
   summaryTable: 'Summary table',
   transactions: 'Transactions table',
   budget: 'Budget'
+}
+
+const BUDGET_VIEW_LABELS: Record<BudgetView, string> = {
+  list: 'Envelope list',
+  bars: 'Spent vs budgeted bars',
+  balances: 'Balance bars',
+  donut: 'Allocation donut',
+  radial: 'Utilization gauge'
 }
 
 const MEASURE_LABELS = {
@@ -268,6 +277,38 @@ export function WidgetEditor({
                 </Select>
               </div>
             </div>
+
+            {/* budget widgets don't run aggregate queries; their one knob is the visualization */}
+            {isBudget && (
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold">Data</h4>
+                <div className="space-y-2">
+                  <Label>Visualization</Label>
+                  <Select
+                    value={config.display?.budgetView ?? 'list'}
+                    onValueChange={(v) => patchDisplay({ budgetView: v as BudgetView })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(BUDGET_VIEW_LABELS) as BudgetView[]).map((view) => (
+                        <SelectItem key={view} value={view}>
+                          {BUDGET_VIEW_LABELS[view]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {config.display?.budgetView === 'donut' && (
+                  <SwitchRow
+                    label="Legend"
+                    checked={config.display?.showLegend ?? false}
+                    onChange={(showLegend) => patchDisplay({ showLegend })}
+                  />
+                )}
+              </div>
+            )}
 
             {/* data */}
             {!isTransactions && !isBudget && (
