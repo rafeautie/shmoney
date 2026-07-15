@@ -1,6 +1,6 @@
 {
   "name": "shmoney",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Local-first personal finance desktop app: accounts, budgets, reports, and on-device AI categorization",
   "main": "./out/main/index.js",
   "author": "Rafe Autie <devrafe@gmail.com>",
