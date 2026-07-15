@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-<a href="https://github.com/rafeautie/shmoney/releases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/rafeautie/shmoney/release.svg?mode=dark"><img alt="badge" src="https://shieldcn.dev/github/rafeautie/shmoney/release.svg?mode=light"></picture></a>
+  <a href="https://github.com/rafeautie/shmoney/releases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/rafeautie/shmoney/release.svg?size=xs&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/github/rafeautie/shmoney/release.svg?size=xs&amp;mode=light"></picture></a>
   <a href="https://github.com/rafeautie/shmoney/actions"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=light"></picture></a>
 </p>
 
