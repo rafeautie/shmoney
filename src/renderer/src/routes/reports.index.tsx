@@ -2,12 +2,7 @@ import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
-import {
-  Add01Icon,
-  Analytics01Icon,
-  ArrowDown01Icon,
-  MoreVerticalIcon
-} from '@hugeicons/core-free-icons'
+import { Analytics01Icon, ArrowDown01Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons'
 import type { ReportCreateInput, ReportSummary } from '@shared/reports'
 import { SPENDING_OVERVIEW_TEMPLATE } from '@/lib/report-templates'
 import { Page } from '@/components/page'
@@ -70,7 +65,6 @@ function ReportsPage() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button disabled={createMutation.isPending}>
-              <HugeiconsIcon icon={Add01Icon} size={16} />
               New report
               <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
             </Button>

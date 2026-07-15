@@ -3,12 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
-import {
-  Add01Icon,
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  PiggyBankIcon
-} from '@hugeicons/core-free-icons'
+import { ArrowLeft01Icon, ArrowRight01Icon, PiggyBankIcon } from '@hugeicons/core-free-icons'
 import type { BudgetSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
 import { AddEnvelopeDialog } from '@/components/budget/add-envelope-dialog'
@@ -102,10 +97,7 @@ function BudgetPage() {
                 Today
               </Button>
             )}
-            <Button onClick={() => setAddOpen(true)}>
-              <HugeiconsIcon icon={Add01Icon} size={16} />
-              Add envelope
-            </Button>
+            <Button onClick={() => setAddOpen(true)}>Add envelope</Button>
           </div>
         </div>
 
