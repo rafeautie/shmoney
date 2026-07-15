@@ -5,8 +5,8 @@
 <h1 align="center">shmoney</h1>
 
 <p align="center">
-  <img alt="SQLite" src="https://shieldcn.dev/badge/SQLite.svg?variant=branded&logo=sqlite&size=xs" />
-  <img alt="badge" src="https://shieldcn.dev/badge/Local%20LLM-Gemma%204%20E2B-3b82f6.svg?size=xs&amp;font=geist&amp;split=true&amp;logo=false&amp;logoColor=3f89ff&amp;color=3178ec&amp;valueColor=ffffff&amp;labelTextColor=f8f8f8">
+<img alt="badge" src="https://shieldcn.dev/badge/SQLite.svg?size=xs&amp;font=geist&amp;logo=sqlite&amp;logoColor=ffffff&amp;color=1a493b&amp;gap=7">
+<picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/Gemma%204%20E2B.svg?size=xs&amp;theme=blue&amp;font=geist&amp;logo=ri%3AFaGoogle&amp;logoColor=ffffff&amp;gap=7&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/badge/Gemma%204%20E2B.svg?size=xs&amp;theme=blue&amp;font=geist&amp;logo=ri%3AFaGoogle&amp;logoColor=ffffff&amp;gap=7&amp;mode=light"></picture>
   <img alt="badge" src="https://shieldcn.dev/badge/Windows.svg?variant=destructive&amp;size=xs&amp;font=geist&amp;split=true&amp;logo=ri%3AFaWindows&amp;logoColor=3f89ff&amp;valueColor=ffffff&amp;labelTextColor=f8f8f8&amp;gap=0">
   <img alt="badge" src="https://shieldcn.dev/badge/MacOS.svg?variant=destructive&amp;size=xs&amp;font=geist&amp;split=true&amp;logo=apple&amp;logoColor=ffffff&amp;valueColor=ffffff&amp;labelTextColor=f8f8f8&amp;gap=0">
   <img alt="badge" src="https://shieldcn.dev/badge/Linux.svg?variant=destructive&amp;size=xs&amp;font=geist&amp;split=true&amp;logo=ri%3APiLinuxLogo&amp;logoColor=ffffff&amp;valueColor=E95420&amp;labelTextColor=E95420&amp;gap=0">
