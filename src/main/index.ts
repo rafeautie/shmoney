@@ -12,6 +12,7 @@ import { registerSavedFiltersIpc } from './ipc/saved-filters'
 import { registerRulesIpc } from './ipc/rules'
 import { registerRuleSuggestionsIpc } from './ipc/rule-suggestions'
 import { registerSettingsIpc } from './ipc/settings'
+import { registerStorageIpc } from './ipc/storage'
 import { registerImportIpc } from './ipc/import'
 import { registerWindowIpc } from './ipc/window'
 import { registerLlmIpc } from './ipc/llm'
@@ -86,6 +87,7 @@ app.whenReady().then(() => {
   registerRulesIpc()
   registerRuleSuggestionsIpc()
   registerSettingsIpc()
+  registerStorageIpc()
   registerImportIpc()
   registerWindowIpc()
   registerLlmIpc()

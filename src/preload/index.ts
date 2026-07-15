@@ -32,6 +32,7 @@ import {
   type SavedFilterUpdateInput
 } from '@shared/transaction-filters'
 import { SETTINGS_IPC, type SettingKey, type Settings } from '@shared/settings'
+import { STORAGE_IPC, type DatabaseSize } from '@shared/storage'
 import {
   LLM_IPC,
   type CategorizeProgress,
@@ -227,6 +228,10 @@ const api = {
     getAll: (): Promise<Settings> => ipcRenderer.invoke(SETTINGS_IPC.getAll),
     set: <K extends SettingKey>(key: K, value: Settings[K]): Promise<boolean> =>
       ipcRenderer.invoke(SETTINGS_IPC.set, { key, value })
+  },
+  storage: {
+    /** On-disk size of the SQLite database with a per-table breakdown */
+    getDatabaseSize: (): Promise<DatabaseSize> => ipcRenderer.invoke(STORAGE_IPC.getDatabaseSize)
   },
   llm: {
     getStatus: (): Promise<LlmStatus> => ipcRenderer.invoke(LLM_IPC.getStatus),

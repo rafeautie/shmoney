@@ -7,7 +7,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { is } from '@electron-toolkit/utils'
 import * as schema from './schema'
 
-const dbPath = path.join(app.getPath('userData'), 'shmoney.db')
+export const dbPath = path.join(app.getPath('userData'), 'shmoney.db')
 
 const sqlite = new Database(dbPath)
 sqlite.pragma('journal_mode = WAL')

@@ -6,6 +6,7 @@ import { PrivacySettings } from '@/components/privacy-settings'
 import { TransferSettings } from '@/components/transfer-settings'
 import { RulesSettings } from '@/components/rules-settings'
 import { LlmSettings } from '@/components/llm-settings'
+import { StorageSettings } from '@/components/storage-settings'
 import { AboutSettings } from '@/components/about-settings'
 
 export const Route = createFileRoute('/settings')({
@@ -33,6 +34,8 @@ function SettingsPage() {
       <CategoriesSettings />
 
       <RulesSettings />
+
+      <StorageSettings />
 
       <AboutSettings />
     </Page>
