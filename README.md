@@ -5,12 +5,14 @@
 <h1 align="center">shmoney</h1>
 
 <p align="center">
-  <img alt="Electron" src="https://img.shields.io/badge/Electron-2B2E3A?logo=electron&logoColor=9FEAF9" />
-  <img alt="React 19" src="https://img.shields.io/badge/React_19-20232A?logo=react&logoColor=61DAFB" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white" />
-  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white" />
-  <img alt="llama.cpp" src="https://img.shields.io/badge/llama.cpp-local_AI-8A2BE2" />
-  <img alt="Platforms" src="https://img.shields.io/badge/Windows_%7C_macOS_%7C_Linux-31C48D" />
+  <img alt="Electron" src="https://shieldcn.dev/badge/Electron.svg?variant=branded&logo=electron&size=xs" />
+  <img alt="React 19" src="https://shieldcn.dev/badge/React_19.svg?variant=branded&logo=react&size=xs" />
+  <img alt="TypeScript" src="https://shieldcn.dev/badge/TypeScript.svg?variant=branded&logo=typescript&size=xs" />
+  <img alt="SQLite" src="https://shieldcn.dev/badge/SQLite.svg?variant=branded&logo=sqlite&size=xs" />
+  <img alt="llama.cpp local AI" src="https://shieldcn.dev/badge/llama.cpp-local_AI.svg?logo=false&color=8A2BE2&size=xs" />
+  <img alt="Windows, macOS, Linux" src="https://shieldcn.dev/badge/Windows_%7C_macOS_%7C_Linux.svg?logo=false&color=31C48D&size=xs" />
+  <a href="https://github.com/rafeautie/shmoney/releases"><img alt="GitHub release" src="https://shieldcn.dev/github/release/rafeautie/shmoney.svg?color=8250df&size=xs" /></a>
+  <a href="LICENSE.md"><img alt="License" src="https://shieldcn.dev/github/license/rafeautie/shmoney.svg?color=2da44e&size=xs" /></a>
 </p>
 
 shmoney is a local-first personal finance app for the desktop. It tracks your accounts, transactions, budgets, and investments in a single SQLite database on your own machine. There is no cloud backend, no user account, and no telemetry.
@@ -55,7 +57,7 @@ npm run build:win    # packaged installer (also build:mac, build:linux)
 
 ## 🤝 Contributing
 
-Bug reports and feature requests are welcome via [GitHub issues](https://github.com/rafeautie/shmoney/issues) — see [CONTRIBUTING.md](CONTRIBUTING.md). Pull requests are not accepted. Security issues should go through [private vulnerability reporting](SECURITY.md) instead of public issues.
+Bug reports and feature requests are welcome via [GitHub issues](https://github.com/rafeautie/shmoney/issues); see [CONTRIBUTING.md](CONTRIBUTING.md). Pull requests are not accepted. Security issues should go through [private vulnerability reporting](SECURITY.md) instead of public issues.
 
 ## 📜 License
 
