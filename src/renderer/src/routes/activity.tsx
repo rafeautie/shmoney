@@ -3,14 +3,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, isToday, isYesterday } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
-import {
-  ArrowDataTransferHorizontalIcon,
-  ArrowDown01Icon,
-  Clock01Icon
-} from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon, Clock01Icon } from '@hugeicons/core-free-icons'
 import type { ActionLogEntry } from '@shared/ipc'
 import { cn, plural } from '@/lib/utils'
 import { Page } from '@/components/page'
+import { EntrySourceIcon } from '@/components/entry-source-icon'
 import { Amount } from '@/components/amount'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -121,7 +118,6 @@ function EntryRow({
 }) {
   const queryClient = useQueryClient()
   const undone = entry.undoneAt !== null
-  const isDetector = entry.source === 'detector'
   // both the transfer detector and rules are automated (non-user) changes
   const isAutomated = entry.source !== 'user'
   // category-set entries (manual, rule, or auto) show which category each row got
@@ -138,8 +134,8 @@ function EntryRow({
   return (
     <Collapsible className={cn('group/entry bg-background px-3 py-2.5', undone && 'opacity-60')}>
       <div className="flex items-center gap-3">
-        <HugeiconsIcon
-          icon={isDetector ? ArrowDataTransferHorizontalIcon : Clock01Icon}
+        <EntrySourceIcon
+          source={entry.source}
           size={18}
           className="shrink-0 text-muted-foreground"
         />
