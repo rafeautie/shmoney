@@ -101,19 +101,23 @@ export function LlmSettings() {
           </SettingAction>
         </SettingsGroup>
 
-        {stage === 'downloading' && (
+        {(stage === 'downloading' || stage === 'verifying') && (
           <div className="space-y-1.5">
             <Progress
               value={
-                progress && progress.totalBytes > 0
-                  ? (progress.downloadedBytes / progress.totalBytes) * 100
-                  : 0
+                stage === 'verifying'
+                  ? 100
+                  : progress && progress.totalBytes > 0
+                    ? (progress.downloadedBytes / progress.totalBytes) * 100
+                    : 0
               }
             />
             <p className="text-xs text-muted-foreground">
-              {progress
-                ? `${formatBytes(progress.downloadedBytes)} / ${formatBytes(progress.totalBytes)}`
-                : 'Starting download…'}
+              {stage === 'verifying'
+                ? 'Verifying file integrity…'
+                : progress
+                  ? `${formatBytes(progress.downloadedBytes)} / ${formatBytes(progress.totalBytes)}`
+                  : 'Starting download…'}
             </p>
           </div>
         )}

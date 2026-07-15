@@ -12,7 +12,8 @@ export interface Notification {
   detail: string
   /** true from the cancel click until the job finishes */
   canceling: boolean
-  cancel: () => void
+  /** absent when the job has passed the point where cancelling is possible */
+  cancel?: () => void
 }
 
 function formatBytes(bytes: number): string {
@@ -39,12 +40,24 @@ function useCancelable(
 }
 
 function useDownloadNotification(): Notification | null {
-  const downloading = useLlmStatus().data?.stage === 'downloading'
+  const stage = useLlmStatus().data?.stage
+  const downloading = stage === 'downloading'
   const progress = useLlmDownloadProgress()
   const { canceling, cancel } = useCancelable(
     downloading,
     () => void window.api.llm.cancelDownload()
   )
+
+  // the post-download hash check: still the same job, but past cancelling
+  if (stage === 'verifying') {
+    return {
+      id: 'llm-download',
+      title: `Verifying ${LLM_MODEL.label}`,
+      percent: 100,
+      detail: 'Checking file integrity…',
+      canceling: false
+    }
+  }
 
   if (!downloading) return null
   return {

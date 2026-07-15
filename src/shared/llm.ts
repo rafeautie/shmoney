@@ -25,8 +25,10 @@ export const LLM_MODEL: LlmModel = {
 
 // ---------- status ----------
 
+// verifying = the post-download SHA-256 check; hashing a multi-GB file takes
+// long enough that the UI must show it as its own step, not a stalled download
 export type LlmStage =
-  'notDownloaded' | 'downloading' | 'downloaded' | 'loading' | 'ready' | 'error'
+  'notDownloaded' | 'downloading' | 'verifying' | 'downloaded' | 'loading' | 'ready' | 'error'
 
 export interface LlmStatus {
   stage: LlmStage

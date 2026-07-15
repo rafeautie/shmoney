@@ -118,6 +118,7 @@ async function handleDownload(): Promise<null> {
   // deleted on the spot so it can never be loaded.
   if (!record.canceled) {
     const filePath = modelFilePath(LLM_MODEL.fileName)
+    post({ event: 'status', status: { stage: 'verifying', error: null } })
     const hash = crypto.createHash('sha256')
     await pipeline(fs.createReadStream(filePath), hash)
     const actual = hash.digest('hex')

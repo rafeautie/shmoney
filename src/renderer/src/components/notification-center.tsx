@@ -167,9 +167,11 @@ function JobItem({ job }: { job: Notification }) {
         <p className="text-xs text-muted-foreground">
           {job.canceling ? 'Cancelling…' : job.detail}
         </p>
-        <Button variant="outline" size="default" disabled={job.canceling} onClick={job.cancel}>
-          Cancel
-        </Button>
+        {job.cancel && (
+          <Button variant="outline" size="default" disabled={job.canceling} onClick={job.cancel}>
+            Cancel
+          </Button>
+        )}
       </div>
     </div>
   )
@@ -263,7 +265,8 @@ function useDownloadCompleteNotice() {
   const notify = useNotify()
   const prev = useRef(stage)
   useEffect(() => {
-    if (prev.current === 'downloading' && (stage === 'downloaded' || stage === 'ready')) {
+    const wasInProgress = prev.current === 'downloading' || prev.current === 'verifying'
+    if (wasInProgress && (stage === 'downloaded' || stage === 'ready')) {
       notify(`${LLM_MODEL.label} ready`, { description: 'Download complete.' })
     }
     prev.current = stage
