@@ -18,9 +18,7 @@
 
 <p align="center">
   <a href="https://github.com/rafeautie/shmoney/releases"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/rafeautie/shmoney/release.svg?size=xs&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/github/rafeautie/shmoney/release.svg?size=xs&amp;mode=light"></picture></a>
-  <a href="https://github.com/rafeautie/shmoney/actions"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=light"></picture></a>
-  <a href="https://scorecard.dev/viewer/?uri=github.com/rafeautie/shmoney"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/dynamic/json.svg?url=https%3A%2F%2Fapi.scorecard.dev%2Fprojects%2Fgithub.com%2Frafeautie%2Fshmoney&amp;query=score&amp;label=OpenSSF%20Scorecard&amp;size=xs&amp;font=geist&amp;logo=lu%3AShieldCheck&amp;logoColor=ffffff&amp;gap=7&amp;mode=dark"><img alt="OpenSSF Scorecard" src="https://shieldcn.dev/badge/dynamic/json.svg?url=https%3A%2F%2Fapi.scorecard.dev%2Fprojects%2Fgithub.com%2Frafeautie%2Fshmoney&amp;query=score&amp;label=OpenSSF%20Scorecard&amp;size=xs&amp;font=geist&amp;logo=lu%3AShieldCheck&amp;logoColor=ffffff&amp;gap=7&amp;mode=light"></picture></a>
-</p>
+  <a href="https://github.com/rafeautie/shmoney/actions"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=light"></picture></a></p>
 
 shmoney is a local-first personal finance app for the desktop. It tracks your accounts, transactions, budgets, and investments in a single SQLite database on your own machine. There is no cloud backend, no user account, and no telemetry.
 
