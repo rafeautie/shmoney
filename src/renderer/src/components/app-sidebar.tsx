@@ -28,13 +28,11 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <div>
-                <Logo />
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">shmoney</span>
-                  <span className="truncate text-xs">A personal shmoney app</span>
-                </div>
+            <SidebarMenuButton size="lg" render={<div />}>
+              <Logo />
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">shmoney</span>
+                <span className="truncate text-xs">A personal shmoney app</span>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -66,14 +64,12 @@ function SettingsLink() {
 
   return (
     <SidebarMenuButton
-      asChild
+      render={<Link to="/settings" />}
       isActive={!!matchRoute({ to: '/settings', fuzzy: false })}
       tooltip="Settings"
     >
-      <Link to="/settings">
-        <HugeiconsIcon icon={Settings01Icon} size={16} />
-        <span>Settings</span>
-      </Link>
+      <HugeiconsIcon icon={Settings01Icon} size={16} />
+      <span>Settings</span>
     </SidebarMenuButton>
   )
 }

@@ -36,14 +36,12 @@ export function NavMain() {
         {NAV_ITEMS.map((item) => (
           <SidebarMenuItem key={item.to}>
             <SidebarMenuButton
-              asChild
+              render={<Link to={item.to} />}
               isActive={!!matchRoute({ to: item.to, fuzzy: item.fuzzy })}
               tooltip={item.label}
             >
-              <Link to={item.to}>
-                <HugeiconsIcon icon={item.icon} size={16} />
-                <span>{item.label}</span>
-              </Link>
+              <HugeiconsIcon icon={item.icon} size={16} />
+              <span>{item.label}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         ))}
