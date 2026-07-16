@@ -2,7 +2,10 @@
   <img src="docs/logo.png" width="120" alt="shmoney logo" />
 </p>
 
-<h1 align="center">shmoney</h1>
+<h3 align="center" font=>shmoney</h3>
+<h4 align="center" font=>Private first. Local first. Personal first.</h4>
+
+<br>
 
 <p align="center">
   <img alt="badge" src="https://shieldcn.dev/badge/SQLite.svg?size=xs&amp;font=geist&amp;logo=sqlite&amp;logoColor=ffffff&amp;color=1a493b&amp;gap=7">
@@ -21,6 +24,7 @@
   <a href="https://github.com/rafeautie/shmoney/actions"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=light"></picture></a>
 </p>
 
+# shmoney
 shmoney is a local-first personal finance app for the desktop. It tracks your accounts, transactions, budgets, and investments in a single SQLite database on your own machine. There is no cloud backend, no user account, and no telemetry.
 
 It is built for people who want a full-featured finance tracker without handing their bank credentials or transaction history to a hosted service. Bank data comes in through [SimpleFIN](https://www.simplefin.org/) or plain file imports, and everything else, including AI categorization, runs entirely on your device.
@@ -52,18 +56,6 @@ Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and 
 ## 🚧 Status
 
 shmoney is under active development and has not reached a stable release. The database schema may change between versions.
-
-## 🛠️ Building from source
-
-You need Node.js 22+ and npm.
-
-```bash
-git clone https://github.com/rafeautie/shmoney.git
-cd shmoney
-npm install
-npm run dev          # development app with hot reload
-npm run build:win    # packaged installer (also build:mac, build:linux)
-```
 
 ## 🤝 Contributing
 
