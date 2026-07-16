@@ -1,5 +1,1 @@
-blank_issues_enabled: true
-contact_links:
-  - name: Report a security vulnerability
-    url: https://github.com/rafeautie/shmoney/security/advisories/new
-    about: Please report security issues privately, not as public issues.
+blank_issues_enabled: false
