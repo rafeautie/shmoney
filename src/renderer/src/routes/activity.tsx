@@ -3,9 +3,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, isToday, isYesterday } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon, Clock01Icon } from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon, Clock01Icon, Idea01Icon } from '@hugeicons/core-free-icons'
 import type { ActionLogEntry } from '@shared/ipc'
+import type { RuleSuggestion } from '@shared/rule-suggestions'
 import { cn, plural } from '@/lib/utils'
+import { useSuggestionsUi } from '@/lib/suggestions-ui'
 import { Page } from '@/components/page'
 import { EntrySourceIcon } from '@/components/entry-source-icon'
 import { Amount } from '@/components/amount'
@@ -38,6 +40,12 @@ function ActivityPage() {
   const query = useQuery({ queryKey: ['actionLog'], queryFn: () => window.api.actionLog.list() })
   const entries = query.data ?? []
 
+  const suggestionsQuery = useQuery({
+    queryKey: ['ruleSuggestions'],
+    queryFn: () => window.api.ruleSuggestions.list()
+  })
+  const suggestions = suggestionsQuery.data ?? []
+
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
     queryFn: () => window.api.categories.list()
@@ -66,8 +74,8 @@ function ActivityPage() {
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Activity</h2>
         <p className="text-muted-foreground">
-          Every change to your transactions and budgets, manual or automatic. Undo or redo any of
-          them.
+          Rule suggestions to review, then a permanent history of every change to your transactions
+          and budgets, manual or automatic. Undo or redo any change.
         </p>
       </div>
 
@@ -77,35 +85,91 @@ function ActivityPage() {
             <Skeleton key={i} className="h-14 w-full" />
           ))}
         </div>
-      ) : entries.length === 0 ? (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={Clock01Icon} />
-            </EmptyMedia>
-            <EmptyTitle>No activity yet</EmptyTitle>
-            <EmptyDescription>
-              Categorizing, deleting, or marking transfers shows up here.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
       ) : (
         <div className="space-y-6">
-          {groups.map((group) => (
-            <div key={group.label} className="space-y-2">
+          {/* dismissible items live here, apart from the history: dismissing or
+              accepting a suggestion must never erase anything below */}
+          {suggestions.length > 0 && (
+            <div className="space-y-2">
               <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                {group.label}
+                Suggestions
               </h3>
               <div className="divide-y overflow-hidden rounded-lg border">
-                {group.entries.map((entry) => (
-                  <EntryRow key={entry.id} entry={entry} categoryName={categoryName} />
+                {suggestions.map((suggestion) => (
+                  <SuggestionRow key={suggestion.id} suggestion={suggestion} />
                 ))}
               </div>
             </div>
-          ))}
+          )}
+
+          {entries.length === 0 ? (
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <HugeiconsIcon icon={Clock01Icon} />
+                </EmptyMedia>
+                <EmptyTitle>No activity yet</EmptyTitle>
+                <EmptyDescription>
+                  Categorizing, deleting, or marking transfers shows up here.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          ) : (
+            groups.map((group) => (
+              <div key={group.label} className="space-y-2">
+                <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  {group.label}
+                </h3>
+                <div className="divide-y overflow-hidden rounded-lg border">
+                  {group.entries.map((entry) => (
+                    <EntryRow key={entry.id} entry={entry} categoryName={categoryName} />
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       )}
     </Page>
+  )
+}
+
+// a pending rule suggestion in the Suggestions section: Review opens the
+// globally mounted suggestions dialog in place, Dismiss hides it for good
+function SuggestionRow({ suggestion }: { suggestion: RuleSuggestion }) {
+  const queryClient = useQueryClient()
+  const { setOpen } = useSuggestionsUi()
+
+  const dismiss = useMutation({
+    mutationFn: () => window.api.ruleSuggestions.dismiss(suggestion.id),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['ruleSuggestions'] })
+  })
+
+  return (
+    <div className="flex items-center gap-3 bg-background px-3 py-2.5">
+      <HugeiconsIcon icon={Idea01Icon} size={18} className="shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-medium">
+          Rule suggested for &quot;{suggestion.descriptionKey}&quot;
+        </div>
+        <div className="truncate text-xs text-muted-foreground">
+          {format(new Date(suggestion.createdAt), 'MMM d, p')} ·{' '}
+          {plural(suggestion.matchCount, 'transaction')} → {suggestion.categoryName}
+        </div>
+      </div>
+      <Badge variant="secondary">Suggestion</Badge>
+      <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
+        Review
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        disabled={dismiss.isPending}
+        onClick={() => dismiss.mutate()}
+      >
+        Dismiss
+      </Button>
+    </div>
   )
 }
 

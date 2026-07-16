@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon, CheckmarkCircle02Icon } from '@hugeicons/core-free-icons'
@@ -292,11 +291,11 @@ function useUpdateReadyNotice() {
   }, [state, notify])
 }
 
-/** Surfaces new rule suggestions: a message whose action opens the suggestions
- * dialog on the settings page. The durable copy lives in the settings card. */
+/** Surfaces new rule suggestions: a message whose action opens the globally
+ * mounted suggestions dialog in place. The durable copy lives in the settings
+ * card and the activity feed. */
 function useRuleSuggestionNotice() {
   const notify = useNotify()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { setOpen } = useSuggestionsUi()
   useEffect(() => {
@@ -306,14 +305,11 @@ function useRuleSuggestionNotice() {
         description: 'Turn repeated categorizing into a rule.',
         action: {
           label: 'Review',
-          onClick: () => {
-            void navigate({ to: '/settings' })
-            setOpen(true)
-          }
+          onClick: () => setOpen(true)
         }
       })
     })
-  }, [notify, navigate, queryClient, setOpen])
+  }, [notify, queryClient, setOpen])
 }
 
 /**

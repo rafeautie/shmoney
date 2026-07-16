@@ -1,8 +1,8 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
 
-// App-wide open/close state for the rule-suggestions dialog. It lives above the
-// settings page so a notification fired from any route can open the dialog once
-// the settings page mounts, without threading router state into the rules card.
+// App-wide open/close state for the rule-suggestions dialog. The dialog itself
+// is mounted globally (RuleSuggestionsHost in the root layout), so any trigger
+// on any route can open it in place without navigating.
 interface SuggestionsUi {
   open: boolean
   setOpen: (open: boolean) => void

@@ -2,6 +2,7 @@ import { Outlet, createRootRoute } from '@tanstack/react-router'
 import { AppSidebar } from '@/components/app-sidebar'
 import { NotificationCenter } from '@/components/notification-center'
 import { Onboarding } from '@/components/onboarding-dialog'
+import { RuleSuggestionsHost } from '@/components/rule-suggestions-host'
 import { UndoShortcuts } from '@/components/undo-shortcuts'
 import { WindowControls } from '@/components/window-controls'
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
@@ -40,6 +41,7 @@ function RootComponent() {
             </main>
           </SidebarInset>
           <UndoShortcuts />
+          <RuleSuggestionsHost />
           <Onboarding />
           <Toaster position="bottom-right" />
         </SidebarProvider>
