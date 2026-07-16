@@ -5,6 +5,7 @@ import { accounts, categories, rules, transactions } from '../db/schema'
 import { notTransferSql } from '../db/system-categories'
 import type { RuleRow } from '../db/schema'
 import { recordAction } from './action-log'
+import { reopenUncoveredAcceptedSuggestions } from './rule-suggestions'
 import { transactionDate } from './transactions-page'
 import { compileConditions } from '../rules'
 import { idSchema, type ActionChange } from '@shared/ipc'
@@ -293,6 +294,9 @@ export function registerRulesIpc(): void {
   ipcMain.handle(RULES_IPC.delete, (_event, input: unknown): boolean => {
     const id = idSchema.parse(input)
     db.delete(rules).where(eq(rules.id, id)).run()
+    // the deleted rule may have been the acceptance of a suggestion; with it
+    // gone, that pair becomes suggestible again
+    reopenUncoveredAcceptedSuggestions()
     return true
   })
 

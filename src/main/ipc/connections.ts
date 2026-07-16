@@ -295,7 +295,9 @@ export function registerConnectionsIpc(): void {
 
   ipcMain.handle(IPC.connectionDisconnect, () => {
     // cascades to accounts and transactions; the audit log has no FK, so clear
-    // it too rather than leave entries pointing at deleted transactions
+    // it too rather than leave entries pointing at deleted transactions. Rule
+    // suggestions stay: manual-account clusters remain valid, and listing hides
+    // any whose transactions are now gone
     db.delete(connections).run()
     db.delete(actionLog).run()
     return true

@@ -209,9 +209,10 @@ export const rules = sqliteTable('rules', {
 })
 
 // "you categorized these identical transactions repeatedly — make it a rule?"
-// One row per (description, category) the detector spotted. Kept forever so a
-// dismissed pair is never re-suggested (the unique index spans every status);
-// the settings surface shows the pending ones.
+// One row per (description, category) the detector spotted. A pair suppresses
+// re-suggesting only while it's active — pending, or accepted with its rule
+// still in force; categorizing the cluster again reactivates a dismissed or
+// orphaned pair (see detectRuleSuggestions). The surfaces show pending ones.
 export const ruleSuggestions = sqliteTable(
   'rule_suggestions',
   {
