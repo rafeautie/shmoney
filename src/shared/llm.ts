@@ -23,6 +23,11 @@ export const LLM_MODEL: LlmModel = {
   contextSize: 4096
 }
 
+// the chat feature gets its own, larger context (multi-turn conversations need
+// the room; categorize/extract prompts don't), created lazily on first chat
+// turn so the extra KV-cache RAM is only paid while chatting
+export const CHAT_CONTEXT_SIZE = 8192
+
 // ---------- status ----------
 
 // verifying = the post-download SHA-256 check; hashing a multi-GB file takes

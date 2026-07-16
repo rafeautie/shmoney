@@ -3,7 +3,13 @@ import path from 'node:path'
 import { app, utilityProcess, BrowserWindow, type UtilityProcess } from 'electron'
 import { LLM_IPC, LLM_MODEL, type LlmDownloadProgress, type LlmStatus } from '@shared/llm'
 import { createLogger } from '../logging'
-import type { DistributiveOmit, WorkerCommand, WorkerMessage } from './protocol'
+import type {
+  ChatGenerationResult,
+  DistributiveOmit,
+  WorkerCommand,
+  WorkerMessage
+} from './protocol'
+import type { ChatHistoryItem } from 'node-llama-cpp'
 
 const log = createLogger('llm')
 
@@ -25,11 +31,17 @@ export function sendToRenderer(channel: string, payload: unknown): void {
 // another request follows, then unload to give its RAM back
 const IDLE_UNLOAD_MS = 60_000
 
+// streamed chat tokens arrive faster than the UI needs paints; batch them so a
+// 20-60 tok/s stream costs ~20 IPC messages a second instead of hundreds
+const CHUNK_FLUSH_MS = 50
+
 class LlmManager {
   private worker: UtilityProcess | null = null
   private status: LlmStatus | null = null
   private nextId = 1
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
+  // chat streaming: chatChunk events route to their command's handler by id
+  private chunkHandlers = new Map<number, (text: string) => void>()
   private inFlight = 0
   private idleTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -105,6 +117,63 @@ class LlmManager {
     }
   }
 
+  /**
+   * One conversational turn: the caller supplies the full prior history (the
+   * worker is stateless across turns) and receives the reply streamed through
+   * `onChunk` in {@link CHUNK_FLUSH_MS} batches, then whole in the result.
+   * Same lifecycle contract as {@link generate}: loads on demand, counts
+   * toward idle unload, and relays `signal` as an abort command — but an
+   * aborted chat resolves with `interrupted: true` instead of rejecting.
+   */
+  async chat(
+    history: ChatHistoryItem[],
+    prompt: string,
+    opts: { signal?: AbortSignal; onChunk?: (text: string) => void } = {}
+  ): Promise<ChatGenerationResult> {
+    this.clearIdleTimer()
+    const status = this.getStatus()
+    if (status.stage === 'downloaded') {
+      await this.load()
+    } else if (status.stage !== 'ready') {
+      throw new Error(`Model is not ready (${status.stage})`)
+    }
+
+    const { signal, onChunk } = opts
+    const onAbort = (): void => void this.send({ type: 'abortGenerate' })
+    signal?.addEventListener('abort', onAbort, { once: true })
+
+    // register the chunk handler before the command is posted so no early
+    // token can slip past; buffer and flush on a timer to keep IPC cheap
+    const id = this.nextId++
+    let buffer = ''
+    let flushTimer: ReturnType<typeof setTimeout> | null = null
+    const flush = (): void => {
+      flushTimer = null
+      if (!buffer || !onChunk) return
+      const text = buffer
+      buffer = ''
+      onChunk(text)
+    }
+    this.chunkHandlers.set(id, (text) => {
+      buffer += text
+      flushTimer ??= setTimeout(flush, CHUNK_FLUSH_MS)
+    })
+
+    this.inFlight++
+    try {
+      if (signal?.aborted) throw signal.reason // cancelled while the model was loading
+      const result = await this.sendWithId(id, { type: 'chat', history, prompt })
+      return result as ChatGenerationResult
+    } finally {
+      if (flushTimer) clearTimeout(flushTimer)
+      flush() // deliver any buffered tail before callers see the settled promise
+      this.chunkHandlers.delete(id)
+      signal?.removeEventListener('abort', onAbort)
+      this.inFlight--
+      if (this.inFlight === 0) this.scheduleIdleUnload()
+    }
+  }
+
   private clearIdleTimer(): void {
     if (this.idleTimer) {
       clearTimeout(this.idleTimer)
@@ -142,6 +211,8 @@ class LlmManager {
       if (msg.event === 'status') {
         this.status = msg.status
         sendToRenderer(LLM_IPC.statusChanged, msg.status)
+      } else if (msg.event === 'chatChunk') {
+        this.chunkHandlers.get(msg.id)?.(msg.text)
       } else {
         sendToRenderer(LLM_IPC.downloadProgress, msg.progress satisfies LlmDownloadProgress)
       }
@@ -168,8 +239,13 @@ class LlmManager {
   }
 
   private send(command: DistributiveOmit<WorkerCommand, 'id'>): Promise<unknown> {
+    return this.sendWithId(this.nextId++, command)
+  }
+
+  // split from send() so chat() can allocate its id up front and register a
+  // chunk handler under it before the command reaches the worker
+  private sendWithId(id: number, command: DistributiveOmit<WorkerCommand, 'id'>): Promise<unknown> {
     const worker = this.ensureWorker()
-    const id = this.nextId++
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject })
       worker.postMessage({ id, ...command } as WorkerCommand)

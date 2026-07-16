@@ -11,12 +11,13 @@ import {
   LlamaChatSession,
   LlamaLogLevel,
   Gemma4ChatWrapper,
+  type ChatHistoryItem,
   type Llama,
   type LlamaModel,
   type LlamaContext
 } from 'node-llama-cpp'
-import { LLM_MODEL } from '@shared/llm'
-import type { WorkerCommand, WorkerMessage } from './protocol'
+import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
+import type { ChatGenerationResult, WorkerCommand, WorkerMessage } from './protocol'
 
 const modelsDir: string = (() => {
   const dir = process.env.LLM_MODELS_DIR
@@ -62,6 +63,16 @@ interface LoadedModel {
 }
 let loaded: LoadedModel | null = null
 
+// chat runs on its own (larger) context and session, created lazily on the
+// first chat turn: the shared `generate` session resets its history per call,
+// while chat replaces its history per turn — keeping them separate means the
+// two modes can never leak state into each other
+interface ChatSessionState {
+  context: LlamaContext
+  session: LlamaChatSession
+}
+let chatLoaded: ChatSessionState | null = null
+
 // the in-flight download. `canceled` lets us tell a user cancel apart from a real
 // failure: aborting can make download() either resolve or reject, so the outcome
 // is decided by this flag, not by whether the promise threw.
@@ -80,6 +91,13 @@ function post(message: WorkerMessage): void {
 
 async function disposeLoaded(): Promise<void> {
   if (!loaded) return
+  // sessions first, then contexts, then the model: on Windows the file stays
+  // locked while anything still maps it
+  if (chatLoaded) {
+    chatLoaded.session.dispose()
+    await chatLoaded.context.dispose()
+    chatLoaded = null
+  }
   loaded.session.dispose()
   await loaded.context.dispose()
   await loaded.model.dispose()
@@ -241,6 +259,44 @@ function handleAbortGenerate(): null {
   return null
 }
 
+async function ensureChatSession(): Promise<LlamaChatSession> {
+  if (!loaded) throw new Error('No model loaded')
+  if (chatLoaded) return chatLoaded.session
+  const context = await loaded.model.createContext({ contextSize: CHAT_CONTEXT_SIZE })
+  const session = new LlamaChatSession({
+    contextSequence: context.getSequence(),
+    chatWrapper: new Gemma4ChatWrapper()
+  })
+  chatLoaded = { context, session }
+  return session
+}
+
+async function handleChat(
+  id: number,
+  history: ChatHistoryItem[],
+  prompt: string
+): Promise<ChatGenerationResult> {
+  const session = await ensureChatSession()
+  // the whole prior conversation is replaced per turn (stateless worker: the
+  // feature owns history in the DB), so switching conversations needs nothing
+  session.setChatHistory(history)
+
+  const controller = new AbortController()
+  activeGeneration = controller
+  try {
+    // stopOnAbortSignal makes an abort return the text generated so far
+    // instead of throwing, so a stopped reply still reaches the DB
+    const text = await session.prompt(prompt, {
+      signal: controller.signal,
+      stopOnAbortSignal: true,
+      onTextChunk: (chunk) => post({ event: 'chatChunk', id, text: chunk })
+    })
+    return { text, interrupted: controller.signal.aborted }
+  } finally {
+    if (activeGeneration === controller) activeGeneration = null
+  }
+}
+
 async function dispatch(command: WorkerCommand): Promise<unknown> {
   switch (command.type) {
     case 'download':
@@ -257,6 +313,8 @@ async function dispatch(command: WorkerCommand): Promise<unknown> {
       return handleGenerate(command.prompt, command.schema)
     case 'abortGenerate':
       return handleAbortGenerate()
+    case 'chat':
+      return handleChat(command.id, command.history, command.prompt)
   }
 }
 
