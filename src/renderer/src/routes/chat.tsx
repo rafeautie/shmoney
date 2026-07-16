@@ -1,0 +1,94 @@
+import { useEffect, useState } from 'react'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useIsMutating, useQueryClient } from '@tanstack/react-query'
+import type { ChatMessage } from '@shared/chat'
+import { CHAT_CONVERSATIONS_KEY, chatMessagesKey, useSendChat, useStopChat } from '@/lib/chat'
+import { CATEGORIZE_MUTATION_KEY, useLlmReady } from '@/lib/llm'
+import { ChatInput } from '@/components/chat/chat-input'
+import { ChatModelGate } from '@/components/chat/chat-model-gate'
+import { ChatView, type ActiveReply } from '@/components/chat/chat-view'
+import { ConversationList } from '@/components/chat/conversation-list'
+
+export const Route = createFileRoute('/chat')({
+  component: ChatPage,
+  validateSearch: (search: Record<string, unknown>): { c?: number } => {
+    const c = Number(search.c)
+    return Number.isInteger(c) && c > 0 ? { c } : {}
+  }
+})
+
+function ChatPage() {
+  const { c } = Route.useSearch()
+  const conversationId = c ?? null
+  const navigate = useNavigate({ from: '/chat' })
+  const queryClient = useQueryClient()
+
+  const ready = useLlmReady()
+  const categorizeRunning = useIsMutating({ mutationKey: CATEGORIZE_MUTATION_KEY }) > 0
+  const sendChat = useSendChat()
+  const stopChat = useStopChat()
+
+  // the reply currently streaming in (any conversation); '' = awaiting first token
+  const [reply, setReply] = useState<ActiveReply | null>(null)
+
+  useEffect(() => {
+    const offChunk = window.api.chat.onChunk(({ conversationId: id, text }) => {
+      setReply((prev) =>
+        prev && prev.conversationId === id
+          ? { conversationId: id, text: prev.text + text }
+          : { conversationId: id, text }
+      )
+    })
+    const offDone = window.api.chat.onMessageDone(({ conversationId: id, message }) => {
+      setReply(null)
+      queryClient.setQueryData<ChatMessage[]>(chatMessagesKey(id), (prev) =>
+        prev ? [...prev, message] : prev
+      )
+      void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
+    })
+    return () => {
+      offChunk()
+      offDone()
+    }
+  }, [queryClient])
+
+  const select = (id: number | null) =>
+    void navigate({ search: id === null ? {} : { c: id }, replace: false })
+
+  const send = (text: string) =>
+    sendChat.mutate(
+      { conversationId, text },
+      {
+        onSuccess: ({ conversation }) => {
+          // treat the turn as in flight right away so the shimmer shows
+          // before the first token; chunks then append to this entry
+          setReply({ conversationId: conversation.id, text: '' })
+          if (conversationId === null) select(conversation.id)
+        }
+      }
+    )
+
+  return (
+    <div className="flex min-h-0 flex-1">
+      <ConversationList activeId={conversationId} onSelect={select} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        {!ready ? (
+          <ChatModelGate />
+        ) : (
+          <>
+            <ChatView conversationId={conversationId} reply={reply} />
+            <ChatInput
+              streaming={reply !== null}
+              disabled={categorizeRunning || sendChat.isPending}
+              disabledHint={
+                categorizeRunning ? 'Chat is paused while auto-categorize runs' : undefined
+              }
+              onSend={send}
+              onStop={() => stopChat.mutate()}
+            />
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
