@@ -10,10 +10,15 @@ import { z } from 'zod'
 
 // messages store an array of parts so the planned function-calling follow-up
 // (functionCall/functionResult parts rendered inline) is a new variant here,
-// not a schema migration. Today every message is a single text part.
+// not a schema migration. Assistant messages may lead with a reasoning part
+// (the model's chain of thought) followed by the text of the answer.
 export type ChatMessagePart =
   | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string; durationMs: number }
   | { type: 'functionCall'; name: string; args: unknown; result?: unknown }
+
+/** which stream a chat chunk belongs to: the visible answer or the chain of thought */
+export type ChatChunkKind = 'text' | 'reasoning'
 
 export type ChatRole = 'user' | 'assistant'
 export type ChatMessageStatus = 'complete' | 'interrupted' | 'error'
@@ -49,6 +54,17 @@ export function messageText(message: Pick<ChatMessage, 'parts'>): string {
     .join('')
 }
 
+/** The message's reasoning part, or null if the model didn't think out loud. */
+export function messageReasoning(
+  message: Pick<ChatMessage, 'parts'>
+): Extract<ChatMessagePart, { type: 'reasoning' }> | null {
+  return (
+    message.parts.find(
+      (p): p is Extract<ChatMessagePart, { type: 'reasoning' }> => p.type === 'reasoning'
+    ) ?? null
+  )
+}
+
 // ---------- IPC inputs ----------
 
 export const sendChatSchema = z.object({
@@ -72,6 +88,7 @@ export type RenameConversationInput = z.infer<typeof renameConversationSchema>
 export interface ChatChunkEvent {
   conversationId: number
   text: string
+  kind: ChatChunkKind
 }
 
 /** the assistant row is finalized (complete, interrupted, or errored) */

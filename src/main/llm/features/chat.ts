@@ -5,10 +5,12 @@ import {
   CHAT_IPC,
   messageText,
   type ChatMessage,
+  type ChatMessagePart,
   type Conversation,
   type SendChatInput,
   type SendChatResult
 } from '@shared/chat'
+import type { ChatGenerationResult } from '../protocol'
 import { db } from '../../db'
 import {
   chatMessages,
@@ -41,7 +43,9 @@ export function titleFrom(text: string): string {
 /**
  * Map persisted rows to the model's history, newest-first trimmed to the token
  * budget. Interrupted partials stay (the user saw them); error rows carry no
- * assistant text worth replaying and are skipped.
+ * assistant text worth replaying and are skipped. Reasoning parts are never
+ * replayed (messageText joins text parts only): a past turn's chain of
+ * thought is display material, not conversation.
  */
 export function buildHistory(
   rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[]
@@ -179,20 +183,26 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
   void enqueueGenerate(() =>
     llmManager.chat(history, input.text, {
       signal: controller.signal,
-      onChunk: (text) =>
-        sendToRenderer(CHAT_IPC.chunk, { conversationId: conversationRow.id, text })
+      onChunk: (text, kind) =>
+        sendToRenderer(CHAT_IPC.chunk, { conversationId: conversationRow.id, text, kind })
     })
   )
-    .then((result) => finishTurn(conversationRow.id, result.text, result.interrupted, null))
+    .then((result) => finishTurn(conversationRow.id, result, null))
     .catch((err) => {
+      const empty = { text: '', reasoning: '', reasoningMs: 0 }
       // a stop before the turn ever reached the model (still queued behind
       // another generation) rejects instead of resolving interrupted; that's
       // a stop, not a failure
-      if (controller.signal.aborted) return finishTurn(conversationRow.id, '', true, null)
+      if (controller.signal.aborted)
+        return finishTurn(conversationRow.id, { ...empty, interrupted: true }, null)
       // logged serialized, never raw: the error chain can drag the prompt
       // along, and prompts carry the user's private conversation text
       log.error('chat.generation-failed', err)
-      return finishTurn(conversationRow.id, '', false, String((err as Error)?.message ?? err))
+      return finishTurn(
+        conversationRow.id,
+        { ...empty, interrupted: false },
+        String((err as Error)?.message ?? err)
+      )
     })
     .finally(() => {
       if (activeChat?.controller === controller) activeChat = null
@@ -203,17 +213,22 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
 
 function finishTurn(
   conversationId: number,
-  text: string,
-  interrupted: boolean,
+  result: ChatGenerationResult,
   errorMessage: string | null
 ): void {
+  const { text, reasoning, reasoningMs, interrupted } = result
   const now = Date.now()
+  const parts: ChatMessagePart[] = []
+  // the chain of thought leads the answer, mirroring generation order; an
+  // interrupted turn can be a reasoning part alone
+  if (reasoning) parts.push({ type: 'reasoning', text: reasoning, durationMs: reasoningMs })
+  parts.push({ type: 'text', text })
   const row = db
     .insert(chatMessages)
     .values({
       conversationId,
       role: 'assistant',
-      parts: [{ type: 'text', text }],
+      parts,
       status: errorMessage !== null ? 'error' : interrupted ? 'interrupted' : 'complete',
       errorMessage,
       createdAt: now

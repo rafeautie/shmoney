@@ -282,18 +282,41 @@ async function handleChat(
   activeGeneration = controller
   try {
     const session = await ensureChatSession()
-    if (controller.signal.aborted) return { text: '', interrupted: true }
+    if (controller.signal.aborted)
+      return { text: '', reasoning: '', reasoningMs: 0, interrupted: true }
     // the whole prior conversation is replaced per turn (stateless worker: the
     // feature owns history in the DB), so switching conversations needs nothing
     session.setChatHistory(history)
+    // the chat wrapper routes the model's chain of thought into segments, so
+    // prompt() resolves with the answer alone; thought text and timing are
+    // collected here from the segment chunks
+    let reasoning = ''
+    let reasoningMs = 0
+    let segmentStart: number | null = null
     // stopOnAbortSignal makes an abort return the text generated so far
     // instead of throwing, so a stopped reply still reaches the DB
     const text = await session.prompt(prompt, {
       signal: controller.signal,
       stopOnAbortSignal: true,
-      onTextChunk: (chunk) => post({ event: 'chatChunk', id, text: chunk })
+      onResponseChunk: (chunk) => {
+        if (chunk.type === 'segment') {
+          if (chunk.segmentStartTime) segmentStart = chunk.segmentStartTime.getTime()
+          if (chunk.text) {
+            reasoning += chunk.text
+            post({ event: 'chatChunk', id, text: chunk.text, kind: 'reasoning' })
+          }
+          if (chunk.segmentEndTime && segmentStart !== null) {
+            reasoningMs += chunk.segmentEndTime.getTime() - segmentStart
+            segmentStart = null
+          }
+        } else if (chunk.text) {
+          post({ event: 'chatChunk', id, text: chunk.text, kind: 'text' })
+        }
+      }
     })
-    return { text, interrupted: controller.signal.aborted }
+    // an abort mid-thought leaves the segment open; count the time until now
+    if (segmentStart !== null) reasoningMs += Date.now() - segmentStart
+    return { text, reasoning, reasoningMs, interrupted: controller.signal.aborted }
   } finally {
     if (activeGeneration === controller) activeGeneration = null
   }

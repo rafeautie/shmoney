@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app, utilityProcess, BrowserWindow, type UtilityProcess } from 'electron'
+import type { ChatChunkKind } from '@shared/chat'
 import { LLM_IPC, LLM_MODEL, type LlmDownloadProgress, type LlmStatus } from '@shared/llm'
 import { createLogger } from '../logging'
 import type {
@@ -41,7 +42,7 @@ class LlmManager {
   private nextId = 1
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   // chat streaming: chatChunk events route to their command's handler by id
-  private chunkHandlers = new Map<number, (text: string) => void>()
+  private chunkHandlers = new Map<number, (text: string, kind: ChatChunkKind) => void>()
   private inFlight = 0
   private idleTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -135,23 +136,31 @@ class LlmManager {
   async chat(
     history: ChatHistoryItem[],
     prompt: string,
-    opts: { signal?: AbortSignal; onChunk?: (text: string) => void } = {}
+    opts: { signal?: AbortSignal; onChunk?: (text: string, kind: ChatChunkKind) => void } = {}
   ): Promise<ChatGenerationResult> {
     const { signal, onChunk } = opts
 
     // register the chunk handler before the command is posted so no early
-    // token can slip past; buffer and flush on a timer to keep IPC cheap
+    // token can slip past; buffer and flush on a timer to keep IPC cheap.
+    // A batch holds one kind of text: a kind change (thought → answer)
+    // flushes what's buffered so ordering survives the batching.
     const id = this.nextId++
     let buffer = ''
+    let bufferKind: ChatChunkKind = 'text'
     let flushTimer: ReturnType<typeof setTimeout> | null = null
     const flush = (): void => {
+      if (flushTimer) clearTimeout(flushTimer)
       flushTimer = null
       if (!buffer || !onChunk) return
       const text = buffer
       buffer = ''
-      onChunk(text)
+      onChunk(text, bufferKind)
     }
-    this.chunkHandlers.set(id, (text) => {
+    this.chunkHandlers.set(id, (text, kind) => {
+      if (kind !== bufferKind) {
+        flush()
+        bufferKind = kind
+      }
       buffer += text
       flushTimer ??= setTimeout(flush, CHUNK_FLUSH_MS)
     })
@@ -206,7 +215,7 @@ class LlmManager {
         this.status = msg.status
         sendToRenderer(LLM_IPC.statusChanged, msg.status)
       } else if (msg.event === 'chatChunk') {
-        this.chunkHandlers.get(msg.id)?.(msg.text)
+        this.chunkHandlers.get(msg.id)?.(msg.text, msg.kind)
       } else {
         sendToRenderer(LLM_IPC.downloadProgress, msg.progress satisfies LlmDownloadProgress)
       }

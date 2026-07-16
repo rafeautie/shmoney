@@ -1,3 +1,4 @@
+import type { ChatChunkKind } from '@shared/chat'
 import type { LlmDownloadProgress, LlmStatus } from '@shared/llm'
 // type-only: erased at compile time, so the manager still never runtime-imports
 // node-llama-cpp (the worker is the only place that does)
@@ -31,6 +32,10 @@ export type WorkerCommand =
 /** reply payload of a 'chat' command */
 export interface ChatGenerationResult {
   text: string
+  /** the model's chain of thought, '' when it answered without thinking */
+  reasoning: string
+  /** wall-clock time spent inside thought segments */
+  reasoningMs: number
   /** true when the turn was aborted; text holds whatever was generated so far */
   interrupted: boolean
 }
@@ -42,5 +47,6 @@ export type WorkerMessage =
   | { id: number; ok: false; error: string }
   | { event: 'status'; status: LlmStatus }
   | { event: 'downloadProgress'; progress: LlmDownloadProgress }
-  // streamed text of an in-flight chat; the only push event tied to a command id
-  | { event: 'chatChunk'; id: number; text: string }
+  // streamed text of an in-flight chat; the only push event tied to a command
+  // id. `kind` separates the visible answer from thought-segment text.
+  | { event: 'chatChunk'; id: number; text: string; kind: ChatChunkKind }

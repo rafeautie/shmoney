@@ -57,6 +57,36 @@ describe('buildHistory', () => {
     ])
   })
 
+  it('replays only answer text, never reasoning parts', () => {
+    const history = buildHistory([
+      row('user', 'hi'),
+      {
+        role: 'assistant',
+        status: 'complete',
+        parts: [
+          { type: 'reasoning', text: 'let me think about this', durationMs: 1200 },
+          { type: 'text', text: 'answer' }
+        ]
+      },
+      row('user', 'more'),
+      // stopped mid-thought: a reasoning part but no answer — nothing to replay
+      {
+        role: 'assistant',
+        status: 'interrupted',
+        parts: [
+          { type: 'reasoning', text: 'hmm', durationMs: 300 },
+          { type: 'text', text: '' }
+        ]
+      }
+    ])
+    expect(history).toEqual([
+      { type: 'system', text: SYSTEM_PROMPT },
+      { type: 'user', text: 'hi' },
+      { type: 'model', response: ['answer'] },
+      { type: 'user', text: 'more' }
+    ])
+  })
+
   it('drops the oldest turns once the char budget is exceeded', () => {
     const third = Math.ceil(BUDGET_CHARS / 3) + 1 // three rows can't all fit
     const history = buildHistory([

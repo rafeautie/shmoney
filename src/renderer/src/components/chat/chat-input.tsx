@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowUp02Icon, SparklesIcon, StopIcon } from '@hugeicons/core-free-icons'
+import { ArrowUp02Icon, Loading03Icon, StopIcon } from '@hugeicons/core-free-icons'
 import {
   InputGroup,
   InputGroupAddon,
@@ -57,7 +57,7 @@ export function ChatInput({
           send()
         }}
       >
-        <InputGroup className="rounded-2xl hover:border-ring/60 has-data-[align=block-end]:rounded-2xl has-[textarea]:rounded-2xl">
+        <InputGroup className="rounded-2xl hover:border-ring/60 has-data-[align=block-end]:rounded-2xl has-[textarea]:rounded-2xl overflow-hidden">
           {/* the textarea grows with its content (field-sizing); the scroll
               area viewport caps the height and owns the scrolling */}
           <ScrollArea
@@ -77,7 +77,7 @@ export function ChatInput({
                       ? 'Write a message...'
                       : 'How can I help you?'
               }
-              className="min-h-11 px-3 py-2.5"
+              className="min-h-11 p-4 pb-0"
               value={text}
               disabled={disabled}
               onChange={(e) => {
@@ -101,11 +101,11 @@ export function ChatInput({
           <InputGroupAddon align="block-end" className="p-2">
             {loading && !streaming && (
               <HugeiconsIcon
-                icon={SparklesIcon}
+                icon={Loading03Icon}
                 strokeWidth={2}
                 role="status"
                 aria-label="Loading the model"
-                className="ml-1 size-4 animate-shimmer text-muted-foreground"
+                className="ml-1 size-4 animate-spin text-muted-foreground"
               />
             )}
             <InputGroupButton

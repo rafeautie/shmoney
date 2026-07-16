@@ -36,12 +36,35 @@ function ChatPage() {
   const [reply, setReply] = useState<ActiveReply | null>(null)
 
   useEffect(() => {
-    const offChunk = window.api.chat.onChunk(({ conversationId: id, text }) => {
-      setReply((prev) =>
-        prev && prev.conversationId === id
-          ? { conversationId: id, text: prev.text + text }
-          : { conversationId: id, text }
-      )
+    const offChunk = window.api.chat.onChunk(({ conversationId: id, text, kind }) => {
+      setReply((prev) => {
+        const base =
+          prev && prev.conversationId === id
+            ? prev
+            : {
+                conversationId: id,
+                text: '',
+                reasoning: '',
+                reasoningStartedAt: null,
+                reasoningMs: null
+              }
+        if (kind === 'reasoning') {
+          return {
+            ...base,
+            reasoning: base.reasoning + text,
+            reasoningStartedAt: base.reasoningStartedAt ?? Date.now()
+          }
+        }
+        return {
+          ...base,
+          text: base.text + text,
+          // the first answer chunk ends the thinking phase; freeze the live
+          // duration until the persisted row's authoritative one replaces it
+          reasoningMs:
+            base.reasoningMs ??
+            (base.reasoningStartedAt !== null ? Date.now() - base.reasoningStartedAt : null)
+        }
+      })
     })
     const offDone = window.api.chat.onMessageDone(({ conversationId: id, message }) => {
       setReply(null)
@@ -66,7 +89,13 @@ function ChatPage() {
         onSuccess: ({ conversation }) => {
           // treat the turn as in flight right away so the shimmer shows
           // before the first token; chunks then append to this entry
-          setReply({ conversationId: conversation.id, text: '' })
+          setReply({
+            conversationId: conversation.id,
+            text: '',
+            reasoning: '',
+            reasoningStartedAt: null,
+            reasoningMs: null
+          })
           if (conversationId === null) select(conversation.id)
         }
       }
