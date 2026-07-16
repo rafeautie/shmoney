@@ -30,7 +30,18 @@ export default tseslint.config(
       'react-hooks/incompatible-library': 'off',
       'react-refresh/only-export-components': [
         'warn',
-        { allowExportNames: ['buttonVariants', 'badgeVariants', 'useTheme', 'useSidebar'] }
+        {
+          allowExportNames: [
+            'buttonVariants',
+            'badgeVariants',
+            'markerVariants',
+            'useTheme',
+            'useSidebar',
+            'useMessageScroller',
+            'useMessageScrollerScrollable',
+            'useMessageScrollerVisibility'
+          ]
+        }
       ]
     }
   },
