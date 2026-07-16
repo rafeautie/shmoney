@@ -1,15 +1,15 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, isToday, isYesterday } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon, Clock01Icon, Idea01Icon } from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon, Clock01Icon } from '@hugeicons/core-free-icons'
 import type { ActionLogEntry } from '@shared/ipc'
-import type { RuleSuggestion } from '@shared/rule-suggestions'
+import { groupSuggestions, type RuleSuggestion } from '@shared/rule-suggestions'
 import { cn, plural } from '@/lib/utils'
-import { useSuggestionsUi } from '@/lib/suggestions-ui'
 import { Page } from '@/components/page'
 import { EntrySourceIcon } from '@/components/entry-source-icon'
+import { SuggestionGroupRow } from '@/components/suggestion-group-row'
 import { Amount } from '@/components/amount'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -89,18 +89,7 @@ function ActivityPage() {
         <div className="space-y-6">
           {/* dismissible items live here, apart from the history: dismissing or
               accepting a suggestion must never erase anything below */}
-          {suggestions.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Suggestions
-              </h3>
-              <div className="divide-y overflow-hidden rounded-lg border">
-                {suggestions.map((suggestion) => (
-                  <SuggestionRow key={suggestion.id} suggestion={suggestion} />
-                ))}
-              </div>
-            </div>
-          )}
+          {suggestions.length > 0 && <SuggestionsSection suggestions={suggestions} />}
 
           {entries.length === 0 ? (
             <Empty className="border">
@@ -117,9 +106,7 @@ function ActivityPage() {
           ) : (
             groups.map((group) => (
               <div key={group.label} className="space-y-2">
-                <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  {group.label}
-                </h3>
+                <h3 className="text-base font-semibold tracking-tight">{group.label}</h3>
                 <div className="divide-y overflow-hidden rounded-lg border">
                   {group.entries.map((entry) => (
                     <EntryRow key={entry.id} entry={entry} categoryName={categoryName} />
@@ -134,41 +121,42 @@ function ActivityPage() {
   )
 }
 
-// a pending rule suggestion in the Suggestions section: Review opens the
-// globally mounted suggestions dialog in place, Dismiss hides it for good
-function SuggestionRow({ suggestion }: { suggestion: RuleSuggestion }) {
-  const queryClient = useQueryClient()
-  const { setOpen } = useSuggestionsUi()
-
-  const dismiss = useMutation({
-    mutationFn: () => window.api.ruleSuggestions.dismiss(suggestion.id),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['ruleSuggestions'] })
-  })
+// The Suggestions section: when the list runs long it's capped, with a bottom
+// fade and a Show more button that expands it in place.
+function SuggestionsSection({ suggestions }: { suggestions: RuleSuggestion[] }) {
+  const [expanded, setExpanded] = useState(false)
+  const [overflowing, setOverflowing] = useState(false)
 
   return (
-    <div className="flex items-center gap-3 bg-background px-3 py-2.5">
-      <HugeiconsIcon icon={Idea01Icon} size={18} className="shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium">
-          Rule suggested for &quot;{suggestion.descriptionKey}&quot;
+    <div className="space-y-2">
+      <h3 className="text-base font-semibold tracking-tight">Suggestions</h3>
+      <div className="relative">
+        {/* the inline ref re-measures every commit (data changes, expand);
+            setState bails out when the value is unchanged */}
+        <div
+          ref={(el) => {
+            if (el) setOverflowing(el.scrollHeight > el.clientHeight + 1)
+          }}
+          className={cn('space-y-2', !expanded && 'max-h-64 overflow-hidden')}
+        >
+          {/* each group is its own bordered settings-style block */}
+          {groupSuggestions(suggestions).map((group) => (
+            <SuggestionGroupRow key={group.categoryId} group={group} />
+          ))}
         </div>
-        <div className="truncate text-xs text-muted-foreground">
-          {format(new Date(suggestion.createdAt), 'MMM d, p')} ·{' '}
-          {plural(suggestion.matchCount, 'transaction')} → {suggestion.categoryName}
-        </div>
+        {!expanded && overflowing && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-24 items-end justify-center bg-linear-to-t from-background to-transparent">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="pointer-events-auto"
+              onClick={() => setExpanded(true)}
+            >
+              Show more suggestions
+            </Button>
+          </div>
+        )}
       </div>
-      <Badge variant="secondary">Suggestion</Badge>
-      <Button variant="ghost" size="sm" onClick={() => setOpen(true)}>
-        Review
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        disabled={dismiss.isPending}
-        onClick={() => dismiss.mutate()}
-      >
-        Dismiss
-      </Button>
     </div>
   )
 }

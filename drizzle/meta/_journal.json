@@ -141,6 +141,13 @@
       "when": 1784088669314,
       "tag": "0019_normal_mantis",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1784184012887,
+      "tag": "0020_freezing_trish_tilby",
+      "breakpoints": true
     }
   ]
 }

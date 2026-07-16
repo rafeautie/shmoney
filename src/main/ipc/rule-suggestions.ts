@@ -1,10 +1,12 @@
-import { ipcMain, BrowserWindow } from 'electron'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { ipcMain } from 'electron'
+import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { categories, ruleSuggestions, settings, transactions } from '../db/schema'
 import { notTransferSql } from '../db/system-categories'
 import { compileConditions } from '../rules'
 import { loadEnabledRules } from './rules'
+import { extractRuleTerm } from '../llm/features/extract-rule-term'
+import { sendToRenderer } from '../llm/manager'
 import { idSchema } from '@shared/ipc'
 import {
   RULE_SUGGESTIONS_CREATED,
@@ -15,28 +17,29 @@ import {
 // how many identical transactions make a pattern worth suggesting a rule for
 const MIN_IDENTICAL = 3
 
-// push an event to the renderer (defined locally rather than imported from the
-// llm manager, so this module doesn't pull the whole LLM stack in)
-function sendToRenderer(channel: string, payload: unknown): void {
-  BrowserWindow.getAllWindows()[0]?.webContents.send(channel, payload)
-}
-
 function suggestionsEnabled(): boolean {
   const row = db.select().from(settings).where(eq(settings.key, 'ruleSuggestionsEnabled')).get()
   // default on; only an explicit stored `false` disables it
   return row ? row.value !== false : true
 }
 
-// how many current transactions share this exact description (the reach a rule
-// would have). Ignores category so a partly-categorized cluster still counts.
-function countMatching(description: string): number {
+// the SQL predicate for the transactions a suggestion's would-be rule matches
+// (the same `contains` compilation the real rule would get, so counts and
+// coverage are honest)
+function matchPredicate(phrase: string): SQL {
+  return compileConditions({ description: { op: 'contains', phrases: [phrase] } })
+}
+
+// how many current transactions the suggestion's rule would reach. Ignores
+// category so a partly-categorized cluster still counts.
+function countMatching(phrase: string): number {
   return (
     db
       .select({ n: sql<number>`count(*)` })
       .from(transactions)
       .where(
         and(
-          eq(transactions.description, description),
+          matchPredicate(phrase),
           isNull(transactions.deletedAt),
           eq(transactions.pending, false),
           notTransferSql()
@@ -46,11 +49,11 @@ function countMatching(description: string): number {
   )
 }
 
-// is a description already categorized to this category by an existing enabled
-// rule? Reuses the engine: a rule covers it if its compiled conditions match at
-// least one transaction with this description.
+// is the suggestion's target already categorized to this category by an
+// existing enabled rule? Reuses the engine: a rule covers it if its compiled
+// conditions match at least one transaction the suggestion would match.
 function alreadyCovered(
-  description: string,
+  phrase: string,
   categoryId: number,
   rules: ReturnType<typeof loadEnabledRules>
 ): boolean {
@@ -59,7 +62,7 @@ function alreadyCovered(
     const hit = db
       .select({ one: sql`1` })
       .from(transactions)
-      .where(and(eq(transactions.description, description), compileConditions(rule.conditions)))
+      .where(and(matchPredicate(phrase), compileConditions(rule.conditions)))
       .limit(1)
       .get()
     return hit !== undefined
@@ -69,15 +72,18 @@ function alreadyCovered(
 /**
  * After a batch of category writes, look for descriptions the user (or the LLM)
  * has now categorized the same way across enough transactions and record a rule
- * suggestion for each. A pair is suppressed only while it's active — already
- * pending, or covered by an enabled rule; a dismissed or orphaned-accepted pair
- * earns a fresh suggestion by being categorized again. Fires a renderer event
- * when it creates any, so the notification center and settings list refresh.
+ * suggestion for each. When the local model is available it narrows the exact
+ * description to a reusable merchant term (a `contains` suggestion); otherwise
+ * the suggestion falls back to the exact description, exactly the old
+ * behavior. A pair is suppressed only while it's active — already pending, or
+ * covered by an enabled rule; a dismissed or orphaned-accepted pair earns a
+ * fresh suggestion by being categorized again. Fires a renderer event when it
+ * creates any, so the notification center and settings list refresh.
  */
-export function detectRuleSuggestions(
+export async function detectRuleSuggestions(
   changed: { transactionId: number; categoryId: number }[],
   source: 'user' | 'llm'
-): void {
+): Promise<void> {
   if (!suggestionsEnabled() || changed.length === 0) return
 
   const descById = new Map(
@@ -106,13 +112,16 @@ export function detectRuleSuggestions(
   }
 
   const rules = loadEnabledRules()
-  const now = Date.now()
   let created = 0
   for (const { description, categoryId } of pairs.values()) {
     const count = countMatching(description)
     if (count < MIN_IDENTICAL) continue
     if (alreadyCovered(description, categoryId, rules)) continue
-    const existing = db
+
+    const now = Date.now()
+    // this exact cluster was suggested before: reactivate or skip without
+    // spending a generation — the cluster keeps the phrase it was given
+    const byKey = db
       .select()
       .from(ruleSuggestions)
       .where(
@@ -122,18 +131,40 @@ export function detectRuleSuggestions(
         )
       )
       .get()
-    if (existing) {
+    if (byKey) {
       // pending = already suggested, don't double up. Anything else (dismissed,
       // or accepted with the covering rule gone) reactivates as a fresh suggestion
-      if (existing.status === 'pending') continue
+      if (byKey.status === 'pending') continue
       db.update(ruleSuggestions)
         .set({ status: 'pending', matchCount: count, source, createdAt: now, updatedAt: now })
-        .where(eq(ruleSuggestions.id, existing.id))
+        .where(eq(ruleSuggestions.id, byKey.id))
+        .run()
+      created++
+      continue
+    }
+
+    // the model narrows the description to a reusable term, taken as-is; when
+    // it isn't available or fails, the exact description is the pre-LLM behavior
+    const phrase = (await extractRuleTerm(description)) ?? description
+
+    // two clusters can extract the same term; (phrase, category) is the
+    // suggestion's identity, so fold into the existing row when one exists
+    const byPhrase = db
+      .select()
+      .from(ruleSuggestions)
+      .where(and(eq(ruleSuggestions.phrase, phrase), eq(ruleSuggestions.categoryId, categoryId)))
+      .get()
+    if (byPhrase) {
+      if (byPhrase.status === 'pending') continue
+      db.update(ruleSuggestions)
+        .set({ status: 'pending', matchCount: count, source, createdAt: now, updatedAt: now })
+        .where(eq(ruleSuggestions.id, byPhrase.id))
         .run()
     } else {
       db.insert(ruleSuggestions)
         .values({
           descriptionKey: description,
+          phrase,
           categoryId,
           matchCount: count,
           source,
@@ -154,6 +185,7 @@ function listSuggestions(): RuleSuggestion[] {
     .select({
       id: ruleSuggestions.id,
       descriptionKey: ruleSuggestions.descriptionKey,
+      phrase: ruleSuggestions.phrase,
       categoryId: ruleSuggestions.categoryId,
       categoryName: categories.name,
       source: ruleSuggestions.source,
@@ -168,7 +200,7 @@ function listSuggestions(): RuleSuggestion[] {
       .map((r) => ({
         ...r,
         source: r.source as 'user' | 'llm',
-        matchCount: countMatching(r.descriptionKey)
+        matchCount: countMatching(r.phrase)
       }))
       // a pending row whose cluster shrank below the threshold (e.g. the synced
       // account it came from was disconnected) is hidden, not deleted: it stays
@@ -206,8 +238,8 @@ export function reopenUncoveredAcceptedSuggestions(): void {
   const now = Date.now()
   let reopened = 0
   for (const row of accepted) {
-    if (countMatching(row.descriptionKey) < MIN_IDENTICAL) continue
-    if (alreadyCovered(row.descriptionKey, row.categoryId, rules)) continue
+    if (countMatching(row.phrase) < MIN_IDENTICAL) continue
+    if (alreadyCovered(row.phrase, row.categoryId, rules)) continue
     // createdAt moves to now: this is a fresh suggestion event, not the old one
     db.update(ruleSuggestions)
       .set({ status: 'pending', createdAt: now, updatedAt: now })

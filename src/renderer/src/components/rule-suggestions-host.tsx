@@ -1,9 +1,18 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { RuleSuggestion } from '@shared/rule-suggestions'
+import { groupSuggestions, type RuleSuggestionGroup } from '@shared/rule-suggestions'
+import { plural } from '@/lib/utils'
 import { useSuggestionsUi } from '@/lib/suggestions-ui'
 import { RuleEditor, type RuleDraft } from './rules-editor'
 import { RuleSuggestionsDialog } from './rule-suggestions-dialog'
+
+// rule names are capped at 80 chars (ruleNameSchema); when the phrases don't
+// fit, fall back to a count
+function draftName(group: RuleSuggestionGroup): string {
+  const joined = `${group.suggestions.map((s) => s.phrase).join(', ')} → ${group.categoryName}`
+  if (joined.length <= 80) return joined
+  return `${plural(group.suggestions.length, 'merchant')} → ${group.categoryName}`.slice(0, 80)
+}
 
 /**
  * Globally mounted host for the rule-suggestions dialog and the rule editor it
@@ -12,66 +21,81 @@ import { RuleSuggestionsDialog } from './rule-suggestions-dialog'
  */
 export function RuleSuggestionsHost(): React.JSX.Element {
   const queryClient = useQueryClient()
-  const { open, setOpen } = useSuggestionsUi()
+  const { open, setOpen, registerCreateRule } = useSuggestionsUi()
 
   const suggestionsQuery = useQuery({
     queryKey: ['ruleSuggestions'],
     queryFn: () => window.api.ruleSuggestions.list()
   })
-  const suggestions = suggestionsQuery.data ?? []
+  const groups = groupSuggestions(suggestionsQuery.data ?? [])
 
   const accept = useMutation({
-    mutationFn: (id: number) => window.api.ruleSuggestions.accept(id),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['ruleSuggestions'] })
-  })
-  const dismiss = useMutation({
-    mutationFn: (id: number) => window.api.ruleSuggestions.dismiss(id),
+    mutationFn: (ids: number[]) =>
+      Promise.all(ids.map((id) => window.api.ruleSuggestions.accept(id))),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['ruleSuggestions'] })
   })
 
   const [editorOpen, setEditorOpen] = useState(false)
-  // a suggestion being turned into a rule: prefills the editor, and its id is
-  // marked accepted once the rule is actually saved
+  // a suggestion group being turned into one multi-phrase rule: prefills the
+  // editor, and its members are marked accepted once the rule is actually saved
   const [draft, setDraft] = useState<RuleDraft | null>(null)
-  const [pendingAcceptId, setPendingAcceptId] = useState<number | null>(null)
+  const [pendingAccept, setPendingAccept] = useState<RuleSuggestionGroup | null>(null)
 
-  function createFromSuggestion(suggestion: RuleSuggestion): void {
-    setOpen(false)
-    setDraft({
-      name: `${suggestion.descriptionKey} → ${suggestion.categoryName}`,
-      // equals so the shown count matches the rule's real reach; the user can
-      // switch to "contains" in the editor before saving
-      conditions: { description: { op: 'equals', phrases: [suggestion.descriptionKey] } },
-      action: { type: 'setCategory', categoryId: suggestion.categoryId }
-    })
-    setPendingAcceptId(suggestion.id)
-    setEditorOpen(true)
-  }
+  const createFromGroup = useCallback(
+    (group: RuleSuggestionGroup): void => {
+      setOpen(false)
+      setDraft({
+        name: draftName(group),
+        // one contains phrase per suggestion (rules OR their phrases), matching
+        // how each suggestion's shown count was computed; the user can still
+        // edit phrases or the op in the editor before saving
+        conditions: {
+          description: { op: 'contains', phrases: group.suggestions.map((s) => s.phrase) }
+        },
+        action: { type: 'setCategory', categoryId: group.categoryId }
+      })
+      setPendingAccept(group)
+      setEditorOpen(true)
+    },
+    [setOpen]
+  )
+
+  // let triggers elsewhere (e.g. the Activity page) send a group straight to
+  // the editor, bypassing the dialog
+  useEffect(() => {
+    registerCreateRule(createFromGroup)
+  }, [registerCreateRule, createFromGroup])
 
   return (
     <>
-      <RuleSuggestionsDialog
-        open={open}
-        onOpenChange={setOpen}
-        suggestions={suggestions}
-        onCreate={createFromSuggestion}
-        onDismiss={(id) => dismiss.mutate(id)}
-        dismissingId={dismiss.isPending ? dismiss.variables : undefined}
-      />
+      <RuleSuggestionsDialog open={open} onOpenChange={setOpen} groups={groups} />
       <RuleEditor
         rule={null}
         draft={draft}
-        draftKey={pendingAcceptId != null ? `sug:${pendingAcceptId}` : undefined}
+        draftKey={
+          pendingAccept ? `sug:${pendingAccept.suggestions.map((s) => s.id).join('.')}` : undefined
+        }
         open={editorOpen}
         onOpenChange={(open) => {
           setEditorOpen(open)
           if (!open) {
             setDraft(null)
-            setPendingAcceptId(null)
+            setPendingAccept(null)
           }
         }}
-        onSaved={(_saved, wasCreate) => {
-          if (wasCreate && pendingAcceptId != null) accept.mutate(pendingAcceptId)
+        onSaved={(saved, wasCreate) => {
+          if (!wasCreate || !pendingAccept) return
+          // accept only what the saved rule still covers: the user may have
+          // removed phrases or retargeted the category in the editor, and those
+          // suggestions should stay pending rather than vanish as "accepted"
+          if (saved.action.categoryId !== pendingAccept.categoryId) return
+          const kept = new Set(
+            (saved.conditions.description?.phrases ?? []).map((p) => p.toLowerCase())
+          )
+          const ids = pendingAccept.suggestions
+            .filter((s) => kept.has(s.phrase.toLowerCase()))
+            .map((s) => s.id)
+          if (ids.length > 0) accept.mutate(ids)
         }}
       />
     </>

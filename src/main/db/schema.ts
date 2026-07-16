@@ -208,8 +208,8 @@ export const rules = sqliteTable('rules', {
   updatedAt: integer('updated_at').notNull()
 })
 
-// "you categorized these identical transactions repeatedly — make it a rule?"
-// One row per (description, category) the detector spotted. A pair suppresses
+// "you categorized transactions like these repeatedly — make it a rule?"
+// One row per (phrase, category) the detector spotted. A pair suppresses
 // re-suggesting only while it's active — pending, or accepted with its rule
 // still in force; categorizing the cluster again reactivates a dismissed or
 // orphaned pair (see detectRuleSuggestions). The surfaces show pending ones.
@@ -217,8 +217,12 @@ export const ruleSuggestions = sqliteTable(
   'rule_suggestions',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    // the exact transaction description the cluster shares
+    // the exact transaction description of the cluster that triggered the
+    // suggestion, kept as the sample the surfaces show
     descriptionKey: text('description_key').notNull(),
+    // the term the suggested `contains` rule would match on: an extracted
+    // merchant term, or descriptionKey verbatim when extraction wasn't possible
+    phrase: text('phrase').notNull(),
     categoryId: integer('category_id')
       .notNull()
       .references(() => categories.id, { onDelete: 'cascade' }),
@@ -231,7 +235,7 @@ export const ruleSuggestions = sqliteTable(
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull()
   },
-  (t) => [uniqueIndex('rule_suggestions_key_category_ux').on(t.descriptionKey, t.categoryId)]
+  (t) => [uniqueIndex('rule_suggestions_phrase_category_ux').on(t.phrase, t.categoryId)]
 )
 
 // envelope budgets: sparse per-month fill amounts. The effective fill for month

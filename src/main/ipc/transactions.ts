@@ -74,11 +74,9 @@ export function setCategories({ changes, source }: TransactionsSetCategoriesInpu
   )
   if (categorized.length > 0) {
     setImmediate(() => {
-      try {
-        detectRuleSuggestions(categorized, source === 'llm' ? 'llm' : 'user')
-      } catch (e) {
+      detectRuleSuggestions(categorized, source === 'llm' ? 'llm' : 'user').catch((e) => {
         log.error('rule-suggestion-detection.failed', e)
-      }
+      })
     })
   }
   return logged.length

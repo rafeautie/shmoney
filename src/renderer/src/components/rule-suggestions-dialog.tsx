@@ -1,8 +1,6 @@
 import { HugeiconsIcon } from '@hugeicons/react'
 import { CheckmarkCircle02Icon } from '@hugeicons/core-free-icons'
-import type { RuleSuggestion } from '@shared/rule-suggestions'
-import { plural } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+import type { RuleSuggestionGroup } from '@shared/rule-suggestions'
 import {
   Dialog,
   DialogContent,
@@ -12,24 +10,19 @@ import {
 } from '@/components/ui/dialog'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { SuggestionGroupRow } from './suggestion-group-row'
 
-// Lists pending rule suggestions. "Create rule" hands the suggestion up to open
-// the rule editor pre-filled; "Dismiss" hides it for good. The parent owns the
-// data and both actions so it can drive the editor and refresh the list.
+// Lists pending rule suggestions grouped per category; each group becomes one
+// multi-phrase rule. The rows are self-contained (see SuggestionGroupRow), so
+// this dialog only owns its own open state and layout.
 export function RuleSuggestionsDialog({
   open,
   onOpenChange,
-  suggestions,
-  onCreate,
-  onDismiss,
-  dismissingId
+  groups
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  suggestions: RuleSuggestion[]
-  onCreate: (suggestion: RuleSuggestion) => void
-  onDismiss: (id: number) => void
-  dismissingId?: number
+  groups: RuleSuggestionGroup[]
 }): React.JSX.Element {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -41,11 +34,12 @@ export function RuleSuggestionsDialog({
         <DialogHeader className="p-4">
           <DialogTitle>Rule suggestions</DialogTitle>
           <DialogDescription>
-            You&apos;ve categorized these identical transactions repeatedly. Create a rule to do it
-            automatically from now on.
+            You&apos;ve categorized transactions like these repeatedly. Create one rule per category
+            to do it automatically from now on; the highlighted part of each sample is what the rule
+            will match.
           </DialogDescription>
         </DialogHeader>
-        {suggestions.length === 0 ? (
+        {groups.length === 0 ? (
           <Empty className="px-4 pb-8">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -60,33 +54,18 @@ export function RuleSuggestionsDialog({
         ) : (
           // max-h on the viewport so a long list scrolls rather than pushing the
           // dialog past the window. border-t is the divider above the first row.
-          // [&>div]:w-full pins Radix's display:table content wrapper to the
-          // viewport width so the rows' truncate works instead of the wrapper
-          // growing to the untruncated text and shoving the buttons off-screen.
-          <ScrollArea className=" border-t" viewPortClassName="max-h-[60vh]">
-            <div className="flex flex-col divide-y ">
-              {suggestions.map((suggestion) => (
-                <div key={suggestion.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="w-full">
-                    <div className="truncate text-sm font-medium max-w-100">
-                      {suggestion.descriptionKey}
-                    </div>
-                    <div className="truncate text-xs text-muted-foreground">
-                      {plural(suggestion.matchCount, 'transaction')} → {suggestion.categoryName}
-                    </div>
-                  </div>
-                  <Button className="shrink-0 leading-none" onClick={() => onCreate(suggestion)}>
-                    Create rule
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="shrink-0 leading-none"
-                    disabled={dismissingId === suggestion.id}
-                    onClick={() => onDismiss(suggestion.id)}
-                  >
-                    Dismiss
-                  </Button>
-                </div>
+          // Radix's content wrapper is display:table, which treats width as a
+          // minimum and grows with long unbreakable text (shoving the buttons
+          // off-screen); w-full + table-fixed makes the viewport width binding
+          // so the rows' truncate engages instead.
+          <ScrollArea
+            className=" border-t"
+            viewPortClassName="max-h-[60vh] [&>div]:w-full [&>div]:table-fixed"
+          >
+            {/* each group is its own bordered settings-style block */}
+            <div className="flex flex-col gap-3 p-4">
+              {groups.map((group) => (
+                <SuggestionGroupRow key={group.categoryId} group={group} />
               ))}
             </div>
           </ScrollArea>
