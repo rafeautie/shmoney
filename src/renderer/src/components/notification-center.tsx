@@ -160,7 +160,7 @@ function JobItem({ job }: { job: Notification }) {
     <div className="space-y-1.5">
       <p className="text-sm font-medium">{job.title}</p>
       <Progress
-        value={job.percent ?? undefined}
+        value={job.percent ?? null}
         className={cn(job.percent === null && 'animate-pulse')}
       />
       <div className="flex items-center justify-between gap-2">

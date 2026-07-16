@@ -220,7 +220,7 @@ function EntryRow({
           <HugeiconsIcon
             icon={ArrowDown01Icon}
             size={14}
-            className="ml-auto shrink-0 text-muted-foreground transition-transform group-data-[state=open]/entry:rotate-180"
+            className="ml-auto shrink-0 text-muted-foreground transition-transform group-data-open/entry:rotate-180"
           />
         </CollapsibleTrigger>
       </div>
