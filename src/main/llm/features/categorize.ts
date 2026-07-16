@@ -5,8 +5,11 @@ import { accounts, categories, transactions } from '../../db/schema'
 import { setCategories } from '../../ipc/transactions'
 import { applyRulesInTx } from '../../ipc/rules'
 import { llmManager, sendToRenderer } from '../manager'
+import { createLogger } from '../../logging'
 import { LLM_IPC, type CategorizeResult } from '@shared/llm'
 import type { CategorizeScopeInput } from '@shared/ipc'
+
+const log = createLogger('llm')
 
 const generatedSchema = z.object({ categoryId: z.number(), reason: z.string() })
 
@@ -163,8 +166,11 @@ export async function categorizeTransactions(
         }
       } catch (e) {
         if (signal.aborted) break // cancelled mid-generation
-        console.log(e)
-        // one bad generation shouldn't fail the whole selection; it's just skipped
+        // one bad generation shouldn't fail the whole selection; it's just
+        // skipped. Logged serialized, never raw: error chains from the worker
+        // can drag the prompt along, and the prompt carries real transaction
+        // descriptions; serializeError keeps name/code/stack, length-capped
+        log.error('categorize.generation-failed', e)
       }
       reportProgress(i + 1, groupList.length)
     }

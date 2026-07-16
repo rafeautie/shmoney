@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { asc, eq } from 'drizzle-orm'
 import { db } from '../db'
+import { createLogger } from '../logging'
 import { savedFilters } from '../db/schema'
 import { idSchema } from '@shared/ipc'
 import {
@@ -15,6 +16,8 @@ function nowSec(): number {
   return Math.floor(Date.now() / 1000)
 }
 
+const log = createLogger('saved-filters')
+
 export function registerSavedFiltersIpc(): void {
   ipcMain.handle(SAVED_FILTERS_IPC.list, (): SavedFilter[] => {
     const rows = db.select().from(savedFilters).orderBy(asc(savedFilters.name)).all()
@@ -23,7 +26,8 @@ export function registerSavedFiltersIpc(): void {
     return rows.flatMap((row) => {
       const parsed = transactionFiltersSchema.safeParse(row.filters)
       if (!parsed.success) {
-        console.warn(`saved filter ${row.id} ("${row.name}") failed to parse, hiding it`)
+        // id only: filter names are user-written and don't belong in logs
+        log.warn('saved-filter.parse-failed', { id: row.id })
         return []
       }
       return [{ ...row, filters: parsed.data }]

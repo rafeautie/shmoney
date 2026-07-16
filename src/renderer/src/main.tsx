@@ -22,6 +22,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+// forward uncaught renderer errors into the local log file (Settings → About →
+// Open logs folder). Only the error itself is sent, never app state, and the
+// main process scrubs home-dir paths from stacks before writing.
+function logUncaught(event: string, reason: unknown, fallback: string): void {
+  const detail = reason instanceof Error ? (reason.stack ?? String(reason)) : fallback
+  window.api.log.write({ level: 'error', event, detail: detail.slice(0, 8000) })
+}
+window.addEventListener('error', (e) => logUncaught('uncaught-error', e.error, e.message))
+window.addEventListener('unhandledrejection', (e) =>
+  logUncaught('unhandled-rejection', e.reason, String(e.reason))
+)
+
 // settings come from SQLite via IPC; seed the query cache before the first
 // render so the initial paint already has the right theme/blur/sidebar state
 queryClient.setQueryData(SETTINGS_QUERY_KEY, await window.api.settings.getAll())

@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { db } from '../db'
+import { createLogger } from '../logging'
 import { categories, transactions } from '../db/schema'
 import { recordAction } from './action-log'
 import { detectRuleSuggestions } from './rule-suggestions'
@@ -17,6 +18,8 @@ import {
 const notPending = eq(transactions.pending, false)
 
 const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
+
+const log = createLogger('transactions')
 
 /**
  * Apply per-row category changes as one undoable action-log entry, skipping
@@ -74,7 +77,7 @@ export function setCategories({ changes, source }: TransactionsSetCategoriesInpu
       try {
         detectRuleSuggestions(categorized, source === 'llm' ? 'llm' : 'user')
       } catch (e) {
-        console.warn('rule suggestion detection failed', e)
+        log.error('rule-suggestion-detection.failed', e)
       }
     })
   }

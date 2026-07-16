@@ -6,24 +6,8 @@ body:
     attributes:
       value: |
         Thanks for the report! **Never attach your database file, bank exports, or SimpleFIN credentials.** If you suspect a security vulnerability, use [private vulnerability reporting](https://github.com/rafeautie/shmoney/security/advisories/new) instead.
-  - type: input
-    id: version
-    attributes:
-      label: App version
-      description: Settings → About
-      placeholder: 0.1.0
-    validations:
-      required: true
-  - type: dropdown
-    id: os
-    attributes:
-      label: Operating system
-      options:
-        - Windows
-        - macOS
-        - Linux
-    validations:
-      required: true
+
+        shmoney's log files contain no transaction, account, or balance data; you can verify this yourself via Settings → About → Report bug → Open logs folder.
   - type: textarea
     id: what-happened
     attributes:
@@ -41,3 +25,24 @@ body:
         3. See error
     validations:
       required: true
+  - type: markdown
+    attributes:
+      value: |
+        ## Diagnostics (optional)
+
+        Logs help a lot, but they're never required. Two ways to share them, whichever you prefer:
+
+        - **Paste:** click **Report bug** in Settings → About, then **Copy diagnostics**, and paste into the box below.
+        - **Attach the file:** in Settings → About → Report bug, use **Open logs folder** and drag the newest log file into the upload box below.
+
+        Either way, review what you're sharing before you submit; it came from your machine.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics (Paste)
+      render: text
+  - type: upload
+    id: log-file
+    attributes:
+      label: Log File
+      description: Drag the newest log file here (Settings → About → Report bug → Open logs folder).

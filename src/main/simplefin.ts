@@ -1,8 +1,25 @@
 import { z } from 'zod'
+import { createLogger } from './logging'
 
 // SimpleFIN protocol v2 (https://www.simplefin.org/protocol.html), requested
 // via ?version=2. errlist/connections default to [] so a server that ignores
 // the version param doesn't crash the parser.
+
+const log = createLogger('simplefin')
+
+/**
+ * A fatal errlist response. The message (shown to the user) can name their
+ * institutions, so loggers must record `codes` and never the message.
+ */
+export class SfinErrlistError extends Error {
+  readonly codes: string[]
+
+  constructor(errlist: { code: string; msg: string }[]) {
+    super(errlist.map((e) => e.msg).join('; '))
+    this.name = 'SfinErrlistError'
+    this.codes = errlist.map((e) => e.code)
+  }
+}
 
 const sfinTransactionSchema = z.looseObject({
   id: z.string(),
@@ -106,9 +123,10 @@ export async function fetchAccounts(accessUrl: string, startDate: number): Promi
     // The bridge reports non-fatal warnings here too (e.g. "date range capped"),
     // so only treat errors as fatal when no account data came back.
     if (payload.accounts.length === 0) {
-      throw new Error(payload.errlist.map((e) => e.msg).join('; '))
+      throw new SfinErrlistError(payload.errlist)
     }
-    console.warn('[simplefin]', payload.errlist.map((e) => `${e.code}: ${e.msg}`).join('; '))
+    // codes only: bridge messages can name the user's institutions
+    log.warn('accounts.errlist', { codes: payload.errlist.map((e) => e.code).join(',') })
   }
   return payload
 }

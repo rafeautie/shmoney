@@ -23,10 +23,14 @@ import {
   type RulesApplyResult
 } from '@shared/rules'
 
+import { createLogger } from '../logging'
+
 // the drizzle transaction handle passed to db.transaction() callbacks
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`
+
+const log = createLogger('rules')
 
 function nowSec(): number {
   return Math.floor(Date.now() / 1000)
@@ -55,7 +59,8 @@ function toRule(row: RuleRow): Rule | null {
   const conditions = ruleConditionsSchema.safeParse(normalizeConditions(row.conditions))
   const action = ruleActionSchema.safeParse(row.action)
   if (!conditions.success || !action.success) {
-    console.warn(`rule ${row.id} ("${row.name}") failed to parse, skipping`)
+    // id only: rule names are user-written and don't belong in logs
+    log.warn('rule.parse-failed', { id: row.id })
     return null
   }
   return {
@@ -96,7 +101,7 @@ function loadApplicableRules(tx: Tx): Rule[] {
   )
   return all.filter((r) => {
     if (existing.has(r.action.categoryId)) return true
-    console.warn(`rule ${r.id} ("${r.name}") targets a deleted category, skipping`)
+    log.warn('rule.target-category-deleted', { id: r.id })
     return false
   })
 }

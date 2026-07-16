@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 // electron-updater is CJS with getter-defined exports; a named import compiles
 // but throws at runtime in the ESM main bundle, so destructure the default
 import electronUpdater from 'electron-updater'
+import { createLogger } from '../logging'
 import { UPDATES_IPC, type UpdateState } from '@shared/updates'
 
 const { autoUpdater } = electronUpdater
@@ -49,6 +50,10 @@ export function registerUpdatesIpc(): void {
 export function startUpdateChecks(): void {
   if (!supported) return
   if (testing) autoUpdater.forceDevUpdateConfig = true
+
+  // electron-updater's internals go to the same scrubbed local file; its
+  // logger slot accepts our Logger since it only ever passes one argument
+  autoUpdater.logger = createLogger('updater')
 
   autoUpdater.autoDownload = true
   // an ignored Restart prompt still applies the update on the next normal quit

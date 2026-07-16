@@ -2,7 +2,9 @@ import type { UpdateState } from '@shared/updates'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { useUpdateState } from '@/lib/updates'
+import { featureRequestUrl } from '@/lib/github'
 import { LicensesDialog } from './licenses-dialog'
+import { ReportBugDialog } from './report-bug-dialog'
 import { SettingsGroup, SettingAction } from './settings-controls'
 
 function updateStatusLine(state: UpdateState | undefined): string {
@@ -46,23 +48,6 @@ function UpdatesRow() {
   )
 }
 
-// deep-link into the repo's issue forms (.github/ISSUE_TEMPLATE): GitHub
-// prefills any form field whose id matches a query param
-function issueUrl(params: Record<string, string>): string {
-  return `https://github.com/rafeautie/shmoney/issues/new?${new URLSearchParams(params)}`
-}
-
-function bugReportUrl(): string {
-  const ua = navigator.userAgent
-  // must match the bug form's os dropdown options exactly
-  const os = ua.includes('Windows') ? 'Windows' : ua.includes('Mac') ? 'macOS' : 'Linux'
-  return issueUrl({ template: 'bug_report.yml', version: __APP_VERSION__, os })
-}
-
-function featureRequestUrl(): string {
-  return issueUrl({ template: 'feature_request.yml' })
-}
-
 export function AboutSettings() {
   return (
     <Card>
@@ -79,16 +64,14 @@ export function AboutSettings() {
           >
             <LicensesDialog />
           </SettingAction>
-          {/* window.open on an https URL routes through setWindowOpenHandler to
-              the OS browser (see main/index.ts) */}
           <SettingAction
             label="Report a bug"
-            description="Opens a GitHub issue prefilled with your version and system info."
+            description="Review your diagnostics, then open a prefilled GitHub issue. Nothing is sent without your say-so."
           >
-            <Button variant="outline" onClick={() => window.open(bugReportUrl())}>
-              Report bug
-            </Button>
+            <ReportBugDialog />
           </SettingAction>
+          {/* window.open on an https URL routes through setWindowOpenHandler to
+              the OS browser (see main/index.ts) */}
           <SettingAction
             label="Request a feature"
             description="Suggest an improvement or a new idea on GitHub."

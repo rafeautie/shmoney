@@ -5,7 +5,10 @@ import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { is } from '@electron-toolkit/utils'
+import { createLogger } from '../logging'
 import * as schema from './schema'
+
+const log = createLogger('db')
 
 export const dbPath = path.join(app.getPath('userData'), 'shmoney.db')
 
@@ -21,7 +24,7 @@ export function runMigrations(): void {
     : path.join(process.resourcesPath, 'drizzle')
 
   if (!fs.existsSync(migrationsFolder)) {
-    console.warn(`[db] No migrations folder found at ${migrationsFolder}, skipping migrate()`)
+    log.warn('migrations.folder-missing', { folder: migrationsFolder })
     return
   }
 
@@ -36,4 +39,5 @@ export function runMigrations(): void {
   } finally {
     sqlite.pragma('foreign_keys = ON')
   }
+  log.info('migrations.complete')
 }

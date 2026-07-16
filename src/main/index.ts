@@ -4,6 +4,7 @@ import './dev-paths'
 import { join } from 'node:path'
 import { app, shell, BrowserWindow } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { initLogging, createLogger } from './logging'
 import { runMigrations } from './db'
 import { registerConnectionsIpc } from './ipc/connections'
 import { registerCategoriesIpc } from './ipc/categories'
@@ -20,9 +21,16 @@ import { registerImportIpc } from './ipc/import'
 import { registerWindowIpc } from './ipc/window'
 import { registerLlmIpc } from './ipc/llm'
 import { registerUpdatesIpc, startUpdateChecks } from './ipc/updates'
+import { registerLogIpc } from './ipc/log'
+import { registerDiagnosticsIpc } from './ipc/diagnostics'
 import { registerDebugIpc } from './ipc/debug'
 import { IPC } from '@shared/ipc'
 import icon from '../../build/icon.png?asset'
+
+// before anything else can log or crash: dev-paths (hoisted above) has already
+// redirected userData, so the file transport lands in the right logs dir
+initLogging()
+const log = createLogger('app')
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -98,6 +106,22 @@ if (!app.requestSingleInstanceLock()) {
       optimizer.watchWindowShortcuts(window)
     })
 
+    // process crashes are the bug-report class logs exist for; errorHandler
+    // only covers exceptions in the main process itself
+    app.on('render-process-gone', (_event, _webContents, details) => {
+      log.error('render-process-gone', undefined, {
+        reason: details.reason,
+        exitCode: details.exitCode
+      })
+    })
+    app.on('child-process-gone', (_event, details) => {
+      log.error('child-process-gone', undefined, {
+        processType: details.type,
+        reason: details.reason,
+        exitCode: details.exitCode
+      })
+    })
+
     runMigrations()
     registerConnectionsIpc()
     registerCategoriesIpc()
@@ -114,6 +138,8 @@ if (!app.requestSingleInstanceLock()) {
     registerWindowIpc()
     registerLlmIpc()
     registerUpdatesIpc()
+    registerLogIpc()
+    registerDiagnosticsIpc()
     // dev-only diagnostics for the Debug page; never registered in production builds
     if (is.dev) registerDebugIpc()
 

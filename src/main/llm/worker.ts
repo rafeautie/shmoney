@@ -42,6 +42,8 @@ async function ensureLlama(): Promise<Llama> {
   if (!llama) {
     llama = await getLlama({
       gpu: 'auto',
+      // console.* is this utility process's log transport: stdio is piped, and
+      // the manager forwards it into the app's scrubbed log file
       logger: (level, message) => {
         if (isBenignFittingLog(message)) return
         if (level === LlamaLogLevel.error || level === LlamaLogLevel.fatal) console.error(message)

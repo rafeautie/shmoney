@@ -16,6 +16,7 @@ import {
 } from './connections'
 import { applyRulesInTx } from './rules'
 import { recordAction } from './action-log'
+import { createLogger } from '../logging'
 import {
   IMPORT_IPC,
   importApplyInputSchema,
@@ -34,6 +35,8 @@ const pickFileInputSchema = z
     dropped: z.object({ fileName: z.string(), bytes: z.instanceof(Uint8Array) }).optional()
   })
   .optional()
+
+const log = createLogger('import')
 
 const FILE_FILTERS = [
   { name: 'Transaction files', extensions: ['csv', 'tsv', 'ofx', 'qfx', 'qif'] },
@@ -113,7 +116,7 @@ export function registerImportIpc(): void {
     const detectEnabled = detectTransfersEnabled()
     const rulesEnabled = applyRulesOnSyncEnabled()
 
-    return db.transaction((tx) => {
+    const result = db.transaction((tx) => {
       let accountId: number
       let accountName: string
       if ('accountId' in target) {
@@ -196,5 +199,15 @@ export function registerImportIpc(): void {
         rulesApplied
       }
     })
+
+    // counts only, never file names, row contents, or account names
+    log.info('import.complete', {
+      inserted: result.inserted,
+      skipped: result.skipped,
+      detectedTransfers: result.detectedTransfers,
+      rulesApplied: result.rulesApplied,
+      newAccount: 'newAccount' in target
+    })
+    return result
   })
 }

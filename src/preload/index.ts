@@ -80,6 +80,7 @@ import {
   type PickFileResult
 } from '@shared/import'
 import { UPDATES_IPC, type UpdateState } from '@shared/updates'
+import { DIAGNOSTICS_IPC, LOG_IPC, type LogWriteInput } from '@shared/diagnostics'
 import {
   BUDGETS_IPC,
   type BudgetRemoveInput,
@@ -279,6 +280,17 @@ const api = {
       ipcRenderer.on(UPDATES_IPC.stateChanged, listener)
       return () => ipcRenderer.removeListener(UPDATES_IPC.stateChanged, listener)
     }
+  },
+  log: {
+    /** Fire-and-forget into the local log file; never blocks or rejects */
+    write: (entry: LogWriteInput): void => ipcRenderer.send(LOG_IPC.write, entry)
+  },
+  diagnostics: {
+    /** App/system info + recent scrubbed log lines, as shareable plain text */
+    get: (): Promise<string> => ipcRenderer.invoke(DIAGNOSTICS_IPC.get),
+    /** Copy previously previewed diagnostics text to the clipboard, byte for byte */
+    copy: (text: string): Promise<void> => ipcRenderer.invoke(DIAGNOSTICS_IPC.copy, text),
+    openLogsFolder: (): Promise<void> => ipcRenderer.invoke(DIAGNOSTICS_IPC.openLogsFolder)
   },
   window: {
     minimize: (): void => ipcRenderer.send(IPC.windowMinimize),

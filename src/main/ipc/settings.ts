@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { z } from 'zod'
 import { db } from '../db'
+import { createLogger } from '../logging'
 import { settings } from '../db/schema'
 import {
   SETTINGS_DEFAULTS,
@@ -11,6 +12,8 @@ import {
 } from '@shared/settings'
 
 const setInputSchema = z.object({ key: settingKeySchema, value: z.unknown() })
+
+const log = createLogger('settings')
 
 export function registerSettingsIpc(): void {
   ipcMain.handle(SETTINGS_IPC.getAll, (): Settings => {
@@ -23,7 +26,7 @@ export function registerSettingsIpc(): void {
       if (!key.success) continue
       const value = settingSchemas[key.data].safeParse(row.value)
       if (!value.success) {
-        console.warn(`setting "${row.key}" failed to parse, using default`)
+        log.warn('setting.parse-failed', { key: row.key })
         continue
       }
       // TS can't correlate key.data with value.data across the loop

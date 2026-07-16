@@ -1,6 +1,7 @@
 import { ipcMain, safeStorage } from 'electron'
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm'
 import { db } from '../db'
+import { createLogger } from '../logging'
 import {
   connections,
   accounts,
@@ -11,7 +12,7 @@ import {
   actionLog
 } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
-import { claimAccessUrl, fetchAccounts, parseAmount } from '../simplefin'
+import { claimAccessUrl, fetchAccounts, parseAmount, SfinErrlistError } from '../simplefin'
 import { transactionsPage, transactionDate } from './transactions-page'
 import { recordAction } from './action-log'
 import { applyRulesInTx } from './rules'
@@ -32,6 +33,8 @@ import { buildWhere } from '../reports/query'
 
 const FIRST_SYNC_WINDOW_SECONDS = 90 * 24 * 60 * 60
 const RESYNC_OVERLAP_SECONDS = 7 * 24 * 60 * 60
+
+const log = createLogger('sync')
 
 export function detectTransfersEnabled(): boolean {
   const row = db.select().from(settings).where(eq(settings.key, 'detectTransfers')).get()
@@ -257,6 +260,15 @@ async function syncConnection(): Promise<SyncResult> {
     return { updated, detectedTransfers, rulesApplied }
   })
 
+  // counts and codes only; the payload itself never gets logged
+  log.info('sync.complete', {
+    accounts: payload.accounts.length,
+    transactions: payload.accounts.reduce((n, a) => n + a.transactions.length, 0),
+    detectedTransfers: result.detectedTransfers,
+    rulesApplied: result.rulesApplied,
+    errlist: payload.errlist.length
+  })
+
   return {
     ...toConnection(result.updated),
     detectedTransfers: result.detectedTransfers,
@@ -289,8 +301,18 @@ export function registerConnectionsIpc(): void {
     return toConnection(row)
   })
 
-  ipcMain.handle(IPC.connectionSync, () => {
-    return syncConnection()
+  ipcMain.handle(IPC.connectionSync, async () => {
+    try {
+      return await syncConnection()
+    } catch (e) {
+      // errlist messages can name the user's institutions; log codes instead
+      if (e instanceof SfinErrlistError) {
+        log.error('sync.failed', undefined, { codes: e.codes.join(',') })
+      } else {
+        log.error('sync.failed', e)
+      }
+      throw e
+    }
   })
 
   ipcMain.handle(IPC.connectionDisconnect, () => {

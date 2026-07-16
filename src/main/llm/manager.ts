@@ -2,7 +2,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { app, utilityProcess, BrowserWindow, type UtilityProcess } from 'electron'
 import { LLM_IPC, LLM_MODEL, type LlmDownloadProgress, type LlmStatus } from '@shared/llm'
+import { createLogger } from '../logging'
 import type { DistributiveOmit, WorkerCommand, WorkerMessage } from './protocol'
+
+const log = createLogger('llm')
 
 function modelsDir(): string {
   return path.join(app.getPath('userData'), 'models')
@@ -125,8 +128,8 @@ class LlmManager {
       stdio: 'pipe',
       env: { ...process.env, LLM_MODELS_DIR: modelsDir() }
     })
-    worker.stdout?.on('data', (d) => console.log(`[llm worker] ${d}`))
-    worker.stderr?.on('data', (d) => console.error(`[llm worker] ${d}`))
+    worker.stdout?.on('data', (d) => log.debug('worker.stdout', { line: String(d).trimEnd() }))
+    worker.stderr?.on('data', (d) => log.warn('worker.stderr', { line: String(d).trimEnd() }))
     worker.on('message', (msg: WorkerMessage) => this.handleWorkerMessage(msg))
     worker.on('exit', (code) => this.handleWorkerExit(code))
 
@@ -158,6 +161,7 @@ class LlmManager {
     this.pending.clear()
     this.worker = null
     if (code !== 0) {
+      log.error('worker.exit', undefined, { code })
       this.status = { stage: 'error', error: `Worker exited unexpectedly (code ${code})` }
       sendToRenderer(LLM_IPC.statusChanged, this.status)
     }
