@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import type { ChatMessage, Conversation } from '@shared/chat'
+import { ipcErrorMessage } from '@/lib/utils'
 
 export const CHAT_CONVERSATIONS_KEY = ['chat', 'conversations'] as const
 
@@ -36,7 +38,10 @@ export function useSendChat() {
         prev ? [...prev, userMessage] : [userMessage]
       )
       void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
-    }
+    },
+    // the composer already cleared the text, so a swallowed rejection would
+    // silently eat the message; say what went wrong instead
+    onError: (error) => toast(ipcErrorMessage(error))
   })
 }
 
@@ -44,7 +49,7 @@ export function useStopChat() {
   return useMutation({ mutationFn: () => window.api.chat.stop() })
 }
 
-/** Soft delete; the row stays restorable but no notification is raised. */
+/** Soft delete with an undo toast; Undo restores the row and its messages. */
 export function useDeleteConversation() {
   const queryClient = useQueryClient()
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
@@ -54,6 +59,19 @@ export function useDeleteConversation() {
       queryClient.setQueryData<Conversation[]>(CHAT_CONVERSATIONS_KEY, (prev) =>
         prev?.filter((c) => c.id !== id)
       )
+    },
+    onSuccess: (_deleted, id) => {
+      toast('Conversation deleted', {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            window.api.chat
+              .restore(id)
+              .then(invalidate)
+              .catch(() => {})
+          }
+        }
+      })
     },
     onSettled: invalidate
   })

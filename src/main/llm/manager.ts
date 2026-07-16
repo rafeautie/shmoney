@@ -89,12 +89,13 @@ class LlmManager {
   }
 
   /**
-   * The one inference primitive every LLM feature is built on: hand it a prompt
-   * (and optional JSON schema) and it takes care of the model lifecycle —
-   * loading on first use, and unloading again once requests stop (see
-   * {@link IDLE_UNLOAD_MS}). Features never load or unload themselves.
+   * Model lifecycle shared by every inference request: load on first use,
+   * relay `signal` as an abort command (an AbortSignal can't cross to the
+   * worker), and count the request toward idle unload — once requests stop,
+   * the model is unloaded after {@link IDLE_UNLOAD_MS} to give its RAM back.
+   * Features never load or unload themselves.
    */
-  async generate(prompt: string, schema?: object, signal?: AbortSignal): Promise<unknown> {
+  private async withModel<T>(signal: AbortSignal | undefined, run: () => Promise<T>): Promise<T> {
     this.clearIdleTimer()
     const status = this.getStatus()
     if (status.stage === 'downloaded') {
@@ -102,14 +103,12 @@ class LlmManager {
     } else if (status.stage !== 'ready') {
       throw new Error(`Model is not ready (${status.stage})`)
     }
-    // the signal can't cross to the worker, so relay an abort command when it
-    // fires; the worker stops the generation and its reply rejects
     const onAbort = (): void => void this.send({ type: 'abortGenerate' })
     signal?.addEventListener('abort', onAbort, { once: true })
     this.inFlight++
     try {
       if (signal?.aborted) throw signal.reason // cancelled while the model was loading
-      return await this.send({ type: 'generate', prompt, schema })
+      return await run()
     } finally {
       signal?.removeEventListener('abort', onAbort)
       this.inFlight--
@@ -118,29 +117,27 @@ class LlmManager {
   }
 
   /**
+   * The one inference primitive every LLM feature is built on: hand it a
+   * prompt (and optional JSON schema) and {@link withModel} takes care of the
+   * model lifecycle. An abort rejects the returned promise.
+   */
+  async generate(prompt: string, schema?: object, signal?: AbortSignal): Promise<unknown> {
+    return this.withModel(signal, () => this.send({ type: 'generate', prompt, schema }))
+  }
+
+  /**
    * One conversational turn: the caller supplies the full prior history (the
    * worker is stateless across turns) and receives the reply streamed through
    * `onChunk` in {@link CHUNK_FLUSH_MS} batches, then whole in the result.
-   * Same lifecycle contract as {@link generate}: loads on demand, counts
-   * toward idle unload, and relays `signal` as an abort command — but an
-   * aborted chat resolves with `interrupted: true` instead of rejecting.
+   * Same lifecycle contract as {@link generate} — but an aborted chat
+   * resolves with `interrupted: true` instead of rejecting.
    */
   async chat(
     history: ChatHistoryItem[],
     prompt: string,
     opts: { signal?: AbortSignal; onChunk?: (text: string) => void } = {}
   ): Promise<ChatGenerationResult> {
-    this.clearIdleTimer()
-    const status = this.getStatus()
-    if (status.stage === 'downloaded') {
-      await this.load()
-    } else if (status.stage !== 'ready') {
-      throw new Error(`Model is not ready (${status.stage})`)
-    }
-
     const { signal, onChunk } = opts
-    const onAbort = (): void => void this.send({ type: 'abortGenerate' })
-    signal?.addEventListener('abort', onAbort, { once: true })
 
     // register the chunk handler before the command is posted so no early
     // token can slip past; buffer and flush on a timer to keep IPC cheap
@@ -159,18 +156,15 @@ class LlmManager {
       flushTimer ??= setTimeout(flush, CHUNK_FLUSH_MS)
     })
 
-    this.inFlight++
     try {
-      if (signal?.aborted) throw signal.reason // cancelled while the model was loading
-      const result = await this.sendWithId(id, { type: 'chat', history, prompt })
+      const result = await this.withModel(signal, () =>
+        this.sendWithId(id, { type: 'chat', history, prompt })
+      )
       return result as ChatGenerationResult
     } finally {
       if (flushTimer) clearTimeout(flushTimer)
       flush() // deliver any buffered tail before callers see the settled promise
       this.chunkHandlers.delete(id)
-      signal?.removeEventListener('abort', onAbort)
-      this.inFlight--
-      if (this.inFlight === 0) this.scheduleIdleUnload()
     }
   }
 

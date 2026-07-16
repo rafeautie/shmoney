@@ -54,7 +54,7 @@ export function messageText(message: Pick<ChatMessage, 'parts'>): string {
 export const sendChatSchema = z.object({
   /** null = create a conversation for this first message */
   conversationId: z.number().int().positive().nullable(),
-  text: z.string().min(1).max(8000)
+  text: z.string().trim().min(1).max(8000)
 })
 export type SendChatInput = z.infer<typeof sendChatSchema>
 
@@ -62,7 +62,7 @@ export const conversationIdSchema = z.number().int().positive()
 
 export const renameConversationSchema = z.object({
   id: conversationIdSchema,
-  title: z.string().min(1).max(200)
+  title: z.string().trim().min(1).max(200)
 })
 export type RenameConversationInput = z.infer<typeof renameConversationSchema>
 

@@ -28,9 +28,40 @@ const log = createLogger('llm')
 const HISTORY_TOKEN_BUDGET = Math.floor(CHAT_CONTEXT_SIZE * 0.75)
 const CHARS_PER_TOKEN = 4
 
-const SYSTEM_PROMPT =
+export const SYSTEM_PROMPT =
   'You are a helpful assistant inside shmoney, a personal finance app. ' +
   'Be concise and direct. Use Markdown when it improves clarity, including tables when useful.'
+
+/** first line of the first user message, clipped, as the automatic title */
+export function titleFrom(text: string): string {
+  const line = text.split('\n', 1)[0].trim()
+  return line.length > 60 ? line.slice(0, 57) + '…' : line
+}
+
+/**
+ * Map persisted rows to the model's history, newest-first trimmed to the token
+ * budget. Interrupted partials stay (the user saw them); error rows carry no
+ * assistant text worth replaying and are skipped.
+ */
+export function buildHistory(
+  rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[]
+): ChatHistoryItem[] {
+  const items: ChatHistoryItem[] = []
+  let chars = 0
+  const budget = HISTORY_TOKEN_BUDGET * CHARS_PER_TOKEN
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const row = rows[i]
+    if (row.status === 'error') continue
+    const text = messageText(row)
+    if (!text) continue
+    if (chars + text.length > budget) break
+    chars += text.length
+    items.unshift(
+      row.role === 'user' ? { type: 'user', text } : { type: 'model', response: [text] }
+    )
+  }
+  return [{ type: 'system', text: SYSTEM_PROMPT }, ...items]
+}
 
 // the one in-flight turn; chat is single-flight by design (the model serializes
 // on one queue anyway, and a second concurrent turn would interleave chunks)
@@ -78,35 +109,6 @@ export function listMessages(conversationId: number): ChatMessage[] {
     .orderBy(chatMessages.id)
     .all()
     .map(rowToMessage)
-}
-
-/** first line of the first user message, clipped, as the automatic title */
-function titleFrom(text: string): string {
-  const line = text.split('\n', 1)[0].trim()
-  return line.length > 60 ? line.slice(0, 57) + '…' : line
-}
-
-/**
- * Map persisted rows to the model's history, newest-first trimmed to the token
- * budget. Interrupted partials stay (the user saw them); error rows carry no
- * assistant text worth replaying and are skipped.
- */
-function buildHistory(rows: ChatMessageRow[]): ChatHistoryItem[] {
-  const items: ChatHistoryItem[] = []
-  let chars = 0
-  const budget = HISTORY_TOKEN_BUDGET * CHARS_PER_TOKEN
-  for (let i = rows.length - 1; i >= 0; i--) {
-    const row = rows[i]
-    if (row.status === 'error') continue
-    const text = messageText(row)
-    if (!text) continue
-    if (chars + text.length > budget) break
-    chars += text.length
-    items.unshift(
-      row.role === 'user' ? { type: 'user', text } : { type: 'model', response: [text] }
-    )
-  }
-  return [{ type: 'system', text: SYSTEM_PROMPT }, ...items]
 }
 
 /**

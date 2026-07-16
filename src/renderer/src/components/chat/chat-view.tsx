@@ -57,7 +57,11 @@ export function ChatView({
         <MessageScrollerViewport>
           <MessageScrollerContent className="mx-auto w-full max-w-2xl p-4">
             {messages.map((message) => (
-              <MessageScrollerItem key={message.id} messageId={String(message.id)} scrollAnchor={message.role === 'assistant'}>
+              <MessageScrollerItem
+                key={message.id}
+                messageId={String(message.id)}
+                scrollAnchor={message.role === 'assistant'}
+              >
                 <ChatMessageRow message={message} />
               </MessageScrollerItem>
             ))}
