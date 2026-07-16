@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowUp02Icon, SparklesIcon, StopIcon } from '@hugeicons/core-free-icons'
 import {
@@ -10,6 +10,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 export function ChatInput({
+  hasConversation,
   streaming,
   loading,
   disabled,
@@ -17,6 +18,8 @@ export function ChatInput({
   onSend,
   onStop
 }: {
+  /** whether the composer belongs to an existing conversation */
+  hasConversation: boolean
   /** a reply is being generated: input stays open, the button becomes Stop */
   streaming: boolean
   /** the model is loading into memory */
@@ -28,11 +31,20 @@ export function ChatInput({
   onStop: () => void
 }) {
   const [text, setText] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
+  const refocusAfterSend = useRef(false)
   const canSend = !disabled && !streaming && text.trim().length > 0
+
+  useEffect(() => {
+    if (!refocusAfterSend.current || disabled) return
+    refocusAfterSend.current = false
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }, [disabled, streaming])
 
   const send = () => {
     if (!canSend) return
+    refocusAfterSend.current = true
     onSend(text.trim())
     setText('')
   }
@@ -55,14 +67,17 @@ export function ChatInput({
             viewportProps={{ tabIndex: -1 }}
           >
             <InputGroupTextarea
+              ref={textareaRef}
               placeholder={
                 disabled
                   ? (disabledHint ?? 'Chat is unavailable')
                   : loading
                     ? 'Loading the model…'
-                    : 'Ask anything…'
+                    : hasConversation
+                      ? 'Write a message...'
+                      : 'How can I help you?'
               }
-              className="min-h-10"
+              className="min-h-11 px-3 py-2.5"
               value={text}
               disabled={disabled}
               onChange={(e) => {

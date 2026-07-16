@@ -30,7 +30,7 @@ const CHARS_PER_TOKEN = 4
 
 const SYSTEM_PROMPT =
   'You are a helpful assistant inside shmoney, a personal finance app. ' +
-  'Be concise and direct. Answer in plain text without markdown tables.'
+  'Be concise and direct. Use Markdown when it improves clarity, including tables when useful.'
 
 // the one in-flight turn; chat is single-flight by design (the model serializes
 // on one queue anyway, and a second concurrent turn would interleave chunks)

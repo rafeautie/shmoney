@@ -90,6 +90,7 @@ function ChatPage() {
               </ChatInputNotice>
             ) : (
               <ChatInput
+                hasConversation={conversationId !== null}
                 streaming={reply !== null}
                 loading={modelLoading}
                 disabled={categorizeRunning || sendChat.isPending}

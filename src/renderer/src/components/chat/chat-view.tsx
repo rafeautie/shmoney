@@ -1,5 +1,6 @@
 import { HugeiconsIcon } from '@hugeicons/react'
 import { BubbleChatIcon, SparklesIcon } from '@hugeicons/core-free-icons'
+import { Streamdown } from 'streamdown'
 import { messageText, type ChatMessage } from '@shared/chat'
 import { useMessages } from '@/lib/chat'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
@@ -51,22 +52,19 @@ export function ChatView({
   }
 
   return (
-    <MessageScrollerProvider>
-      {/* flex-1 + min-h-0 pin the scroller between the header and composer so
-          ITS viewport scrolls (and its scroll-to-bottom button engages),
-          rather than the page growing */}
+    <MessageScrollerProvider defaultScrollPosition="end">
       <MessageScroller className="min-h-0 flex-1">
         <MessageScrollerViewport>
           <MessageScrollerContent className="mx-auto w-full max-w-2xl p-4">
             {messages.map((message) => (
-              <MessageScrollerItem key={message.id} messageId={String(message.id)}>
+              <MessageScrollerItem key={message.id} messageId={String(message.id)} scrollAnchor={message.role === 'assistant'}>
                 <ChatMessageRow message={message} />
               </MessageScrollerItem>
             ))}
             {streaming && (
               <MessageScrollerItem messageId="streaming">
                 {reply.text ? (
-                  <AssistantBubble text={reply.text} />
+                  <AssistantBubble text={reply.text} isStreaming />
                 ) : (
                   <Marker role="status" className="w-fit animate-shimmer">
                     <MarkerIcon>
@@ -122,10 +120,14 @@ function ChatMessageRow({ message }: { message: ChatMessage }) {
   )
 }
 
-function AssistantBubble({ text }: { text: string }) {
+function AssistantBubble({ text, isStreaming = false }: { text: string; isStreaming?: boolean }) {
   return (
     <Bubble variant="ghost">
-      <BubbleContent className="whitespace-pre-wrap">{text}</BubbleContent>
+      <BubbleContent>
+        <Streamdown mode={isStreaming ? 'streaming' : 'static'} isAnimating={isStreaming}>
+          {text}
+        </Streamdown>
+      </BubbleContent>
     </Bubble>
   )
 }

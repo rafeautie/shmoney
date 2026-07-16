@@ -118,7 +118,7 @@ function ConversationRow({
             />
           }
         >
-          <HugeiconsIcon icon={MoreHorizontalIcon} size={14} />
+          <HugeiconsIcon icon={MoreHorizontalIcon} size={16} className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuItem onClick={() => setEditing(true)}>
