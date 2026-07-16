@@ -198,14 +198,12 @@ function ReportPage() {
             {editing ? 'Done' : 'Edit'}
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <HugeiconsIcon icon={MoreVerticalIcon} size={16} />
-                <span className="sr-only">Report menu</span>
-              </Button>
+            <DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}>
+              <HugeiconsIcon icon={MoreVerticalIcon} size={16} />
+              <span className="sr-only">Report menu</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem variant="destructive" onSelect={() => setConfirmDelete(true)}>
+              <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
                 Delete report
               </DropdownMenuItem>
             </DropdownMenuContent>

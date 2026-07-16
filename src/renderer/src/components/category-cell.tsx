@@ -33,15 +33,20 @@ export function CategoryCell({ transaction }: { transaction: Transaction }) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={cn('-ml-2 font-normal', !transaction.categoryName && 'text-muted-foreground')}
-          onClick={(event) => event.stopPropagation()}
-        >
-          {transaction.categoryName ?? 'Uncategorized'}
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              '-ml-2 font-normal',
+              !transaction.categoryName && 'text-muted-foreground'
+            )}
+            onClick={(event) => event.stopPropagation()}
+          />
+        }
+      >
+        {transaction.categoryName ?? 'Uncategorized'}
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start">
         <CategoryPicker

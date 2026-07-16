@@ -200,15 +200,13 @@ function AccountsList() {
                               <Amount value={account.balance} currency={account.currency} />
                               {hasDistinctAvailable(account) && (
                                 <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="cursor-help">
-                                      <Amount
-                                        value={account.availableBalance!}
-                                        currency={account.currency}
-                                        colored={false}
-                                        className="text-xs text-muted-foreground"
-                                      />
-                                    </span>
+                                  <TooltipTrigger render={<span className="cursor-help" />}>
+                                    <Amount
+                                      value={account.availableBalance!}
+                                      currency={account.currency}
+                                      colored={false}
+                                      className="text-xs text-muted-foreground"
+                                    />
                                   </TooltipTrigger>
                                   <TooltipContent>
                                     Available balance as reported by your institution. Its meaning

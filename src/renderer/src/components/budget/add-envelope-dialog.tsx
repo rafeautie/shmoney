@@ -101,20 +101,18 @@ export function AddEnvelopeDialog({
             {/* modal: the popover portals outside the DialogContent, and the modal
                 dialog's scroll lock would otherwise swallow wheel events over the list */}
             <Popover modal open={pickerOpen} onOpenChange={setPickerOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="w-full justify-between border-input bg-input/20 font-normal"
-                >
-                  <span className={cn(!category && 'text-muted-foreground')}>
-                    {category?.name ?? 'Pick a category...'}
-                  </span>
-                  <HugeiconsIcon
-                    icon={ArrowDown01Icon}
-                    size={14}
-                    className="text-muted-foreground"
+              <PopoverTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between border-input bg-input/20 font-normal"
                   />
-                </Button>
+                }
+              >
+                <span className={cn(!category && 'text-muted-foreground')}>
+                  {category?.name ?? 'Pick a category...'}
+                </span>
+                <HugeiconsIcon icon={ArrowDown01Icon} size={14} className="text-muted-foreground" />
               </PopoverTrigger>
               <PopoverContent className="w-88 p-0" align="start">
                 <Command>

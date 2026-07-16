@@ -112,16 +112,18 @@ export function FilterBar({ filters, onChange, defaultFilters, hideAccounts }: F
         onChange={(direction) => onChange({ ...filters, direction })}
       />
       <Popover open={moreOpen} onOpenChange={setMoreOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" size="lg" className="border-input bg-input/20 font-normal">
-            <HugeiconsIcon icon={FilterIcon} size={14} className="text-muted-foreground" />
-            More
-            {moreCount > 0 && (
-              <Badge variant="secondary" className="px-1.5">
-                {moreCount}
-              </Badge>
-            )}
-          </Button>
+        <PopoverTrigger
+          render={
+            <Button variant="outline" size="lg" className="border-input bg-input/20 font-normal" />
+          }
+        >
+          <HugeiconsIcon icon={FilterIcon} size={14} className="text-muted-foreground" />
+          More
+          {moreCount > 0 && (
+            <Badge variant="secondary" className="px-1.5">
+              {moreCount}
+            </Badge>
+          )}
         </PopoverTrigger>
         <PopoverContent className="w-80 space-y-4" align="start">
           <div className="space-y-2">

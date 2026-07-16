@@ -36,12 +36,8 @@ function OverrideBadge({ widget }: { widget: ReportWidget }) {
       : `Overrides: ${keys.map((k) => FILTER_LABELS[k] ?? k).join(', ')}`
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Badge variant="secondary" className="shrink-0 cursor-default">
-          {mode === 'own'
-            ? 'Own filters'
-            : `${keys.length} override${keys.length === 1 ? '' : 's'}`}
-        </Badge>
+      <TooltipTrigger render={<Badge variant="secondary" className="shrink-0 cursor-default" />}>
+        {mode === 'own' ? 'Own filters' : `${keys.length} override${keys.length === 1 ? '' : 's'}`}
       </TooltipTrigger>
       <TooltipContent>{summary}</TooltipContent>
     </Tooltip>

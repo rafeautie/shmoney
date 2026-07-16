@@ -436,21 +436,23 @@ function CurrencySelect({
     // modal: the popover portals outside the DialogContent, and the modal
     // dialog's scroll lock would otherwise swallow wheel events over the list
     <Popover modal open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          id="import-account-currency"
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between font-normal"
-        >
-          <span className="truncate">
-            {selected ? `${selected.code} — ${selected.currency}` : value}
-          </span>
-          <HugeiconsIcon icon={UnfoldMoreIcon} size={14} className="shrink-0 opacity-50" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            id="import-account-currency"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between font-normal"
+          />
+        }
+      >
+        <span className="truncate">
+          {selected ? `${selected.code} — ${selected.currency}` : value}
+        </span>
+        <HugeiconsIcon icon={UnfoldMoreIcon} size={14} className="shrink-0 opacity-50" />
       </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) min-w-64 p-0" align="start">
+      <PopoverContent className="w-(--anchor-width) min-w-64 p-0" align="start">
         <Command>
           <CommandInput placeholder="Search currencies..." />
           <CommandList>
@@ -552,7 +554,10 @@ function CsvMappingFields({
         </div>
         <div className="flex items-center justify-between gap-3">
           <Label>Date format</Label>
-          <Select value={base.dateFormat} onValueChange={(dateFormat) => set({ dateFormat })}>
+          <Select
+            value={base.dateFormat}
+            onValueChange={(dateFormat) => set({ dateFormat: dateFormat as string })}
+          >
             <SelectTrigger className="w-56">
               <SelectValue />
             </SelectTrigger>

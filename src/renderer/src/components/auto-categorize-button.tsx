@@ -31,9 +31,7 @@ export function AutoCategorizeButton({ scope }: { scope: CategorizeScopeInput })
   if (!llmReady) {
     return (
       <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="inline-flex shrink-0">{button}</span>
-        </TooltipTrigger>
+        <TooltipTrigger render={<span className="inline-flex shrink-0" />}>{button}</TooltipTrigger>
         <TooltipContent>Download a model in Settings to use this</TooltipContent>
       </Tooltip>
     )

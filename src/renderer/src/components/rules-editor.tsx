@@ -437,14 +437,16 @@ function DateField({
   const [open, setOpen] = useState(false)
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className={cn('w-40 justify-start font-normal', !value && 'text-muted-foreground')}
-        >
-          {value ? format(value, 'MMM d, yyyy') : 'Any date'}
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            type="button"
+            variant="outline"
+            className={cn('w-40 justify-start font-normal', !value && 'text-muted-foreground')}
+          />
+        }
+      >
+        {value ? format(value, 'MMM d, yyyy') : 'Any date'}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar

@@ -382,15 +382,17 @@ export function NotificationCenter() {
         if (next) markAllSeen()
       }}
     >
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={label}
-          className="rounded-full [-webkit-app-region:no-drag]"
-        >
-          <StatusCircle state={state} percent={percent} indeterminate={indeterminate} />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={label}
+            className="rounded-full [-webkit-app-region:no-drag]"
+          />
+        }
+      >
+        <StatusCircle state={state} percent={percent} indeterminate={indeterminate} />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0">
         <NotificationPanel

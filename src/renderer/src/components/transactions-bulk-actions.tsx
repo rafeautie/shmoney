@@ -89,16 +89,18 @@ export function TransactionsBulkActions({
           {transactions.length} selected
         </span>
         <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="lg"
-              className="text-sm"
-              title="Set category (c)"
-              disabled={busy}
-            >
-              Set category
-            </Button>
+          <PopoverTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="lg"
+                className="text-sm"
+                title="Set category (c)"
+                disabled={busy}
+              />
+            }
+          >
+            Set category
           </PopoverTrigger>
           <PopoverContent className="w-56 p-0" align="center" side="top">
             <CategoryPicker

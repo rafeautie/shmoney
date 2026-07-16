@@ -79,11 +79,13 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="lg" className="border-input bg-input/20 font-normal">
-          <HugeiconsIcon icon={Bookmark01Icon} size={14} className="text-muted-foreground" />
-          Saved
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button variant="outline" size="lg" className="border-input bg-input/20 font-normal" />
+        }
+      >
+        <HugeiconsIcon icon={Bookmark01Icon} size={14} className="text-muted-foreground" />
+        Saved
       </PopoverTrigger>
       <PopoverContent className="w-72 p-2" align="start">
         {saved.length === 0 ? (

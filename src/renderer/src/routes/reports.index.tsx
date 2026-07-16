@@ -63,17 +63,15 @@ function ReportsPage() {
           </p>
         </div>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button disabled={createMutation.isPending}>
-              New report
-              <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
-            </Button>
+          <DropdownMenuTrigger render={<Button disabled={createMutation.isPending} />}>
+            New report
+            <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => createMutation.mutate({ name: 'Untitled report' })}>
+            <DropdownMenuItem onClick={() => createMutation.mutate({ name: 'Untitled report' })}>
               Blank report
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => createMutation.mutate(SPENDING_OVERVIEW_TEMPLATE)}>
+            <DropdownMenuItem onClick={() => createMutation.mutate(SPENDING_OVERVIEW_TEMPLATE)}>
               Spending Overview template
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -154,19 +152,21 @@ function ReportCard({
       <CardHeader className="flex flex-row items-center gap-2">
         <CardTitle className="min-w-0 flex-1 truncate text-base">{report.name}</CardTitle>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-7 shrink-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <HugeiconsIcon icon={MoreVerticalIcon} size={14} />
-              <span className="sr-only">Report menu</span>
-            </Button>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              />
+            }
+          >
+            <HugeiconsIcon icon={MoreVerticalIcon} size={14} />
+            <span className="sr-only">Report menu</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-            <DropdownMenuItem variant="destructive" onSelect={onDelete}>
+            <DropdownMenuItem variant="destructive" onClick={onDelete}>
               Delete report
             </DropdownMenuItem>
           </DropdownMenuContent>
