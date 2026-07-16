@@ -57,7 +57,7 @@ export function ChatView({
           rather than the page growing */}
       <MessageScroller className="min-h-0 flex-1">
         <MessageScrollerViewport>
-          <MessageScrollerContent className="mx-auto w-full max-w-3xl p-4">
+          <MessageScrollerContent className="mx-auto w-full max-w-2xl p-4">
             {messages.map((message) => (
               <MessageScrollerItem key={message.id} messageId={String(message.id)}>
                 <ChatMessageRow message={message} />

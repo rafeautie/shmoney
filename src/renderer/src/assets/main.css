@@ -5,6 +5,11 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  /* Tailwind transition utilities use these tokens. Keeping them here means
+   * shadcn primitives with their own transition-* utilities share the same
+   * gentle hover timing. */
+  --default-transition-duration: 250ms;
+  --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   --radius: 0.45rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -187,6 +192,12 @@
   html {
     @apply font-sans;
     font-size: 17px;
+  }
+
+  /* Provide the same gentle color fade to hover styles without an explicit
+   * transition utility. Component utilities use the root timing tokens above. */
+  * {
+    @apply transition-colors duration-[250ms] ease-in-out;
   }
 }
 

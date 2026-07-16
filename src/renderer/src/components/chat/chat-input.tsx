@@ -38,14 +38,14 @@ export function ChatInput({
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl p-4 pt-2">
+    <div className="mx-auto w-full max-w-2xl p-4 pt-2">
       <form
         onSubmit={(e) => {
           e.preventDefault()
           send()
         }}
       >
-        <InputGroup className="rounded-2xl has-data-[align=block-end]:rounded-2xl has-[textarea]:rounded-2xl">
+        <InputGroup className="rounded-2xl hover:border-ring/60 has-data-[align=block-end]:rounded-2xl has-[textarea]:rounded-2xl">
           {/* the textarea grows with its content (field-sizing); the scroll
               area viewport caps the height and owns the scrolling */}
           <ScrollArea
@@ -98,7 +98,7 @@ export function ChatInput({
               size="icon-sm"
               type="submit"
               disabled={!canSend}
-              className="ml-auto data-[hidden=true]:hidden"
+              className="ml-auto rounded-lg data-[hidden=true]:hidden"
               data-hidden={streaming}
             >
               <HugeiconsIcon icon={ArrowUp02Icon} strokeWidth={2} />
@@ -108,7 +108,7 @@ export function ChatInput({
               size="icon-sm"
               type="button"
               data-hidden={!streaming}
-              className="ml-auto data-[hidden=true]:hidden"
+              className="ml-auto rounded-lg data-[hidden=true]:hidden"
               onClick={onStop}
             >
               <HugeiconsIcon icon={StopIcon} strokeWidth={2} />
@@ -124,7 +124,7 @@ export function ChatInput({
 /** Shown in the composer's place when the conversation is read-only. */
 export function ChatInputNotice({ children }: { children: React.ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-3xl p-4 pt-2">
+    <div className="mx-auto w-full max-w-2xl p-4 pt-2">
       <p className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
         {children}
       </p>
