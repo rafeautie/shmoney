@@ -6,6 +6,7 @@ import { ipcErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { Spinner } from '@/components/ui/spinner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { SettingsGroup, SettingAction } from './settings-controls'
 import { ConfirmDialog } from './confirm-dialog'
@@ -66,6 +67,12 @@ export function LlmSettings() {
                 {MODEL.label}
                 {isDownloaded && diskSize.data != null && (
                   <Badge variant="secondary">{formatBytes(diskSize.data)}</Badge>
+                )}
+                {stage === 'loading' && (
+                  <Badge variant="secondary">
+                    <Spinner className="size-3" />
+                    Loading into memory
+                  </Badge>
                 )}
               </>
             }

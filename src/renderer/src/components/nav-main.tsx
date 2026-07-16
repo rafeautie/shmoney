@@ -2,9 +2,9 @@ import { Link, useMatchRoute } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Activity01Icon,
-  AiChat02Icon,
   Analytics01Icon,
   Bug01Icon,
+  BubbleChatIcon,
   PiggyBankIcon,
   Wallet01Icon
 } from '@hugeicons/core-free-icons'
@@ -19,7 +19,7 @@ const BASE_NAV_ITEMS = [
   { to: '/accounts', label: 'Accounts', fuzzy: true, icon: Wallet01Icon },
   { to: '/budget', label: 'Budget', fuzzy: true, icon: PiggyBankIcon },
   { to: '/reports', label: 'Reports', fuzzy: true, icon: Analytics01Icon },
-  { to: '/chat', label: 'Chat', fuzzy: false, icon: AiChat02Icon },
+  { to: '/chat', label: 'Chat', fuzzy: false, icon: BubbleChatIcon },
   { to: '/activity', label: 'Activity', fuzzy: false, icon: Activity01Icon }
 ] as const
 

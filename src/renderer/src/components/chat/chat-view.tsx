@@ -1,10 +1,10 @@
 import { HugeiconsIcon } from '@hugeicons/react'
-import { BubbleChatIcon } from '@hugeicons/core-free-icons'
+import { BubbleChatIcon, SparklesIcon } from '@hugeicons/core-free-icons'
 import { messageText, type ChatMessage } from '@shared/chat'
 import { useMessages } from '@/lib/chat'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
-import { Marker, MarkerContent } from '@/components/ui/marker'
+import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
 import {
   MessageScroller,
@@ -23,10 +23,13 @@ export interface ActiveReply {
 
 export function ChatView({
   conversationId,
-  reply
+  reply,
+  modelLoading = false
 }: {
   conversationId: number | null
   reply: ActiveReply | null
+  /** the model is loading into memory; the waiting marker says so */
+  modelLoading?: boolean
 }) {
   const messages = useMessages(conversationId).data ?? []
   const streaming = reply !== null && reply.conversationId === conversationId
@@ -49,7 +52,10 @@ export function ChatView({
 
   return (
     <MessageScrollerProvider>
-      <MessageScroller>
+      {/* flex-1 + min-h-0 pin the scroller between the header and composer so
+          ITS viewport scrolls (and its scroll-to-bottom button engages),
+          rather than the page growing */}
+      <MessageScroller className="min-h-0 flex-1">
         <MessageScrollerViewport>
           <MessageScrollerContent className="mx-auto w-full max-w-3xl p-4">
             {messages.map((message) => (
@@ -62,8 +68,11 @@ export function ChatView({
                 {reply.text ? (
                   <AssistantBubble text={reply.text} />
                 ) : (
-                  <Marker>
-                    <MarkerContent className="shimmer">Thinking…</MarkerContent>
+                  <Marker role="status" className="w-fit animate-shimmer">
+                    <MarkerIcon>
+                      <HugeiconsIcon icon={SparklesIcon} strokeWidth={2} />
+                    </MarkerIcon>
+                    <MarkerContent>{modelLoading ? 'Loading model…' : 'Thinking…'}</MarkerContent>
                   </Marker>
                 )}
               </MessageScrollerItem>

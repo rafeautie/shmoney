@@ -153,6 +153,28 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* In-progress markers: a soft highlight sweeps across a static icon + label
+ * via an animated mask (works on SVG icons, unlike text-clip shimmers). */
+@utility animate-shimmer {
+  mask-image: linear-gradient(
+    90deg,
+    rgb(0 0 0 / 45%) 42%,
+    rgb(0 0 0) 50%,
+    rgb(0 0 0 / 45%) 58%
+  );
+  mask-size: 300% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+  from {
+    mask-position: 100% 0;
+  }
+  to {
+    mask-position: 0% 0;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

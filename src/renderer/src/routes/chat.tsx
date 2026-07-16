@@ -3,8 +3,8 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useIsMutating, useQueryClient } from '@tanstack/react-query'
 import type { ChatMessage } from '@shared/chat'
 import { CHAT_CONVERSATIONS_KEY, chatMessagesKey, useSendChat, useStopChat } from '@/lib/chat'
-import { CATEGORIZE_MUTATION_KEY, useLlmReady } from '@/lib/llm'
-import { ChatInput } from '@/components/chat/chat-input'
+import { CATEGORIZE_MUTATION_KEY, useLlmStatus } from '@/lib/llm'
+import { ChatInput, ChatInputNotice } from '@/components/chat/chat-input'
 import { ChatModelGate } from '@/components/chat/chat-model-gate'
 import { ChatView, type ActiveReply } from '@/components/chat/chat-view'
 import { ConversationList } from '@/components/chat/conversation-list'
@@ -23,7 +23,11 @@ function ChatPage() {
   const navigate = useNavigate({ from: '/chat' })
   const queryClient = useQueryClient()
 
-  const ready = useLlmReady()
+  const stage = useLlmStatus().data?.stage ?? 'notDownloaded'
+  // loading counts as available: the model is on disk and a turn is usable the
+  // moment it finishes loading, so the page must not fall back to the gate
+  const modelAvailable = stage === 'downloaded' || stage === 'ready' || stage === 'loading'
+  const modelLoading = stage === 'loading'
   const categorizeRunning = useIsMutating({ mutationKey: CATEGORIZE_MUTATION_KEY }) > 0
   const sendChat = useSendChat()
   const stopChat = useStopChat()
@@ -72,20 +76,30 @@ function ChatPage() {
     <div className="flex min-h-0 flex-1">
       <ConversationList activeId={conversationId} onSelect={select} />
       <div className="flex min-w-0 flex-1 flex-col">
-        {!ready ? (
+        {!modelAvailable && conversationId === null ? (
           <ChatModelGate />
         ) : (
           <>
-            <ChatView conversationId={conversationId} reply={reply} />
-            <ChatInput
-              streaming={reply !== null}
-              disabled={categorizeRunning || sendChat.isPending}
-              disabledHint={
-                categorizeRunning ? 'Chat is paused while auto-categorize runs' : undefined
-              }
-              onSend={send}
-              onStop={() => stopChat.mutate()}
-            />
+            <ChatView conversationId={conversationId} reply={reply} modelLoading={modelLoading} />
+            {!modelAvailable ? (
+              // existing conversations stay readable without the model; only
+              // the composer gives way to an explanation
+              <ChatInputNotice>
+                The model isn&apos;t on this device, so this conversation is read-only. Start a new
+                chat to download it.
+              </ChatInputNotice>
+            ) : (
+              <ChatInput
+                streaming={reply !== null}
+                loading={modelLoading}
+                disabled={categorizeRunning || sendChat.isPending}
+                disabledHint={
+                  categorizeRunning ? 'Chat is paused while auto-categorize runs' : undefined
+                }
+                onSend={send}
+                onStop={() => stopChat.mutate()}
+              />
+            )}
           </>
         )}
       </div>

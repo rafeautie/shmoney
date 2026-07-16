@@ -1,7 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ChatMessage, Conversation } from '@shared/chat'
-import { ipcErrorMessage } from '@/lib/utils'
-import { useNotify } from '@/lib/notify-store'
 
 export const CHAT_CONVERSATIONS_KEY = ['chat', 'conversations'] as const
 
@@ -30,7 +28,6 @@ export function useMessages(conversationId: number | null) {
  */
 export function useSendChat() {
   const queryClient = useQueryClient()
-  const notify = useNotify()
   return useMutation({
     mutationFn: (input: { conversationId: number | null; text: string }) =>
       window.api.chat.send(input),
@@ -39,8 +36,7 @@ export function useSendChat() {
         prev ? [...prev, userMessage] : [userMessage]
       )
       void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
-    },
-    onError: (error) => notify.error(ipcErrorMessage(error))
+    }
   })
 }
 
@@ -48,10 +44,9 @@ export function useStopChat() {
   return useMutation({ mutationFn: () => window.api.chat.stop() })
 }
 
-/** Soft delete with an undo action, matching the app's no-confirm convention. */
+/** Soft delete; the row stays restorable but no notification is raised. */
 export function useDeleteConversation() {
   const queryClient = useQueryClient()
-  const notify = useNotify()
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
   return useMutation({
     mutationFn: (id: number) => window.api.chat.delete(id),
@@ -60,27 +55,14 @@ export function useDeleteConversation() {
         prev?.filter((c) => c.id !== id)
       )
     },
-    onSuccess: (_ok, id) => {
-      notify('Conversation deleted', {
-        action: {
-          label: 'Undo',
-          onClick: () => void window.api.chat.restore(id).then(invalidate)
-        }
-      })
-    },
-    onError: (error) => {
-      notify.error(ipcErrorMessage(error))
-      invalidate()
-    }
+    onSettled: invalidate
   })
 }
 
 export function useRenameConversation() {
   const queryClient = useQueryClient()
-  const notify = useNotify()
   return useMutation({
     mutationFn: (input: { id: number; title: string }) => window.api.chat.rename(input),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY }),
-    onError: (error) => notify.error(ipcErrorMessage(error))
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
   })
 }

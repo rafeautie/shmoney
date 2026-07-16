@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { ScrollArea as ScrollAreaPrimitive } from '@base-ui/react/scroll-area'
 import {
   MessageScroller as MessageScrollerPrimitive,
   useMessageScroller,
@@ -7,6 +8,7 @@ import {
 } from '@shadcn/react/message-scroller'
 
 import { cn } from '@/lib/utils'
+import { ScrollBar } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDown02Icon } from '@hugeicons/core-free-icons'
@@ -35,17 +37,26 @@ function MessageScroller({
 
 function MessageScrollerViewport({
   className,
+  children,
   ...props
 }: React.ComponentProps<typeof MessageScrollerPrimitive.Viewport>) {
   return (
-    <MessageScrollerPrimitive.Viewport
-      data-slot="message-scroller-viewport"
-      className={cn(
-        'size-full min-h-0 min-w-0 scroll-fade-b scrollbar-thin scrollbar-gutter-stable overflow-y-auto overscroll-contain contain-content data-autoscrolling:scrollbar-thumb-transparent data-autoscrolling:scrollbar-track-transparent',
-        className
-      )}
-      {...props}
-    />
+    <ScrollAreaPrimitive.Root className="relative size-full min-h-0">
+      {/* render composition makes the message-scroller viewport (which owns
+          autoscroll/anchoring) the same element the scroll area tracks, so the
+          overlay scrollbar replaces the native one */}
+      <ScrollAreaPrimitive.Viewport
+        data-slot="message-scroller-viewport"
+        render={<MessageScrollerPrimitive.Viewport role="region" {...props} />}
+        className={cn(
+          'size-full min-h-0 min-w-0 scroll-fade-b overscroll-contain contain-content',
+          className
+        )}
+      >
+        {children}
+      </ScrollAreaPrimitive.Viewport>
+      <ScrollBar className="z-10 transition-opacity group-data-autoscrolling/message-scroller:opacity-0" />
+    </ScrollAreaPrimitive.Root>
   )
 }
 
