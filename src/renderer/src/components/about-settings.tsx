@@ -46,6 +46,23 @@ function UpdatesRow() {
   )
 }
 
+// deep-link into the repo's issue forms (.github/ISSUE_TEMPLATE): GitHub
+// prefills any form field whose id matches a query param
+function issueUrl(params: Record<string, string>): string {
+  return `https://github.com/rafeautie/shmoney/issues/new?${new URLSearchParams(params)}`
+}
+
+function bugReportUrl(): string {
+  const ua = navigator.userAgent
+  // must match the bug form's os dropdown options exactly
+  const os = ua.includes('Windows') ? 'Windows' : ua.includes('Mac') ? 'macOS' : 'Linux'
+  return issueUrl({ template: 'bug_report.yml', version: __APP_VERSION__, os })
+}
+
+function featureRequestUrl(): string {
+  return issueUrl({ template: 'feature_request.yml' })
+}
+
 export function AboutSettings() {
   return (
     <Card>
@@ -61,6 +78,24 @@ export function AboutSettings() {
             description="The open source software shmoney is built with."
           >
             <LicensesDialog />
+          </SettingAction>
+          {/* window.open on an https URL routes through setWindowOpenHandler to
+              the OS browser (see main/index.ts) */}
+          <SettingAction
+            label="Report a bug"
+            description="Opens a GitHub issue prefilled with your version and system info."
+          >
+            <Button variant="outline" onClick={() => window.open(bugReportUrl())}>
+              Report bug
+            </Button>
+          </SettingAction>
+          <SettingAction
+            label="Request a feature"
+            description="Suggest an improvement or a new idea on GitHub."
+          >
+            <Button variant="outline" onClick={() => window.open(featureRequestUrl())}>
+              Request feature
+            </Button>
           </SettingAction>
         </SettingsGroup>
       </CardContent>
