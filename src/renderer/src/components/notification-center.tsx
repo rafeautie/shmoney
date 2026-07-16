@@ -213,17 +213,29 @@ function MessageItem({ message, onAction }: { message: Message; onAction: () => 
 function NotificationPanel({
   jobs,
   messages,
-  onAction
+  onAction,
+  onClearAll
 }: {
   jobs: Notification[]
   messages: Message[]
   onAction: () => void
+  onClearAll: () => void
 }) {
   const empty = jobs.length === 0 && messages.length === 0
   return (
     <div className="flex flex-col">
-      <div className="border-b px-4 py-2.5">
+      <div className="flex items-center justify-between border-b px-4 py-2.5">
         <p className="text-sm font-medium">Notifications</p>
+        {messages.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="-my-1 h-6 px-2 text-xs text-muted-foreground"
+            onClick={onClearAll}
+          >
+            Clear all
+          </Button>
+        )}
       </div>
       {empty ? (
         <Empty className="gap-2 px-4 py-8">
@@ -315,15 +327,16 @@ function useRuleSuggestionNotice() {
 /**
  * Header notification center. An always-visible entry point at the left of the
  * app header, right of the sidebar toggle, that summarises in-flight jobs and
- * recent messages; opening it marks
- * messages seen (clearing the badge), closing it drops the ones already seen.
+ * recent messages. Opening it marks messages seen (clearing the badge); seen
+ * messages then stay readable for a few minutes, swept by the open/close
+ * transitions once that passes, and Clear all empties the list on demand.
  */
 export function NotificationCenter() {
   useDownloadCompleteNotice()
   useUpdateReadyNotice()
   useRuleSuggestionNotice()
   const jobs = useNotifications()
-  const { messages, markAllSeen, pruneSeen } = useNotifyStore()
+  const { messages, markAllSeen, pruneExpired, clearAll } = useNotifyStore()
   const [open, setOpen] = useState(false)
 
   // while the panel is open, anything that arrives is read on sight
@@ -331,7 +344,7 @@ export function NotificationCenter() {
     if (open) markAllSeen()
   }, [open, messages, markAllSeen])
 
-  const unseen = messages.filter((m) => !m.seen)
+  const unseen = messages.filter((m) => m.seenAt === null)
   const count = unseen.length
   const active = jobs.length > 0
 
@@ -362,8 +375,11 @@ export function NotificationCenter() {
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
+        // drop messages seen long enough ago on both transitions: on open so a
+        // stale list isn't shown, on close as the routine sweep. Recently seen
+        // ones stay readable, and nothing ever vanishes while the panel is open.
+        pruneExpired()
         if (next) markAllSeen()
-        else pruneSeen()
       }}
     >
       <PopoverTrigger asChild>
@@ -377,7 +393,12 @@ export function NotificationCenter() {
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 p-0">
-        <NotificationPanel jobs={jobs} messages={messages} onAction={() => setOpen(false)} />
+        <NotificationPanel
+          jobs={jobs}
+          messages={messages}
+          onAction={() => setOpen(false)}
+          onClearAll={clearAll}
+        />
       </PopoverContent>
     </Popover>
   )

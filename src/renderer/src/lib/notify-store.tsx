@@ -11,8 +11,8 @@ export interface Message {
   description?: string
   variant: 'default' | 'error'
   action?: NotifyAction
-  /** true once the user has opened the center while this message was present */
-  seen: boolean
+  /** unix millis when the user first saw this message (center opened); null = unread */
+  seenAt: number | null
 }
 
 export interface NotifyOptions {
@@ -22,13 +22,17 @@ export interface NotifyOptions {
 
 interface Store {
   messages: Message[]
-  push: (input: Omit<Message, 'id' | 'seen'>) => void
+  push: (input: Omit<Message, 'id' | 'seenAt'>) => void
   markAllSeen: () => void
-  pruneSeen: () => void
+  pruneExpired: () => void
+  clearAll: () => void
 }
 
 // keep the panel a "recent activity" list, not an unbounded log
 const MAX_MESSAGES = 20
+
+// how long a seen message lingers before the open/close sweeps drop it
+const SEEN_TTL_MS = 5 * 60 * 1000
 
 let nextId = 0
 
@@ -36,31 +40,45 @@ const NotifyContext = createContext<Store | null>(null)
 
 /**
  * Session-scoped store behind the sidebar notification center. Completed one-shot
- * messages (what used to be toasts) live here until the user opens the center:
- * opening marks them seen, closing drops the seen ones. Not persisted — a restart
- * starts clean.
+ * messages (what used to be toasts) live here. Opening the center marks them seen
+ * (clearing the badge); a seen message then lingers for SEEN_TTL_MS so it can be
+ * re-read, and the open/close sweeps (pruneExpired) drop it once that passes —
+ * no timers, so nothing vanishes mid-view. Clear all empties the list at once.
+ * Not persisted — a restart starts clean.
  */
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([])
 
-  const push = useCallback((input: Omit<Message, 'id' | 'seen'>) => {
-    const message: Message = { ...input, id: nextId++, seen: false }
+  const push = useCallback((input: Omit<Message, 'id' | 'seenAt'>) => {
+    const message: Message = { ...input, id: nextId++, seenAt: null }
     setMessages((prev) => [message, ...prev].slice(0, MAX_MESSAGES))
   }, [])
 
   const markAllSeen = useCallback(() => {
+    const now = Date.now()
     setMessages((prev) =>
-      prev.some((m) => !m.seen) ? prev.map((m) => ({ ...m, seen: true })) : prev
+      prev.some((m) => m.seenAt === null)
+        ? prev.map((m) => (m.seenAt === null ? { ...m, seenAt: now } : m))
+        : prev
     )
   }, [])
 
-  const pruneSeen = useCallback(() => {
-    setMessages((prev) => (prev.some((m) => m.seen) ? prev.filter((m) => !m.seen) : prev))
+  const pruneExpired = useCallback(() => {
+    const cutoff = Date.now() - SEEN_TTL_MS
+    setMessages((prev) =>
+      prev.some((m) => m.seenAt !== null && m.seenAt < cutoff)
+        ? prev.filter((m) => m.seenAt === null || m.seenAt >= cutoff)
+        : prev
+    )
+  }, [])
+
+  const clearAll = useCallback(() => {
+    setMessages((prev) => (prev.length > 0 ? [] : prev))
   }, [])
 
   const value = useMemo(
-    () => ({ messages, push, markAllSeen, pruneSeen }),
-    [messages, push, markAllSeen, pruneSeen]
+    () => ({ messages, push, markAllSeen, pruneExpired, clearAll }),
+    [messages, push, markAllSeen, pruneExpired, clearAll]
   )
   return <NotifyContext.Provider value={value}>{children}</NotifyContext.Provider>
 }
@@ -91,8 +109,9 @@ export function useNotify(): Notify {
 export function useNotifyStore(): {
   messages: Message[]
   markAllSeen: () => void
-  pruneSeen: () => void
+  pruneExpired: () => void
+  clearAll: () => void
 } {
-  const { messages, markAllSeen, pruneSeen } = useStore()
-  return { messages, markAllSeen, pruneSeen }
+  const { messages, markAllSeen, pruneExpired, clearAll } = useStore()
+  return { messages, markAllSeen, pruneExpired, clearAll }
 }
