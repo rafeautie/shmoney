@@ -1,10 +1,11 @@
 import { sql } from 'drizzle-orm'
-import { sqliteTable, integer, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, integer, text, uniqueIndex, index } from 'drizzle-orm/sqlite-core'
 // type-only imports: erased at compile time, so drizzle-kit never resolves them at runtime
 import type { ReportFilters, WidgetConfig, WidgetType } from '../../shared/reports'
 import type { TransactionFilters } from '../../shared/transaction-filters'
 import type { ActionChange, SfinError } from '../../shared/ipc'
 import type { RuleConditions, RuleAction } from '../../shared/rules'
+import type { ChatMessagePart } from '../../shared/chat'
 
 // holds at most one row: the app supports a single SimpleFIN connection
 export const connections = sqliteTable('connections', {
@@ -256,6 +257,45 @@ export const budgets = sqliteTable(
   (t) => [uniqueIndex('budgets_category_month_ux').on(t.categoryId, t.month)]
 )
 
+// chat conversations with the local model. Deleting is a soft delete (undo
+// toast, same convention as transactions.deletedAt); messages stay attached
+// and come back with a restore.
+export const conversations = sqliteTable('conversations', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // null = untitled; auto-filled from the first user message
+  title: text('title'),
+  // unix milliseconds, matching action_log's finer-than-seconds convention
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  // ordering key for the conversation list; null until the first message lands
+  lastMessageAt: integer('last_message_at'),
+  deletedAt: integer('deleted_at'),
+  // which model produced the assistant turns (display metadata for future model switching)
+  modelLabel: text('model_label').notNull()
+})
+
+export const chatMessages = sqliteTable(
+  'chat_messages',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    conversationId: integer('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    role: text('role').$type<'user' | 'assistant'>().notNull(),
+    // parts array so the planned function-calling follow-up (functionCall /
+    // functionResult parts) needs no migration; today always one text part
+    parts: text('parts', { mode: 'json' }).$type<ChatMessagePart[]>().notNull(),
+    // 'interrupted' keeps the partial text of a stopped generation
+    status: text('status')
+      .$type<'complete' | 'interrupted' | 'error'>()
+      .notNull()
+      .default('complete'),
+    errorMessage: text('error_message'),
+    createdAt: integer('created_at').notNull()
+  },
+  (t) => [index('chat_messages_conversation_ix').on(t.conversationId, t.id)]
+)
+
 export type ConnectionRow = typeof connections.$inferSelect
 export type AccountRow = typeof accounts.$inferSelect
 export type HoldingRow = typeof holdings.$inferSelect
@@ -270,3 +310,5 @@ export type ActionLogRow = typeof actionLog.$inferSelect
 export type RuleRow = typeof rules.$inferSelect
 export type RuleSuggestionRow = typeof ruleSuggestions.$inferSelect
 export type BudgetRow = typeof budgets.$inferSelect
+export type ConversationRow = typeof conversations.$inferSelect
+export type ChatMessageRow = typeof chatMessages.$inferSelect
