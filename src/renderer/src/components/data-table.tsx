@@ -135,17 +135,12 @@ export function DataTable<TData>({
     return () => observer.disconnect()
   }, [onLoadMore, hasMore, isFetchingMore])
 
-  // empty/loading renders a single spanning row; stretch the height chain so it
-  // fills the viewport instead of a fixed 96px box (Radix's display:table wrapper
-  // otherwise collapses to content height, breaking the h-full chain)
+  // empty/loading renders a single spanning row; h-full on the table stretches
+  // it to fill the viewport instead of collapsing to a fixed 96px box
   const isEmpty = table.getRowModel().rows.length === 0
 
   return (
-    <ScrollArea
-      viewportRef={scrollRef}
-      className={className}
-      viewPortClassName={isEmpty ? '[&>div]:h-full' : undefined}
-    >
+    <ScrollArea viewportRef={scrollRef} className={className}>
       <table
         className={cn('w-full caption-bottom text-xs', isEmpty && 'h-full', bleed && TABLE_BLEED)}
       >

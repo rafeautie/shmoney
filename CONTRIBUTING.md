@@ -29,14 +29,14 @@ npm run dev
 
 Useful scripts:
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Start the app with hot reload |
-| `npm run typecheck` | Type-check the main/preload and renderer projects |
-| `npm run lint` | ESLint over the whole repo (zero warnings required) |
-| `npm run test` | Run the vitest suite |
-| `npm run db:generate` | Generate a drizzle migration after editing `src/main/db/schema.ts` |
-| `npm run build:unpack` | Production build without packaging an installer |
+| Command                | What it does                                                       |
+| ---------------------- | ------------------------------------------------------------------ |
+| `npm run dev`          | Start the app with hot reload                                      |
+| `npm run typecheck`    | Type-check the main/preload and renderer projects                  |
+| `npm run lint`         | ESLint over the whole repo (zero warnings required)                |
+| `npm run test`         | Run the vitest suite                                               |
+| `npm run db:generate`  | Generate a drizzle migration after editing `src/main/db/schema.ts` |
+| `npm run build:unpack` | Production build without packaging an installer                    |
 
 ## Code of conduct
 

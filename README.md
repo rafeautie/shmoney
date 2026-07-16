@@ -25,6 +25,7 @@
 </p>
 
 # shmoney
+
 shmoney is a local-first personal finance app for the desktop. It tracks your accounts, transactions, budgets, and investments in a single SQLite database on your own machine. There is no cloud backend, no user account, and no telemetry.
 
 It is built for people who want a full-featured finance tracker without handing their bank credentials or transaction history to a hosted service. Bank data comes in through [SimpleFIN](https://www.simplefin.org/) or plain file imports, and everything else, including AI categorization, runs entirely on your device.

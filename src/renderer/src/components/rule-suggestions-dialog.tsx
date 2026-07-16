@@ -54,14 +54,7 @@ export function RuleSuggestionsDialog({
         ) : (
           // max-h on the viewport so a long list scrolls rather than pushing the
           // dialog past the window. border-t is the divider above the first row.
-          // Radix's content wrapper is display:table, which treats width as a
-          // minimum and grows with long unbreakable text (shoving the buttons
-          // off-screen); w-full + table-fixed makes the viewport width binding
-          // so the rows' truncate engages instead.
-          <ScrollArea
-            className=" border-t"
-            viewPortClassName="max-h-[60vh] [&>div]:w-full [&>div]:table-fixed"
-          >
+          <ScrollArea className=" border-t" viewPortClassName="max-h-[60vh]">
             {/* each group is its own bordered settings-style block */}
             <div className="flex flex-col gap-3 p-4">
               {groups.map((group) => (
