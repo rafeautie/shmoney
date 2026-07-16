@@ -50,11 +50,7 @@ function PackageRow({ pkg }: { pkg: (typeof PACKAGES)[number] }) {
 export function LicensesDialog() {
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          View licenses
-        </Button>
-      </DialogTrigger>
+      <DialogTrigger render={<Button variant="outline" size="sm" />}>View licenses</DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Licenses &amp; credits</DialogTitle>

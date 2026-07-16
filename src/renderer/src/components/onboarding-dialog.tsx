@@ -74,14 +74,20 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
   }
 
   return (
-    <Dialog open onOpenChange={(next) => !next && onDone()}>
-      <DialogContent
-        className="flex h-108 flex-col gap-0 p-6 min-w-3xl"
-        // an onboarding modal shouldn't vanish on a stray click or Esc; the
-        // Skip button and the close (×) are the deliberate ways out
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-      >
+    <Dialog
+      open
+      // an onboarding modal shouldn't vanish on a stray click or Esc; the
+      // Skip button and the close (×) are the deliberate ways out
+      onOpenChange={(next, eventDetails) => {
+        if (next) return
+        if (eventDetails.reason === 'outside-press' || eventDetails.reason === 'escape-key') {
+          eventDetails.cancel()
+          return
+        }
+        onDone()
+      }}
+    >
+      <DialogContent className="flex h-108 flex-col gap-0 p-6 min-w-3xl">
         <Logo />
         {/* fixed-height body so the footer stays put as steps change height */}
         <div className="mt-5 flex-1 space-y-4 overflow-y-auto">

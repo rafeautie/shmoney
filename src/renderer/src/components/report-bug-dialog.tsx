@@ -48,9 +48,7 @@ export function ReportBugDialog() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">Report bug</Button>
-      </DialogTrigger>
+      <DialogTrigger render={<Button variant="outline" />}>Report bug</DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Report a bug</DialogTitle>

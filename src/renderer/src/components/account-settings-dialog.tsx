@@ -50,10 +50,17 @@ export function AccountSettingsDialog({
 
   return (
     <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="icon" className="shrink-0" aria-label="Account settings">
-          <HugeiconsIcon icon={Settings01Icon} />
-        </Button>
+      <DialogTrigger
+        render={
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0"
+            aria-label="Account settings"
+          />
+        }
+      >
+        <HugeiconsIcon icon={Settings01Icon} />
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
