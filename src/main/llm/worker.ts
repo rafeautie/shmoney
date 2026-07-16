@@ -276,14 +276,16 @@ async function handleChat(
   history: ChatHistoryItem[],
   prompt: string
 ): Promise<ChatGenerationResult> {
-  const session = await ensureChatSession()
-  // the whole prior conversation is replaced per turn (stateless worker: the
-  // feature owns history in the DB), so switching conversations needs nothing
-  session.setChatHistory(history)
-
+  // register as the active generation before any await so an abortGenerate
+  // that lands while the chat context is still being created isn't lost
   const controller = new AbortController()
   activeGeneration = controller
   try {
+    const session = await ensureChatSession()
+    if (controller.signal.aborted) return { text: '', interrupted: true }
+    // the whole prior conversation is replaced per turn (stateless worker: the
+    // feature owns history in the DB), so switching conversations needs nothing
+    session.setChatHistory(history)
     // stopOnAbortSignal makes an abort return the text generated so far
     // instead of throwing, so a stopped reply still reaches the DB
     const text = await session.prompt(prompt, {

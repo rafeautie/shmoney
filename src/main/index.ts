@@ -20,6 +20,7 @@ import { registerStorageIpc } from './ipc/storage'
 import { registerImportIpc } from './ipc/import'
 import { registerWindowIpc } from './ipc/window'
 import { registerLlmIpc } from './ipc/llm'
+import { registerChatIpc } from './ipc/chat'
 import { registerUpdatesIpc, startUpdateChecks } from './ipc/updates'
 import { registerLogIpc } from './ipc/log'
 import { registerDiagnosticsIpc } from './ipc/diagnostics'
@@ -137,6 +138,7 @@ if (!app.requestSingleInstanceLock()) {
     registerImportIpc()
     registerWindowIpc()
     registerLlmIpc()
+    registerChatIpc()
     registerUpdatesIpc()
     registerLogIpc()
     registerDiagnosticsIpc()

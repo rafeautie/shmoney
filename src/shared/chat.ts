@@ -80,8 +80,8 @@ export interface ChatMessageDoneEvent {
   message: ChatMessage
 }
 
-/** fired when an implicit send creates the conversation, before generation */
-export interface ChatConversationCreatedEvent {
+/** resolved by chat:send once the turn is accepted; the reply then streams */
+export interface SendChatResult {
   conversation: Conversation
   userMessage: ChatMessage
 }
@@ -98,6 +98,5 @@ export const CHAT_IPC = {
   stop: 'chat:stop',
   // main → renderer push events
   chunk: 'chat:chunk',
-  messageDone: 'chat:messageDone',
-  conversationCreated: 'chat:conversationCreated'
+  messageDone: 'chat:messageDone'
 } as const

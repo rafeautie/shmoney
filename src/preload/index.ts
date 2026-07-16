@@ -79,6 +79,16 @@ import {
   type ImportPreviewInput,
   type PickFileResult
 } from '@shared/import'
+import {
+  CHAT_IPC,
+  type ChatChunkEvent,
+  type ChatMessage,
+  type ChatMessageDoneEvent,
+  type Conversation,
+  type RenameConversationInput,
+  type SendChatInput,
+  type SendChatResult
+} from '@shared/chat'
 import { UPDATES_IPC, type UpdateState } from '@shared/updates'
 import { DIAGNOSTICS_IPC, LOG_IPC, type LogWriteInput } from '@shared/diagnostics'
 import {
@@ -266,6 +276,37 @@ const api = {
         callback(progress)
       ipcRenderer.on(LLM_IPC.categorizeProgress, listener)
       return () => ipcRenderer.removeListener(LLM_IPC.categorizeProgress, listener)
+    }
+  },
+  chat: {
+    listConversations: (): Promise<Conversation[]> =>
+      ipcRenderer.invoke(CHAT_IPC.listConversations),
+    listMessages: (conversationId: number): Promise<ChatMessage[]> =>
+      ipcRenderer.invoke(CHAT_IPC.listMessages, conversationId),
+    /**
+     * Send one turn (null conversationId creates the conversation). Resolves
+     * once accepted; the reply arrives via onChunk/onMessageDone pushes.
+     */
+    send: (input: SendChatInput): Promise<SendChatResult> =>
+      ipcRenderer.invoke(CHAT_IPC.send, input),
+    /** Stop the in-flight reply; its partial text still lands via onMessageDone */
+    stop: (): Promise<void> => ipcRenderer.invoke(CHAT_IPC.stop),
+    rename: (input: RenameConversationInput): Promise<boolean> =>
+      ipcRenderer.invoke(CHAT_IPC.renameConversation, input),
+    /** Soft delete, restorable via restore (undo toast) */
+    delete: (id: number): Promise<boolean> => ipcRenderer.invoke(CHAT_IPC.deleteConversation, id),
+    restore: (id: number): Promise<boolean> => ipcRenderer.invoke(CHAT_IPC.restoreConversation, id),
+    onChunk: (callback: (event: ChatChunkEvent) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, event: ChatChunkEvent): void =>
+        callback(event)
+      ipcRenderer.on(CHAT_IPC.chunk, listener)
+      return () => ipcRenderer.removeListener(CHAT_IPC.chunk, listener)
+    },
+    onMessageDone: (callback: (event: ChatMessageDoneEvent) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, event: ChatMessageDoneEvent): void =>
+        callback(event)
+      ipcRenderer.on(CHAT_IPC.messageDone, listener)
+      return () => ipcRenderer.removeListener(CHAT_IPC.messageDone, listener)
     }
   },
   updates: {
