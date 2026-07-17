@@ -1,8 +1,9 @@
-import type { ComponentProps } from 'react'
+import { useEffect, useState, type ComponentProps } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
-  ArrowDown01Icon,
+  Alert02Icon,
   BubbleChatIcon,
+  DatabaseIcon,
   Loading03Icon,
   SparklesIcon
 } from '@hugeicons/core-free-icons'
@@ -17,9 +18,14 @@ import {
 import { cn } from '@/lib/utils'
 import { useMessages } from '@/lib/chat'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
+import {
+  ChainOfThought,
+  ChainOfThoughtContent,
+  ChainOfThoughtHeader,
+  ChainOfThoughtStep
+} from '@/components/ui/chain-of-thought'
 import { ChatTable } from '@/components/chat/chat-table'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { QueryCard } from '@/components/chat/query-card'
+import { QueryCard, type QueryCardState } from '@/components/chat/query-card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
@@ -72,6 +78,19 @@ export function ChatView({
   }
   const streaming = reply !== null && reply.conversationId === conversationId
 
+  // scroll-behavior: smooth would animate the mount-time jump to
+  // defaultScrollPosition (the scroller asks for behavior 'auto', which defers
+  // to the CSS), so the class waits a frame after the first messages land.
+  // Deriving it from the current id rather than a plain boolean means it falls
+  // back off when the conversation switches, ahead of the next one's jump.
+  const [smoothFor, setSmoothFor] = useState<number | null>(null)
+  const hasMessages = messages.length > 0
+  useEffect(() => {
+    if (conversationId === null || !hasMessages) return
+    const frame = requestAnimationFrame(() => setSmoothFor(conversationId))
+    return () => cancelAnimationFrame(frame)
+  }, [conversationId, hasMessages])
+
   if (conversationId === null) {
     return (
       <Empty className="flex-1 border-none">
@@ -93,7 +112,7 @@ export function ChatView({
     // (the scroller applies it once per mount)
     <MessageScrollerProvider key={conversationId} defaultScrollPosition="end">
       <MessageScroller>
-        <MessageScrollerViewport>
+        <MessageScrollerViewport className={cn(smoothFor === conversationId && 'scroll-smooth')}>
           <MessageScrollerContent className="mx-auto w-full max-w-2xl p-4">
             {messages.map((message) => (
               <MessageScrollerItem
@@ -102,7 +121,16 @@ export function ChatView({
                 scrollAnchor={message.role === 'user'}
               >
                 {message.id === truncatedBeforeId && (
-                  <Marker variant="separator" role="separator" className="my-2">
+                  // amber, not muted: this one changes what the model can see,
+                  // so it has to read as a warning rather than a caption
+                  <Marker
+                    variant="separator"
+                    role="separator"
+                    className="my-2 text-amber-600 before:bg-amber-500/30 after:bg-amber-500/30 dark:text-amber-500"
+                  >
+                    <MarkerIcon>
+                      <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
+                    </MarkerIcon>
                     <MarkerContent>Older messages aren&apos;t sent to the model</MarkerContent>
                   </Marker>
                 )}
@@ -140,23 +168,13 @@ function StreamingReply({
       // first content, and the label flips inside
       <Message className="animate-in fade-in-0 duration-300">
         <MessageContent>
-          {reply.reasoning && (
-            <ReasoningBlock
-              text={reply.reasoning}
-              durationMs={reply.reasoningMs}
-              thinking={!reply.text && reply.toolCalls.length === 0}
-            />
-          )}
-          {reply.toolCalls.map((call) => (
-            <QueryCard
-              key={call.callId}
-              state={
-                call.status === 'done' && call.result !== null
-                  ? { status: 'done', sql: call.sql, result: call.result }
-                  : { status: call.status === 'running' ? 'running' : 'writing', sql: call.sql }
-              }
-            />
-          ))}
+          <ThoughtChain
+            reasoning={
+              reply.reasoning ? { text: reply.reasoning, durationMs: reply.reasoningMs } : null
+            }
+            calls={reply.toolCalls.map(toQueryCardState)}
+            active={!reply.text}
+          />
           {reply.text && <AssistantBubble text={reply.text} isStreaming />}
         </MessageContent>
       </Message>
@@ -214,10 +232,15 @@ function ChatMessageRow({ message }: { message: ChatMessage }) {
   return (
     <Message>
       <MessageContent>
-        {reasoning && <ReasoningBlock text={reasoning.text} durationMs={reasoning.durationMs} />}
-        {calls.map((call, i) => (
-          <QueryCard key={i} state={{ status: 'done', sql: call.args.sql, result: call.result }} />
-        ))}
+        <ThoughtChain
+          reasoning={reasoning}
+          calls={calls.map((call) => ({
+            status: 'done',
+            sql: call.args.sql,
+            result: call.result
+          }))}
+          active={false}
+        />
         {/* a turn stopped mid-query can have cards but no answer; skip the empty bubble then */}
         {(text || calls.length === 0) && <AssistantBubble text={text} />}
         {message.status === 'interrupted' && <MessageFooter>Stopped generating</MessageFooter>}
@@ -233,44 +256,74 @@ function formatThoughtDuration(ms: number): string {
   return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
 }
 
-/**
- * The model's chain of thought: a "Thinking…" / "Thought for Ns" label that
- * expands to the thought text. Collapsed by default so the answer stays the
- * focus; expanding mid-turn shows the thought streaming live.
- */
-function ReasoningBlock({
-  text,
-  durationMs,
-  thinking = false
-}: {
+function toQueryCardState(call: ActiveToolCall): QueryCardState {
+  return call.status === 'done' && call.result !== null
+    ? { status: 'done', sql: call.sql, result: call.result }
+    : { status: call.status === 'running' ? 'running' : 'writing', sql: call.sql }
+}
+
+/** "Thought for 12s · 2 queries" — what the settled chain collapses to */
+function chainLabel(reasoning: Reasoning | null, callCount: number): string {
+  const parts: string[] = []
+  if (reasoning) parts.push(`Thought for ${formatThoughtDuration(reasoning.durationMs ?? 0)}`)
+  if (callCount > 0) parts.push(`${callCount} ${callCount === 1 ? 'query' : 'queries'}`)
+  return parts.join(' · ')
+}
+
+interface Reasoning {
   text: string
   durationMs: number | null
-  thinking?: boolean
+}
+
+/**
+ * The turn's reasoning and query calls as one chain of thought: a timeline of
+ * steps that stays open while the model works, then collapses to a summary
+ * once the answer starts, so settled turns read as just the answer. The thought
+ * itself sits open on the rail; only the query steps, which carry SQL and a
+ * result table, are worth a toggle. The user's toggle always wins.
+ */
+function ThoughtChain({
+  reasoning,
+  calls,
+  active
+}: {
+  reasoning: Reasoning | null
+  calls: QueryCardState[]
+  /** the turn is still working, so the chain stays expanded */
+  active: boolean
 }) {
+  const [userOpen, setUserOpen] = useState<boolean | null>(null)
+  const open = userOpen ?? active
+
+  if (!reasoning && calls.length === 0) return null
+
   return (
-    <Collapsible>
-      <CollapsibleTrigger
-        className={cn(
-          'group/reasoning flex w-fit items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground',
-          thinking && 'animate-shimmer'
+    <ChainOfThought open={open} onOpenChange={setUserOpen}>
+      <ChainOfThoughtHeader className={cn(active && 'animate-shimmer')}>
+        {active ? 'Working…' : chainLabel(reasoning, calls.length)}
+      </ChainOfThoughtHeader>
+      <ChainOfThoughtContent>
+        {reasoning && (
+          // no icon: the header's brain already stands for the thought, and no
+          // toggle either — the header summarises it, so a second one would
+          // just be in the way
+          <ChainOfThoughtStep>
+            <div className="text-xs/relaxed whitespace-pre-wrap text-muted-foreground">
+              {reasoning.text}
+            </div>
+          </ChainOfThoughtStep>
         )}
-      >
-        <HugeiconsIcon icon={SparklesIcon} strokeWidth={2} className="size-3.5" />
-        <span key={thinking ? 'thinking' : 'thought'} className="animate-in fade-in-0 duration-300">
-          {thinking ? 'Thinking…' : `Thought for ${formatThoughtDuration(durationMs ?? 0)}`}
-        </span>
-        <HugeiconsIcon
-          icon={ArrowDown01Icon}
-          strokeWidth={2}
-          className="size-3.5 transition-transform group-data-panel-open/reasoning:rotate-180"
-        />
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="mt-1.5 border-l-2 border-border pl-3 text-xs/relaxed whitespace-pre-wrap text-muted-foreground">
-          {text}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+        {calls.map((call, i) => (
+          <ChainOfThoughtStep
+            key={i}
+            icon={DatabaseIcon}
+            status={call.status === 'done' ? 'complete' : 'active'}
+          >
+            <QueryCard state={call} />
+          </ChainOfThoughtStep>
+        ))}
+      </ChainOfThoughtContent>
+    </ChainOfThought>
   )
 }
 
