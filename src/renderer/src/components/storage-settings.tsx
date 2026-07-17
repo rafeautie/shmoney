@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 // Fixed table→bucket→color mapping so a bucket keeps its color no matter how
 // sizes shift. The bucket order is also the display order; adjacent-color
-// contrast was validated for the full sequence (blue/amber/emerald/violet,
+// contrast was validated for the full sequence (blue/amber/emerald/violet/teal,
 // then the slate "Other" and rose LLM segments appended below).
 const BUCKETS = [
   { label: 'Transactions', tables: ['transactions'], color: 'var(--chart-1)' },
@@ -14,7 +14,8 @@ const BUCKETS = [
     tables: ['category_groups', 'categories', 'rules', 'rule_suggestions'],
     color: 'var(--chart-3)'
   },
-  { label: 'Activity log', tables: ['action_log'], color: 'var(--chart-5)' }
+  { label: 'Activity log', tables: ['action_log'], color: 'var(--chart-5)' },
+  { label: 'Chat', tables: ['conversations', 'chat_messages'], color: 'var(--chart-6)' }
 ]
 // low-chroma slate so the remainder reads as background, not a series
 const OTHER_COLOR = 'var(--chart-10)'
