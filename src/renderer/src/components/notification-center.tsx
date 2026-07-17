@@ -144,7 +144,7 @@ function StatusCircle({
         r="5"
         strokeWidth="2"
         className={cn(
-          'stroke-blue-500 filter-[drop-shadow(0_0_4px_var(--color-blue-500))] transition-opacity duration-500 ease-out delay-100',
+          'stroke-green-500 dark:stroke-green-400 filter-[drop-shadow(0_0_5px_var(--color-emerald-400))] transition-opacity duration-500 ease-out delay-100',
           state === 'unseen' ? 'opacity-100' : 'opacity-0'
         )}
       />

@@ -17,7 +17,7 @@ export function Amount({ value, currency, colored = true, className }: AmountPro
     <span
       className={cn(
         'tabular-nums',
-        colored && value > 0 && 'text-green-600 dark:text-green-500',
+        colored && value > 0 && 'text-green-500 dark:text-green-400',
         colored && value < 0 && 'text-red-600 dark:text-red-500',
         blurAmounts && 'blur-sm select-none',
         className
