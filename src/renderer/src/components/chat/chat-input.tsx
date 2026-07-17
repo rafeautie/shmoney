@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowUp02Icon, Loading03Icon, StopIcon } from '@hugeicons/core-free-icons'
+import { ArrowUp02Icon, StopIcon } from '@hugeicons/core-free-icons'
 import {
   InputGroup,
   InputGroupAddon,
@@ -8,6 +8,8 @@ import {
   InputGroupTextarea
 } from '@/components/ui/input-group'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { ChatScopeSelect } from '@/components/chat/chat-scope-select'
+import { LlmStatusBadge } from '@/components/llm-status-badge'
 
 export function ChatInput({
   hasConversation,
@@ -15,6 +17,8 @@ export function ChatInput({
   loading,
   disabled,
   disabledHint,
+  accountId,
+  onAccountChange,
   onSend,
   onStop
 }: {
@@ -27,6 +31,9 @@ export function ChatInput({
   /** input unavailable (categorize running, send in flight, …) */
   disabled: boolean
   disabledHint?: string
+  /** account the conversation's query tool is narrowed to; null = all accounts */
+  accountId: number | null
+  onAccountChange: (accountId: number | null) => void
   onSend: (text: string) => void
   onStop: () => void
 }) {
@@ -99,21 +106,20 @@ export function ChatInput({
             />
           </ScrollArea>
           <InputGroupAddon align="block-end" className="p-2">
-            {loading && !streaming && (
-              <HugeiconsIcon
-                icon={Loading03Icon}
-                strokeWidth={2}
-                role="status"
-                aria-label="Loading the model"
-                className="ml-1 size-4 animate-spin text-muted-foreground"
-              />
-            )}
+            {/* scope changes save immediately but only shape the next turn,
+                so the selector locks while a reply streams */}
+            <ChatScopeSelect
+              value={accountId}
+              onChange={onAccountChange}
+              disabled={disabled || streaming}
+            />
+            <LlmStatusBadge className="ml-auto mr-1.5" />
             <InputGroupButton
               variant="default"
               size="icon-sm"
               type="submit"
               disabled={!canSend}
-              className="ml-auto rounded-lg data-[hidden=true]:hidden"
+              className="rounded-lg data-[hidden=true]:hidden"
               data-hidden={streaming}
             >
               <HugeiconsIcon icon={ArrowUp02Icon} strokeWidth={2} />
@@ -123,7 +129,7 @@ export function ChatInput({
               size="icon-sm"
               type="button"
               data-hidden={!streaming}
-              className="ml-auto rounded-lg data-[hidden=true]:hidden"
+              className="rounded-lg data-[hidden=true]:hidden"
               onClick={onStop}
             >
               <HugeiconsIcon icon={StopIcon} strokeWidth={2} />

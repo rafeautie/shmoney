@@ -6,8 +6,15 @@ import { ipcErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Spinner } from '@/components/ui/spinner'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
+import { LlmStatusBadge } from './llm-status-badge'
 import { SettingsGroup, SettingAction } from './settings-controls'
 import { ConfirmDialog } from './confirm-dialog'
 
@@ -53,6 +60,9 @@ export function LlmSettings() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Local LLM</CardTitle>
+        <CardAction>
+          <LlmStatusBadge />
+        </CardAction>
         <CardDescription>
           {MODEL.label}. Downloaded once and stored on this device, then loads into memory
           automatically the first time an Auto feature, like auto-categorize, needs it. Delete it
@@ -67,12 +77,6 @@ export function LlmSettings() {
                 {MODEL.label}
                 {isDownloaded && diskSize.data != null && (
                   <Badge variant="secondary">{formatBytes(diskSize.data)}</Badge>
-                )}
-                {stage === 'loading' && (
-                  <Badge variant="secondary">
-                    <Spinner className="size-3" />
-                    Loading into memory
-                  </Badge>
                 )}
               </>
             }

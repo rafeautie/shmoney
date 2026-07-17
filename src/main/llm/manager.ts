@@ -3,13 +3,16 @@ import path from 'node:path'
 import { app, utilityProcess, BrowserWindow, type UtilityProcess } from 'electron'
 import type { ChatChunkKind } from '@shared/chat'
 import { LLM_IPC, LLM_MODEL, type LlmDownloadProgress, type LlmStatus } from '@shared/llm'
+import { dbPath } from '../db'
 import { createLogger } from '../logging'
 import type {
   ChatGenerationResult,
+  ChatToolCallPayload,
   DistributiveOmit,
   WorkerCommand,
   WorkerMessage
 } from './protocol'
+import type { ChatToolScope } from './sql-tool'
 import type { ChatHistoryItem } from 'node-llama-cpp'
 
 const log = createLogger('llm')
@@ -43,6 +46,8 @@ class LlmManager {
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   // chat streaming: chatChunk events route to their command's handler by id
   private chunkHandlers = new Map<number, (text: string, kind: ChatChunkKind) => void>()
+  // chatToolCall events route the same way (query tool lifecycle of a turn)
+  private toolHandlers = new Map<number, (event: ChatToolCallPayload) => void>()
   private inFlight = 0
   private idleTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -136,9 +141,15 @@ class LlmManager {
   async chat(
     history: ChatHistoryItem[],
     prompt: string,
-    opts: { signal?: AbortSignal; onChunk?: (text: string, kind: ChatChunkKind) => void } = {}
+    opts: {
+      signal?: AbortSignal
+      onChunk?: (text: string, kind: ChatChunkKind) => void
+      /** narrows what the worker's query tool can see this turn */
+      toolScope?: ChatToolScope
+      onToolEvent?: (event: ChatToolCallPayload) => void
+    } = {}
   ): Promise<ChatGenerationResult> {
-    const { signal, onChunk } = opts
+    const { signal, onChunk, toolScope = { accountId: null }, onToolEvent } = opts
 
     // register the chunk handler before the command is posted so no early
     // token can slip past; buffer and flush on a timer to keep IPC cheap.
@@ -164,16 +175,24 @@ class LlmManager {
       buffer += text
       flushTimer ??= setTimeout(flush, CHUNK_FLUSH_MS)
     })
+    if (onToolEvent)
+      this.toolHandlers.set(id, (event) => {
+        // deliver buffered text first so a tool card never appears ahead of
+        // the prose the model generated before it
+        flush()
+        onToolEvent(event)
+      })
 
     try {
       const result = await this.withModel(signal, () =>
-        this.sendWithId(id, { type: 'chat', history, prompt })
+        this.sendWithId(id, { type: 'chat', history, prompt, toolScope })
       )
       return result as ChatGenerationResult
     } finally {
       if (flushTimer) clearTimeout(flushTimer)
       flush() // deliver any buffered tail before callers see the settled promise
       this.chunkHandlers.delete(id)
+      this.toolHandlers.delete(id)
     }
   }
 
@@ -198,7 +217,7 @@ class LlmManager {
     const worker = utilityProcess.fork(workerEntry(), [], {
       serviceName: 'shmoney-llm',
       stdio: 'pipe',
-      env: { ...process.env, LLM_MODELS_DIR: modelsDir() }
+      env: { ...process.env, LLM_MODELS_DIR: modelsDir(), SHMONEY_DB_PATH: dbPath }
     })
     worker.stdout?.on('data', (d) => log.debug('worker.stdout', { line: String(d).trimEnd() }))
     worker.stderr?.on('data', (d) => log.warn('worker.stderr', { line: String(d).trimEnd() }))
@@ -216,6 +235,9 @@ class LlmManager {
         sendToRenderer(LLM_IPC.statusChanged, msg.status)
       } else if (msg.event === 'chatChunk') {
         this.chunkHandlers.get(msg.id)?.(msg.text, msg.kind)
+      } else if (msg.event === 'chatToolCall') {
+        const { event: _event, id, ...payload } = msg
+        this.toolHandlers.get(id)?.(payload as ChatToolCallPayload)
       } else {
         sendToRenderer(LLM_IPC.downloadProgress, msg.progress satisfies LlmDownloadProgress)
       }

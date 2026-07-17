@@ -1,5 +1,5 @@
 import { desc, eq, isNull } from 'drizzle-orm'
-import type { ChatHistoryItem } from 'node-llama-cpp'
+import type { ChatHistoryItem, ChatModelResponse } from 'node-llama-cpp'
 import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
 import {
   CHAT_IPC,
@@ -11,8 +11,10 @@ import {
   type SendChatResult
 } from '@shared/chat'
 import type { ChatGenerationResult } from '../protocol'
+import { MAX_ROWS } from '../sql-tool'
 import { db } from '../../db'
 import {
+  accounts,
   chatMessages,
   conversations,
   type ChatMessageRow,
@@ -30,9 +32,46 @@ const log = createLogger('llm')
 const HISTORY_TOKEN_BUDGET = Math.floor(CHAT_CONTEXT_SIZE * 0.75)
 const CHARS_PER_TOKEN = 4
 
-export const SYSTEM_PROMPT =
-  'You are a helpful assistant inside shmoney, a personal finance app. ' +
-  'Be concise and direct. Use Markdown when it improves clarity, including tables when useful.'
+/** what the turn's prompt and query tool are narrowed to; name rides along for display */
+export interface ChatPromptScope {
+  accountId: number | null
+  accountName: string | null
+}
+
+/**
+ * The system prompt is assembled per turn: the schema and semantics are
+ * static, but the date moves and the scope section tracks the conversation's
+ * account selection. Function-call syntax is deliberately absent; the Gemma
+ * wrapper injects its own docs for the functions passed to prompt().
+ */
+export function buildSystemPrompt(scope: ChatPromptScope): string {
+  const scopeSection =
+    scope.accountId === null
+      ? `This conversation covers all of the user's accounts; the accounts table lists them.`
+      : `This conversation is narrowed to the account "${scope.accountName}" (id ${scope.accountId}). The transactions, accounts and holdings tables only show that account's data.`
+  return `You are a helpful assistant inside shmoney, a personal finance app. Be concise and direct. Use Markdown when it improves clarity, including tables when useful.
+
+Today's date is ${new Date().toLocaleDateString('en-CA')}.
+
+You can call the query function to answer questions from the user's real finance data. Prefer a few small aggregated queries over selecting many raw rows; results are capped at ${MAX_ROWS} rows and oversized results are truncated. Keep queries simple.
+
+Tables:
+- accounts(id, name, institution_name, currency, balance, available_balance, balance_date, invert_balance)
+- transactions(id, account_id, posted, amount, description, pending, transacted_at, category_id)
+- categories(id, group_id, name, system_key), category_groups(id, name)
+- budgets(id, category_id, month, amount): month is 'YYYY-MM'
+- holdings(id, account_id, symbol, description, currency, shares, market_value, cost_basis, purchase_price)
+
+Data semantics:
+- Money columns are integer milliunits: divide by 1000.0 for the real amount. Negative transaction amounts are spending, positive are income.
+- posted and balance_date are unix timestamps in seconds, never booleans. Pending transactions can have posted = 0, so a transaction's date is COALESCE(NULLIF(posted, 0), transacted_at). Always convert with 'unixepoch': to filter one month use strftime('%Y-%m', COALESCE(NULLIF(posted, 0), transacted_at), 'unixepoch', 'localtime') = '2026-06'.
+- Deleted rows are already filtered out; never filter on deleted_at.
+- Transfers between accounts carry the category whose system_key = 'transfers'; exclude them from spending and income analysis. system_key is NULL for normal categories, so filter with system_key IS NOT 'transfers' (a != comparison would drop NULL rows), and LEFT JOIN categories so uncategorized transactions still count.
+- If accounts.invert_balance is 1, the displayed balance is -balance.
+- holdings.shares is a decimal string; CAST(shares AS REAL) for math.
+
+${scopeSection}`
+}
 
 /** first line of the first user message, clipped, as the automatic title */
 export function titleFrom(text: string): string {
@@ -42,34 +81,67 @@ export function titleFrom(text: string): string {
 
 /**
  * Map persisted rows to the model's history, newest-first trimmed to the token
- * budget. Interrupted partials stay (the user saw them); error rows carry no
- * assistant text worth replaying and are skipped. Reasoning parts are never
- * replayed (messageText joins text parts only): a past turn's chain of
- * thought is display material, not conversation.
+ * budget (shrunk by the system prompt, which shares the context). Interrupted
+ * partials stay (the user saw them); error rows carry no assistant content
+ * worth replaying and are skipped. Reasoning parts are never replayed: a past
+ * turn's chain of thought is display material, not conversation. Query calls
+ * ARE replayed, as native functionCall entries ahead of the answer text, so
+ * the model remembers what data it already fetched; a turn stopped mid-query
+ * (calls but no text yet) is kept for the same reason.
  */
 export function buildHistory(
-  rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[]
+  rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[],
+  systemPrompt: string
 ): ChatHistoryItem[] {
   const items: ChatHistoryItem[] = []
   let chars = 0
-  const budget = HISTORY_TOKEN_BUDGET * CHARS_PER_TOKEN
+  const budget = HISTORY_TOKEN_BUDGET * CHARS_PER_TOKEN - systemPrompt.length
   for (let i = rows.length - 1; i >= 0; i--) {
     const row = rows[i]
     if (row.status === 'error') continue
     const text = messageText(row)
-    if (!text) continue
-    if (chars + text.length > budget) break
-    chars += text.length
-    items.unshift(
-      row.role === 'user' ? { type: 'user', text } : { type: 'model', response: [text] }
+    const calls = row.parts.filter(
+      (p): p is Extract<ChatMessagePart, { type: 'functionCall' }> => p.type === 'functionCall'
     )
+    if (!text && calls.length === 0) continue
+    const cost = text.length + calls.reduce((n, c) => n + JSON.stringify(c).length, 0)
+    if (chars + cost > budget) break
+    chars += cost
+    if (row.role === 'user') {
+      items.unshift({ type: 'user', text })
+    } else {
+      const response: ChatModelResponse['response'] = calls.map((c) => ({
+        type: 'functionCall' as const,
+        name: c.name,
+        params: c.args,
+        result: c.result
+      }))
+      if (text) response.push(text)
+      items.unshift({ type: 'model', response })
+    }
   }
-  return [{ type: 'system', text: SYSTEM_PROMPT }, ...items]
+  return [{ type: 'system', text: systemPrompt }, ...items]
 }
 
 // the one in-flight turn; chat is single-flight by design (the model serializes
 // on one queue anyway, and a second concurrent turn would interleave chunks)
 let activeChat: { conversationId: number; controller: AbortController } | null = null
+
+/**
+ * Resolve an account id into the turn's scope. A null id, or an account that
+ * has since been deleted, widens to all accounts.
+ */
+function accountScope(accountId: number | null): ChatPromptScope {
+  const account =
+    accountId === null
+      ? undefined
+      : db
+          .select({ id: accounts.id, name: accounts.name })
+          .from(accounts)
+          .where(eq(accounts.id, accountId))
+          .get()
+  return { accountId: account?.id ?? null, accountName: account?.name ?? null }
+}
 
 function rowToConversation(row: ConversationRow): Conversation {
   return {
@@ -78,7 +150,8 @@ function rowToConversation(row: ConversationRow): Conversation {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     lastMessageAt: row.lastMessageAt,
-    modelLabel: row.modelLabel
+    modelLabel: row.modelLabel,
+    accountId: row.accountId
   }
 }
 
@@ -130,6 +203,8 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
   const now = Date.now()
   let conversationRow: ConversationRow
   if (input.conversationId === null) {
+    if (input.accountId !== null && accountScope(input.accountId).accountId === null)
+      throw new Error('Account not found')
     conversationRow = db
       .insert(conversations)
       .values({
@@ -137,7 +212,8 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
         createdAt: now,
         updatedAt: now,
         lastMessageAt: now,
-        modelLabel: LLM_MODEL.label
+        modelLabel: LLM_MODEL.label,
+        accountId: input.accountId
       })
       .returning()
       .get()
@@ -150,6 +226,9 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     if (!row || row.deletedAt !== null) throw new Error('Conversation not found')
     conversationRow = row
   }
+  // a scoped conversation whose account has since vanished falls back to all
+  // accounts, consistently for both the prompt and the tool's scope views
+  const scope = accountScope(conversationRow.accountId)
 
   const priorRows = db
     .select()
@@ -176,7 +255,7 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
 
   const controller = new AbortController()
   activeChat = { conversationId: conversationRow.id, controller }
-  const history = buildHistory(priorRows)
+  const history = buildHistory(priorRows, buildSystemPrompt(scope))
 
   // the reply generates in the background; its lifecycle reaches the renderer
   // through push events, and the settled row is persisted either way
@@ -184,12 +263,15 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     llmManager.chat(history, input.text, {
       signal: controller.signal,
       onChunk: (text, kind) =>
-        sendToRenderer(CHAT_IPC.chunk, { conversationId: conversationRow.id, text, kind })
+        sendToRenderer(CHAT_IPC.chunk, { conversationId: conversationRow.id, text, kind }),
+      toolScope: { accountId: scope.accountId },
+      onToolEvent: (event) =>
+        sendToRenderer(CHAT_IPC.toolCall, { conversationId: conversationRow.id, ...event })
     })
   )
     .then((result) => finishTurn(conversationRow.id, result, null))
     .catch((err) => {
-      const empty = { text: '', reasoning: '', reasoningMs: 0 }
+      const empty = { text: '', reasoning: '', reasoningMs: 0, functionCalls: [] }
       // a stop before the turn ever reached the model (still queued behind
       // another generation) rejects instead of resolving interrupted; that's
       // a stop, not a failure
@@ -211,18 +293,29 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
   return { conversation: rowToConversation(conversationRow), userMessage: rowToMessage(userRow) }
 }
 
+/**
+ * Persisted part order mirrors generation: chain of thought, then the query
+ * calls in the order the model made them, then the answer. (Prose the model
+ * interleaves between calls is flattened into the one text part.)
+ */
+export function assembleAssistantParts(result: ChatGenerationResult): ChatMessagePart[] {
+  const parts: ChatMessagePart[] = []
+  if (result.reasoning)
+    parts.push({ type: 'reasoning', text: result.reasoning, durationMs: result.reasoningMs })
+  for (const call of result.functionCalls)
+    parts.push({ type: 'functionCall', name: call.name, args: call.args, result: call.result })
+  parts.push({ type: 'text', text: result.text })
+  return parts
+}
+
 function finishTurn(
   conversationId: number,
   result: ChatGenerationResult,
   errorMessage: string | null
 ): void {
-  const { text, reasoning, reasoningMs, interrupted } = result
+  const { interrupted } = result
   const now = Date.now()
-  const parts: ChatMessagePart[] = []
-  // the chain of thought leads the answer, mirroring generation order; an
-  // interrupted turn can be a reasoning part alone
-  if (reasoning) parts.push({ type: 'reasoning', text: reasoning, durationMs: reasoningMs })
-  parts.push({ type: 'text', text })
+  const parts = assembleAssistantParts(result)
   const row = db
     .insert(chatMessages)
     .values({

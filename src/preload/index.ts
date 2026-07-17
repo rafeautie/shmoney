@@ -84,10 +84,12 @@ import {
   type ChatChunkEvent,
   type ChatMessage,
   type ChatMessageDoneEvent,
+  type ChatToolCallEvent,
   type Conversation,
   type RenameConversationInput,
   type SendChatInput,
-  type SendChatResult
+  type SendChatResult,
+  type SetConversationAccountInput
 } from '@shared/chat'
 import { UPDATES_IPC, type UpdateState } from '@shared/updates'
 import { DIAGNOSTICS_IPC, LOG_IPC, type LogWriteInput } from '@shared/diagnostics'
@@ -293,6 +295,9 @@ const api = {
     stop: (): Promise<void> => ipcRenderer.invoke(CHAT_IPC.stop),
     rename: (input: RenameConversationInput): Promise<boolean> =>
       ipcRenderer.invoke(CHAT_IPC.renameConversation, input),
+    /** Narrow (or widen, accountId null) the conversation's query scope; next turn on */
+    setAccount: (input: SetConversationAccountInput): Promise<boolean> =>
+      ipcRenderer.invoke(CHAT_IPC.setConversationAccount, input),
     /** Soft delete, restorable via restore (undo toast) */
     delete: (id: number): Promise<boolean> => ipcRenderer.invoke(CHAT_IPC.deleteConversation, id),
     restore: (id: number): Promise<boolean> => ipcRenderer.invoke(CHAT_IPC.restoreConversation, id),
@@ -301,6 +306,12 @@ const api = {
         callback(event)
       ipcRenderer.on(CHAT_IPC.chunk, listener)
       return () => ipcRenderer.removeListener(CHAT_IPC.chunk, listener)
+    },
+    onToolCall: (callback: (event: ChatToolCallEvent) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, event: ChatToolCallEvent): void =>
+        callback(event)
+      ipcRenderer.on(CHAT_IPC.toolCall, listener)
+      return () => ipcRenderer.removeListener(CHAT_IPC.toolCall, listener)
     },
     onMessageDone: (callback: (event: ChatMessageDoneEvent) => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent, event: ChatMessageDoneEvent): void =>

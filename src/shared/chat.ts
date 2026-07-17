@@ -8,14 +8,33 @@ import { z } from 'zod'
 
 // ---------- message parts ----------
 
-// messages store an array of parts so the planned function-calling follow-up
-// (functionCall/functionResult parts rendered inline) is a new variant here,
-// not a schema migration. Assistant messages may lead with a reasoning part
-// (the model's chain of thought) followed by the text of the answer.
+/**
+ * Outcome of one `query` tool call. This exact object is also what the model
+ * receives as the function result, so error strings are phrased for the model.
+ * Rows are arrays (not objects) to keep replayed history token-cheap.
+ */
+export interface QueryToolResult {
+  ok: boolean
+  columns?: string[]
+  rows?: unknown[][]
+  /** rows returned after the row cap was applied */
+  rowCount?: number
+  /** true when the row or character cap dropped data */
+  truncated?: boolean
+  /** present when ok is false */
+  error?: string
+  durationMs: number
+}
+
+// messages store an array of parts, so tool calls are a variant here, not a
+// schema migration. Assistant messages may lead with a reasoning part (the
+// model's chain of thought), then tool calls in order, then the answer text.
+// The functionCall shape mirrors AI SDK tool parts (name/args/result) so a
+// future provider migration stays mechanical.
 export type ChatMessagePart =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string; durationMs: number }
-  | { type: 'functionCall'; name: string; args: unknown; result?: unknown }
+  | { type: 'functionCall'; name: string; args: { sql: string }; result: QueryToolResult }
 
 /** which stream a chat chunk belongs to: the visible answer or the chain of thought */
 export type ChatChunkKind = 'text' | 'reasoning'
@@ -44,6 +63,8 @@ export interface Conversation {
   /** ordering key for the list; null until the first message lands */
   lastMessageAt: number | null
   modelLabel: string
+  /** account this chat is narrowed to; null = all accounts */
+  accountId: number | null
 }
 
 /** Extract a message's displayable text (its text parts, joined). */
@@ -65,12 +86,33 @@ export function messageReasoning(
   )
 }
 
+/**
+ * Best-effort extraction of the sql value from a partial params JSON stream
+ * (`{"sql": "SELECT …`) for live display while the model writes a tool call.
+ * The exact SQL replaces it once the call starts executing, so this only has
+ * to look right mid-stream, not parse perfectly.
+ */
+export function sqlFromParamsText(paramsText: string): string {
+  const opening = /"sql"\s*:\s*"/.exec(paramsText)
+  if (!opening) return ''
+  let body = paramsText.slice(opening.index + opening[0].length)
+  // drop the params object's closing quote/brace once generated; while the
+  // stream is mid-escape, drop the dangling backslash too
+  body = body.replace(/(?<!\\)"\s*\}?\s*$/, '')
+  if (/(?<!\\)\\$/.test(body)) body = body.slice(0, -1)
+  return body.replace(/\\(["\\/nrt])/g, (_, c: string) =>
+    c === 'n' ? '\n' : c === 'r' ? '\r' : c === 't' ? '\t' : c
+  )
+}
+
 // ---------- IPC inputs ----------
 
 export const sendChatSchema = z.object({
   /** null = create a conversation for this first message */
   conversationId: z.number().int().positive().nullable(),
-  text: z.string().trim().min(1).max(8000)
+  text: z.string().trim().min(1).max(8000),
+  /** scope for a conversation created by this send; ignored when conversationId is set */
+  accountId: z.number().int().positive().nullable().default(null)
 })
 export type SendChatInput = z.infer<typeof sendChatSchema>
 
@@ -81,6 +123,13 @@ export const renameConversationSchema = z.object({
   title: z.string().trim().min(1).max(200)
 })
 export type RenameConversationInput = z.infer<typeof renameConversationSchema>
+
+export const setConversationAccountSchema = z.object({
+  id: conversationIdSchema,
+  /** null = widen back to all accounts */
+  accountId: z.number().int().positive().nullable()
+})
+export type SetConversationAccountInput = z.infer<typeof setConversationAccountSchema>
 
 // ---------- push event payloads ----------
 
@@ -97,6 +146,17 @@ export interface ChatMessageDoneEvent {
   message: ChatMessage
 }
 
+/**
+ * Lifecycle of one in-flight `query` tool call, keyed by callId within the
+ * streaming reply: params chunks stream the argument text as the model writes
+ * it, start marks execution with the parsed SQL, end carries the full
+ * (already size-capped) result.
+ */
+export type ChatToolCallEvent =
+  | { conversationId: number; callId: number; phase: 'params'; chunk: string; done: boolean }
+  | { conversationId: number; callId: number; phase: 'start'; sql: string }
+  | { conversationId: number; callId: number; phase: 'end'; result: QueryToolResult }
+
 /** resolved by chat:send once the turn is accepted; the reply then streams */
 export interface SendChatResult {
   conversation: Conversation
@@ -110,10 +170,12 @@ export const CHAT_IPC = {
   renameConversation: 'chat:renameConversation',
   deleteConversation: 'chat:deleteConversation',
   restoreConversation: 'chat:restoreConversation',
+  setConversationAccount: 'chat:setConversationAccount',
   listMessages: 'chat:listMessages',
   send: 'chat:send',
   stop: 'chat:stop',
   // main → renderer push events
   chunk: 'chat:chunk',
-  messageDone: 'chat:messageDone'
+  messageDone: 'chat:messageDone',
+  toolCall: 'chat:toolCall'
 } as const

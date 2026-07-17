@@ -5,6 +5,7 @@ import {
   conversationIdSchema,
   renameConversationSchema,
   sendChatSchema,
+  setConversationAccountSchema,
   type ChatMessage,
   type Conversation,
   type SendChatResult
@@ -27,6 +28,17 @@ export function registerChatIpc(): void {
   )
 
   ipcMain.handle(CHAT_IPC.stop, (): void => stopChat())
+
+  // takes effect on the next turn: the in-flight one captured its scope at send
+  ipcMain.handle(CHAT_IPC.setConversationAccount, (_event, input: unknown): boolean => {
+    const { id, accountId } = setConversationAccountSchema.parse(input)
+    const result = db
+      .update(conversations)
+      .set({ accountId, updatedAt: Date.now() })
+      .where(eq(conversations.id, id))
+      .run()
+    return result.changes > 0
+  })
 
   ipcMain.handle(CHAT_IPC.renameConversation, (_event, input: unknown): boolean => {
     const { id, title } = renameConversationSchema.parse(input)

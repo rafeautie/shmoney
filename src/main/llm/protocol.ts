@@ -1,5 +1,6 @@
-import type { ChatChunkKind } from '@shared/chat'
+import type { ChatChunkKind, ChatToolCallEvent, QueryToolResult } from '@shared/chat'
 import type { LlmDownloadProgress, LlmStatus } from '@shared/llm'
+import type { ChatToolScope } from './sql-tool'
 // type-only: erased at compile time, so the manager still never runtime-imports
 // node-llama-cpp (the worker is the only place that does)
 import type { ChatHistoryItem } from 'node-llama-cpp'
@@ -26,8 +27,27 @@ export type WorkerCommand =
   // because an AbortSignal can't cross the process boundary.
   | { id: number; type: 'abortGenerate' }
   // one conversational turn: replace the chat session's history, then stream
-  // the reply to `prompt` back as chatChunk events carrying this command's id
-  | { id: number; type: 'chat'; history: ChatHistoryItem[]; prompt: string }
+  // the reply to `prompt` back as chatChunk events carrying this command's id.
+  // toolScope narrows what the query tool's scope views expose for this turn.
+  | {
+      id: number
+      type: 'chat'
+      history: ChatHistoryItem[]
+      prompt: string
+      toolScope: ChatToolScope
+    }
+
+/** one settled `query` tool call, in the order the model made them */
+export interface ChatFunctionCallRecord {
+  name: 'query'
+  args: { sql: string }
+  result: QueryToolResult
+}
+
+/** a tool-call lifecycle event as it crosses the worker boundary: the shared
+ * renderer event minus conversationId (the worker only knows command ids;
+ * the feature layer adds the conversation when forwarding) */
+export type ChatToolCallPayload = DistributiveOmit<ChatToolCallEvent, 'conversationId'>
 
 /** reply payload of a 'chat' command */
 export interface ChatGenerationResult {
@@ -38,6 +58,7 @@ export interface ChatGenerationResult {
   reasoningMs: number
   /** true when the turn was aborted; text holds whatever was generated so far */
   interrupted: boolean
+  functionCalls: ChatFunctionCallRecord[]
 }
 
 // messages the worker sends back: either a reply to a specific command (by
@@ -47,6 +68,11 @@ export type WorkerMessage =
   | { id: number; ok: false; error: string }
   | { event: 'status'; status: LlmStatus }
   | { event: 'downloadProgress'; progress: LlmDownloadProgress }
-  // streamed text of an in-flight chat; the only push event tied to a command
-  // id. `kind` separates the visible answer from thought-segment text.
+  // streamed text of an in-flight chat, tied to its command id. `kind`
+  // separates the visible answer from thought-segment text.
   | { event: 'chatChunk'; id: number; text: string; kind: ChatChunkKind }
+  // lifecycle of one query tool call inside an in-flight chat, also tied to
+  // the command id; callId distinguishes calls within the turn. params chunks
+  // stream the argument text while the model writes it, start marks execution
+  // with the parsed SQL, end carries the full (already size-capped) result.
+  | ({ event: 'chatToolCall'; id: number } & ChatToolCallPayload)

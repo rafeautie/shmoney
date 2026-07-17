@@ -31,8 +31,11 @@ export function useMessages(conversationId: number | null) {
 export function useSendChat() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: { conversationId: number | null; text: string }) =>
-      window.api.chat.send(input),
+    mutationFn: (input: {
+      conversationId: number | null
+      text: string
+      accountId: number | null
+    }) => window.api.chat.send(input),
     onSuccess: ({ conversation, userMessage }) => {
       queryClient.setQueryData<ChatMessage[]>(chatMessagesKey(conversation.id), (prev) =>
         prev ? [...prev, userMessage] : [userMessage]
@@ -81,6 +84,21 @@ export function useRenameConversation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: { id: number; title: string }) => window.api.chat.rename(input),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
+  })
+}
+
+/** Save the conversation's account scope; optimistic so the selector doesn't flicker. */
+export function useSetConversationAccount() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { id: number; accountId: number | null }) =>
+      window.api.chat.setAccount(input),
+    onMutate: ({ id, accountId }) => {
+      queryClient.setQueryData<Conversation[]>(CHAT_CONVERSATIONS_KEY, (prev) =>
+        prev?.map((c) => (c.id === id ? { ...c, accountId } : c))
+      )
+    },
     onSettled: () => void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
   })
 }

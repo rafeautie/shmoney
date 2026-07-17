@@ -62,7 +62,8 @@ function InputGroupAddon({
 }
 
 const inputGroupButtonVariants = cva(
-  'flex items-center gap-2 rounded-md text-xs/relaxed shadow-none',
+  // cursor-default so buttons don't inherit the addon's cursor-text
+  'flex cursor-default items-center gap-2 rounded-md text-xs/relaxed shadow-none',
   {
     variants: {
       size: {

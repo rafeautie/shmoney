@@ -271,7 +271,10 @@ export const conversations = sqliteTable('conversations', {
   lastMessageAt: integer('last_message_at'),
   deletedAt: integer('deleted_at'),
   // which model produced the assistant turns (display metadata for future model switching)
-  modelLabel: text('model_label').notNull()
+  modelLabel: text('model_label').notNull(),
+  // account the chat's query tool is narrowed to; null = all accounts. The
+  // chat survives its account's deletion, just widened back out.
+  accountId: integer('account_id').references(() => accounts.id, { onDelete: 'set null' })
 })
 
 export const chatMessages = sqliteTable(

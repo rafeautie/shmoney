@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ArrowDown01Icon,
@@ -6,11 +7,19 @@ import {
   SparklesIcon
 } from '@hugeicons/core-free-icons'
 import { Streamdown } from 'streamdown'
-import { messageReasoning, messageText, type ChatMessage } from '@shared/chat'
+import {
+  messageReasoning,
+  messageText,
+  type ChatMessage,
+  type ChatMessagePart,
+  type QueryToolResult
+} from '@shared/chat'
 import { cn } from '@/lib/utils'
 import { useMessages } from '@/lib/chat'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
+import { ChatTable } from '@/components/chat/chat-table'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { QueryCard } from '@/components/chat/query-card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
@@ -23,6 +32,16 @@ import {
   MessageScrollerViewport
 } from '@/components/ui/message-scroller'
 
+/** One in-flight query tool call, keyed by callId within the streaming reply. */
+export interface ActiveToolCall {
+  callId: number
+  /** raw params JSON streamed so far; sql derives from it until start supplies the real one */
+  paramsText: string
+  sql: string
+  status: 'writing' | 'running' | 'done'
+  result: QueryToolResult | null
+}
+
 /** The streamed reply so far; all-empty = still waiting for the first token. */
 export interface ActiveReply {
   conversationId: number
@@ -31,8 +50,10 @@ export interface ActiveReply {
   reasoning: string
   /** when the first reasoning chunk arrived; drives the live duration */
   reasoningStartedAt: number | null
-  /** frozen once the answer starts; the persisted row's value replaces it */
+  /** frozen once the answer (or a tool call) starts; the persisted row's value replaces it */
   reasoningMs: number | null
+  /** query tool calls streamed so far, in call order */
+  toolCalls: ActiveToolCall[]
 }
 
 export function ChatView({
@@ -80,34 +101,56 @@ export function ChatView({
             ))}
             {streaming && (
               <MessageScrollerItem messageId="streaming">
-                {reply.text || reply.reasoning ? (
-                  <Message>
+                {reply.text || reply.reasoning || reply.toolCalls.length > 0 ? (
+                  // keyed remounts fade each marker state in gently: waiting
+                  // marker → first content, and the label flips inside
+                  <Message className="animate-in fade-in-0 duration-300">
                     <MessageContent>
                       {reply.reasoning && (
                         <ReasoningBlock
                           text={reply.reasoning}
                           durationMs={reply.reasoningMs}
-                          thinking={!reply.text}
+                          thinking={!reply.text && reply.toolCalls.length === 0}
                         />
                       )}
+                      {reply.toolCalls.map((call) => (
+                        <QueryCard
+                          key={call.callId}
+                          state={
+                            call.status === 'done' && call.result !== null
+                              ? { status: 'done', sql: call.sql, result: call.result }
+                              : {
+                                  status: call.status === 'running' ? 'running' : 'writing',
+                                  sql: call.sql
+                                }
+                          }
+                        />
+                      ))}
                       {reply.text && <AssistantBubble text={reply.text} isStreaming />}
                     </MessageContent>
                   </Message>
                 ) : (
-                  <Marker role="status" className="w-fit animate-shimmer">
-                    <MarkerIcon>
-                      {modelLoading ? (
-                        <HugeiconsIcon
-                          icon={Loading03Icon}
-                          strokeWidth={2}
-                          className="animate-spin"
-                        />
-                      ) : (
-                        <HugeiconsIcon icon={SparklesIcon} strokeWidth={2} />
-                      )}
-                    </MarkerIcon>
-                    <MarkerContent>{modelLoading ? 'Loading model…' : 'Thinking…'}</MarkerContent>
-                  </Marker>
+                  // the fade lives on a wrapper because animate-in and the
+                  // marker's own animate-shimmer would fight over `animation`
+                  <div
+                    key={modelLoading ? 'loading' : 'thinking'}
+                    className="animate-in fade-in-0 duration-300"
+                  >
+                    <Marker role="status" className="w-fit animate-shimmer">
+                      <MarkerIcon>
+                        {modelLoading ? (
+                          <HugeiconsIcon
+                            icon={Loading03Icon}
+                            strokeWidth={2}
+                            className="animate-spin"
+                          />
+                        ) : (
+                          <HugeiconsIcon icon={SparklesIcon} strokeWidth={2} />
+                        )}
+                      </MarkerIcon>
+                      <MarkerContent>{modelLoading ? 'Loading model…' : 'Thinking…'}</MarkerContent>
+                    </Marker>
+                  </div>
                 )}
               </MessageScrollerItem>
             )}
@@ -147,11 +190,18 @@ function ChatMessageRow({ message }: { message: ChatMessage }) {
   }
 
   const reasoning = messageReasoning(message)
+  const calls = message.parts.filter(
+    (p): p is Extract<ChatMessagePart, { type: 'functionCall' }> => p.type === 'functionCall'
+  )
   return (
     <Message>
       <MessageContent>
         {reasoning && <ReasoningBlock text={reasoning.text} durationMs={reasoning.durationMs} />}
-        <AssistantBubble text={text} />
+        {calls.map((call, i) => (
+          <QueryCard key={i} state={{ status: 'done', sql: call.args.sql, result: call.result }} />
+        ))}
+        {/* a turn stopped mid-query can have cards but no answer; skip the empty bubble then */}
+        {(text || calls.length === 0) && <AssistantBubble text={text} />}
         {message.status === 'interrupted' && <MessageFooter>Stopped generating</MessageFooter>}
       </MessageContent>
     </Message>
@@ -188,7 +238,7 @@ function ReasoningBlock({
         )}
       >
         <HugeiconsIcon icon={SparklesIcon} strokeWidth={2} className="size-3.5" />
-        <span>
+        <span key={thinking ? 'thinking' : 'thought'} className="animate-in fade-in-0 duration-300">
           {thinking ? 'Thinking…' : `Thought for ${formatThoughtDuration(durationMs ?? 0)}`}
         </span>
         <HugeiconsIcon
@@ -206,11 +256,31 @@ function ReasoningBlock({
   )
 }
 
+// markdown tables render through the same shell as query results (height cap,
+// sticky header, copy/download) with plain cell elements, so both kinds of
+// table look identical; ChatTableViewport owns the one canonical table style
+const streamdownComponents: ComponentProps<typeof Streamdown>['components'] = {
+  table: ({ node: _node, children, ...props }) => (
+    <ChatTable className="my-2">
+      <table {...props}>{children}</table>
+    </ChatTable>
+  ),
+  thead: ({ node: _node, children, ...props }) => <thead {...props}>{children}</thead>,
+  tbody: ({ node: _node, children, ...props }) => <tbody {...props}>{children}</tbody>,
+  tr: ({ node: _node, children, ...props }) => <tr {...props}>{children}</tr>,
+  th: ({ node: _node, children, ...props }) => <th {...props}>{children}</th>,
+  td: ({ node: _node, children, ...props }) => <td {...props}>{children}</td>
+}
+
 function AssistantBubble({ text, isStreaming = false }: { text: string; isStreaming?: boolean }) {
   return (
     <Bubble variant="ghost">
       <BubbleContent>
-        <Streamdown mode={isStreaming ? 'streaming' : 'static'} isAnimating={isStreaming}>
+        <Streamdown
+          mode={isStreaming ? 'streaming' : 'static'}
+          isAnimating={isStreaming}
+          components={streamdownComponents}
+        >
           {text}
         </Streamdown>
       </BubbleContent>

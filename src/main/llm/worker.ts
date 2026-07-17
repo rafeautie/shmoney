@@ -5,9 +5,11 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
+import Database from 'better-sqlite3'
 import {
   getLlama,
   createModelDownloader,
+  defineChatSessionFunction,
   LlamaChatSession,
   LlamaLogLevel,
   Gemma4ChatWrapper,
@@ -17,7 +19,21 @@ import {
   type LlamaContext
 } from 'node-llama-cpp'
 import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
-import type { ChatGenerationResult, WorkerCommand, WorkerMessage } from './protocol'
+import type { QueryToolResult } from '@shared/chat'
+import type {
+  ChatFunctionCallRecord,
+  ChatGenerationResult,
+  WorkerCommand,
+  WorkerMessage
+} from './protocol'
+import {
+  MAX_ROWS,
+  MAX_TOOL_CALLS_PER_TURN,
+  scopeViewsDdl,
+  shapeResult,
+  validateQuerySql,
+  type ChatToolScope
+} from './sql-tool'
 
 const modelsDir: string = (() => {
   const dir = process.env.LLM_MODELS_DIR
@@ -25,6 +41,12 @@ const modelsDir: string = (() => {
   return dir
 })()
 fs.mkdirSync(modelsDir, { recursive: true })
+
+const dbPath: string = (() => {
+  const p = process.env.SHMONEY_DB_PATH
+  if (!p) throw new Error('SHMONEY_DB_PATH is not set')
+  return p
+})()
 
 // While fitting a context into memory, node-llama-cpp probes several sizes and
 // llama.cpp logs the failed probes loudly - e.g. Gemma's "requires ctx_other to
@@ -81,6 +103,73 @@ let activeDownload: { abortController: AbortController; canceled: boolean } | nu
 // the controller for the generate currently running, so abortGenerate can stop it
 let activeGeneration: AbortController | null = null
 
+// the chat query tool's own connection to the app database, opened lazily on
+// the first chat turn. It reads the same WAL file main writes; writes are
+// blocked by PRAGMA query_only except inside refreshScopeViews' DDL window.
+let toolDb: Database.Database | null = null
+
+function ensureToolDb(): Database.Database {
+  if (toolDb) return toolDb
+  toolDb = new Database(dbPath, { fileMustExist: true })
+  toolDb.pragma('query_only = ON')
+  return toolDb
+}
+
+function closeToolDb(): void {
+  toolDb?.close()
+  toolDb = null
+}
+
+/**
+ * (Re)build the temp views the model queries through, narrowed to the turn's
+ * scope. query_only lifts only around our own DDL; a failure here must fail
+ * the turn (never prompt against a stale scope), so no try/catch beyond
+ * restoring the pragma.
+ */
+function refreshScopeViews(scope: ChatToolScope): void {
+  const db = ensureToolDb()
+  db.pragma('query_only = OFF')
+  try {
+    for (const ddl of scopeViewsDdl(scope)) db.exec(ddl)
+  } finally {
+    db.pragma('query_only = ON')
+  }
+}
+
+/**
+ * Execute one model-supplied query. Never throws: a thrown error would abort
+ * the whole generation, so every failure becomes an { ok: false } result the
+ * model can read and correct.
+ */
+function runQuery(sql: string): QueryToolResult {
+  const started = Date.now()
+  const fail = (error: string): QueryToolResult => ({
+    ok: false,
+    error,
+    durationMs: Date.now() - started
+  })
+  const valid = validateQuerySql(sql)
+  if (!valid.ok) return fail(valid.error)
+  try {
+    // prepare() also rejects multi-statement strings, and stmt.readonly
+    // catches writes the keyword check can't see (e.g. CTE-wrapped mutations)
+    const stmt = ensureToolDb().prepare(sql)
+    if (!stmt.readonly || !stmt.reader) return fail('Only read-only SELECT queries are allowed.')
+    stmt.raw(true)
+    const rows: unknown[][] = []
+    // pull at most one row past the cap: enough for shapeResult to see the
+    // truncation, without streaming an unbounded result through memory
+    for (const row of stmt.iterate()) {
+      rows.push(row as unknown[])
+      if (rows.length > MAX_ROWS) break
+    }
+    const columns = stmt.columns().map((c) => c.name)
+    return shapeResult(columns, rows, Date.now() - started)
+  } catch (err) {
+    return fail(String((err as Error)?.message ?? err))
+  }
+}
+
 function modelFilePath(fileName: string): string {
   return path.join(modelsDir, fileName)
 }
@@ -90,6 +179,9 @@ function post(message: WorkerMessage): void {
 }
 
 async function disposeLoaded(): Promise<void> {
+  // the tool connection follows the model's lifecycle: idle unload closes it
+  // too, and the next chat turn reopens it
+  closeToolDb()
   if (!loaded) return
   // sessions first, then contexts, then the model: on Windows the file stays
   // locked while anything still maps it
@@ -274,7 +366,8 @@ async function ensureChatSession(): Promise<LlamaChatSession> {
 async function handleChat(
   id: number,
   history: ChatHistoryItem[],
-  prompt: string
+  prompt: string,
+  toolScope: ChatToolScope
 ): Promise<ChatGenerationResult> {
   // register as the active generation before any await so an abortGenerate
   // that lands while the chat context is still being created isn't lost
@@ -283,10 +376,47 @@ async function handleChat(
   try {
     const session = await ensureChatSession()
     if (controller.signal.aborted)
-      return { text: '', reasoning: '', reasoningMs: 0, interrupted: true }
+      return { text: '', reasoning: '', reasoningMs: 0, interrupted: true, functionCalls: [] }
+    refreshScopeViews(toolScope)
     // the whole prior conversation is replaced per turn (stateless worker: the
     // feature owns history in the DB), so switching conversations needs nothing
     session.setChatHistory(history)
+
+    const functionCalls: ChatFunctionCallRecord[] = []
+    // handler invocations arrive in generation order, so this counter lines up
+    // with onFunctionCallParamsChunk's callIndex (params are grammar-constrained
+    // to the schema, so a generated call can't fail parsing and skip its handler)
+    let handledCalls = 0
+    const functions = {
+      query: defineChatSessionFunction({
+        description: `Run one read-only SQLite SELECT statement against the finance database. Results are capped at ${MAX_ROWS} rows, so aggregate or LIMIT in SQL.`,
+        params: {
+          type: 'object',
+          properties: {
+            sql: {
+              type: 'string',
+              description: 'A single SQLite SELECT (or WITH ... SELECT) statement.'
+            }
+          }
+        },
+        handler({ sql }) {
+          const callId = handledCalls++
+          post({ event: 'chatToolCall', id, callId, phase: 'start', sql })
+          const result =
+            handledCalls > MAX_TOOL_CALLS_PER_TURN
+              ? {
+                  ok: false,
+                  error:
+                    'The query budget for this reply is used up; answer with the data you already have.',
+                  durationMs: 0
+                }
+              : runQuery(sql)
+          functionCalls.push({ name: 'query', args: { sql }, result })
+          post({ event: 'chatToolCall', id, callId, phase: 'end', result })
+          return result
+        }
+      })
+    }
     // the chat wrapper routes the model's chain of thought into segments, so
     // prompt() resolves with the answer alone; thought text and timing are
     // collected here from the segment chunks
@@ -298,6 +428,19 @@ async function handleChat(
     const text = await session.prompt(prompt, {
       signal: controller.signal,
       stopOnAbortSignal: true,
+      functions,
+      // one call at a time keeps the params stream, handler invocations, and
+      // the transcript's card order trivially aligned
+      maxParallelFunctionCalls: 1,
+      onFunctionCallParamsChunk: (chunk) =>
+        post({
+          event: 'chatToolCall',
+          id,
+          callId: chunk.callIndex,
+          phase: 'params',
+          chunk: chunk.paramsChunk,
+          done: chunk.done
+        }),
       onResponseChunk: (chunk) => {
         if (chunk.type === 'segment') {
           if (chunk.segmentStartTime) segmentStart = chunk.segmentStartTime.getTime()
@@ -316,7 +459,7 @@ async function handleChat(
     })
     // an abort mid-thought leaves the segment open; count the time until now
     if (segmentStart !== null) reasoningMs += Date.now() - segmentStart
-    return { text, reasoning, reasoningMs, interrupted: controller.signal.aborted }
+    return { text, reasoning, reasoningMs, interrupted: controller.signal.aborted, functionCalls }
   } finally {
     if (activeGeneration === controller) activeGeneration = null
   }
@@ -339,7 +482,7 @@ async function dispatch(command: WorkerCommand): Promise<unknown> {
     case 'abortGenerate':
       return handleAbortGenerate()
     case 'chat':
-      return handleChat(command.id, command.history, command.prompt)
+      return handleChat(command.id, command.history, command.prompt, command.toolScope)
   }
 }
 

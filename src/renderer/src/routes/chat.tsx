@@ -1,13 +1,31 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useIsMutating, useQueryClient } from '@tanstack/react-query'
-import type { ChatMessage } from '@shared/chat'
-import { CHAT_CONVERSATIONS_KEY, chatMessagesKey, useSendChat, useStopChat } from '@/lib/chat'
+import { sqlFromParamsText, type ChatMessage } from '@shared/chat'
+import {
+  CHAT_CONVERSATIONS_KEY,
+  chatMessagesKey,
+  useConversations,
+  useSendChat,
+  useSetConversationAccount,
+  useStopChat
+} from '@/lib/chat'
 import { CATEGORIZE_MUTATION_KEY, useLlmStatus } from '@/lib/llm'
 import { ChatInput, ChatInputNotice } from '@/components/chat/chat-input'
 import { ChatModelGate } from '@/components/chat/chat-model-gate'
-import { ChatView, type ActiveReply } from '@/components/chat/chat-view'
-import { ConversationList } from '@/components/chat/conversation-list'
+import { ChatView, type ActiveReply, type ActiveToolCall } from '@/components/chat/chat-view'
+
+/** a reply entry that hasn't streamed anything yet */
+function emptyReply(conversationId: number): ActiveReply {
+  return {
+    conversationId,
+    text: '',
+    reasoning: '',
+    reasoningStartedAt: null,
+    reasoningMs: null,
+    toolCalls: []
+  }
+}
 
 export const Route = createFileRoute('/chat')({
   component: ChatPage,
@@ -38,16 +56,7 @@ function ChatPage() {
   useEffect(() => {
     const offChunk = window.api.chat.onChunk(({ conversationId: id, text, kind }) => {
       setReply((prev) => {
-        const base =
-          prev && prev.conversationId === id
-            ? prev
-            : {
-                conversationId: id,
-                text: '',
-                reasoning: '',
-                reasoningStartedAt: null,
-                reasoningMs: null
-              }
+        const base = prev && prev.conversationId === id ? prev : emptyReply(id)
         if (kind === 'reasoning') {
           return {
             ...base,
@@ -66,6 +75,39 @@ function ChatPage() {
         }
       })
     })
+    const offTool = window.api.chat.onToolCall((event) => {
+      setReply((prev) => {
+        const base =
+          prev && prev.conversationId === event.conversationId
+            ? prev
+            : emptyReply(event.conversationId)
+        const calls = [...base.toolCalls]
+        const index = calls.findIndex((c) => c.callId === event.callId)
+        const current: ActiveToolCall =
+          index >= 0
+            ? calls[index]
+            : { callId: event.callId, paramsText: '', sql: '', status: 'writing', result: null }
+        let next: ActiveToolCall
+        if (event.phase === 'params') {
+          const paramsText = current.paramsText + event.chunk
+          next = { ...current, paramsText, sql: sqlFromParamsText(paramsText) }
+        } else if (event.phase === 'start') {
+          next = { ...current, sql: event.sql, status: 'running' }
+        } else {
+          next = { ...current, status: 'done', result: event.result }
+        }
+        if (index >= 0) calls[index] = next
+        else calls.push(next)
+        return {
+          ...base,
+          toolCalls: calls,
+          // a tool call ends the thinking phase the same way answer text does
+          reasoningMs:
+            base.reasoningMs ??
+            (base.reasoningStartedAt !== null ? Date.now() - base.reasoningStartedAt : null)
+        }
+      })
+    })
     const offDone = window.api.chat.onMessageDone(({ conversationId: id, message }) => {
       setReply(null)
       queryClient.setQueryData<ChatMessage[]>(chatMessagesKey(id), (prev) =>
@@ -75,64 +117,83 @@ function ChatPage() {
     })
     return () => {
       offChunk()
+      offTool()
       offDone()
     }
   }, [queryClient])
 
-  const select = (id: number | null) =>
+  // scope: a new chat's selection is local until the first send creates the
+  // conversation with it; an existing chat's lives on the conversation row
+  const conversations = useConversations().data
+  const [draftAccountId, setDraftAccountId] = useState<number | null>(null)
+  const scopeAccountId =
+    conversationId === null
+      ? draftAccountId
+      : (conversations?.find((conv) => conv.id === conversationId)?.accountId ?? null)
+  const setAccount = useSetConversationAccount()
+  const changeScope = (accountId: number | null) => {
+    if (conversationId === null) setDraftAccountId(accountId)
+    else setAccount.mutate({ id: conversationId, accountId })
+  }
+
+  // opening an existing conversation invalidates the composer's draft scope,
+  // so the next new chat starts unscoped; existing chats read scope from
+  // their row (render-time reset, since navigation can come from sidebar
+  // links, not just local handlers)
+  const [scopeOwner, setScopeOwner] = useState(conversationId)
+  if (scopeOwner !== conversationId) {
+    setScopeOwner(conversationId)
+    if (conversationId !== null) setDraftAccountId(null)
+  }
+
+  const select = (id: number | null) => {
     void navigate({ search: id === null ? {} : { c: id }, replace: false })
+  }
 
   const send = (text: string) =>
     sendChat.mutate(
-      { conversationId, text },
+      { conversationId, text, accountId: conversationId === null ? draftAccountId : null },
       {
         onSuccess: ({ conversation }) => {
           // treat the turn as in flight right away so the shimmer shows
           // before the first token; chunks then append to this entry
-          setReply({
-            conversationId: conversation.id,
-            text: '',
-            reasoning: '',
-            reasoningStartedAt: null,
-            reasoningMs: null
-          })
+          setReply(emptyReply(conversation.id))
           if (conversationId === null) select(conversation.id)
         }
       }
     )
 
   return (
-    <div className="flex min-h-0 flex-1">
-      <ConversationList activeId={conversationId} onSelect={select} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        {!modelAvailable && conversationId === null ? (
-          <ChatModelGate />
-        ) : (
-          <>
-            <ChatView conversationId={conversationId} reply={reply} modelLoading={modelLoading} />
-            {!modelAvailable ? (
-              // existing conversations stay readable without the model; only
-              // the composer gives way to an explanation
-              <ChatInputNotice>
-                The model isn&apos;t on this device, so this conversation is read-only. Start a new
-                chat to download it.
-              </ChatInputNotice>
-            ) : (
-              <ChatInput
-                hasConversation={conversationId !== null}
-                streaming={reply !== null}
-                loading={modelLoading}
-                disabled={categorizeRunning || sendChat.isPending}
-                disabledHint={
-                  categorizeRunning ? 'Chat is paused while auto-categorize runs' : undefined
-                }
-                onSend={send}
-                onStop={() => stopChat.mutate()}
-              />
-            )}
-          </>
-        )}
-      </div>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {!modelAvailable && conversationId === null ? (
+        <ChatModelGate />
+      ) : (
+        <>
+          <ChatView conversationId={conversationId} reply={reply} modelLoading={modelLoading} />
+          {!modelAvailable ? (
+            // existing conversations stay readable without the model; only
+            // the composer gives way to an explanation
+            <ChatInputNotice>
+              The model isn&apos;t on this device, so this conversation is read-only. Start a new
+              chat to download it.
+            </ChatInputNotice>
+          ) : (
+            <ChatInput
+              hasConversation={conversationId !== null}
+              streaming={reply !== null}
+              loading={modelLoading}
+              disabled={categorizeRunning || sendChat.isPending}
+              disabledHint={
+                categorizeRunning ? 'Chat is paused while auto-categorize runs' : undefined
+              }
+              accountId={scopeAccountId}
+              onAccountChange={changeScope}
+              onSend={send}
+              onStop={() => stopChat.mutate()}
+            />
+          )}
+        </>
+      )}
     </div>
   )
 }
