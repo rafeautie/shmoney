@@ -1,11 +1,6 @@
 import * as React from 'react'
 import { ScrollArea as ScrollAreaPrimitive } from '@base-ui/react/scroll-area'
-import {
-  MessageScroller as MessageScrollerPrimitive,
-  useMessageScroller,
-  useMessageScrollerScrollable,
-  useMessageScrollerVisibility
-} from '@shadcn/react/message-scroller'
+import { MessageScroller as MessageScrollerPrimitive } from '@shadcn/react/message-scroller'
 
 import { cn } from '@/lib/utils'
 import { ScrollBar } from '@/components/ui/scroll-area'
@@ -91,38 +86,24 @@ function MessageScrollerItem({
   )
 }
 
+/** The scroll-to-end button, fading in whenever the viewport leaves the bottom. */
 function MessageScrollerButton({
-  direction = 'end',
   className,
-  children,
-  render,
-  variant = 'secondary',
-  size = 'icon-sm',
   ...props
-}: React.ComponentProps<typeof MessageScrollerPrimitive.Button> &
-  Pick<React.ComponentProps<typeof Button>, 'variant' | 'size'>) {
+}: React.ComponentProps<typeof MessageScrollerPrimitive.Button>) {
   return (
     <MessageScrollerPrimitive.Button
       data-slot="message-scroller-button"
-      data-direction={direction}
-      data-variant={variant}
-      data-size={size}
-      direction={direction}
+      direction="end"
       className={cn(
-        'absolute inset-s-1/2 -translate-x-1/2 rounded-full border-border bg-background text-foreground transition-[translate,scale,opacity] duration-200 hover:bg-muted hover:text-foreground data-[active=false]:pointer-events-none data-[active=false]:scale-95 data-[active=false]:opacity-0 data-[active=false]:duration-400 data-[active=false]:ease-[cubic-bezier(0.7,0,0.84,0)] data-[active=true]:translate-y-0 data-[active=true]:scale-100 data-[active=true]:opacity-100 data-[active=true]:ease-[cubic-bezier(0.23,1,0.32,1)] data-[direction=end]:bottom-4 data-[direction=end]:data-[active=false]:translate-y-full data-[direction=start]:top-4 data-[direction=start]:data-[active=false]:-translate-y-full rtl:translate-x-1/2 data-[direction=start]:[&_svg]:rotate-180',
+        'absolute inset-s-1/2 bottom-4 -translate-x-1/2 rounded-full border-border bg-background text-foreground transition-[translate,scale,opacity] duration-200 hover:bg-muted hover:text-foreground data-[active=false]:pointer-events-none data-[active=false]:translate-y-full data-[active=false]:scale-95 data-[active=false]:opacity-0 data-[active=false]:duration-400 data-[active=false]:ease-[cubic-bezier(0.7,0,0.84,0)] data-[active=true]:translate-y-0 data-[active=true]:scale-100 data-[active=true]:opacity-100 data-[active=true]:ease-[cubic-bezier(0.23,1,0.32,1)] rtl:translate-x-1/2',
         className
       )}
-      render={render ?? <Button variant={variant} size={size} className="rounded-full" />}
+      render={<Button variant="secondary" size="icon-sm" className="rounded-full" />}
       {...props}
     >
-      {children ?? (
-        <>
-          <HugeiconsIcon icon={ArrowDown02Icon} strokeWidth={2} />
-          <span className="sr-only">
-            {direction === 'end' ? 'Scroll to end' : 'Scroll to start'}
-          </span>
-        </>
-      )}
+      <HugeiconsIcon icon={ArrowDown02Icon} strokeWidth={2} />
+      <span className="sr-only">Scroll to end</span>
     </MessageScrollerPrimitive.Button>
   )
 }
@@ -133,8 +114,5 @@ export {
   MessageScrollerViewport,
   MessageScrollerContent,
   MessageScrollerItem,
-  MessageScrollerButton,
-  useMessageScroller,
-  useMessageScrollerScrollable,
-  useMessageScrollerVisibility
+  MessageScrollerButton
 }

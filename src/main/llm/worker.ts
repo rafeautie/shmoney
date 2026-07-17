@@ -438,8 +438,7 @@ async function handleChat(
           id,
           callId: chunk.callIndex,
           phase: 'params',
-          chunk: chunk.paramsChunk,
-          done: chunk.done
+          chunk: chunk.paramsChunk
         }),
       onResponseChunk: (chunk) => {
         if (chunk.type === 'segment') {

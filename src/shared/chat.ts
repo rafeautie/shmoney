@@ -157,7 +157,7 @@ export interface ChatMessageDoneEvent {
  * (already size-capped) result.
  */
 export type ChatToolCallEvent =
-  | { conversationId: number; callId: number; phase: 'params'; chunk: string; done: boolean }
+  | { conversationId: number; callId: number; phase: 'params'; chunk: string }
   | { conversationId: number; callId: number; phase: 'start'; sql: string }
   | { conversationId: number; callId: number; phase: 'end'; result: QueryToolResult }
 

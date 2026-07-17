@@ -6,20 +6,13 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 // Shared shell for tabular content in the chat transcript: query-tool results
-// and markdown tables in answers. Composable so consumers can place the
-// actions anywhere inside the root (the query card puts them on its title
-// line); ChatTable below is the packaged form for places without one.
+// (ChatTableCard + ChatTableViewport) and markdown tables in answers
+// (ChatTable, the packaged untitled form).
 
 const ChatTableContext = createContext<React.RefObject<HTMLDivElement | null> | null>(null)
 
 /** Serialization scope: actions copy/download whatever <table> renders inside. */
-export function ChatTableRoot({
-  children,
-  className
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
+function ChatTableRoot({ children, className }: { children: React.ReactNode; className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   return (
     <ChatTableContext.Provider value={containerRef}>
@@ -31,7 +24,7 @@ export function ChatTableRoot({
 }
 
 /** Copy (tab-separated, pastes into spreadsheets) and CSV download, built from the rendered rows. */
-export function ChatTableActions({ className }: { className?: string }) {
+function ChatTableActions({ className }: { className?: string }) {
   const containerRef = useContext(ChatTableContext)
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)

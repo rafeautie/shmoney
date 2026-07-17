@@ -51,8 +51,7 @@ export function ChainOfThoughtContent({
 
 const stepStatusStyles = {
   complete: 'text-muted-foreground',
-  active: 'text-foreground',
-  pending: 'text-muted-foreground/50'
+  active: 'text-foreground'
 }
 
 /**
