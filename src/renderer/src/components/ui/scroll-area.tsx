@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 function ScrollArea({
   className,
   viewPortClassName,
+  scrollbarClassName,
   children,
   viewportRef,
   viewportProps,
@@ -14,6 +15,8 @@ function ScrollArea({
 }: ScrollAreaPrimitive.Root.Props & {
   viewportRef?: React.Ref<HTMLDivElement>
   viewPortClassName?: string
+  /** extra classes for both scrollbars (e.g. a hover/scroll reveal) */
+  scrollbarClassName?: string
   /** extra props for the viewport element (e.g. tabIndex) */
   viewportProps?: Omit<ScrollAreaPrimitive.Viewport.Props, 'className' | 'children'>
   /** also render a horizontal scrollbar (for wide content like tables) */
@@ -36,8 +39,8 @@ function ScrollArea({
       >
         {children}
       </ScrollAreaPrimitive.Viewport>
-      <ScrollBar />
-      {horizontal && <ScrollBar orientation="horizontal" />}
+      <ScrollBar className={scrollbarClassName} />
+      {horizontal && <ScrollBar orientation="horizontal" className={scrollbarClassName} />}
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   )

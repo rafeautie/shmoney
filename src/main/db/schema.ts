@@ -5,7 +5,7 @@ import type { ReportFilters, WidgetConfig, WidgetType } from '../../shared/repor
 import type { TransactionFilters } from '../../shared/transaction-filters'
 import type { ActionChange, SfinError } from '../../shared/ipc'
 import type { RuleConditions, RuleAction } from '../../shared/rules'
-import type { ChatMessagePart } from '../../shared/chat'
+import type { ChatMessagePart, ChatMessageStatus } from '../../shared/chat'
 
 // holds at most one row: the app supports a single SimpleFIN connection
 export const connections = sqliteTable('connections', {
@@ -288,11 +288,9 @@ export const chatMessages = sqliteTable(
     // parts array so the planned function-calling follow-up (functionCall /
     // functionResult parts) needs no migration; today always one text part
     parts: text('parts', { mode: 'json' }).$type<ChatMessagePart[]>().notNull(),
-    // 'interrupted' keeps the partial text of a stopped generation
-    status: text('status')
-      .$type<'complete' | 'interrupted' | 'error'>()
-      .notNull()
-      .default('complete'),
+    // 'streaming' is the placeholder of an in-flight reply (finalized in
+    // place on settle); 'interrupted' keeps the partial text of a stopped one
+    status: text('status').$type<ChatMessageStatus>().notNull().default('complete'),
     errorMessage: text('error_message'),
     createdAt: integer('created_at').notNull()
   },

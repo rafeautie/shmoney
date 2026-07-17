@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { ChatMessage, Conversation } from '@shared/chat'
+import type { Conversation, ConversationMessages } from '@shared/chat'
 import { ipcErrorMessage } from '@/lib/utils'
 
 export const CHAT_CONVERSATIONS_KEY = ['chat', 'conversations'] as const
@@ -25,8 +25,9 @@ export function useMessages(conversationId: number | null) {
 }
 
 /**
- * Send one turn. Resolves once the turn is accepted (rows persisted); the
- * reply streams in afterwards — the chat page's push subscriptions handle it.
+ * Send one turn. Resolves once the turn is accepted (the user message and the
+ * reply's placeholder row are persisted); the reply then streams into the
+ * placeholder — the chat page's push subscriptions handle it.
  */
 export function useSendChat() {
   const queryClient = useQueryClient()
@@ -36,9 +37,11 @@ export function useSendChat() {
       text: string
       accountId: number | null
     }) => window.api.chat.send(input),
-    onSuccess: ({ conversation, userMessage }) => {
-      queryClient.setQueryData<ChatMessage[]>(chatMessagesKey(conversation.id), (prev) =>
-        prev ? [...prev, userMessage] : [userMessage]
+    onSuccess: ({ conversation, userMessage, assistantMessage }) => {
+      queryClient.setQueryData<ConversationMessages>(chatMessagesKey(conversation.id), (prev) =>
+        prev
+          ? { ...prev, messages: [...prev.messages, userMessage, assistantMessage] }
+          : { messages: [userMessage, assistantMessage], truncatedBeforeId: null }
       )
       void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
     },

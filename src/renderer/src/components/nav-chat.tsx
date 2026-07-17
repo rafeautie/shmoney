@@ -11,6 +11,7 @@ import {
 import type { Conversation } from '@shared/chat'
 import { useConversations, useDeleteConversation, useRenameConversation } from '@/lib/chat'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { Empty, EmptyDescription, EmptyHeader } from '@/components/ui/empty'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,8 +39,8 @@ export function NavChat() {
   const conversations = useConversations().data
 
   return (
-    <Collapsible defaultOpen>
-      <SidebarGroup>
+    <Collapsible defaultOpen className="flex min-h-0 flex-col">
+      <SidebarGroup className="min-h-0">
         <SidebarGroupLabel
           render={<CollapsibleTrigger />}
           className="group/chat-section w-full cursor-pointer pe-14 hover:text-sidebar-foreground"
@@ -59,14 +60,23 @@ export function NavChat() {
         >
           <HugeiconsIcon icon={Add01Icon} size={16} />
         </SidebarGroupAction>
-        <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0">
+        <CollapsibleContent className="flex h-(--collapsible-panel-height) min-h-0 flex-col overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0">
           {conversations?.length === 0 && (
-            <p className="px-2 py-1.5 text-xs text-sidebar-foreground/70 group-data-[collapsible=icon]:hidden">
-              No chats yet
-            </p>
+            // Pinned to the expanded width (the sidebar less the group's px-2
+            // and this box's mx-2) rather than the base w-full: the text keeps
+            // its lines instead of reflowing as the sidebar narrows, and the
+            // group clips the overflow while it fades out on the same timing as
+            // the New chat action above.
+            <Empty className="mx-2 mt-3 w-[calc(var(--sidebar-width)-2rem)] gap-2 border px-2 py-4 transition-opacity duration-200 ease-in-out group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
+              <EmptyHeader>
+                <EmptyDescription>
+                  No chats yet. Start one to ask about your money.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
           {conversations !== undefined && conversations.length > 0 && (
-            <SidebarMenu className="group-data-[collapsible=icon]:hidden">
+            <SidebarMenu className="no-scrollbar scroll-fade-y min-h-0 overflow-y-auto group-data-[collapsible=icon]:hidden">
               {conversations.map((conversation) => (
                 <ConversationRow
                   key={conversation.id}
@@ -124,12 +134,22 @@ function ConversationRow({
       <SidebarMenuButton
         render={<Link to="/chat" search={{ c: conversation.id }} />}
         isActive={active}
+        // hover on the whole row (including the three-dots action) keeps the
+        // button's hover look, so it doesn't flicker off under the action
+        className="group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground"
       >
         <span>{conversation.title ?? 'Untitled'}</span>
       </SidebarMenuButton>
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<SidebarMenuAction showOnHover aria-label="Conversation actions" />}
+          render={
+            <SidebarMenuAction
+              showOnHover
+              aria-label="Conversation actions"
+              // fade in on row hover with the same gentle timing as button hovers
+              className="transition-[opacity,transform,background-color,color] ease-in-out"
+            />
+          }
         >
           <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
         </DropdownMenuTrigger>

@@ -66,7 +66,10 @@ export function ChatView({
   /** the model is loading into memory; the waiting marker says so */
   modelLoading?: boolean
 }) {
-  const messages = useMessages(conversationId).data ?? []
+  const { messages, truncatedBeforeId } = useMessages(conversationId).data ?? {
+    messages: [],
+    truncatedBeforeId: null
+  }
   const streaming = reply !== null && reply.conversationId === conversationId
 
   if (conversationId === null) {
@@ -86,79 +89,94 @@ export function ChatView({
   }
 
   return (
-    <MessageScrollerProvider defaultScrollPosition="end">
-      <MessageScroller className="min-h-0 flex-1">
+    // keyed per conversation so each one opens at its default scroll position
+    // (the scroller applies it once per mount)
+    <MessageScrollerProvider key={conversationId} defaultScrollPosition="end">
+      <MessageScroller>
         <MessageScrollerViewport>
           <MessageScrollerContent className="mx-auto w-full max-w-2xl p-4">
             {messages.map((message) => (
               <MessageScrollerItem
                 key={message.id}
                 messageId={String(message.id)}
-                scrollAnchor={message.role === 'assistant'}
+                scrollAnchor={message.role === 'user'}
               >
-                <ChatMessageRow message={message} />
-              </MessageScrollerItem>
-            ))}
-            {streaming && (
-              <MessageScrollerItem messageId="streaming">
-                {reply.text || reply.reasoning || reply.toolCalls.length > 0 ? (
-                  // keyed remounts fade each marker state in gently: waiting
-                  // marker → first content, and the label flips inside
-                  <Message className="animate-in fade-in-0 duration-300">
-                    <MessageContent>
-                      {reply.reasoning && (
-                        <ReasoningBlock
-                          text={reply.reasoning}
-                          durationMs={reply.reasoningMs}
-                          thinking={!reply.text && reply.toolCalls.length === 0}
-                        />
-                      )}
-                      {reply.toolCalls.map((call) => (
-                        <QueryCard
-                          key={call.callId}
-                          state={
-                            call.status === 'done' && call.result !== null
-                              ? { status: 'done', sql: call.sql, result: call.result }
-                              : {
-                                  status: call.status === 'running' ? 'running' : 'writing',
-                                  sql: call.sql
-                                }
-                          }
-                        />
-                      ))}
-                      {reply.text && <AssistantBubble text={reply.text} isStreaming />}
-                    </MessageContent>
-                  </Message>
+                {message.id === truncatedBeforeId && (
+                  <Marker variant="separator" role="separator" className="my-2">
+                    <MarkerContent>Older messages aren&apos;t sent to the model</MarkerContent>
+                  </Marker>
+                )}
+                {message.status === 'streaming' ? (
+                  <StreamingReply reply={streaming ? reply : null} modelLoading={modelLoading} />
                 ) : (
-                  // the fade lives on a wrapper because animate-in and the
-                  // marker's own animate-shimmer would fight over `animation`
-                  <div
-                    key={modelLoading ? 'loading' : 'thinking'}
-                    className="animate-in fade-in-0 duration-300"
-                  >
-                    <Marker role="status" className="w-fit animate-shimmer">
-                      <MarkerIcon>
-                        {modelLoading ? (
-                          <HugeiconsIcon
-                            icon={Loading03Icon}
-                            strokeWidth={2}
-                            className="animate-spin"
-                          />
-                        ) : (
-                          <HugeiconsIcon icon={SparklesIcon} strokeWidth={2} />
-                        )}
-                      </MarkerIcon>
-                      <MarkerContent>{modelLoading ? 'Loading model…' : 'Thinking…'}</MarkerContent>
-                    </Marker>
-                  </div>
+                  <ChatMessageRow message={message} />
                 )}
               </MessageScrollerItem>
-            )}
+            ))}
           </MessageScrollerContent>
         </MessageScrollerViewport>
         <MessageScrollerButton />
       </MessageScroller>
     </MessageScrollerProvider>
+  )
+}
+
+/**
+ * The in-flight reply, rendered from streamed state into the placeholder
+ * row's item — the settled parts later render in the same spot, so the
+ * scroller never sees an element swap. A null reply (a conversation reopened
+ * mid-turn) shows the waiting marker until the next chunk arrives.
+ */
+function StreamingReply({
+  reply,
+  modelLoading
+}: {
+  reply: ActiveReply | null
+  modelLoading: boolean
+}) {
+  if (reply && (reply.text || reply.reasoning || reply.toolCalls.length > 0)) {
+    return (
+      // keyed remounts fade each marker state in gently: waiting marker →
+      // first content, and the label flips inside
+      <Message className="animate-in fade-in-0 duration-300">
+        <MessageContent>
+          {reply.reasoning && (
+            <ReasoningBlock
+              text={reply.reasoning}
+              durationMs={reply.reasoningMs}
+              thinking={!reply.text && reply.toolCalls.length === 0}
+            />
+          )}
+          {reply.toolCalls.map((call) => (
+            <QueryCard
+              key={call.callId}
+              state={
+                call.status === 'done' && call.result !== null
+                  ? { status: 'done', sql: call.sql, result: call.result }
+                  : { status: call.status === 'running' ? 'running' : 'writing', sql: call.sql }
+              }
+            />
+          ))}
+          {reply.text && <AssistantBubble text={reply.text} isStreaming />}
+        </MessageContent>
+      </Message>
+    )
+  }
+  return (
+    // the fade lives on a wrapper because animate-in and the marker's own
+    // animate-shimmer would fight over `animation`
+    <div key={modelLoading ? 'loading' : 'thinking'} className="animate-in fade-in-0 duration-300">
+      <Marker role="status" className="w-fit animate-shimmer">
+        <MarkerIcon>
+          {modelLoading ? (
+            <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />
+          ) : (
+            <HugeiconsIcon icon={SparklesIcon} strokeWidth={2} />
+          )}
+        </MarkerIcon>
+        <MarkerContent>{modelLoading ? 'Loading model…' : 'Thinking…'}</MarkerContent>
+      </Marker>
+    </div>
   )
 }
 
@@ -274,8 +292,9 @@ const streamdownComponents: ComponentProps<typeof Streamdown>['components'] = {
 
 function AssistantBubble({ text, isStreaming = false }: { text: string; isStreaming?: boolean }) {
   return (
-    <Bubble variant="ghost">
-      <BubbleContent>
+    // full width (not the default shrink-wrap) so markdown tables span the column
+    <Bubble variant="ghost" className="w-full">
+      <BubbleContent className="w-full">
         <Streamdown
           mode={isStreaming ? 'streaming' : 'static'}
           isAnimating={isStreaming}

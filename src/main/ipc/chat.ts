@@ -6,20 +6,28 @@ import {
   renameConversationSchema,
   sendChatSchema,
   setConversationAccountSchema,
-  type ChatMessage,
   type Conversation,
+  type ConversationMessages,
   type SendChatResult
 } from '@shared/chat'
 import { db } from '../db'
 import { conversations } from '../db/schema'
-import { listConversations, listMessages, sendChatMessage, stopChat } from '../llm/features/chat'
+import {
+  listConversations,
+  listMessages,
+  recoverAbandonedTurns,
+  sendChatMessage,
+  stopChat
+} from '../llm/features/chat'
 
 // Thin wiring only: generation lives in ../llm/features/chat; the simple
 // conversation CRUD is plain drizzle right here.
 export function registerChatIpc(): void {
+  recoverAbandonedTurns()
+
   ipcMain.handle(CHAT_IPC.listConversations, (): Conversation[] => listConversations())
 
-  ipcMain.handle(CHAT_IPC.listMessages, (_event, input: unknown): ChatMessage[] =>
+  ipcMain.handle(CHAT_IPC.listMessages, (_event, input: unknown): ConversationMessages =>
     listMessages(conversationIdSchema.parse(input))
   )
 

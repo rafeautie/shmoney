@@ -2,9 +2,12 @@ import { z } from 'zod'
 
 // Chat with the local model: multiple conversations, each a persisted message
 // history. Sending with a null conversationId creates the conversation
-// implicitly on first message (no empty-conversation rows). Assistant replies
-// stream to the renderer as chunk push events and are persisted on settle —
-// including the partial text of a stopped generation.
+// implicitly on first message (no empty-conversation rows). Accepting a turn
+// persists the user message and a placeholder assistant row (status
+// 'streaming'); chunks stream to the renderer as push events, and the row is
+// finalized in place on settle — including the partial text of a stopped
+// generation. The stable row identity means the UI never swaps a streaming
+// element for a persisted one.
 
 // ---------- message parts ----------
 
@@ -40,7 +43,8 @@ export type ChatMessagePart =
 export type ChatChunkKind = 'text' | 'reasoning'
 
 export type ChatRole = 'user' | 'assistant'
-export type ChatMessageStatus = 'complete' | 'interrupted' | 'error'
+/** 'streaming' = the placeholder row of a reply still being generated */
+export type ChatMessageStatus = 'streaming' | 'complete' | 'interrupted' | 'error'
 
 export interface ChatMessage {
   id: number
@@ -157,10 +161,22 @@ export type ChatToolCallEvent =
   | { conversationId: number; callId: number; phase: 'start'; sql: string }
   | { conversationId: number; callId: number; phase: 'end'; result: QueryToolResult }
 
+/** chat:listMessages payload: the rows plus where the model's replay window starts */
+export interface ConversationMessages {
+  messages: ChatMessage[]
+  /**
+   * id of the oldest message the model still sees; older ones no longer fit
+   * its context. Null while the whole conversation fits (nothing truncated).
+   */
+  truncatedBeforeId: number | null
+}
+
 /** resolved by chat:send once the turn is accepted; the reply then streams */
 export interface SendChatResult {
   conversation: Conversation
   userMessage: ChatMessage
+  /** the placeholder row the reply streams into; messageDone carries its final form */
+  assistantMessage: ChatMessage
 }
 
 // ---------- IPC ----------

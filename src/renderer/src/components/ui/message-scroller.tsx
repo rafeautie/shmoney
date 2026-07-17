@@ -82,10 +82,10 @@ function MessageScrollerItem({
     <MessageScrollerPrimitive.Item
       data-slot="message-scroller-item"
       scrollAnchor={scrollAnchor}
-      className={cn(
-        'min-w-0 shrink-0 [contain-intrinsic-size:auto_10rem] [content-visibility:auto]',
-        className
-      )}
+      // no content-visibility here: its estimated heights make the mount-time
+      // scroll-to-end (and the anchor/spacer math) land short of the real
+      // bottom, cutting off the last message
+      className={cn('min-w-0 shrink-0', className)}
       {...props}
     />
   )

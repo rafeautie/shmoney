@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useIsMutating, useQueryClient } from '@tanstack/react-query'
-import { sqlFromParamsText, type ChatMessage } from '@shared/chat'
+import { sqlFromParamsText, type ConversationMessages } from '@shared/chat'
 import {
   CHAT_CONVERSATIONS_KEY,
   chatMessagesKey,
@@ -110,9 +110,16 @@ function ChatPage() {
     })
     const offDone = window.api.chat.onMessageDone(({ conversationId: id, message }) => {
       setReply(null)
-      queryClient.setQueryData<ChatMessage[]>(chatMessagesKey(id), (prev) =>
-        prev ? [...prev, message] : prev
+      // the reply settles into its placeholder row in place — same id, same
+      // list position — so the scroller never sees an element swap
+      queryClient.setQueryData<ConversationMessages>(chatMessagesKey(id), (prev) =>
+        prev
+          ? { ...prev, messages: prev.messages.map((m) => (m.id === message.id ? message : m)) }
+          : prev
       )
+      // the refetch recomputes where the truncation marker sits now that the
+      // turn is in the history
+      void queryClient.invalidateQueries({ queryKey: chatMessagesKey(id) })
       void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
     })
     return () => {

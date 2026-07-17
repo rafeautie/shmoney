@@ -7,6 +7,7 @@ import {
   type ChatMessage,
   type ChatMessagePart,
   type Conversation,
+  type ConversationMessages,
   type SendChatInput,
   type SendChatResult
 } from '@shared/chat'
@@ -80,44 +81,76 @@ export function titleFrom(text: string): string {
 }
 
 /**
- * Map persisted rows to the model's history, newest-first trimmed to the token
- * budget (shrunk by the system prompt, which shares the context). Interrupted
- * partials stay (the user saw them); error rows carry no assistant content
- * worth replaying and are skipped. Reasoning parts are never replayed: a past
- * turn's chain of thought is display material, not conversation. Query calls
- * ARE replayed, as native functionCall entries ahead of the answer text, so
- * the model remembers what data it already fetched; a turn stopped mid-query
- * (calls but no text yet) is kept for the same reason.
+ * What a row contributes to replayed history; null = skipped entirely. Error
+ * rows carry no assistant content worth replaying. Reasoning parts are never
+ * replayed: a past turn's chain of thought is display material, not
+ * conversation. Query calls ARE replayed so the model remembers what data it
+ * already fetched; a turn stopped mid-query (calls but no text yet) is kept
+ * for the same reason.
+ */
+function replayable(row: Pick<ChatMessage, 'role' | 'status' | 'parts'>): {
+  text: string
+  calls: Extract<ChatMessagePart, { type: 'functionCall' }>[]
+} | null {
+  if (row.status === 'error') return null
+  const text = messageText(row)
+  const calls = row.parts.filter(
+    (p): p is Extract<ChatMessagePart, { type: 'functionCall' }> => p.type === 'functionCall'
+  )
+  if (!text && calls.length === 0) return null
+  return { text, calls }
+}
+
+/**
+ * Where the replay budget (shrunk by the system prompt, which shares the
+ * context) cuts the conversation, walking newest-first: start is the index of
+ * the oldest row the model still sees. truncated is true only when an older
+ * row was dropped for the budget, not merely skipped as unreplayable, and the
+ * cut is gapless: everything before start is dropped, even rows that would fit.
+ */
+export function historyWindow(
+  rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[],
+  systemPrompt: string
+): { start: number; truncated: boolean } {
+  let chars = 0
+  let start = rows.length
+  const budget = HISTORY_TOKEN_BUDGET * CHARS_PER_TOKEN - systemPrompt.length
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const replay = replayable(rows[i])
+    if (!replay) continue
+    const cost = replay.text.length + replay.calls.reduce((n, c) => n + JSON.stringify(c).length, 0)
+    if (chars + cost > budget) return { start, truncated: true }
+    chars += cost
+    start = i
+  }
+  return { start, truncated: false }
+}
+
+/**
+ * Map persisted rows to the model's history: the historyWindow slice (also
+ * what the UI's truncation marker reflects), with interrupted partials kept
+ * (the user saw them) and query calls as native functionCall entries ahead of
+ * the answer text.
  */
 export function buildHistory(
   rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[],
   systemPrompt: string
 ): ChatHistoryItem[] {
   const items: ChatHistoryItem[] = []
-  let chars = 0
-  const budget = HISTORY_TOKEN_BUDGET * CHARS_PER_TOKEN - systemPrompt.length
-  for (let i = rows.length - 1; i >= 0; i--) {
-    const row = rows[i]
-    if (row.status === 'error') continue
-    const text = messageText(row)
-    const calls = row.parts.filter(
-      (p): p is Extract<ChatMessagePart, { type: 'functionCall' }> => p.type === 'functionCall'
-    )
-    if (!text && calls.length === 0) continue
-    const cost = text.length + calls.reduce((n, c) => n + JSON.stringify(c).length, 0)
-    if (chars + cost > budget) break
-    chars += cost
-    if (row.role === 'user') {
-      items.unshift({ type: 'user', text })
+  for (let i = historyWindow(rows, systemPrompt).start; i < rows.length; i++) {
+    const replay = replayable(rows[i])
+    if (!replay) continue
+    if (rows[i].role === 'user') {
+      items.push({ type: 'user', text: replay.text })
     } else {
-      const response: ChatModelResponse['response'] = calls.map((c) => ({
+      const response: ChatModelResponse['response'] = replay.calls.map((c) => ({
         type: 'functionCall' as const,
         name: c.name,
         params: c.args,
         result: c.result
       }))
-      if (text) response.push(text)
-      items.unshift({ type: 'model', response })
+      if (replay.text) response.push(replay.text)
+      items.push({ type: 'model', response })
     }
   }
   return [{ type: 'system', text: systemPrompt }, ...items]
@@ -178,22 +211,38 @@ export function listConversations(): Conversation[] {
     .map(rowToConversation)
 }
 
-export function listMessages(conversationId: number): ChatMessage[] {
-  return db
+/**
+ * A conversation's rows plus where the next turn's replay window starts, so
+ * the UI can mark the cut. The window is computed exactly as the next send
+ * will: these same rows as prior history under the scope's system prompt.
+ */
+export function listMessages(conversationId: number): ConversationMessages {
+  const rows = db
     .select()
     .from(chatMessages)
     .where(eq(chatMessages.conversationId, conversationId))
     .orderBy(chatMessages.id)
     .all()
-    .map(rowToMessage)
+  const conversation = db
+    .select({ accountId: conversations.accountId })
+    .from(conversations)
+    .where(eq(conversations.id, conversationId))
+    .get()
+  const scope = accountScope(conversation?.accountId ?? null)
+  const { start, truncated } = historyWindow(rows, buildSystemPrompt(scope))
+  return {
+    messages: rows.map(rowToMessage),
+    truncatedBeforeId: truncated ? (rows[start]?.id ?? null) : null
+  }
 }
 
 /**
- * Accept one chat turn: persist the user message (creating the conversation on
- * a null id), then stream the reply in the background — chunk push events while
- * it runs, a messageDone push with the persisted assistant row when it settles
- * (complete, interrupted with partial text, or errored). Resolves as soon as
- * the turn is accepted so the UI can navigate/render immediately.
+ * Accept one chat turn: persist the user message and a placeholder assistant
+ * row (creating the conversation on a null id), then stream the reply in the
+ * background — chunk push events while it runs, a messageDone push with the
+ * finalized assistant row when it settles (complete, interrupted with partial
+ * text, or errored). Resolves as soon as the turn is accepted so the UI can
+ * navigate/render immediately.
  */
 export async function sendChatMessage(input: SendChatInput): Promise<SendChatResult> {
   if (activeChat) throw new Error('A chat reply is already being generated')
@@ -248,6 +297,19 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     })
     .returning()
     .get()
+  // the reply's row exists from the start so the UI renders the whole turn
+  // with stable identities; finishTurn fills it in when the turn settles
+  const assistantRow = db
+    .insert(chatMessages)
+    .values({
+      conversationId: conversationRow.id,
+      role: 'assistant',
+      parts: [],
+      status: 'streaming',
+      createdAt: now
+    })
+    .returning()
+    .get()
   db.update(conversations)
     .set({ lastMessageAt: now, updatedAt: now })
     .where(eq(conversations.id, conversationRow.id))
@@ -269,19 +331,19 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
         sendToRenderer(CHAT_IPC.toolCall, { conversationId: conversationRow.id, ...event })
     })
   )
-    .then((result) => finishTurn(conversationRow.id, result, null))
+    .then((result) => finishTurn(assistantRow.id, result, null))
     .catch((err) => {
       const empty = { text: '', reasoning: '', reasoningMs: 0, functionCalls: [] }
       // a stop before the turn ever reached the model (still queued behind
       // another generation) rejects instead of resolving interrupted; that's
       // a stop, not a failure
       if (controller.signal.aborted)
-        return finishTurn(conversationRow.id, { ...empty, interrupted: true }, null)
+        return finishTurn(assistantRow.id, { ...empty, interrupted: true }, null)
       // logged serialized, never raw: the error chain can drag the prompt
       // along, and prompts carry the user's private conversation text
       log.error('chat.generation-failed', err)
       return finishTurn(
-        conversationRow.id,
+        assistantRow.id,
         { ...empty, interrupted: false },
         String((err as Error)?.message ?? err)
       )
@@ -290,7 +352,11 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
       if (activeChat?.controller === controller) activeChat = null
     })
 
-  return { conversation: rowToConversation(conversationRow), userMessage: rowToMessage(userRow) }
+  return {
+    conversation: rowToConversation(conversationRow),
+    userMessage: rowToMessage(userRow),
+    assistantMessage: rowToMessage(assistantRow)
+  }
 }
 
 /**
@@ -309,30 +375,42 @@ export function assembleAssistantParts(result: ChatGenerationResult): ChatMessag
 }
 
 function finishTurn(
-  conversationId: number,
+  assistantMessageId: number,
   result: ChatGenerationResult,
   errorMessage: string | null
 ): void {
   const { interrupted } = result
   const now = Date.now()
-  const parts = assembleAssistantParts(result)
   const row = db
-    .insert(chatMessages)
-    .values({
-      conversationId,
-      role: 'assistant',
-      parts,
+    .update(chatMessages)
+    .set({
+      parts: assembleAssistantParts(result),
       status: errorMessage !== null ? 'error' : interrupted ? 'interrupted' : 'complete',
-      errorMessage,
-      createdAt: now
+      errorMessage
     })
+    .where(eq(chatMessages.id, assistantMessageId))
     .returning()
     .get()
+  if (!row) return // conversation hard-deleted mid-turn; nothing to announce
   db.update(conversations)
     .set({ lastMessageAt: now, updatedAt: now })
-    .where(eq(conversations.id, conversationId))
+    .where(eq(conversations.id, row.conversationId))
     .run()
-  sendToRenderer(CHAT_IPC.messageDone, { conversationId, message: rowToMessage(row) })
+  sendToRenderer(CHAT_IPC.messageDone, {
+    conversationId: row.conversationId,
+    message: rowToMessage(row)
+  })
+}
+
+/**
+ * Rows left 'streaming' by a crash mid-turn settle as interrupted; runs once
+ * at startup, before the renderer can list messages.
+ */
+export function recoverAbandonedTurns(): void {
+  db.update(chatMessages)
+    .set({ status: 'interrupted' })
+    .where(eq(chatMessages.status, 'streaming'))
+    .run()
 }
 
 /** Abort the in-flight reply; its partial text still lands via messageDone. */

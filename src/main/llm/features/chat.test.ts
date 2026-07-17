@@ -17,7 +17,7 @@ vi.mock('../../logging', () => ({
 vi.mock('../manager', () => ({ llmManager: {}, sendToRenderer: vi.fn() }))
 vi.mock('../queue', () => ({ enqueueGenerate: vi.fn() }))
 
-const { assembleAssistantParts, buildHistory, buildSystemPrompt, titleFrom } =
+const { assembleAssistantParts, buildHistory, buildSystemPrompt, historyWindow, titleFrom } =
   await import('./chat')
 
 const PROMPT = 'test system prompt'
@@ -215,6 +215,33 @@ describe('buildHistory', () => {
       { type: 'system', text: PROMPT },
       { type: 'user', text: 'newest' }
     ])
+  })
+})
+
+describe('historyWindow', () => {
+  it('reports no truncation while the whole conversation fits', () => {
+    expect(historyWindow([row('user', 'hi'), row('assistant', 'hello')], PROMPT)).toEqual({
+      start: 0,
+      truncated: false
+    })
+  })
+
+  it('points at the oldest kept row once the budget drops older ones', () => {
+    const third = Math.ceil(BUDGET_CHARS / 3) + 1
+    const window = historyWindow(
+      [
+        row('user', 'a'.repeat(third)),
+        row('assistant', 'b'.repeat(third)),
+        row('user', 'c'.repeat(third))
+      ],
+      PROMPT
+    )
+    expect(window).toEqual({ start: 1, truncated: true })
+  })
+
+  it('does not call skipped unreplayable rows truncation', () => {
+    const window = historyWindow([row('assistant', '', 'error'), row('user', 'hi')], PROMPT)
+    expect(window).toEqual({ start: 1, truncated: false })
   })
 })
 

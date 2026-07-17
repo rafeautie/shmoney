@@ -82,10 +82,10 @@ import {
 import {
   CHAT_IPC,
   type ChatChunkEvent,
-  type ChatMessage,
   type ChatMessageDoneEvent,
   type ChatToolCallEvent,
   type Conversation,
+  type ConversationMessages,
   type RenameConversationInput,
   type SendChatInput,
   type SendChatResult,
@@ -283,7 +283,8 @@ const api = {
   chat: {
     listConversations: (): Promise<Conversation[]> =>
       ipcRenderer.invoke(CHAT_IPC.listConversations),
-    listMessages: (conversationId: number): Promise<ChatMessage[]> =>
+    /** the rows plus where the model's replay window starts (truncation marker) */
+    listMessages: (conversationId: number): Promise<ConversationMessages> =>
       ipcRenderer.invoke(CHAT_IPC.listMessages, conversationId),
     /**
      * Send one turn (null conversationId creates the conversation). Resolves
