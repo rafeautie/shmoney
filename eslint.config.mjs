@@ -31,16 +31,7 @@ export default tseslint.config(
       'react-refresh/only-export-components': [
         'warn',
         {
-          allowExportNames: [
-            'buttonVariants',
-            'badgeVariants',
-            'markerVariants',
-            'useTheme',
-            'useSidebar',
-            'useMessageScroller',
-            'useMessageScrollerScrollable',
-            'useMessageScrollerVisibility'
-          ]
+          allowExportNames: ['buttonVariants', 'badgeVariants', 'useTheme', 'useSidebar']
         }
       ]
     }

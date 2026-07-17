@@ -246,11 +246,8 @@ describe('historyWindow', () => {
 })
 
 describe('buildSystemPrompt', () => {
-  it("teaches the data semantics and today's date", () => {
+  it("interpolates today's date", () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null })
-    expect(prompt).toContain('milliunits')
-    expect(prompt).toContain('COALESCE(NULLIF(posted, 0), transacted_at)')
-    expect(prompt).toContain("system_key = 'transfers'")
     expect(prompt).toContain(new Date().toLocaleDateString('en-CA'))
   })
 

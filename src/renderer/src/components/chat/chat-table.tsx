@@ -1,4 +1,4 @@
-import { createContext, useContext, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Copy01Icon, Download01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
@@ -9,30 +9,22 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 // (ChatTableCard + ChatTableViewport) and markdown tables in answers
 // (ChatTable, the packaged untitled form).
 
-const ChatTableContext = createContext<React.RefObject<HTMLDivElement | null> | null>(null)
-
-/** Serialization scope: actions copy/download whatever <table> renders inside. */
-function ChatTableRoot({ children, className }: { children: React.ReactNode; className?: string }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  return (
-    <ChatTableContext.Provider value={containerRef}>
-      <div ref={containerRef} className={className}>
-        {children}
-      </div>
-    </ChatTableContext.Provider>
-  )
-}
-
 /** Copy (tab-separated, pastes into spreadsheets) and CSV download, built from the rendered rows. */
-function ChatTableActions({ className }: { className?: string }) {
-  const containerRef = useContext(ChatTableContext)
+function ChatTableActions({
+  containerRef,
+  className
+}: {
+  /** actions copy/download whatever <table> renders inside this element */
+  containerRef: React.RefObject<HTMLDivElement | null>
+  className?: string
+}) {
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const serialize = (delimiter: '\t' | ','): string => {
     const field = (value: string): string =>
       delimiter === ',' && /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value
-    return [...(containerRef?.current?.querySelectorAll('tr') ?? [])]
+    return [...(containerRef.current?.querySelectorAll('tr') ?? [])]
       .map((row) =>
         [...row.querySelectorAll('th, td')]
           .map((cell) => field(cell.textContent ?? ''))
@@ -116,17 +108,18 @@ export function ChatTableCard({
   children?: React.ReactNode
   className?: string
 }) {
+  const containerRef = useRef<HTMLDivElement>(null)
   return (
-    <ChatTableRoot className={cn('rounded-lg border bg-muted/30 p-2 text-xs', className)}>
+    <div ref={containerRef} className={cn('rounded-lg border bg-muted/30 p-2 text-xs', className)}>
       {(title != null || actions) && (
         <div className="flex items-start justify-between gap-2 pb-2">
           <div className="min-w-0 flex-1 py-1">{title}</div>
-          {actions && <ChatTableActions className="shrink-0 py-1" />}
+          {actions && <ChatTableActions containerRef={containerRef} className="shrink-0 py-1" />}
         </div>
       )}
       {/* a titled header (the SQL) reads as its own block, so give it more room */}
       {children ? <div>{children}</div> : null}
-    </ChatTableRoot>
+    </div>
   )
 }
 

@@ -150,9 +150,10 @@ export function buildHistory(
   return [{ type: 'system', text: systemPrompt }, ...items]
 }
 
-// the one in-flight turn; chat is single-flight by design (the model serializes
-// on one queue anyway, and a second concurrent turn would interleave chunks)
-let activeChat: { conversationId: number; controller: AbortController } | null = null
+// the one in-flight turn's abort controller; chat is single-flight by design
+// (the model serializes on one queue anyway, and a second concurrent turn
+// would interleave chunks)
+let activeChat: AbortController | null = null
 
 /**
  * Resolve an account id into the turn's scope. A null id, or an account that
@@ -299,7 +300,7 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     .run()
 
   const controller = new AbortController()
-  activeChat = { conversationId: conversationRow.id, controller }
+  activeChat = controller
   const history = buildHistory(priorRows, buildSystemPrompt(scope))
 
   // the reply generates in the background; its lifecycle reaches the renderer
@@ -332,7 +333,7 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
       )
     })
     .finally(() => {
-      if (activeChat?.controller === controller) activeChat = null
+      if (activeChat === controller) activeChat = null
     })
 
   return {
@@ -364,6 +365,9 @@ function finishTurn(
 ): void {
   const { interrupted } = result
   const now = Date.now()
+  // the placeholder row can't vanish mid-turn: conversation deletes are soft,
+  // so nothing cascades into chat_messages while a reply is generating (a
+  // future hard-delete/purge path would need a missing-row guard here)
   const row = db
     .update(chatMessages)
     .set({
@@ -397,5 +401,5 @@ export function recoverAbandonedTurns(): void {
 
 /** Abort the in-flight reply; its partial text still lands via messageDone. */
 export function stopChat(): void {
-  activeChat?.controller.abort(new Error('Generation cancelled'))
+  activeChat?.abort(new Error('Generation cancelled'))
 }
