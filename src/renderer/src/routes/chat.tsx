@@ -9,7 +9,8 @@ import {
   useStreamingReply
 } from '@/lib/chat'
 import { CATEGORIZE_MUTATION_KEY, useLlmStatus } from '@/lib/llm'
-import { ChatInput, ChatInputNotice } from '@/components/chat/chat-input'
+import { ChatInput } from '@/components/chat/chat-input'
+import { ChatInputNotice } from '@/components/chat/chat-input-notice'
 import { ChatModelGate } from '@/components/chat/chat-model-gate'
 import { ChatView } from '@/components/chat/chat-view'
 

@@ -64,7 +64,7 @@ export function ChatInput({
           send()
         }}
       >
-        <InputGroup className="rounded-2xl hover:border-ring/60 has-data-[align=block-end]:rounded-2xl has-[textarea]:rounded-2xl overflow-hidden">
+        <InputGroup className="rounded-2xl hover:border-ring/60 overflow-hidden">
           {/* the textarea grows with its content (field-sizing); the scroll
               area viewport caps the height and owns the scrolling */}
           <ScrollArea
@@ -138,17 +138,6 @@ export function ChatInput({
           </InputGroupAddon>
         </InputGroup>
       </form>
-    </div>
-  )
-}
-
-/** Shown in the composer's place when the conversation is read-only. */
-export function ChatInputNotice({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mx-auto w-full max-w-2xl p-4 pt-2">
-      <p className="rounded-md border border-dashed p-3 text-center text-xs text-muted-foreground">
-        {children}
-      </p>
     </div>
   )
 }
