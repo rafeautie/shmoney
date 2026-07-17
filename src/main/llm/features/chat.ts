@@ -14,13 +14,7 @@ import {
 import type { ChatGenerationResult } from '../protocol'
 import { MAX_ROWS } from '../sql-tool'
 import { db } from '../../db'
-import {
-  accounts,
-  chatMessages,
-  conversations,
-  type ChatMessageRow,
-  type ConversationRow
-} from '../../db/schema'
+import { accounts, chatMessages, conversations, type ConversationRow } from '../../db/schema'
 import { createLogger } from '../../logging'
 import { llmManager, sendToRenderer } from '../manager'
 import { enqueueGenerate } from '../queue'
@@ -188,18 +182,6 @@ function rowToConversation(row: ConversationRow): Conversation {
   }
 }
 
-function rowToMessage(row: ChatMessageRow): ChatMessage {
-  return {
-    id: row.id,
-    conversationId: row.conversationId,
-    role: row.role,
-    parts: row.parts,
-    status: row.status,
-    errorMessage: row.errorMessage,
-    createdAt: row.createdAt
-  }
-}
-
 export function listConversations(): Conversation[] {
   // soft-deleted rows are excluded here and restored by restoreConversation
   return db
@@ -230,8 +212,9 @@ export function listMessages(conversationId: number): ConversationMessages {
     .get()
   const scope = accountScope(conversation?.accountId ?? null)
   const { start, truncated } = historyWindow(rows, buildSystemPrompt(scope))
+  // ChatMessageRow is structurally a ChatMessage; no mapping needed
   return {
-    messages: rows.map(rowToMessage),
+    messages: rows,
     truncatedBeforeId: truncated ? (rows[start]?.id ?? null) : null
   }
 }
@@ -354,8 +337,8 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
 
   return {
     conversation: rowToConversation(conversationRow),
-    userMessage: rowToMessage(userRow),
-    assistantMessage: rowToMessage(assistantRow)
+    userMessage: userRow,
+    assistantMessage: assistantRow
   }
 }
 
@@ -391,14 +374,13 @@ function finishTurn(
     .where(eq(chatMessages.id, assistantMessageId))
     .returning()
     .get()
-  if (!row) return // conversation hard-deleted mid-turn; nothing to announce
   db.update(conversations)
     .set({ lastMessageAt: now, updatedAt: now })
     .where(eq(conversations.id, row.conversationId))
     .run()
   sendToRenderer(CHAT_IPC.messageDone, {
     conversationId: row.conversationId,
-    message: rowToMessage(row)
+    message: row
   })
 }
 

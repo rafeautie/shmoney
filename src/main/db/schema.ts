@@ -285,8 +285,8 @@ export const chatMessages = sqliteTable(
       .notNull()
       .references(() => conversations.id, { onDelete: 'cascade' }),
     role: text('role').$type<'user' | 'assistant'>().notNull(),
-    // parts array so the planned function-calling follow-up (functionCall /
-    // functionResult parts) needs no migration; today always one text part
+    // ordered ChatMessagePart[] (text / reasoning / functionCall), so new
+    // part kinds are a variant here rather than a migration
     parts: text('parts', { mode: 'json' }).$type<ChatMessagePart[]>().notNull(),
     // 'streaming' is the placeholder of an in-flight reply (finalized in
     // place on settle); 'interrupted' keeps the partial text of a stopped one

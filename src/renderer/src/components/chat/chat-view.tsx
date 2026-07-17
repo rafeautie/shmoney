@@ -8,15 +8,9 @@ import {
   SparklesIcon
 } from '@hugeicons/core-free-icons'
 import { Streamdown } from 'streamdown'
-import {
-  messageReasoning,
-  messageText,
-  type ChatMessage,
-  type ChatMessagePart,
-  type QueryToolResult
-} from '@shared/chat'
+import { messageReasoning, messageText, type ChatMessage, type ChatMessagePart } from '@shared/chat'
 import { cn } from '@/lib/utils'
-import { useMessages } from '@/lib/chat'
+import { useMessages, type ActiveReply, type ActiveToolCall } from '@/lib/chat'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import {
   ChainOfThought,
@@ -37,30 +31,6 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport
 } from '@/components/ui/message-scroller'
-
-/** One in-flight query tool call, keyed by callId within the streaming reply. */
-export interface ActiveToolCall {
-  callId: number
-  /** raw params JSON streamed so far; sql derives from it until start supplies the real one */
-  paramsText: string
-  sql: string
-  status: 'writing' | 'running' | 'done'
-  result: QueryToolResult | null
-}
-
-/** The streamed reply so far; all-empty = still waiting for the first token. */
-export interface ActiveReply {
-  conversationId: number
-  text: string
-  /** the chain of thought streamed so far ('' when the model isn't thinking) */
-  reasoning: string
-  /** when the first reasoning chunk arrived; drives the live duration */
-  reasoningStartedAt: number | null
-  /** frozen once the answer (or a tool call) starts; the persisted row's value replaces it */
-  reasoningMs: number | null
-  /** query tool calls streamed so far, in call order */
-  toolCalls: ActiveToolCall[]
-}
 
 export function ChatView({
   conversationId,

@@ -44,10 +44,15 @@ class LlmManager {
   private status: LlmStatus | null = null
   private nextId = 1
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
-  // chat streaming: chatChunk events route to their command's handler by id
-  private chunkHandlers = new Map<number, (text: string, kind: ChatChunkKind) => void>()
-  // chatToolCall events route the same way (query tool lifecycle of a turn)
-  private toolHandlers = new Map<number, (event: ChatToolCallPayload) => void>()
+  // chat streaming: chatChunk and chatToolCall events route to their command's
+  // handlers by id
+  private chatHandlers = new Map<
+    number,
+    {
+      chunk: (text: string, kind: ChatChunkKind) => void
+      tool: (event: ChatToolCallPayload) => void
+    }
+  >()
   private inFlight = 0
   private idleTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -142,17 +147,17 @@ class LlmManager {
     history: ChatHistoryItem[],
     prompt: string,
     opts: {
-      signal?: AbortSignal
-      onChunk?: (text: string, kind: ChatChunkKind) => void
+      signal: AbortSignal
+      onChunk: (text: string, kind: ChatChunkKind) => void
       /** narrows what the worker's query tool can see this turn */
-      toolScope?: ChatToolScope
-      onToolEvent?: (event: ChatToolCallPayload) => void
-    } = {}
+      toolScope: ChatToolScope
+      onToolEvent: (event: ChatToolCallPayload) => void
+    }
   ): Promise<ChatGenerationResult> {
-    const { signal, onChunk, toolScope = { accountId: null }, onToolEvent } = opts
+    const { signal, onChunk, toolScope, onToolEvent } = opts
 
-    // register the chunk handler before the command is posted so no early
-    // token can slip past; buffer and flush on a timer to keep IPC cheap.
+    // register the handlers before the command is posted so no early token
+    // can slip past; buffer and flush on a timer to keep IPC cheap.
     // A batch holds one kind of text: a kind change (thought → answer)
     // flushes what's buffered so ordering survives the batching.
     const id = this.nextId++
@@ -162,26 +167,27 @@ class LlmManager {
     const flush = (): void => {
       if (flushTimer) clearTimeout(flushTimer)
       flushTimer = null
-      if (!buffer || !onChunk) return
+      if (!buffer) return
       const text = buffer
       buffer = ''
       onChunk(text, bufferKind)
     }
-    this.chunkHandlers.set(id, (text, kind) => {
-      if (kind !== bufferKind) {
-        flush()
-        bufferKind = kind
-      }
-      buffer += text
-      flushTimer ??= setTimeout(flush, CHUNK_FLUSH_MS)
-    })
-    if (onToolEvent)
-      this.toolHandlers.set(id, (event) => {
+    this.chatHandlers.set(id, {
+      chunk: (text, kind) => {
+        if (kind !== bufferKind) {
+          flush()
+          bufferKind = kind
+        }
+        buffer += text
+        flushTimer ??= setTimeout(flush, CHUNK_FLUSH_MS)
+      },
+      tool: (event) => {
         // deliver buffered text first so a tool card never appears ahead of
         // the prose the model generated before it
         flush()
         onToolEvent(event)
-      })
+      }
+    })
 
     try {
       const result = await this.withModel(signal, () =>
@@ -191,8 +197,7 @@ class LlmManager {
     } finally {
       if (flushTimer) clearTimeout(flushTimer)
       flush() // deliver any buffered tail before callers see the settled promise
-      this.chunkHandlers.delete(id)
-      this.toolHandlers.delete(id)
+      this.chatHandlers.delete(id)
     }
   }
 
@@ -234,10 +239,10 @@ class LlmManager {
         this.status = msg.status
         sendToRenderer(LLM_IPC.statusChanged, msg.status)
       } else if (msg.event === 'chatChunk') {
-        this.chunkHandlers.get(msg.id)?.(msg.text, msg.kind)
+        this.chatHandlers.get(msg.id)?.chunk(msg.text, msg.kind)
       } else if (msg.event === 'chatToolCall') {
         const { event: _event, id, ...payload } = msg
-        this.toolHandlers.get(id)?.(payload as ChatToolCallPayload)
+        this.chatHandlers.get(id)?.tool(payload as ChatToolCallPayload)
       } else {
         sendToRenderer(LLM_IPC.downloadProgress, msg.progress satisfies LlmDownloadProgress)
       }
