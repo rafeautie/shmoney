@@ -25,8 +25,12 @@ export const LLM_MODEL: LlmModel = {
 
 // the chat feature gets its own, larger context (multi-turn conversations need
 // the room; categorize/extract prompts don't), created lazily on first chat
-// turn so the extra KV-cache RAM is only paid while chatting
-export const CHAT_CONTEXT_SIZE = 8192
+// turn so the extra KV-cache RAM is only paid while chatting.
+// 8192 was too tight once the system prompt carried the query recipes: a turn
+// that retries a failed query holds the prompt plus two SQL statements and two
+// capped tool results at once, and context shift can't evict a system message
+// that large, so the turn died with a compression error instead of answering.
+export const CHAT_CONTEXT_SIZE = 12288
 
 // ---------- status ----------
 

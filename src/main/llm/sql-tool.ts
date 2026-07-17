@@ -63,6 +63,16 @@ export function validateQuerySql(sql: string): { ok: true } | { ok: false; error
  * hide soft-deleted rows and secret columns, and narrow to one account when
  * the conversation is scoped. View bodies must say main.<table>, otherwise
  * the temp view's own name would resolve circularly.
+ *
+ * Every money column is divided out of milliunits here, so the model only ever
+ * sees real amounts and SUM(amount) is right without it remembering anything.
+ * That trades the storage format's exactness for double arithmetic on this
+ * surface alone (error lands ~1e-10 on realistic magnitudes, absorbed by the
+ * prompt's ROUND(..., 2); the app's own aggregates still read the raw tables).
+ * It is the trade the milliunit comment in schema.ts declines for storage, and
+ * it's worth taking here: a dropped /1000.0 is a silent 1000x error, and the
+ * model dropped them. Divide but never ROUND in the view: amounts are exact to
+ * three decimals, and rounding to two would throw the third away.
  */
 export function scopeViewsDdl(scope: ChatToolScope): string[] {
   const { accountId } = scope
@@ -74,17 +84,38 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
   const where = (clause: string): string => (accountId === null ? '' : ` WHERE ${clause}`)
   return [
     'DROP VIEW IF EXISTS temp.transactions',
+    // txn_date is exposed as a real column rather than left for the model to
+    // rebuild: COALESCE(NULLIF(posted, 0), transacted_at) is on the critical
+    // path of nearly every analytical query, and a small model that drops or
+    // misspells one piece of it gets a silent wrong answer or a hard error
     'CREATE TEMP VIEW transactions AS ' +
-      'SELECT id, account_id, posted, amount, description, pending, transacted_at, category_id ' +
+      'SELECT id, account_id, posted, amount / 1000.0 AS amount, description, pending, ' +
+      'transacted_at, category_id, ' +
+      'COALESCE(NULLIF(posted, 0), transacted_at) AS txn_date ' +
       `FROM main.transactions WHERE deleted_at IS NULL${and(`account_id = ${accountId}`)}`,
     'DROP VIEW IF EXISTS temp.accounts',
+    // invert_balance is applied here and the column left out, matching
+    // applyInvert in ipc/connections.ts: the flip is a read-time display rule
+    // everywhere else in the app, so the model should no more re-derive it
+    // than it should re-derive txn_date
     'CREATE TEMP VIEW accounts AS ' +
-      'SELECT id, name, institution_name, currency, balance, available_balance, balance_date, invert_balance ' +
+      'SELECT id, name, institution_name, currency, ' +
+      'CASE WHEN invert_balance = 1 THEN -balance ELSE balance END / 1000.0 AS balance, ' +
+      'CASE WHEN invert_balance = 1 THEN -available_balance ELSE available_balance END / 1000.0 ' +
+      'AS available_balance, balance_date ' +
       `FROM main.accounts${where(`id = ${accountId}`)}`,
     'DROP VIEW IF EXISTS temp.holdings',
     'CREATE TEMP VIEW holdings AS ' +
-      'SELECT id, account_id, symbol, description, currency, shares, market_value, cost_basis, purchase_price, created_at ' +
+      'SELECT id, account_id, symbol, description, currency, shares, ' +
+      'market_value / 1000.0 AS market_value, cost_basis / 1000.0 AS cost_basis, ' +
+      'purchase_price / 1000.0 AS purchase_price, created_at ' +
       `FROM main.holdings${where(`account_id = ${accountId}`)}`,
+    // never scoped (budgets are per-category), but shadowed so its amount is
+    // divided like every other money column; unshadowed, it was the one money
+    // table the model still read in raw milliunits
+    'DROP VIEW IF EXISTS temp.budgets',
+    'CREATE TEMP VIEW budgets AS ' +
+      'SELECT id, category_id, month, amount / 1000.0 AS amount FROM main.budgets',
     // never scoped, but always shadowed: strips the encrypted access URL
     'DROP VIEW IF EXISTS temp.connections',
     'CREATE TEMP VIEW connections AS ' +

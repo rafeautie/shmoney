@@ -389,7 +389,7 @@ async function handleChat(
     let handledCalls = 0
     const functions = {
       query: defineChatSessionFunction({
-        description: `Run one read-only SQLite SELECT statement against the finance database. Results are capped at ${MAX_ROWS} rows, so aggregate or LIMIT in SQL.`,
+        description: `Run one read-only SQLite SELECT statement against the finance database. CTEs and window functions (SUM() OVER, AVG() OVER) are supported. Aggregate in SQL and alias columns clearly; results are capped at ${MAX_ROWS} rows, so aggregate or LIMIT in SQL.`,
         params: {
           type: 'object',
           properties: {

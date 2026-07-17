@@ -7,6 +7,8 @@ import {
   type ChatRole,
   type QueryToolResult
 } from '../../../shared/chat'
+import { CHAT_CONTEXT_SIZE } from '../../../shared/llm'
+import type { PromptDbContext } from './chat'
 
 // chat.ts reaches Electron through these modules (better-sqlite3 won't load
 // under vitest's ABI either); stub them so the pure helpers stay testable
@@ -21,9 +23,21 @@ const { assembleAssistantParts, buildHistory, buildSystemPrompt, historyWindow, 
   await import('./chat')
 
 const PROMPT = 'test system prompt'
-// the budget buildHistory trims to: 75% of the 8192 chat context, 4 chars per
+// the budget buildHistory trims to: 75% of the chat context, 4 chars per
 // token, minus the system prompt sharing the context
-const BUDGET_CHARS = Math.floor(8192 * 0.75) * 4 - PROMPT.length
+const BUDGET_CHARS = Math.floor(CHAT_CONTEXT_SIZE * 0.75) * 4 - PROMPT.length
+
+const CTX: PromptDbContext = {
+  accounts: [
+    { name: 'Chase Checking', currency: 'USD' },
+    { name: 'Vanguard', currency: 'USD' }
+  ],
+  categories: [
+    { group: 'Food', names: ['Dining', 'Groceries'] },
+    { group: 'Ungrouped', names: ['Misc'] }
+  ],
+  dateRange: { min: '2023-04', max: '2026-07' }
+}
 
 const RESULT: QueryToolResult = {
   ok: true,
@@ -247,20 +261,61 @@ describe('historyWindow', () => {
 
 describe('buildSystemPrompt', () => {
   it("interpolates today's date", () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null })
+    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
     expect(prompt).toContain(new Date().toLocaleDateString('en-CA'))
   })
 
   it('describes the all-accounts scope when no account is selected', () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null })
+    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
     expect(prompt).toContain("all of the user's accounts")
     expect(prompt).not.toContain('narrowed')
   })
 
   it('names the account and its narrowing when scoped', () => {
-    const prompt = buildSystemPrompt({ accountId: 3, accountName: 'Chase Checking' })
+    const prompt = buildSystemPrompt({ accountId: 3, accountName: 'Chase Checking' }, CTX)
     expect(prompt).toContain('narrowed to the account "Chase Checking" (id 3)')
     expect(prompt).toContain("only show that account's data")
+  })
+
+  it("quotes back the user's accounts, categories and data span", () => {
+    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+    expect(prompt).toContain('Accounts: Chase Checking (USD), Vanguard (USD).')
+    expect(prompt).toContain('Food: Dining, Groceries; Ungrouped: Misc.')
+    expect(prompt).toContain('Transactions span 2023-04 to 2026-07.')
+  })
+
+  it('says so when there is no data rather than leaving empty headers', () => {
+    const prompt = buildSystemPrompt(
+      { accountId: null, accountName: null },
+      { accounts: [], categories: [], dateRange: null }
+    )
+    expect(prompt).toContain('no transaction data yet')
+    expect(prompt).not.toContain("The user's data:")
+  })
+
+  // the scope views hand the model real amounts (see scopeViewsDdl), so any
+  // scaling that creeps back into the prompt is a 1000x error in every figure
+  // the recipe produces. Nothing else fails if this regresses.
+  it('never asks the model to scale amounts, which the views already did', () => {
+    const prompt = buildSystemPrompt({ accountId: 3, accountName: 'Chase Checking' }, CTX)
+    expect(prompt).not.toMatch(/1000/)
+    expect(prompt).not.toMatch(/milliunit/i)
+    expect(prompt).toContain('Money columns are already real amounts')
+  })
+
+  it('does not mention invert_balance, which the accounts view applies', () => {
+    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+    expect(prompt).not.toMatch(/invert/i)
+  })
+
+  it('clips a pathologically long category list', () => {
+    const names = Array.from({ length: 200 }, (_, i) => `Category number ${i}`)
+    const prompt = buildSystemPrompt(
+      { accountId: null, accountName: null },
+      { ...CTX, categories: [{ group: 'Everything', names }] }
+    )
+    expect(prompt).toContain('…')
+    expect(prompt).not.toContain('Category number 199')
   })
 })
 

@@ -1,4 +1,4 @@
-import { desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import type { ChatHistoryItem, ChatModelResponse } from 'node-llama-cpp'
 import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
 import {
@@ -14,7 +14,16 @@ import {
 import type { ChatGenerationResult } from '../protocol'
 import { MAX_ROWS } from '../sql-tool'
 import { db } from '../../db'
-import { accounts, chatMessages, conversations, type ConversationRow } from '../../db/schema'
+import {
+  accounts,
+  categories,
+  categoryGroups,
+  chatMessages,
+  conversations,
+  transactions,
+  type ConversationRow
+} from '../../db/schema'
+import { transactionDate } from '../../ipc/transactions-page'
 import { createLogger } from '../../logging'
 import { llmManager, sendToRenderer } from '../manager'
 import { enqueueGenerate } from '../queue'
@@ -34,12 +43,60 @@ export interface ChatPromptScope {
 }
 
 /**
- * The system prompt is assembled per turn: the schema and semantics are
- * static, but the date moves and the scope section tracks the conversation's
- * account selection. Function-call syntax is deliberately absent; the Gemma
- * wrapper injects its own docs for the functions passed to prompt().
+ * The user's own names and data span, injected so the model can filter by a
+ * real category or account without spending a tool call discovering them, and
+ * can tell "no data" apart from "no such month".
  */
-export function buildSystemPrompt(scope: ChatPromptScope): string {
+export interface PromptDbContext {
+  accounts: { name: string; currency: string }[]
+  categories: { group: string; names: string[] }[]
+  /** 'YYYY-MM' bounds of the scope's transactions; null when there are none */
+  dateRange: { min: string; max: string } | null
+}
+
+// the rendered category list rides in every turn's prompt, so it can't grow
+// without bound; a pathological list gets clipped rather than eat the replay
+// budget (see historyWindow)
+const MAX_CATEGORY_CHARS = 700
+
+function renderContext(context: PromptDbContext): string {
+  const lines: string[] = []
+  if (context.accounts.length > 0)
+    lines.push(`Accounts: ${context.accounts.map((a) => `${a.name} (${a.currency})`).join(', ')}.`)
+  if (context.categories.length > 0) {
+    const rendered = context.categories.map((c) => `${c.group}: ${c.names.join(', ')}`).join('; ')
+    lines.push(
+      `Categories by group: ${rendered.length > MAX_CATEGORY_CHARS ? rendered.slice(0, MAX_CATEGORY_CHARS) + '…' : rendered}.`
+    )
+  }
+  if (context.dateRange)
+    lines.push(`Transactions span ${context.dateRange.min} to ${context.dateRange.max}.`)
+  return lines.length > 0
+    ? `The user's data. Match what the user asks for against these names rather than guessing one. Every one of them carries an emoji you are likely to drop, and a filter with the emoji missing matches nothing and looks like an empty result, so always filter categories and accounts with LIKE on the distinctive word, never with = on the whole name.\n${lines.join('\n')}`
+    : `The user has no transaction data yet.`
+}
+
+/**
+ * The system prompt is assembled per turn: the schema, semantics and recipes
+ * are static, but the date moves, the scope section tracks the conversation's
+ * account selection, and the context section carries the user's own names.
+ * Function-call syntax is deliberately absent; the Gemma wrapper injects its
+ * own docs for the functions passed to prompt().
+ *
+ * The recipes are literal SQL rather than described SQL: a small model adapts
+ * a fragment it can see far more reliably than one it has to derive. They all
+ * build on one base CTE, which is what makes them composable — it settles the
+ * transfer exclusion and the category joins once, so an analytical question
+ * reduces to a GROUP BY over `tx`. (The date expression used to live here too,
+ * until it became the scope view's txn_date column; see scopeViewsDdl.)
+ *
+ * Nothing here scales amounts: the scope views divide milliunits out, so `tx`
+ * carries real amounts and a question no recipe covers is right by default.
+ * The division used to be repeated in every recipe, which meant the model had
+ * to copy it correctly every time and silently returned 1000x when it didn't.
+ * If you are adding a money column to a recipe, do not reintroduce / 1000.0.
+ */
+export function buildSystemPrompt(scope: ChatPromptScope, context: PromptDbContext): string {
   const scopeSection =
     scope.accountId === null
       ? `This conversation covers all of the user's accounts; the accounts table lists them.`
@@ -48,22 +105,83 @@ export function buildSystemPrompt(scope: ChatPromptScope): string {
 
 Today's date is ${new Date().toLocaleDateString('en-CA')}.
 
-You can call the query function to answer questions from the user's real finance data. Prefer a few small aggregated queries over selecting many raw rows; results are capped at ${MAX_ROWS} rows and oversized results are truncated. Keep queries simple.
+Answer questions about the user's money by querying their real data, never from memory or assumption. Plan before writing SQL: decide the grain (per month? per category? both?), then write one query that returns the finished numbers. Never select raw transactions to add up yourself. Results are capped at ${MAX_ROWS} rows and you get a few queries per reply; most questions need one.
+
+Every figure you state must come from a query result you actually received. If a query errors, read the message, fix the SQL and run it again. If it still fails, or returns no rows, say exactly that. Never fill in a number, a row or a table from memory, example values or what a plausible answer would look like: this is the user's real money, and an invented figure that looks reasonable is far worse than telling them the query failed.
 
 Tables:
-- accounts(id, name, institution_name, currency, balance, available_balance, balance_date, invert_balance)
-- transactions(id, account_id, posted, amount, description, pending, transacted_at, category_id)
+- accounts(id, name, institution_name, currency, balance, available_balance, balance_date)
+- transactions(id, account_id, posted, amount, description, pending, transacted_at, category_id, txn_date)
 - categories(id, group_id, name, system_key), category_groups(id, name)
 - budgets(id, category_id, month, amount): month is 'YYYY-MM'
 - holdings(id, account_id, symbol, description, currency, shares, market_value, cost_basis, purchase_price)
 
 Data semantics:
-- Money columns are integer milliunits: divide by 1000.0 for the real amount. Negative transaction amounts are spending, positive are income.
-- posted and balance_date are unix timestamps in seconds, never booleans. Pending transactions can have posted = 0, so a transaction's date is COALESCE(NULLIF(posted, 0), transacted_at). Always convert with 'unixepoch': to filter one month use strftime('%Y-%m', COALESCE(NULLIF(posted, 0), transacted_at), 'unixepoch', 'localtime') = '2026-06'.
+- Money columns are already real amounts, in the account's own currency. Never scale them. Negative transaction amounts are spending, positive are income.
+- Dates are unix timestamps in seconds, never booleans, and only make sense converted with 'unixepoch', 'localtime'. Use txn_date for a transaction's date: it already resolves the pending-row case (posted = 0) that raw posted does not. txn_date = 0 means the date is unknown, so filter txn_date > 0.
 - Deleted rows are already filtered out; never filter on deleted_at.
-- Transfers between accounts carry the category whose system_key = 'transfers'; exclude them from spending and income analysis. system_key is NULL for normal categories, so filter with system_key IS NOT 'transfers' (a != comparison would drop NULL rows), and LEFT JOIN categories so uncategorized transactions still count.
-- If accounts.invert_balance is 1, the displayed balance is -balance.
+- Transfers between accounts carry the category whose system_key = 'transfers' and would double-count as spending and income. system_key is NULL for normal categories, so exclude them with IS NOT 'transfers' (a != comparison would drop the NULL rows), and LEFT JOIN categories so uncategorized transactions still count.
 - holdings.shares is a decimal string; CAST(shares AS REAL) for math.
+
+Start analytical queries from this base CTE. It drops transfers and names the categories, so the rest is just a GROUP BY:
+
+WITH tx AS (
+  SELECT t.amount, t.account_id, t.description, t.txn_date,
+         c.name AS category, g.name AS category_group
+  FROM transactions t
+  LEFT JOIN categories c ON c.id = t.category_id
+  LEFT JOIN category_groups g ON g.id = c.group_id
+  WHERE c.system_key IS NOT 'transfers' AND t.txn_date > 0
+)
+
+Drop the system_key line only when the user asks about transfers themselves. tx already carries category and category_group, so never join categories or category_groups on top of it; select from tx and filter those columns directly.
+
+Measures over tx: ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending, ROUND(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 2) AS income, ROUND(SUM(amount), 2) AS net.
+
+Recipes, where WITH tx AS (...) means paste that base CTE in full. Adapt the closest one rather than inventing SQL.
+
+Spending per month:
+WITH tx AS (...)
+SELECT strftime('%Y-%m', txn_date, 'unixepoch', 'localtime') AS month,
+       ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending
+FROM tx GROUP BY month ORDER BY month
+
+Top spending categories in one month. WHERE amount < 0 first, so categories that only ever took in money can't rank at 0.00:
+WITH tx AS (...)
+SELECT category, ROUND(SUM(-amount), 2) AS spending
+FROM tx
+WHERE amount < 0 AND strftime('%Y-%m', txn_date, 'unixepoch', 'localtime') = '2026-06'
+GROUP BY category ORDER BY spending DESC LIMIT 5
+
+Running total and 3-month moving average. Aggregate the buckets in a second CTE, then window over that. Every filter belongs inside it, because only month and total exist by the outer SELECT:
+WITH tx AS (...), m AS (
+  SELECT strftime('%Y-%m', txn_date, 'unixepoch', 'localtime') AS month,
+         ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS total
+  FROM tx
+  WHERE category LIKE '%Dining%'  -- always LIKE, never =; swap the word in, or drop this line
+  GROUP BY month
+)
+SELECT month, total,
+       ROUND(SUM(total) OVER (ORDER BY month), 2) AS running_total,
+       ROUND(AVG(total) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 2) AS avg_3mo
+FROM m ORDER BY month
+
+Two grouping levels at once:
+WITH tx AS (...)
+SELECT strftime('%Y-%m', txn_date, 'unixepoch', 'localtime') AS month, category_group,
+       ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending
+FROM tx GROUP BY month, category_group ORDER BY month, spending DESC
+
+Swap the bucket for another grain, keeping the rest of the shape. Years: strftime('%Y', txn_date, 'unixepoch', 'localtime') AS year. Monday-start weeks: date(txn_date, 'unixepoch', 'localtime', 'weekday 0', '-6 days') AS week.
+Quarters have no strftime format ('%Q' does not exist and '%Y-Q' silently gives every row the same label), so build the label:
+strftime('%Y', txn_date, 'unixepoch', 'localtime') || '-Q' || ((CAST(strftime('%m', txn_date, 'unixepoch', 'localtime') AS INTEGER) + 2) / 3) AS quarter
+
+Presenting results:
+- Shape rows the same way every time: time bucket first (aliased month, week or day), then the group label (category, category_group or account), then the measures under plain names (spending, income, net, running_total). One row per bucket per group.
+- ROUND(..., 2) in SQL, not in your head.
+- A bucket with no transactions returns no row at all, and SUM over no rows is NULL rather than 0. Both mean "no data for that period", which is not the same claim as "you spent 0.00" — say which one you found. When averaging over a period, divide by the number of calendar months in it, not by the number of rows you got back.
+
+${renderContext(context)}
 
 ${scopeSection}`
 }
@@ -171,6 +289,61 @@ function accountScope(accountId: number | null): ChatPromptScope {
   return { accountId: account?.id ?? null, accountName: account?.name ?? null }
 }
 
+/**
+ * The names and data span the prompt quotes back to the model, read fresh per
+ * turn and narrowed the same way the tool's scope views are, so the prompt
+ * never mentions data the query tool can't see.
+ */
+function promptDbContext(accountId: number | null): PromptDbContext {
+  const accountRows = db
+    .select({ name: accounts.name, currency: accounts.currency })
+    .from(accounts)
+    .where(accountId === null ? undefined : eq(accounts.id, accountId))
+    .orderBy(accounts.name)
+    .all()
+
+  // categories are never account-scoped, matching the tool's views
+  const categoryRows = db
+    .select({ group: categoryGroups.name, name: categories.name })
+    .from(categories)
+    .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+    .orderBy(categories.name)
+    .all()
+  const byGroup = new Map<string, string[]>()
+  for (const row of categoryRows) {
+    // ungrouped categories are real and worth naming; they just have no header
+    const group = row.group ?? 'Ungrouped'
+    const names = byGroup.get(group)
+    if (names) names.push(row.name)
+    else byGroup.set(group, [row.name])
+  }
+  const grouped = [...byGroup].map(([group, names]) => ({ group, names }))
+  grouped.sort((a, b) =>
+    a.group === 'Ungrouped' ? 1 : b.group === 'Ungrouped' ? -1 : a.group.localeCompare(b.group)
+  )
+
+  const range = db
+    .select({
+      min: sql<string | null>`strftime('%Y-%m', min(${transactionDate}), 'unixepoch', 'localtime')`,
+      max: sql<string | null>`strftime('%Y-%m', max(${transactionDate}), 'unixepoch', 'localtime')`
+    })
+    .from(transactions)
+    .where(
+      and(
+        isNull(transactions.deletedAt),
+        sql`${transactionDate} > 0`,
+        accountId === null ? undefined : eq(transactions.accountId, accountId)
+      )
+    )
+    .get()
+
+  return {
+    accounts: accountRows,
+    categories: grouped,
+    dateRange: range?.min && range.max ? { min: range.min, max: range.max } : null
+  }
+}
+
 function rowToConversation(row: ConversationRow): Conversation {
   return {
     id: row.id,
@@ -212,7 +385,10 @@ export function listMessages(conversationId: number): ConversationMessages {
     .where(eq(conversations.id, conversationId))
     .get()
   const scope = accountScope(conversation?.accountId ?? null)
-  const { start, truncated } = historyWindow(rows, buildSystemPrompt(scope))
+  const { start, truncated } = historyWindow(
+    rows,
+    buildSystemPrompt(scope, promptDbContext(scope.accountId))
+  )
   // ChatMessageRow is structurally a ChatMessage; no mapping needed
   return {
     messages: rows,
@@ -301,7 +477,10 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
 
   const controller = new AbortController()
   activeChat = controller
-  const history = buildHistory(priorRows, buildSystemPrompt(scope))
+  const history = buildHistory(
+    priorRows,
+    buildSystemPrompt(scope, promptDbContext(scope.accountId))
+  )
 
   // the reply generates in the background; its lifecycle reaches the renderer
   // through push events, and the settled row is persisted either way

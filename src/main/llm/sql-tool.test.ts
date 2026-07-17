@@ -68,9 +68,11 @@ describe('scopeViewsDdl', () => {
     }
   })
 
+  // units, narrowing and soft-delete filtering are asserted by running the
+  // views against the real schema; see scope-views.test.ts
   it('drops each view before recreating it', () => {
     const ddl = scopeViewsDdl({ accountId: null })
-    for (const name of ['transactions', 'accounts', 'holdings', 'connections']) {
+    for (const name of ['transactions', 'accounts', 'holdings', 'budgets', 'connections']) {
       const drop = ddl.findIndex((s) => s === `DROP VIEW IF EXISTS temp.${name}`)
       const create = ddl.findIndex((s) => s.startsWith(`CREATE TEMP VIEW ${name} `))
       expect(drop).toBeGreaterThanOrEqual(0)
