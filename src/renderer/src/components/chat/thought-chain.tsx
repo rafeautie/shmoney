@@ -21,22 +21,22 @@ function formatThoughtDuration(ms: number): string {
 }
 
 /**
- * The turn's chain of thought as its own collapsible, standard reasoning UX:
- * open with a shimmer while the model thinks, collapsing to "Thought for Ns"
- * once the answer (or a tool call) starts. Tool calls are NOT in here — they
- * render inline in the parts flow, in the order they occurred. The user's
- * toggle always wins.
+ * The turn's chain of thought as its own collapsible: collapsed by default,
+ * shimmering "Thinking…" while the model thinks and settling to "Thought for
+ * Ns" once the answer (or a tool call) starts. Tool calls are NOT in here —
+ * they render inline in the parts flow, in the order they occurred. The
+ * user's toggle always wins.
  */
 export function ThoughtChain({
   reasoning,
   active
 }: {
   reasoning: Reasoning | null
-  /** the model is still thinking, so the chain stays expanded */
+  /** the model is still thinking; drives the shimmer and live label */
   active: boolean
 }) {
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
-  const open = userOpen ?? active
+  const open = userOpen ?? false
 
   if (!reasoning) return null
 

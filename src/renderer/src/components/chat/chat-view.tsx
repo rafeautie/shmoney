@@ -67,6 +67,11 @@ export function ChatView({
   // to the CSS), so the class waits a frame after the first messages land.
   // Deriving it from the current id rather than a plain boolean means it falls
   // back off when the conversation switches, ahead of the next one's jump.
+  // It is also confined to the streaming window (see the viewport below): the
+  // scroller re-anchors on every content resize while a turn is anchored, and
+  // once the reply has settled the only resizes left are the user collapsing
+  // cards — corrections there must be instant or they read as the transcript
+  // scrolling itself.
   const [smoothFor, setSmoothFor] = useState<number | null>(null)
   const hasMessages = messages.length > 0
   useEffect(() => {
@@ -96,13 +101,21 @@ export function ChatView({
     // (the scroller applies it once per mount)
     <MessageScrollerProvider key={conversationId} defaultScrollPosition="end">
       <MessageScroller>
-        <MessageScrollerViewport className={cn(smoothFor === conversationId && 'scroll-smooth')}>
+        <MessageScrollerViewport
+          className={cn(smoothFor === conversationId && streaming && 'scroll-smooth')}
+        >
           <MessageScrollerContent className="mx-auto w-full max-w-2xl p-4">
             {messages.map((message) => (
               <MessageScrollerItem
                 key={message.id}
                 messageId={String(message.id)}
-                scrollAnchor={message.role === 'user'}
+                // anchored only while a reply is streaming: the send-time pin
+                // still engages (the reply is active in the commit that mounts
+                // the new user row), but a settled conversation mounts with no
+                // anchors — otherwise the scroller anchors the last user
+                // message on mount and re-pins it on any content resize, so
+                // collapsing a card would scroll the transcript on its own
+                scrollAnchor={message.role === 'user' && streaming}
               >
                 {message.id === truncatedBeforeId && (
                   // amber, not muted: this one changes what the model can see,

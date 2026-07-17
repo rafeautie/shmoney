@@ -1,6 +1,6 @@
 import type { ComponentProps } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon, BrainIcon } from '@hugeicons/core-free-icons'
+import { ArrowRight01Icon, BrainIcon } from '@hugeicons/core-free-icons'
 import type { IconSvgElement } from '@hugeicons/react'
 import { cn } from '@/lib/utils'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -26,7 +26,7 @@ export function ChainOfThoughtHeader({
   return (
     <CollapsibleTrigger
       className={cn(
-        'group/cot flex w-fit items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground',
+        'group/cot flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground',
         className
       )}
       {...props}
@@ -34,9 +34,9 @@ export function ChainOfThoughtHeader({
       <HugeiconsIcon icon={BrainIcon} strokeWidth={2} className="size-3.5" />
       <span className="text-left">{children ?? 'Chain of thought'}</span>
       <HugeiconsIcon
-        icon={ArrowDown01Icon}
+        icon={ArrowRight01Icon}
         strokeWidth={2}
-        className="size-3.5 transition-transform group-data-panel-open/cot:rotate-180"
+        className="-ml-0.5 size-3.5 group-data-panel-open/cot:rotate-90"
       />
     </CollapsibleTrigger>
   )
@@ -72,14 +72,7 @@ export function ChainOfThoughtStep({
   status?: keyof typeof stepStatusStyles
 }) {
   return (
-    <div
-      className={cn(
-        'group/step flex gap-2 animate-in fade-in-0 slide-in-from-top-2',
-        stepStatusStyles[status],
-        className
-      )}
-      {...props}
-    >
+    <div className={cn('group/step flex gap-2', stepStatusStyles[status], className)} {...props}>
       {/* w-3.5 fixes the gutter, so an icon-less step still lines up */}
       <div className="flex w-3.5 shrink-0 flex-col items-center">
         {/* h-4 matches the text-xs line box, so the icon centres on the label */}

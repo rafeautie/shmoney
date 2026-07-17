@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Analytics01Icon, ArrowDown01Icon } from '@hugeicons/core-free-icons'
+import { Analytics01Icon, ArrowDown01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons'
 import {
   Bar,
   BarChart,
@@ -326,13 +326,13 @@ export function ChartFailure({ error }: { error: string }) {
   const [open, setOpen] = useState(false)
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="group/chart flex w-fit items-center gap-1.5 text-xs text-destructive transition-colors">
+      <CollapsibleTrigger className="group/chart flex w-fit items-center gap-1.5 text-xs text-destructive">
         <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} className="size-3.5" />
         Chart failed
         <HugeiconsIcon
-          icon={ArrowDown01Icon}
+          icon={ArrowRight01Icon}
           strokeWidth={2}
-          className="size-3.5 transition-transform group-data-panel-open/chart:rotate-180"
+          className="-ml-0.5 size-3.5 group-data-panel-open/chart:rotate-90"
         />
       </CollapsibleTrigger>
       <CollapsibleContent>

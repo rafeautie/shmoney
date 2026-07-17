@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon, DatabaseIcon } from '@hugeicons/core-free-icons'
+import { ArrowRight01Icon, DatabaseIcon } from '@hugeicons/core-free-icons'
 import type { QueryToolResult } from '@shared/chat'
 import { cn } from '@/lib/utils'
 import { ChatTableCard } from '@/components/chat/chat-table'
@@ -33,14 +33,14 @@ function cardLabel(state: QueryCardState): string {
 
 /**
  * The transcript's window into a `query` tool call: a one-line summary that
- * expands to the SQL and its result. Active cards start open so the SQL is
- * visible while it streams in, then collapse on completion; the user's own
- * toggle always wins.
+ * expands to the SQL and its result. Collapsed by default, live and replayed
+ * alike — the shimmering label carries the activity; the user's own toggle
+ * always wins.
  */
 export function QueryCard({ state }: { state: QueryCardState }) {
   const active = state.status !== 'done'
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
-  const open = userOpen ?? active
+  const open = userOpen ?? false
   const failed = state.status === 'done' && !state.result.ok
   // the copy/download actions serialize the rendered rows; hide them when
   // there is nothing to serialize (still writing, error, or an empty result)
@@ -50,20 +50,17 @@ export function QueryCard({ state }: { state: QueryCardState }) {
     <Collapsible open={open} onOpenChange={setUserOpen}>
       <CollapsibleTrigger
         className={cn(
-          'group/query flex w-fit items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground',
+          'group/query flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground',
           active && 'animate-shimmer',
           failed && 'text-destructive hover:text-destructive'
         )}
       >
         <HugeiconsIcon icon={DatabaseIcon} strokeWidth={2} className="size-3.5" />
-        {/* keyed by status so each label change fades in gently */}
-        <span key={state.status} className="animate-in fade-in-0 duration-300">
-          {cardLabel(state)}
-        </span>
+        <span>{cardLabel(state)}</span>
         <HugeiconsIcon
-          icon={ArrowDown01Icon}
+          icon={ArrowRight01Icon}
           strokeWidth={2}
-          className="size-3.5 transition-transform group-data-panel-open/query:rotate-180"
+          className="-ml-0.5 size-3.5 group-data-panel-open/query:rotate-90"
         />
       </CollapsibleTrigger>
       <CollapsibleContent>

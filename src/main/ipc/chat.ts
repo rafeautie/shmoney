@@ -15,6 +15,7 @@ import { conversations } from '../db/schema'
 import {
   listConversations,
   listMessages,
+  purgeDeletedConversations,
   recoverAbandonedTurns,
   sendChatMessage,
   stopChat
@@ -24,6 +25,7 @@ import {
 // conversation CRUD is plain drizzle right here.
 export function registerChatIpc(): void {
   recoverAbandonedTurns()
+  purgeDeletedConversations()
 
   ipcMain.handle(CHAT_IPC.listConversations, (): Conversation[] => listConversations())
 

@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { ChatHistoryItem, ChatModelResponse } from 'node-llama-cpp'
 import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
 import {
@@ -105,7 +105,7 @@ export function buildSystemPrompt(scope: ChatPromptScope, context: PromptDbConte
 
 Today's date is ${new Date().toLocaleDateString('en-CA')}.
 
-Answer questions about the user's money by querying their real data, never from memory or assumption. Plan before writing SQL: decide the grain (per month? per category? both?), then write one query that returns the finished numbers. Never select raw transactions to add up yourself. Results are capped at ${MAX_ROWS} rows and you get a few queries per reply; most questions need one.
+Answer questions about the user's money by querying their real data, never from memory or assumption. Act on every request immediately: never ask permission to run a query or draw a chart, and never ask the user to confirm your plan — the request itself is the confirmation. If a request is ambiguous, pick the most reasonable reading, answer it, and note the assumption in one short clause. Plan before writing SQL: decide the grain (per month? per category? both?), then write one query that returns the finished numbers. Never select raw transactions to add up yourself. Results are capped at ${MAX_ROWS} rows and you get a few queries per reply; most questions need one.
 
 Every figure you state must come from a query result you actually received. If a query errors, read the message, fix the SQL and run it again. If it still fails, or returns no rows, say exactly that. Never fill in a number, a row or a table from memory, example values or what a plausible answer would look like: this is the user's real money, and an invented figure that looks reasonable is far worse than telling them the query failed.
 
@@ -196,7 +196,7 @@ Charts: when your final result is a trend over time, a breakdown by group, or on
 - breakdown: {"type": "bar", "title": "Top categories", "x": "category", "series": ["spending"]}, or "pie" for shares of a whole
 - one number: {"type": "stat", "title": "Total spending", "x": "spending", "series": ["spending"]}
 - one line per category or account: query with the pivot recipe above (one column per group), then pass the column aliases as series.
-A chart only appears through the chart function call; never write a chart spec into your answer text. After charting, give the takeaway in a sentence or two; never repeat the charted rows as a table.
+If a chart call fails, do not apologize and do not stop: the error message tells you the exact fix. A wrong column name means call chart again with a column name copied from the error's list. A "repeats across rows" error means run the new pivot query the error describes, then call chart again with the new column aliases as series. Only after a corrected retry also fails may you give up, and then present the numbers in text instead. A chart only appears through the chart function call; never write a chart spec into your answer text. After charting, give the takeaway in a sentence or two; never repeat the charted rows as a table.
 
 ${renderContext(context)}
 
@@ -636,8 +636,8 @@ function finishTurn(
   const { interrupted } = result
   const now = Date.now()
   // the placeholder row can't vanish mid-turn: conversation deletes are soft,
-  // so nothing cascades into chat_messages while a reply is generating (a
-  // future hard-delete/purge path would need a missing-row guard here)
+  // and the purge of soft-deleted rows only runs at startup before any turn
+  // can start, so no missing-row guard is needed here
   const row = db
     .update(chatMessages)
     .set({
@@ -667,6 +667,17 @@ export function recoverAbandonedTurns(): void {
     .set({ status: 'interrupted' })
     .where(eq(chatMessages.status, 'streaming'))
     .run()
+}
+
+/**
+ * Soft-deleted conversations from a prior session had their undo toast close
+ * with the app, so there's no restoring them; runs once at startup, before
+ * the renderer exists, and hard-deletes those rows for good. Same-session
+ * deletes stay restorable since this never runs mid-session. Messages go via
+ * the FK cascade.
+ */
+export function purgeDeletedConversations(): void {
+  db.delete(conversations).where(isNotNull(conversations.deletedAt)).run()
 }
 
 /** Abort the in-flight reply; its partial text still lands via messageDone. */

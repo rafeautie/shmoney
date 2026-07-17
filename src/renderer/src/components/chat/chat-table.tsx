@@ -123,8 +123,8 @@ export function ChatTableCard({
     >
       {(title != null || actions) && (
         <div className="flex items-start justify-between gap-2 p-2">
-          <div className="min-w-0 flex-1 py-1">{title}</div>
-          {actions && <ChatTableActions containerRef={containerRef} className="shrink-0 py-1" />}
+          <div className="min-w-0 flex-1 h-full my-1">{title}</div>
+          {actions && <ChatTableActions containerRef={containerRef} className="shrink-0" />}
         </div>
       )}
       {children}
