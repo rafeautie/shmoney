@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Alert02Icon, BubbleChatIcon } from '@hugeicons/core-free-icons'
+import { Alert02Icon, BubbleChatIcon, Wallet01Icon } from '@hugeicons/core-free-icons'
+import type { ChatMessage, ChatTurnScope } from '@shared/chat'
 import { cn } from '@/lib/utils'
 import { useMessages, type ActiveReply } from '@/lib/chat'
 import { ChatMessageRow } from '@/components/chat/chat-message-row'
@@ -15,6 +16,33 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport
 } from '@/components/ui/message-scroller'
+
+/**
+ * Where the recorded turn scope changes, keyed by the message id the marker
+ * renders above (the turn's user row when present, so the divider sits ahead
+ * of the whole exchange). The first recorded scope gets a marker only when
+ * narrowed — all-accounts is the default a transcript is read under. Rows
+ * predating scope recording carry null and neither draw nor reset markers.
+ */
+function scopeMarkers(messages: ChatMessage[]): Map<number, string> {
+  const markers = new Map<number, string>()
+  let previous: ChatTurnScope | null = null
+  messages.forEach((message, i) => {
+    if (message.role !== 'assistant' || !message.scope) return
+    const scope = message.scope
+    const changed =
+      previous === null ? scope.accountId !== null : previous.accountId !== scope.accountId
+    if (changed) {
+      const anchor = messages[i - 1]?.role === 'user' ? messages[i - 1] : message
+      markers.set(
+        anchor.id,
+        scope.accountName ? `Narrowed to ${scope.accountName}` : 'All accounts'
+      )
+    }
+    previous = scope
+  })
+  return markers
+}
 
 /** The transcript: the conversation's messages with the in-flight reply streaming in place. */
 export function ChatView({
@@ -31,6 +59,7 @@ export function ChatView({
     messages: [],
     truncatedBeforeId: null
   }
+  const markers = useMemo(() => scopeMarkers(messages), [messages])
   const streaming = reply !== null && reply.conversationId === conversationId
 
   // scroll-behavior: smooth would animate the mount-time jump to
@@ -87,6 +116,16 @@ export function ChatView({
                       <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
                     </MarkerIcon>
                     <MarkerContent>Older messages aren&apos;t sent to the model</MarkerContent>
+                  </Marker>
+                )}
+                {markers.has(message.id) && (
+                  // default muted styling: a scope change is context, not a
+                  // warning — everything below ran under this scope
+                  <Marker variant="separator" role="separator" className="my-2">
+                    <MarkerIcon>
+                      <HugeiconsIcon icon={Wallet01Icon} strokeWidth={2} />
+                    </MarkerIcon>
+                    <MarkerContent>{markers.get(message.id)}</MarkerContent>
                   </Marker>
                 )}
                 {message.status === 'streaming' ? (

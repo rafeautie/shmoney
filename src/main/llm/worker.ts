@@ -19,10 +19,11 @@ import {
   type LlamaContext
 } from 'node-llama-cpp'
 import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
-import type { QueryToolResult } from '@shared/chat'
+import type { ChartSpec, QueryToolResult } from '@shared/chat'
 import type {
   ChatFunctionCallRecord,
   ChatGenerationResult,
+  ChatResponseItem,
   WorkerCommand,
   WorkerMessage
 } from './protocol'
@@ -34,6 +35,7 @@ import {
   validateQuerySql,
   type ChatToolScope
 } from './sql-tool'
+import { CHART_FUNCTION_PARAMS, validateChartCall } from './chart-tool'
 
 const modelsDir: string = (() => {
   const dir = process.env.LLM_MODELS_DIR
@@ -376,17 +378,33 @@ async function handleChat(
   try {
     const session = await ensureChatSession()
     if (controller.signal.aborted)
-      return { text: '', reasoning: '', reasoningMs: 0, interrupted: true, functionCalls: [] }
+      return { items: [], reasoning: '', reasoningMs: 0, interrupted: true }
     refreshScopeViews(toolScope)
     // the whole prior conversation is replaced per turn (stateless worker: the
     // feature owns history in the DB), so switching conversations needs nothing
     session.setChatHistory(history)
 
-    const functionCalls: ChatFunctionCallRecord[] = []
+    // the reply assembles in generation order: answer chunks merge into the
+    // trailing text item and each tool handler pushes its call record between
+    // them, so the feature layer can persist parts that mirror the turn
+    const items: ChatResponseItem[] = []
+    const pushText = (text: string): void => {
+      const last = items[items.length - 1]
+      if (last?.kind === 'text') last.text += text
+      else items.push({ kind: 'text', text })
+    }
+    const pushCall = (call: ChatFunctionCallRecord): void => {
+      items.push({ kind: 'call', call })
+    }
     // handler invocations arrive in generation order, so this counter lines up
     // with onFunctionCallParamsChunk's callIndex (params are grammar-constrained
     // to the schema, so a generated call can't fail parsing and skip its handler)
     let handledCalls = 0
+    // what the chart tool draws from: charts always visualize the turn's most
+    // recent successful query result, so no result-id plumbing is needed
+    let lastQuery: QueryToolResult | null = null
+    const overBudget =
+      'The tool budget for this reply is used up; answer with the data you already have.'
     const functions = {
       query: defineChatSessionFunction({
         description: `Run one read-only SQLite SELECT statement against the finance database. CTEs and window functions (SUM() OVER, AVG() OVER) are supported. Aggregate in SQL and alias columns clearly; results are capped at ${MAX_ROWS} rows, so aggregate or LIMIT in SQL.`,
@@ -401,19 +419,60 @@ async function handleChat(
         },
         handler({ sql }) {
           const callId = handledCalls++
-          post({ event: 'chatToolCall', id, callId, phase: 'start', sql })
+          post({ event: 'chatToolCall', id, callId, phase: 'start', name: 'query', sql })
           const result =
             handledCalls > MAX_TOOL_CALLS_PER_TURN
-              ? {
-                  ok: false,
-                  error:
-                    'The query budget for this reply is used up; answer with the data you already have.',
-                  durationMs: 0
-                }
+              ? { ok: false, error: overBudget, durationMs: 0 }
               : runQuery(sql)
-          functionCalls.push({ name: 'query', args: { sql }, result })
-          post({ event: 'chatToolCall', id, callId, phase: 'end', result })
+          if (result.ok) lastQuery = result
+          pushCall({ name: 'query', args: { sql }, result })
+          post({ event: 'chatToolCall', id, callId, phase: 'end', name: 'query', result })
           return result
+        }
+      }),
+      chart: defineChatSessionFunction({
+        description:
+          'Show a chart in your reply, drawn from your most recent query result. Call it after query returns the finished numbers; x and series must name result columns exactly as the SQL aliased them.',
+        params: CHART_FUNCTION_PARAMS,
+        handler(params) {
+          const callId = handledCalls++
+          // re-shape out of the grammar's readonly inference into the shared type
+          const spec: ChartSpec = {
+            type: params.type,
+            title: params.title,
+            x: params.x,
+            series: [...params.series]
+          }
+          post({ event: 'chatToolCall', id, callId, phase: 'start', name: 'chart', spec })
+          const result =
+            handledCalls > MAX_TOOL_CALLS_PER_TURN
+              ? { ok: false, error: overBudget }
+              : validateChartCall(spec, lastQuery)
+          const data =
+            result.ok && lastQuery?.columns && lastQuery.rows
+              ? { columns: lastQuery.columns, rows: lastQuery.rows }
+              : null
+          pushCall({ name: 'chart', args: spec, result, data })
+          post({
+            event: 'chatToolCall',
+            id,
+            callId,
+            phase: 'end',
+            name: 'chart',
+            result,
+            // currency is stamped by the feature layer, which knows the scope
+            chart: data ? { spec, data, currency: null } : null
+          })
+          // steer the follow-up prose from the result itself — instructions
+          // this close to where the model writes next land far more reliably
+          // on a small model than the same words back in the system prompt.
+          // In-turn only: replayed chart calls carry a bare ok.
+          return result.ok
+            ? {
+                ...result,
+                note: 'The chart is now displayed. Give the takeaway in a sentence or two; do not repeat the charted rows as a table.'
+              }
+            : result
         }
       })
     }
@@ -438,6 +497,7 @@ async function handleChat(
           id,
           callId: chunk.callIndex,
           phase: 'params',
+          name: chunk.functionName,
           chunk: chunk.paramsChunk
         }),
       onResponseChunk: (chunk) => {
@@ -452,13 +512,21 @@ async function handleChat(
             segmentStart = null
           }
         } else if (chunk.text) {
+          pushText(chunk.text)
           post({ event: 'chatChunk', id, text: chunk.text, kind: 'text' })
         }
       }
     })
     // an abort mid-thought leaves the segment open; count the time until now
     if (segmentStart !== null) reasoningMs += Date.now() - segmentStart
-    return { text, reasoning, reasoningMs, interrupted: controller.signal.aborted, functionCalls }
+    // chunks normally carry the whole answer; keep any tail the library
+    // returned that never streamed rather than lose it
+    const streamed = items
+      .filter((i): i is Extract<ChatResponseItem, { kind: 'text' }> => i.kind === 'text')
+      .map((i) => i.text)
+      .join('')
+    if (text !== streamed && text.startsWith(streamed)) pushText(text.slice(streamed.length))
+    return { items, reasoning, reasoningMs, interrupted: controller.signal.aborted }
   } finally {
     if (activeGeneration === controller) activeGeneration = null
   }

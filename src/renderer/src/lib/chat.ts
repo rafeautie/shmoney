@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   sqlFromParamsText,
+  type ChartData,
+  type ChartSpec,
   type Conversation,
   type ConversationMessages,
   type QueryToolResult
@@ -99,39 +101,48 @@ export function useRenameConversation() {
 
 // ---------- the in-flight reply ----------
 
-/** One in-flight query tool call, keyed by callId within the streaming reply. */
+/** One in-flight tool call, keyed by callId within the streaming reply. */
 export interface ActiveToolCall {
   callId: number
+  /** which tool this call is; carried by every event from the first params chunk on */
+  name: string
   /** raw params JSON streamed so far; sql derives from it until start supplies the real one */
   paramsText: string
   sql: string
   status: 'writing' | 'running' | 'done'
+  /** a query call's settled result */
   result: QueryToolResult | null
+  /** a successful chart call's renderable payload */
+  chart: { spec: ChartSpec; data: ChartData; currency: string | null } | null
+  /** a failed chart call's validation error */
+  chartError: string | null
 }
+
+/** one streamed piece of the reply, in the order it arrived */
+export type ActiveReplyItem =
+  { kind: 'text'; text: string } | { kind: 'call'; call: ActiveToolCall }
 
 /** The streamed reply so far; all-empty = still waiting for the first token. */
 export interface ActiveReply {
   conversationId: number
-  text: string
   /** the chain of thought streamed so far ('' when the model isn't thinking) */
   reasoning: string
   /** when the first reasoning chunk arrived; drives the live duration */
   reasoningStartedAt: number | null
   /** frozen once the answer (or a tool call) starts; the persisted row's value replaces it */
   reasoningMs: number | null
-  /** query tool calls streamed so far, in call order */
-  toolCalls: ActiveToolCall[]
+  /** answer text and tool calls in arrival order, mirroring the persisted parts */
+  items: ActiveReplyItem[]
 }
 
 /** a reply entry that hasn't streamed anything yet */
 function emptyReply(conversationId: number): ActiveReply {
   return {
     conversationId,
-    text: '',
     reasoning: '',
     reasoningStartedAt: null,
     reasoningMs: null,
-    toolCalls: []
+    items: []
   }
 }
 
@@ -165,36 +176,65 @@ export function useStreamingReply(): {
     const offChunk = window.api.chat.onChunk(({ conversationId, text, kind }) => {
       setReply((prev) => {
         const base = entryFor(prev, conversationId)
-        return kind === 'reasoning'
-          ? {
-              ...base,
-              reasoning: base.reasoning + text,
-              reasoningStartedAt: base.reasoningStartedAt ?? Date.now()
-            }
-          : { ...base, text: base.text + text, reasoningMs: frozenReasoningMs(base) }
+        if (kind === 'reasoning')
+          return {
+            ...base,
+            reasoning: base.reasoning + text,
+            reasoningStartedAt: base.reasoningStartedAt ?? Date.now()
+          }
+        // answer text merges into the trailing text item, or opens a new one
+        // right after a tool call — mirroring how the parts will persist
+        const items = [...base.items]
+        const last = items[items.length - 1]
+        if (last?.kind === 'text')
+          items[items.length - 1] = { kind: 'text', text: last.text + text }
+        else items.push({ kind: 'text', text })
+        return { ...base, items, reasoningMs: frozenReasoningMs(base) }
       })
     })
     const offTool = window.api.chat.onToolCall((event) => {
       setReply((prev) => {
         const base = entryFor(prev, event.conversationId)
-        const calls = [...base.toolCalls]
-        const index = calls.findIndex((c) => c.callId === event.callId)
+        const items = [...base.items]
+        const index = items.findIndex((i) => i.kind === 'call' && i.call.callId === event.callId)
+        const existing = index >= 0 ? items[index] : null
         const current: ActiveToolCall =
-          index >= 0
-            ? calls[index]
-            : { callId: event.callId, paramsText: '', sql: '', status: 'writing', result: null }
+          existing?.kind === 'call'
+            ? existing.call
+            : {
+                callId: event.callId,
+                name: event.name,
+                paramsText: '',
+                sql: '',
+                status: 'writing',
+                result: null,
+                chart: null,
+                chartError: null
+              }
         let next: ActiveToolCall
         if (event.phase === 'params') {
           const paramsText = current.paramsText + event.chunk
-          next = { ...current, paramsText, sql: sqlFromParamsText(paramsText) }
+          // sqlFromParamsText finds nothing in chart params, which is right
+          next = { ...current, name: event.name, paramsText, sql: sqlFromParamsText(paramsText) }
         } else if (event.phase === 'start') {
-          next = { ...current, sql: event.sql, status: 'running' }
+          next =
+            event.name === 'query'
+              ? { ...current, name: event.name, sql: event.sql, status: 'running' }
+              : { ...current, name: event.name, status: 'running' }
+        } else if (event.name === 'query') {
+          next = { ...current, name: event.name, status: 'done', result: event.result }
         } else {
-          next = { ...current, status: 'done', result: event.result }
+          next = {
+            ...current,
+            name: event.name,
+            status: 'done',
+            chart: event.chart,
+            chartError: event.result.ok ? null : (event.result.error ?? 'Chart failed.')
+          }
         }
-        if (index >= 0) calls[index] = next
-        else calls.push(next)
-        return { ...base, toolCalls: calls, reasoningMs: frozenReasoningMs(base) }
+        if (index >= 0) items[index] = { kind: 'call', call: next }
+        else items.push({ kind: 'call', call: next })
+        return { ...base, items, reasoningMs: frozenReasoningMs(base) }
       })
     })
     const offDone = window.api.chat.onMessageDone(({ conversationId, message }) => {

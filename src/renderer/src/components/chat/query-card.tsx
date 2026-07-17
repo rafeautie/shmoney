@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon, DatabaseIcon } from '@hugeicons/core-free-icons'
 import type { QueryToolResult } from '@shared/chat'
 import { cn } from '@/lib/utils'
 import { ChatTableCard } from '@/components/chat/chat-table'
@@ -55,6 +55,7 @@ export function QueryCard({ state }: { state: QueryCardState }) {
           failed && 'text-destructive hover:text-destructive'
         )}
       >
+        <HugeiconsIcon icon={DatabaseIcon} strokeWidth={2} className="size-3.5" />
         {/* keyed by status so each label change fades in gently */}
         <span key={state.status} className="animate-in fade-in-0 duration-300">
           {cardLabel(state)}

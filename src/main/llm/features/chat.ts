@@ -3,7 +3,6 @@ import type { ChatHistoryItem, ChatModelResponse } from 'node-llama-cpp'
 import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
 import {
   CHAT_IPC,
-  messageText,
   type ChatMessage,
   type ChatMessagePart,
   type Conversation,
@@ -12,6 +11,7 @@ import {
   type SendChatResult
 } from '@shared/chat'
 import type { ChatGenerationResult } from '../protocol'
+import { resolveCurrency } from '../chart-tool'
 import { MAX_ROWS } from '../sql-tool'
 import { db } from '../../db'
 import {
@@ -166,11 +166,21 @@ SELECT month, total,
        ROUND(AVG(total) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 2) AS avg_3mo
 FROM m ORDER BY month
 
-Two grouping levels at once:
+Two grouping levels at once (makes a table; it cannot be charted as lines):
 WITH tx AS (...)
 SELECT strftime('%Y-%m', txn_date, 'unixepoch', 'localtime') AS month, category_group,
        ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending
 FROM tx GROUP BY month, category_group ORDER BY month, spending DESC
+
+One line per category ("spending per category over time", "for each category"): the chart needs one row per time bucket with one COLUMN per category, so pivot — one SUM(CASE ...) column per category, up to eight, using the real names from the user's category list:
+WITH tx AS (...)
+SELECT date(txn_date, 'unixepoch', 'localtime') AS day,
+       ROUND(SUM(CASE WHEN category LIKE '%Dining%' THEN -amount ELSE 0 END), 2) AS dining,
+       ROUND(SUM(CASE WHEN category LIKE '%Groceries%' THEN -amount ELSE 0 END), 2) AS groceries
+FROM tx
+WHERE amount < 0 AND strftime('%Y-%m', txn_date, 'unixepoch', 'localtime') = '2026-06'
+GROUP BY day ORDER BY day
+Then chart it with x day and series ["dining", "groceries"] — the column aliases, never the raw category names.
 
 Swap the bucket for another grain, keeping the rest of the shape. Years: strftime('%Y', txn_date, 'unixepoch', 'localtime') AS year. Monday-start weeks: date(txn_date, 'unixepoch', 'localtime', 'weekday 0', '-6 days') AS week.
 Quarters have no strftime format ('%Q' does not exist and '%Y-Q' silently gives every row the same label), so build the label:
@@ -180,6 +190,13 @@ Presenting results:
 - Shape rows the same way every time: time bucket first (aliased month, week or day), then the group label (category, category_group or account), then the measures under plain names (spending, income, net, running_total). One row per bucket per group.
 - ROUND(..., 2) in SQL, not in your head.
 - A bucket with no transactions returns no row at all, and SUM over no rows is NULL rather than 0. Both mean "no data for that period", which is not the same claim as "you spent 0.00" — say which one you found. When averaging over a period, divide by the number of calendar months in it, not by the number of rows you got back.
+
+Charts: when your final result is a trend over time, a breakdown by group, or one headline number, show it by calling the chart function after the query succeeds; it draws from your most recent query result. When the user asks to see, show or chart something, always call chart rather than describing the data. x and series must name columns exactly as the SQL aliased them. Adapt the closest example:
+- trend: {"type": "line", "title": "Spending by month", "x": "month", "series": ["spending"]}
+- breakdown: {"type": "bar", "title": "Top categories", "x": "category", "series": ["spending"]}, or "pie" for shares of a whole
+- one number: {"type": "stat", "title": "Total spending", "x": "spending", "series": ["spending"]}
+- one line per category or account: query with the pivot recipe above (one column per group), then pass the column aliases as series.
+A chart only appears through the chart function call; never write a chart spec into your answer text. After charting, give the takeaway in a sentence or two; never repeat the charted rows as a table.
 
 ${renderContext(context)}
 
@@ -192,25 +209,54 @@ export function titleFrom(text: string): string {
   return line.length > 60 ? line.slice(0, 57) + '…' : line
 }
 
+/** a tool call as it replays into history */
+interface ReplayCall {
+  name: string
+  params: object
+  result: object
+}
+
+/** one replayed piece of an assistant turn, in the order it was generated */
+type ReplayItem = { kind: 'text'; text: string } | { kind: 'call'; call: ReplayCall }
+
 /**
- * What a row contributes to replayed history; null = skipped entirely. Error
- * rows carry no assistant content worth replaying. Reasoning parts are never
- * replayed: a past turn's chain of thought is display material, not
- * conversation. Query calls ARE replayed so the model remembers what data it
- * already fetched; a turn stopped mid-query (calls but no text yet) is kept
- * for the same reason.
+ * What a row contributes to replayed history, in part order; null = skipped
+ * entirely. Error rows carry no assistant content worth replaying. Reasoning
+ * parts are never replayed: a past turn's chain of thought is display
+ * material, not conversation. Tool calls ARE replayed — interleaved with the
+ * text around them, so the model re-sees the turn as it generated it — and a
+ * turn stopped mid-query (calls but no text yet) is kept for the same reason.
+ * Chart parts replay as their spec with the bare outcome — the data snapshot
+ * is display material (and a copy of a query result the model already
+ * replays), so it would only burn history budget.
  */
-function replayable(row: Pick<ChatMessage, 'role' | 'status' | 'parts'>): {
-  text: string
-  calls: Extract<ChatMessagePart, { type: 'functionCall' }>[]
-} | null {
+function replayable(row: Pick<ChatMessage, 'role' | 'status' | 'parts'>): ReplayItem[] | null {
   if (row.status === 'error') return null
-  const text = messageText(row)
-  const calls = row.parts.filter(
-    (p): p is Extract<ChatMessagePart, { type: 'functionCall' }> => p.type === 'functionCall'
+  const items = row.parts.flatMap((p): ReplayItem[] => {
+    if (p.type === 'text') return p.text ? [{ kind: 'text', text: p.text }] : []
+    if (p.type === 'functionCall')
+      return [{ kind: 'call', call: { name: p.name, params: p.args, result: p.result } }]
+    if (p.type === 'chart')
+      return [
+        {
+          kind: 'call',
+          call: {
+            name: 'chart',
+            params: p.spec,
+            result: p.error ? { ok: false, error: p.error } : { ok: true }
+          }
+        }
+      ]
+    return []
+  })
+  return items.length > 0 ? items : null
+}
+
+function replayCost(items: ReplayItem[]): number {
+  return items.reduce(
+    (n, item) => n + (item.kind === 'text' ? item.text.length : JSON.stringify(item.call).length),
+    0
   )
-  if (!text && calls.length === 0) return null
-  return { text, calls }
 }
 
 /**
@@ -230,7 +276,7 @@ export function historyWindow(
   for (let i = rows.length - 1; i >= 0; i--) {
     const replay = replayable(rows[i])
     if (!replay) continue
-    const cost = replay.text.length + replay.calls.reduce((n, c) => n + JSON.stringify(c).length, 0)
+    const cost = replayCost(replay)
     if (chars + cost > budget) return { start, truncated: true }
     chars += cost
     start = i
@@ -241,8 +287,8 @@ export function historyWindow(
 /**
  * Map persisted rows to the model's history: the historyWindow slice (also
  * what the UI's truncation marker reflects), with interrupted partials kept
- * (the user saw them) and query calls as native functionCall entries ahead of
- * the answer text.
+ * (the user saw them) and tool calls as native functionCall entries in their
+ * generated position among the text.
  */
 export function buildHistory(
   rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[],
@@ -253,15 +299,24 @@ export function buildHistory(
     const replay = replayable(rows[i])
     if (!replay) continue
     if (rows[i].role === 'user') {
-      items.push({ type: 'user', text: replay.text })
+      items.push({
+        type: 'user',
+        text: replay
+          .filter((item): item is Extract<ReplayItem, { kind: 'text' }> => item.kind === 'text')
+          .map((item) => item.text)
+          .join('')
+      })
     } else {
-      const response: ChatModelResponse['response'] = replay.calls.map((c) => ({
-        type: 'functionCall' as const,
-        name: c.name,
-        params: c.args,
-        result: c.result
-      }))
-      if (replay.text) response.push(replay.text)
+      const response: ChatModelResponse['response'] = replay.map((item) =>
+        item.kind === 'text'
+          ? item.text
+          : {
+              type: 'functionCall' as const,
+              name: item.call.name,
+              params: item.call.params,
+              result: item.call.result
+            }
+      )
       items.push({ type: 'model', response })
     }
   }
@@ -466,6 +521,9 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
       role: 'assistant',
       parts: [],
       status: 'streaming',
+      // recorded per turn: the conversation's scope is editable, so the row
+      // keeps what this reply actually ran under
+      scope: { accountId: scope.accountId, accountName: scope.accountName },
       createdAt: now
     })
     .returning()
@@ -477,10 +535,11 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
 
   const controller = new AbortController()
   activeChat = controller
-  const history = buildHistory(
-    priorRows,
-    buildSystemPrompt(scope, promptDbContext(scope.accountId))
-  )
+  const context = promptDbContext(scope.accountId)
+  // the currency chart values format as, fixed per turn alongside the prompt
+  // context it derives from
+  const currency = resolveCurrency(context.accounts)
+  const history = buildHistory(priorRows, buildSystemPrompt(scope, context))
 
   // the reply generates in the background; its lifecycle reaches the renderer
   // through push events, and the settled row is persisted either way
@@ -491,24 +550,33 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
         sendToRenderer(CHAT_IPC.chunk, { conversationId: conversationRow.id, text, kind }),
       toolScope: { accountId: scope.accountId },
       onToolEvent: (event) =>
-        sendToRenderer(CHAT_IPC.toolCall, { conversationId: conversationRow.id, ...event })
+        sendToRenderer(CHAT_IPC.toolCall, {
+          conversationId: conversationRow.id,
+          // the worker doesn't know the scope's accounts; stamp the currency
+          // on chart payloads here so the streamed chart formats like the
+          // persisted part will
+          ...(event.phase === 'end' && event.name === 'chart' && event.chart
+            ? { ...event, chart: { ...event.chart, currency } }
+            : event)
+        })
     })
   )
-    .then((result) => finishTurn(assistantRow.id, result, null))
+    .then((result) => finishTurn(assistantRow.id, result, null, currency))
     .catch((err) => {
-      const empty = { text: '', reasoning: '', reasoningMs: 0, functionCalls: [] }
+      const empty = { items: [], reasoning: '', reasoningMs: 0 }
       // a stop before the turn ever reached the model (still queued behind
       // another generation) rejects instead of resolving interrupted; that's
       // a stop, not a failure
       if (controller.signal.aborted)
-        return finishTurn(assistantRow.id, { ...empty, interrupted: true }, null)
+        return finishTurn(assistantRow.id, { ...empty, interrupted: true }, null, currency)
       // logged serialized, never raw: the error chain can drag the prompt
       // along, and prompts carry the user's private conversation text
       log.error('chat.generation-failed', err)
       return finishTurn(
         assistantRow.id,
         { ...empty, interrupted: false },
-        String((err as Error)?.message ?? err)
+        String((err as Error)?.message ?? err),
+        currency
       )
     })
     .finally(() => {
@@ -523,24 +591,47 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
 }
 
 /**
- * Persisted part order mirrors generation: chain of thought, then the query
- * calls in the order the model made them, then the answer. (Prose the model
- * interleaves between calls is flattened into the one text part.)
+ * Persisted part order mirrors generation exactly: the chain of thought
+ * leads, then the reply's items in order — preamble text before each call
+ * sits before that call's part. Chart calls persist whether they succeeded or
+ * failed (a failed one carries its error and no data), stamped with the
+ * scope's currency.
  */
-export function assembleAssistantParts(result: ChatGenerationResult): ChatMessagePart[] {
+export function assembleAssistantParts(
+  result: ChatGenerationResult,
+  currency: string | null
+): ChatMessagePart[] {
   const parts: ChatMessagePart[] = []
   if (result.reasoning)
     parts.push({ type: 'reasoning', text: result.reasoning, durationMs: result.reasoningMs })
-  for (const call of result.functionCalls)
-    parts.push({ type: 'functionCall', name: call.name, args: call.args, result: call.result })
-  parts.push({ type: 'text', text: result.text })
+  for (const item of result.items) {
+    if (item.kind === 'text') {
+      if (item.text) parts.push({ type: 'text', text: item.text })
+    } else if (item.call.name === 'query') {
+      parts.push({
+        type: 'functionCall',
+        name: item.call.name,
+        args: item.call.args,
+        result: item.call.result
+      })
+    } else {
+      parts.push({
+        type: 'chart',
+        spec: item.call.args,
+        data: item.call.data,
+        currency,
+        ...(item.call.result.ok ? {} : { error: item.call.result.error ?? 'Chart failed.' })
+      })
+    }
+  }
   return parts
 }
 
 function finishTurn(
   assistantMessageId: number,
   result: ChatGenerationResult,
-  errorMessage: string | null
+  errorMessage: string | null,
+  currency: string | null
 ): void {
   const { interrupted } = result
   const now = Date.now()
@@ -550,7 +641,7 @@ function finishTurn(
   const row = db
     .update(chatMessages)
     .set({
-      parts: assembleAssistantParts(result),
+      parts: assembleAssistantParts(result, currency),
       status: errorMessage !== null ? 'error' : interrupted ? 'interrupted' : 'complete',
       errorMessage
     })

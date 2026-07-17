@@ -5,9 +5,11 @@ const cellText = (cell: unknown): string => (cell === null ? 'NULL' : String(cel
 
 /** A settled query's outcome: the result table, an error line, or "No rows." */
 export function QueryResult({ result }: { result: QueryToolResult }) {
-  if (!result.ok) return <p className="text-destructive">{result.error}</p>
+  // the card no longer pads its body (tables run full-bleed), so the plain
+  // text outcomes carry their own padding
+  if (!result.ok) return <p className="px-2 pb-2 text-destructive">{result.error}</p>
   if (!result.columns || !result.rows || result.rows.length === 0)
-    return <p className="text-muted-foreground italic">No rows.</p>
+    return <p className="px-2 pb-2 text-muted-foreground italic">No rows.</p>
   return (
     <ChatTableViewport>
       <table>

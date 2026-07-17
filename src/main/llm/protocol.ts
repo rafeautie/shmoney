@@ -1,4 +1,11 @@
-import type { ChatChunkKind, ChatToolCallEvent, QueryToolResult } from '@shared/chat'
+import type {
+  ChartData,
+  ChartSpec,
+  ChartToolResult,
+  ChatChunkKind,
+  ChatToolCallEvent,
+  QueryToolResult
+} from '@shared/chat'
 import type { LlmDownloadProgress, LlmStatus } from '@shared/llm'
 import type { ChatToolScope } from './sql-tool'
 // type-only: erased at compile time, so the manager still never runtime-imports
@@ -37,12 +44,20 @@ export type WorkerCommand =
       toolScope: ChatToolScope
     }
 
-/** one settled `query` tool call, in the order the model made them */
-export interface ChatFunctionCallRecord {
-  name: 'query'
-  args: { sql: string }
-  result: QueryToolResult
-}
+/** one settled tool call, in the order the model made them */
+export type ChatFunctionCallRecord =
+  | { name: 'query'; args: { sql: string }; result: QueryToolResult }
+  // data is the snapshot a successful chart call drew from; null when the
+  // call failed validation
+  | { name: 'chart'; args: ChartSpec; result: ChartToolResult; data: ChartData | null }
+
+/**
+ * The reply in generation order: answer text the model wrote between calls
+ * (a call's preamble) sits before that call's record, so the feature layer
+ * can persist parts that mirror how the turn actually unfolded.
+ */
+export type ChatResponseItem =
+  { kind: 'text'; text: string } | { kind: 'call'; call: ChatFunctionCallRecord }
 
 /** a tool-call lifecycle event as it crosses the worker boundary: the shared
  * renderer event minus conversationId (the worker only knows command ids;
@@ -51,14 +66,14 @@ export type ChatToolCallPayload = DistributiveOmit<ChatToolCallEvent, 'conversat
 
 /** reply payload of a 'chat' command */
 export interface ChatGenerationResult {
-  text: string
+  /** text and tool calls in generation order; text items are never empty */
+  items: ChatResponseItem[]
   /** the model's chain of thought, '' when it answered without thinking */
   reasoning: string
   /** wall-clock time spent inside thought segments */
   reasoningMs: number
-  /** true when the turn was aborted; text holds whatever was generated so far */
+  /** true when the turn was aborted; items hold whatever was generated so far */
   interrupted: boolean
-  functionCalls: ChatFunctionCallRecord[]
 }
 
 // messages the worker sends back: either a reply to a specific command (by

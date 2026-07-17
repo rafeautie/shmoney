@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   sqlFromParamsText,
+  type ChartData,
+  type ChartSpec,
   type ChatMessage,
   type ChatMessagePart,
   type ChatMessageStatus,
@@ -47,6 +49,14 @@ const RESULT: QueryToolResult = {
   truncated: false,
   durationMs: 5
 }
+
+const SPEC: ChartSpec = {
+  type: 'line',
+  title: 'Spending by month',
+  x: 'month',
+  series: ['spending']
+}
+const DATA: ChartData = { columns: ['month', 'spending'], rows: [['2026-06', 12.5]] }
 
 function row(
   role: ChatRole,
@@ -183,6 +193,92 @@ describe('buildHistory', () => {
     })
   })
 
+  it('replays a chart part as its spec with a bare ok, never the data snapshot', () => {
+    const history = buildHistory(
+      [
+        row('user', 'hi'),
+        {
+          role: 'assistant',
+          status: 'complete',
+          parts: [
+            callPart('SELECT 42 AS total'),
+            { type: 'chart', spec: SPEC, data: DATA, currency: 'USD' },
+            { type: 'text', text: 'see the chart' }
+          ]
+        }
+      ],
+      PROMPT
+    )
+    expect(history[2]).toEqual({
+      type: 'model',
+      response: [
+        {
+          type: 'functionCall',
+          name: 'query',
+          params: { sql: 'SELECT 42 AS total' },
+          result: RESULT
+        },
+        { type: 'functionCall', name: 'chart', params: SPEC, result: { ok: true } },
+        'see the chart'
+      ]
+    })
+  })
+
+  it('replays preamble text in its generated position, before the call it introduced', () => {
+    const history = buildHistory(
+      [
+        row('user', 'hi'),
+        {
+          role: 'assistant',
+          status: 'complete',
+          parts: [
+            { type: 'text', text: 'Let me check.' },
+            callPart('SELECT 1'),
+            { type: 'text', text: 'Done.' }
+          ]
+        }
+      ],
+      PROMPT
+    )
+    expect(history[2]).toEqual({
+      type: 'model',
+      response: [
+        'Let me check.',
+        { type: 'functionCall', name: 'query', params: { sql: 'SELECT 1' }, result: RESULT },
+        'Done.'
+      ]
+    })
+  })
+
+  it('replays a failed chart part with its error, never a bare ok', () => {
+    const history = buildHistory(
+      [
+        row('user', 'hi'),
+        {
+          role: 'assistant',
+          status: 'complete',
+          parts: [
+            { type: 'chart', spec: SPEC, data: null, currency: null, error: 'no result' },
+            { type: 'text', text: 'sorry' }
+          ]
+        }
+      ],
+      PROMPT
+    )
+    expect(history[2]).toEqual({
+      type: 'model',
+      response: [
+        {
+          type: 'functionCall',
+          name: 'chart',
+          params: SPEC,
+          result: { ok: false, error: 'no result' }
+        },
+        'sorry'
+      ]
+    })
+  })
+
   it('counts query calls against the char budget', () => {
     const history = buildHistory(
       [
@@ -257,6 +353,30 @@ describe('historyWindow', () => {
     const window = historyWindow([row('assistant', '', 'error'), row('user', 'hi')], PROMPT)
     expect(window).toEqual({ start: 1, truncated: false })
   })
+
+  it('costs a chart part at its replayed size, not its data snapshot', () => {
+    // a snapshot bigger than the whole budget must not evict the turn, because
+    // only the spec + ok replay
+    const huge: ChartData = {
+      columns: ['month', 'spending'],
+      rows: [['x'.repeat(BUDGET_CHARS), 1]]
+    }
+    const window = historyWindow(
+      [
+        {
+          role: 'assistant',
+          status: 'complete',
+          parts: [
+            { type: 'chart', spec: SPEC, data: huge, currency: null },
+            { type: 'text', text: 'charted' }
+          ]
+        },
+        row('user', 'next')
+      ],
+      PROMPT
+    )
+    expect(window).toEqual({ start: 0, truncated: false })
+  })
 })
 
 describe('buildSystemPrompt', () => {
@@ -317,17 +437,30 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('…')
     expect(prompt).not.toContain('Category number 199')
   })
+
+  it('teaches the chart function with literal exemplars', () => {
+    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+    expect(prompt).toContain('calling the chart function')
+    expect(prompt).toContain('"type": "line"')
+    expect(prompt).toContain('"series": ["spending"]')
+    expect(prompt).toContain('most recent query result')
+  })
 })
 
 describe('assembleAssistantParts', () => {
-  it('orders parts reasoning → calls → text, mirroring generation', () => {
-    const parts = assembleAssistantParts({
-      text: 'the total is 42',
-      reasoning: 'thinking',
-      reasoningMs: 10,
-      interrupted: false,
-      functionCalls: [{ name: 'query', args: { sql: 'SELECT 42' }, result: RESULT }]
-    })
+  it('persists parts in generation order under a leading reasoning part', () => {
+    const parts = assembleAssistantParts(
+      {
+        items: [
+          { kind: 'call', call: { name: 'query', args: { sql: 'SELECT 42' }, result: RESULT } },
+          { kind: 'text', text: 'the total is 42' }
+        ],
+        reasoning: 'thinking',
+        reasoningMs: 10,
+        interrupted: false
+      },
+      null
+    )
     expect(parts).toEqual([
       { type: 'reasoning', text: 'thinking', durationMs: 10 },
       { type: 'functionCall', name: 'query', args: { sql: 'SELECT 42' }, result: RESULT },
@@ -335,15 +468,87 @@ describe('assembleAssistantParts', () => {
     ])
   })
 
+  it('keeps preamble text before the call it introduced', () => {
+    const parts = assembleAssistantParts(
+      {
+        items: [
+          { kind: 'text', text: 'Let me check your data.' },
+          { kind: 'call', call: { name: 'query', args: { sql: 'SELECT 1' }, result: RESULT } },
+          { kind: 'text', text: 'All done.' }
+        ],
+        reasoning: '',
+        reasoningMs: 0,
+        interrupted: false
+      },
+      null
+    )
+    expect(parts).toEqual([
+      { type: 'text', text: 'Let me check your data.' },
+      { type: 'functionCall', name: 'query', args: { sql: 'SELECT 1' }, result: RESULT },
+      { type: 'text', text: 'All done.' }
+    ])
+  })
+
   it('omits the reasoning part when the model did not think', () => {
-    const parts = assembleAssistantParts({
-      text: 'hi',
-      reasoning: '',
-      reasoningMs: 0,
-      interrupted: false,
-      functionCalls: []
-    })
+    const parts = assembleAssistantParts(
+      { items: [{ kind: 'text', text: 'hi' }], reasoning: '', reasoningMs: 0, interrupted: false },
+      null
+    )
     expect(parts).toEqual([{ type: 'text', text: 'hi' }])
+  })
+
+  it('persists a successful chart call as a chart part in call order, stamped with the currency', () => {
+    const parts = assembleAssistantParts(
+      {
+        items: [
+          { kind: 'call', call: { name: 'query', args: { sql: 'SELECT 1' }, result: RESULT } },
+          { kind: 'call', call: { name: 'chart', args: SPEC, result: { ok: true }, data: DATA } },
+          { kind: 'text', text: 'spending is trending down' }
+        ],
+        reasoning: '',
+        reasoningMs: 0,
+        interrupted: false
+      },
+      'USD'
+    )
+    expect(parts).toEqual([
+      { type: 'functionCall', name: 'query', args: { sql: 'SELECT 1' }, result: RESULT },
+      { type: 'chart', spec: SPEC, data: DATA, currency: 'USD' },
+      { type: 'text', text: 'spending is trending down' }
+    ])
+  })
+
+  it('persists a failed chart call with its error so the UI can show it', () => {
+    const parts = assembleAssistantParts(
+      {
+        items: [
+          {
+            kind: 'call',
+            call: {
+              name: 'chart',
+              args: SPEC,
+              result: { ok: false, error: 'no result' },
+              data: null
+            }
+          },
+          { kind: 'text', text: 'here you go' }
+        ],
+        reasoning: '',
+        reasoningMs: 0,
+        interrupted: false
+      },
+      'USD'
+    )
+    expect(parts).toEqual([
+      { type: 'chart', spec: SPEC, data: null, currency: 'USD', error: 'no result' },
+      { type: 'text', text: 'here you go' }
+    ])
+  })
+
+  it('skips empty text items so a stopped turn leaves no empty bubble', () => {
+    expect(
+      assembleAssistantParts({ items: [], reasoning: '', reasoningMs: 0, interrupted: true }, null)
+    ).toEqual([])
   })
 })
 

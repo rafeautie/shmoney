@@ -5,7 +5,7 @@ import type { ReportFilters, WidgetConfig, WidgetType } from '../../shared/repor
 import type { TransactionFilters } from '../../shared/transaction-filters'
 import type { ActionChange, SfinError } from '../../shared/ipc'
 import type { RuleConditions, RuleAction } from '../../shared/rules'
-import type { ChatMessagePart, ChatMessageStatus } from '../../shared/chat'
+import type { ChatMessagePart, ChatMessageStatus, ChatTurnScope } from '../../shared/chat'
 
 // holds at most one row: the app supports a single SimpleFIN connection
 export const connections = sqliteTable('connections', {
@@ -292,6 +292,10 @@ export const chatMessages = sqliteTable(
     // place on settle); 'interrupted' keeps the partial text of a stopped one
     status: text('status').$type<ChatMessageStatus>().notNull().default('complete'),
     errorMessage: text('error_message'),
+    // the account scope the turn ran under, recorded at generation time so
+    // the transcript can mark scope changes even after the account is renamed
+    // or deleted; null on user rows and rows from before this column existed
+    scope: text('scope', { mode: 'json' }).$type<ChatTurnScope | null>(),
     createdAt: integer('created_at').notNull()
   },
   (t) => [index('chat_messages_conversation_ix').on(t.conversationId, t.id)]

@@ -50,24 +50,9 @@ import {
   ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart'
+import { BLUR_Y_TICK_LABELS, paletteColor } from './chart-style'
 import { groupTotals, pivotTimeSeries, type SeriesInfo } from './data'
 import { useResolvedQuery, useWidgetData } from './use-widget-data'
-
-const PALETTE_SIZE = 10
-
-// Recharts renders y-axis tick text outside the g that YAxis's className lands
-// on, so the privacy blur has to target the labels from the chart container.
-const BLUR_Y_TICK_LABELS =
-  '[&_.recharts-yAxis-tick-labels]:blur-sm [&_.recharts-yAxis-tick-labels]:select-none'
-
-/** Cycles through --chart-1..10; series beyond the palette get the same hues
- * tinted lighter, then darker, so up to 30 series never share a color. */
-function paletteColor(index: number): string {
-  const base = `var(--chart-${(index % PALETTE_SIZE) + 1})`
-  const cycle = Math.floor(index / PALETTE_SIZE) % 3
-  if (cycle === 0) return base
-  return `color-mix(in oklab, ${base}, ${cycle === 1 ? 'white' : 'black'} 30%)`
-}
 
 function formatMeasureValue(measure: Measure, value: number, currency: string): string {
   if (measure === 'count') return Math.round(value).toLocaleString()

@@ -67,20 +67,24 @@ function ChatTableActions({
  * Height-capped scroll area owning the one canonical chat-table look (sticky
  * header, row rules). Styling rides descendant selectors so any
  * plain <table> child renders identically, whether hand-built from query
- * results or produced by markdown.
+ * results or produced by markdown. Full-bleed by design: no side/bottom
+ * border and no rounding of its own — it sits flush against its card's
+ * edges, square on top, and the card's overflow-hidden rounds the bottom.
  */
 export function ChatTableViewport({ children }: { children: React.ReactNode }) {
   return (
     <ScrollArea
       horizontal
-      className="rounded-md border bg-background"
+      className="bg-background"
       // scrollbars stay hidden until the pointer is over the table (or it scrolls)
       scrollbarClassName="opacity-0 transition-opacity data-hovering:opacity-100 data-scrolling:opacity-100"
-      // border-separate because sticky headers and collapsed borders don't mix
+      // border-separate because sticky headers and collapsed borders don't mix.
+      // The top border lives on the th cells (not the container) so the line
+      // rides with the sticky header.
       viewPortClassName={cn(
         'max-h-56',
         '[&_table]:w-full [&_table]:border-separate [&_table]:border-spacing-0 [&_table]:text-xs',
-        '[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:border-b [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-medium [&_th]:whitespace-nowrap',
+        '[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:border-y [&_th]:bg-muted [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_th]:font-medium [&_th]:whitespace-nowrap',
         '[&_td]:border-b [&_td]:px-2 [&_td]:py-1 [&_td]:whitespace-nowrap [&_td]:text-muted-foreground',
         '[&_tbody>tr:last-child>td]:border-b-0'
       )}
@@ -110,15 +114,20 @@ export function ChatTableCard({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   return (
-    <div ref={containerRef} className={cn('rounded-lg border bg-muted/30 p-2 text-xs', className)}>
+    // padding lives on the header, not the card, so the table below runs
+    // flush to the card's left/right/bottom edges; overflow-hidden lets the
+    // card's rounding clip the table's bottom corners
+    <div
+      ref={containerRef}
+      className={cn('overflow-hidden rounded-lg border bg-muted/30 text-xs', className)}
+    >
       {(title != null || actions) && (
-        <div className="flex items-start justify-between gap-2 pb-2">
+        <div className="flex items-start justify-between gap-2 p-2">
           <div className="min-w-0 flex-1 py-1">{title}</div>
           {actions && <ChatTableActions containerRef={containerRef} className="shrink-0 py-1" />}
         </div>
       )}
-      {/* a titled header (the SQL) reads as its own block, so give it more room */}
-      {children ? <div>{children}</div> : null}
+      {children}
     </div>
   )
 }

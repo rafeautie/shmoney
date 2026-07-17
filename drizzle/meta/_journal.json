@@ -162,6 +162,13 @@
       "when": 1784223492943,
       "tag": "0022_broad_giant_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1784297029147,
+      "tag": "0023_late_prowler",
+      "breakpoints": true
     }
   ]
 }
