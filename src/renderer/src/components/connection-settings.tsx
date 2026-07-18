@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon } from '@hugeicons/core-free-icons'
 import { sfinErrorSeverity, type SfinError } from '@shared/ipc'
@@ -97,7 +98,7 @@ export function ConnectionSettings() {
         <CardDescription>
           Connected.{' '}
           {connection.lastSyncedAt
-            ? `Last synced ${new Date(connection.lastSyncedAt * 1000).toLocaleString()}.`
+            ? `Last synced ${format(new Date(connection.lastSyncedAt * 1000), 'MMM d, yyyy, p')}.`
             : 'Never synced.'}
         </CardDescription>
       </CardHeader>

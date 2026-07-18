@@ -16,6 +16,7 @@ import {
 } from 'recharts'
 import type { ChartData, ChartSpec } from '@shared/chat'
 import { cn } from '@/lib/utils'
+import { formatBucketLabel } from '@/lib/format-date'
 import { usePrivacy } from '@/lib/settings'
 import {
   ChartContainer,
@@ -138,7 +139,14 @@ function AxisChart({
   const axes = (
     <>
       <CartesianGrid vertical={false} />
-      <XAxis dataKey="x" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
+      <XAxis
+        dataKey="x"
+        tickLine={false}
+        axisLine={false}
+        tickMargin={8}
+        minTickGap={24}
+        tickFormatter={formatBucketLabel}
+      />
       <YAxis
         tickLine={false}
         axisLine={false}
@@ -151,6 +159,7 @@ function AxisChart({
     <ChartTooltip
       content={
         <ChartTooltipContent
+          labelFormatter={(label) => (typeof label === 'string' ? formatBucketLabel(label) : label)}
           formatter={(value, name, item) => (
             <TooltipValue
               color={item.color}
@@ -352,7 +361,8 @@ export function ChartBuilding() {
   )
 }
 
-const cellText = (cell: unknown): string => (cell === null ? 'NULL' : String(cell))
+const cellText = (cell: unknown): string =>
+  cell === null ? 'NULL' : typeof cell === 'string' ? formatBucketLabel(cell) : String(cell)
 
 /**
  * One chart part in the transcript: a titled card the same family as

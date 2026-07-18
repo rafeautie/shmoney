@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Analytics01Icon, ArrowDown01Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons'
+import { format } from 'date-fns'
 import type { ReportCreateInput, ReportSummary } from '@shared/reports'
 import { SPENDING_OVERVIEW_TEMPLATE } from '@/lib/report-templates'
 import { Page } from '@/components/page'
@@ -174,7 +175,7 @@ function ReportCard({
       </CardHeader>
       <CardContent className="text-sm text-muted-foreground">
         {report.widgetCount} widget{report.widgetCount === 1 ? '' : 's'} · updated{' '}
-        {new Date(report.updatedAt * 1000).toLocaleDateString()}
+        {format(new Date(report.updatedAt * 1000), 'MMM d, yyyy')}
       </CardContent>
     </Card>
   )

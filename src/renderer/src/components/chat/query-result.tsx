@@ -1,7 +1,9 @@
 import type { QueryToolResult } from '@shared/chat'
 import { ChatTableViewport } from '@/components/chat/chat-table'
+import { formatBucketLabel } from '@/lib/format-date'
 
-const cellText = (cell: unknown): string => (cell === null ? 'NULL' : String(cell))
+const cellText = (cell: unknown): string =>
+  cell === null ? 'NULL' : typeof cell === 'string' ? formatBucketLabel(cell) : String(cell)
 
 /** A settled query's outcome: the result table, an error line, or "No rows." */
 export function QueryResult({ result }: { result: QueryToolResult }) {

@@ -7,6 +7,7 @@ import { ArrowDown01Icon, Clock01Icon } from '@hugeicons/core-free-icons'
 import type { ActionLogEntry } from '@shared/ipc'
 import { groupSuggestions, type RuleSuggestion } from '@shared/rule-suggestions'
 import { cn, plural } from '@/lib/utils'
+import { formatBucketLabel } from '@/lib/format-date'
 import { Page } from '@/components/page'
 import { EntrySourceIcon } from '@/components/entry-source-icon'
 import { SuggestionGroupRow } from '@/components/suggestion-group-row'
@@ -247,7 +248,9 @@ function EntryRow({
                   key={`${change.categoryId}:${change.month}`}
                   className="hover:bg-transparent"
                 >
-                  <TableCell className="text-muted-foreground">{change.month}</TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {formatBucketLabel(change.month)}
+                  </TableCell>
                   <TableCell className="text-muted-foreground">—</TableCell>
                   <TableCell className="w-full max-w-0 truncate">
                     {change.categoryName !== null ? (
@@ -279,7 +282,7 @@ function EntryRow({
                   ) : (
                     <>
                       <TableCell className="text-muted-foreground">
-                        {change.date ? new Date(change.date * 1000).toLocaleDateString() : '—'}
+                        {change.date ? format(new Date(change.date * 1000), 'MMM d, yyyy') : '—'}
                       </TableCell>
                       <TableCell className="text-muted-foreground">{change.accountName}</TableCell>
                       <TableCell className="w-full max-w-0 truncate">

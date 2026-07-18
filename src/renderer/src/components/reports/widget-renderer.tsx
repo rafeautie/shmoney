@@ -33,6 +33,7 @@ import type {
 } from '@shared/reports'
 import type { BudgetSummary, EnvelopeSummary } from '@shared/budgets'
 import { cn, formatAmount } from '@/lib/utils'
+import { formatBucketLabel, formatMonthLong } from '@/lib/format-date'
 import { usePrivacy } from '@/lib/settings'
 import { Amount } from '@/components/amount'
 import { EnvelopeProgressRow } from '@/components/budget/envelope-progress'
@@ -204,6 +205,7 @@ function TimeSeriesChart({
     <ChartTooltip
       content={
         <ChartTooltipContent
+          labelFormatter={(label) => (typeof label === 'string' ? formatBucketLabel(label) : label)}
           formatter={(value, name, item) => (
             <TooltipRow
               color={item.color}
@@ -223,7 +225,14 @@ function TimeSeriesChart({
   const axes = (
     <>
       <CartesianGrid vertical={false} />
-      <XAxis dataKey="bucket" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
+      <XAxis
+        dataKey="bucket"
+        tickLine={false}
+        axisLine={false}
+        tickMargin={8}
+        minTickGap={24}
+        tickFormatter={formatBucketLabel}
+      />
       <YAxis tickLine={false} axisLine={false} width={56} tickFormatter={yTick} />
     </>
   )
@@ -708,7 +717,7 @@ function BudgetWidget({
     return (
       <Empty className="h-full">
         <EmptyDescription>
-          No envelopes for {format(new Date(`${month}-01T00:00`), 'MMMM yyyy')}.{' '}
+          No envelopes for {formatMonthLong(month)}.{' '}
           <Link to="/budget" className="underline underline-offset-2">
             Set up your budget
           </Link>
@@ -721,7 +730,7 @@ function BudgetWidget({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-baseline justify-between px-4 pt-1 pb-2 text-xs text-muted-foreground">
-        <span>{format(new Date(`${month}-01T00:00`), 'MMMM yyyy')}</span>
+        <span>{formatMonthLong(month)}</span>
         <span>
           <Amount value={summary.totals.balance} currency={summary.currency} colored={false} />{' '}
           available
