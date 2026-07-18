@@ -6,6 +6,7 @@ import {
   Analytics01Icon,
   ArrowLeftIcon,
   ArrowRightIcon,
+  BubbleChatIcon,
   Exchange01Icon,
   MailOpen01Icon,
   PiggyBankIcon,
@@ -199,6 +200,10 @@ function FeaturesStep(): React.JSX.Element {
         </FeatureItem>
         <FeatureItem icon={Exchange01Icon} title="Transfers handled for you">
           Movements between your own accounts stay out of your income and expense totals.
+        </FeatureItem>
+        <FeatureItem icon={BubbleChatIcon} title="Chat with your finances (experimental)">
+          Ask a local, on-device model about your money; it queries your data and charts the answer,
+          fully offline.
         </FeatureItem>
       </div>
     </>
