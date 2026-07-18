@@ -72,6 +72,13 @@ const DATE_PRESETS: { key: string; label: string; range: DateRange }[] = [
   { key: 'all', label: 'All time', range: { kind: 'all' } }
 ]
 
+// items lets the trigger's <SelectValue /> resolve the label before the
+// popup has ever been opened (without it, Base UI shows the raw value)
+const DATE_PRESET_ITEMS = [
+  ...DATE_PRESETS.map((p) => ({ value: p.key, label: p.label })),
+  { value: 'custom', label: 'Custom range' }
+]
+
 export function DateRangeControl({
   value,
   onChange,
@@ -90,6 +97,7 @@ export function DateRangeControl({
     <div className="flex flex-wrap items-center gap-2">
       <Select
         value={presetKey}
+        items={DATE_PRESET_ITEMS}
         disabled={disabled}
         onValueChange={(key) => {
           if (key === 'custom') {
@@ -419,7 +427,12 @@ export function DirectionControl({
   disabled?: boolean
 }) {
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as Direction)} disabled={disabled}>
+    <Select
+      value={value}
+      items={{ all: 'All directions', income: 'Income only', expense: 'Expenses only' }}
+      onValueChange={(v) => onChange(v as Direction)}
+      disabled={disabled}
+    >
       <SelectTrigger size="lg" className="w-36">
         <SelectValue />
       </SelectTrigger>

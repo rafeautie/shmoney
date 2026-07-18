@@ -53,6 +53,14 @@ const AMT_OP_LABELS: Record<AmtOp, string> = {
   between: 'is between'
 }
 
+const DESC_OP_ITEMS: Record<DescOp, string> = { contains: 'contains', equals: 'equals' }
+
+const DIRECTION_ITEMS: Record<Direction, string> = {
+  any: 'Any direction',
+  in: 'Money in',
+  out: 'Money out'
+}
+
 export function RuleEditor({
   rule,
   draft,
@@ -224,7 +232,11 @@ function RuleForm({
             <div className="flex flex-col gap-2">
               <Label className="font-medium">Description</Label>
               <div className="flex flex-col gap-2">
-                <Select value={descOp} onValueChange={(v) => setDescOp(v as DescOp)}>
+                <Select
+                  value={descOp}
+                  items={DESC_OP_ITEMS}
+                  onValueChange={(v) => setDescOp(v as DescOp)}
+                >
                   <SelectTrigger className="w-32 shrink-0">
                     <SelectValue />
                   </SelectTrigger>
@@ -247,7 +259,11 @@ function RuleForm({
             <div className="flex flex-col gap-2">
               <Label className="font-medium">Amount</Label>
               <div className="flex flex-wrap gap-2">
-                <Select value={direction} onValueChange={(v) => setDirection(v as Direction)}>
+                <Select
+                  value={direction}
+                  items={DIRECTION_ITEMS}
+                  onValueChange={(v) => setDirection(v as Direction)}
+                >
                   <SelectTrigger className="w-32 shrink-0">
                     <SelectValue />
                   </SelectTrigger>
@@ -257,7 +273,11 @@ function RuleForm({
                     <SelectItem value="out">Money out</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={amtOp} onValueChange={(v) => setAmtOp(v as AmtOp)}>
+                <Select
+                  value={amtOp}
+                  items={AMT_OP_LABELS}
+                  onValueChange={(v) => setAmtOp(v as AmtOp)}
+                >
                   <SelectTrigger className="w-32 shrink-0">
                     <SelectValue />
                   </SelectTrigger>
@@ -308,6 +328,15 @@ function RuleForm({
               <Label className="font-medium">Account</Label>
               <Select
                 value={accountId === null ? 'any' : String(accountId)}
+                items={[
+                  { value: 'any', label: 'Any account' },
+                  ...accounts.map((account) => ({
+                    value: String(account.id),
+                    label: account.institutionName
+                      ? `${account.institutionName} · ${account.name}`
+                      : account.name
+                  }))
+                ]}
                 onValueChange={(v) => setAccountId(v === 'any' ? null : Number(v))}
               >
                 <SelectTrigger className="w-full">
@@ -368,6 +397,14 @@ function RuleForm({
               <span className="text-sm">Set category to</span>
               <Select
                 value={categoryId === null ? '' : String(categoryId)}
+                items={
+                  categories &&
+                  [
+                    ...categories.groups.flatMap((group) => group.categories),
+                    ...categories.ungrouped,
+                    ...categories.system
+                  ].map((category) => ({ value: String(category.id), label: category.name }))
+                }
                 onValueChange={(v) => setCategoryId(Number(v))}
               >
                 <SelectTrigger className="min-w-40 flex-1">

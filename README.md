@@ -37,6 +37,7 @@ Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and 
 - 🏦 **Bank sync via SimpleFIN.** Pull balances, transactions, and investment holdings without handing over bank credentials.
 - 📄 **File import.** CSV, TSV, OFX, QFX, and QIF, with column mapping and duplicate detection.
 - 🤖 **On-device AI categorization.** An optional local LLM (via llama.cpp) categorizes transactions, fully offline.
+- 💬 **Chat with your finances (experimental).** Ask the same on-device model questions about your finances; it runs read-only SQL queries and can chart the results, scoped to one account if you like, fully offline with history stored locally.
 - ⚡ **Rules engine.** Prioritized rules run on every sync; the app suggests new ones from how you categorize.
 - ✉️ **Envelope budgeting.** Assign monthly amounts to category envelopes and track what remains.
 - 📊 **Custom reports.** Drag-and-drop dashboards with chart, table, and stat widgets, plus saved filters.

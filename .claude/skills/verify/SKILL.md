@@ -57,3 +57,32 @@ Gotchas that cost time:
   containers carry `data-slot="chart"`.
 - A full turn takes 20-60s (model load on first turn plus generation);
   poll every ~2.5s with a 280s timeout.
+
+## Production-mode screenshots (README/docs)
+
+A ready-made driver lives in `scripts/` next to this skill: `driver.mjs`
+(`targets` / `eval "<js>"` / `shot out.png` subcommands) and
+`round-corners.ps1` (`-In -Out -Radius`).
+
+- Launch the shipped UI without dev artifacts: `npm run build`, then
+  `npx electron . --remote-debugging-port=9222` from the Bash tool.
+  Unpackaged still counts as dev for dev-paths, so it opens the same
+  `%APPDATA%\shmoney-dev` profile (demo data, model, settings), but the
+  renderer is the built bundle: no Debug nav item, `import.meta.env.DEV`
+  false.
+- `shot` sizes every capture identically via
+  `Emulation.setDeviceMetricsOverride` 1440x900 @2x → 2880x1800 PNG,
+  matching the existing `docs/screenshots/`.
+- Round to the Windows 11 window radius with
+  `round-corners.ps1 -Radius 16` (8px CSS at the 2x capture scale). It
+  fills a rounded GraphicsPath with a TextureBrush; `Graphics.SetClip`
+  gives jagged corners.
+- Screenshot consistency: the chat sidebar history and the notification
+  dot appear on every page, so any chat/notification change made
+  mid-run means recapturing earlier pages too. Capture chat last, then
+  re-shoot anything taken before the transcript reached its final
+  state.
+- Base UI selects resolve a bare `<SelectValue />` to its label only
+  when the `Select` root gets an `items` prop (fixed across the app
+  2026-07-17); a trigger showing a raw token like `last-12-months`
+  means a new select is missing `items`.
