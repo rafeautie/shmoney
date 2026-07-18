@@ -87,11 +87,19 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     // txn_date is exposed as a real column rather than left for the model to
     // rebuild: COALESCE(NULLIF(posted, 0), transacted_at) is on the critical
     // path of nearly every analytical query, and a small model that drops or
-    // misspells one piece of it gets a silent wrong answer or a hard error
+    // misspells one piece of it gets a silent wrong answer or a hard error.
+    // Dates are handed over as local ISO text (txn_date as 'YYYY-MM-DD', NULL
+    // when unknown) rather than as raw epoch integers, because the model
+    // compares dates against strings, and an epoch INTEGER compared to date
+    // TEXT is always false in SQLite - a silent zero-row result rather than an
+    // error.
     'CREATE TEMP VIEW transactions AS ' +
-      'SELECT id, account_id, posted, amount / 1000.0 AS amount, description, pending, ' +
-      'transacted_at, category_id, ' +
-      'COALESCE(NULLIF(posted, 0), transacted_at) AS txn_date ' +
+      'SELECT id, account_id, ' +
+      "datetime(NULLIF(posted, 0), 'unixepoch', 'localtime') AS posted, " +
+      'amount / 1000.0 AS amount, description, pending, ' +
+      "datetime(NULLIF(transacted_at, 0), 'unixepoch', 'localtime') AS transacted_at, " +
+      'category_id, ' +
+      "date(NULLIF(COALESCE(NULLIF(posted, 0), transacted_at), 0), 'unixepoch', 'localtime') AS txn_date " +
       `FROM main.transactions WHERE deleted_at IS NULL${and(`account_id = ${accountId}`)}`,
     'DROP VIEW IF EXISTS temp.accounts',
     // invert_balance is applied here and the column left out, matching
@@ -102,13 +110,13 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
       'SELECT id, name, institution_name, currency, ' +
       'CASE WHEN invert_balance = 1 THEN -balance ELSE balance END / 1000.0 AS balance, ' +
       'CASE WHEN invert_balance = 1 THEN -available_balance ELSE available_balance END / 1000.0 ' +
-      'AS available_balance, balance_date ' +
+      "AS available_balance, datetime(NULLIF(balance_date, 0), 'unixepoch', 'localtime') AS balance_date " +
       `FROM main.accounts${where(`id = ${accountId}`)}`,
     'DROP VIEW IF EXISTS temp.holdings',
     'CREATE TEMP VIEW holdings AS ' +
       'SELECT id, account_id, symbol, description, currency, shares, ' +
       'market_value / 1000.0 AS market_value, cost_basis / 1000.0 AS cost_basis, ' +
-      'purchase_price / 1000.0 AS purchase_price, created_at ' +
+      "purchase_price / 1000.0 AS purchase_price, datetime(NULLIF(created_at, 0), 'unixepoch', 'localtime') AS created_at " +
       `FROM main.holdings${where(`account_id = ${accountId}`)}`,
     // never scoped (budgets are per-category), but shadowed so its amount is
     // divided like every other money column; unshadowed, it was the one money
@@ -119,7 +127,8 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     // never scoped, but always shadowed: strips the encrypted access URL
     'DROP VIEW IF EXISTS temp.connections',
     'CREATE TEMP VIEW connections AS ' +
-      'SELECT id, last_synced_at, created_at FROM main.connections'
+      "SELECT id, datetime(NULLIF(last_synced_at, 0), 'unixepoch', 'localtime') AS last_synced_at, " +
+      "datetime(NULLIF(created_at, 0), 'unixepoch', 'localtime') AS created_at FROM main.connections"
   ]
 }
 

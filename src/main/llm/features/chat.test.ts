@@ -536,6 +536,12 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('Money columns are already real amounts')
   })
 
+  it('never asks the model to convert epochs, which the views already did', () => {
+    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+    expect(prompt).not.toMatch(/unixepoch/i)
+    expect(prompt).toContain('txn_date IS NOT NULL')
+  })
+
   it('does not mention invert_balance, which the accounts view applies', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
     expect(prompt).not.toMatch(/invert/i)

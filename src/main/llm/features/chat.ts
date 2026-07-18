@@ -118,7 +118,7 @@ Tables:
 
 Data semantics:
 - Money columns are already real amounts, in the account's own currency. Never scale them. Negative transaction amounts are spending, positive are income.
-- Dates are unix timestamps in seconds, never booleans, and only make sense converted with 'unixepoch', 'localtime'. Use txn_date for a transaction's date: it already resolves the pending-row case (posted = 0) that raw posted does not. txn_date = 0 means the date is unknown, so filter txn_date > 0.
+- Date columns are local-time text: txn_date is 'YYYY-MM-DD', other date columns are 'YYYY-MM-DD HH:MM:SS'. Compare them directly as strings and bucket with strftime or date(); the epoch-to-text conversion already happened, so never add conversion modifiers to a date column. Use txn_date for a transaction's date: it already resolves the pending-row case that raw posted does not. txn_date IS NULL means the date is unknown, so filter txn_date IS NOT NULL.
 - Deleted rows are already filtered out; never filter on deleted_at.
 - Transfers between accounts carry the category whose system_key = 'transfers' and would double-count as spending and income. system_key is NULL for normal categories, so exclude them with IS NOT 'transfers' (a != comparison would drop the NULL rows), and LEFT JOIN categories so uncategorized transactions still count.
 - holdings.shares is a decimal string; CAST(shares AS REAL) for math.
@@ -131,7 +131,7 @@ WITH tx AS (
   FROM transactions t
   LEFT JOIN categories c ON c.id = t.category_id
   LEFT JOIN category_groups g ON g.id = c.group_id
-  WHERE c.system_key IS NOT 'transfers' AND t.txn_date > 0
+  WHERE c.system_key IS NOT 'transfers' AND t.txn_date IS NOT NULL
 )
 
 Drop the system_key line only when the user asks about transfers themselves. tx already carries category and category_group, so never join categories or category_groups on top of it; select from tx and filter those columns directly.
@@ -142,20 +142,28 @@ Recipes, where WITH tx AS (...) means paste that base CTE in full. Adapt the clo
 
 Spending per month:
 WITH tx AS (...)
-SELECT strftime('%Y-%m', txn_date, 'unixepoch', 'localtime') AS month,
+SELECT strftime('%Y-%m', txn_date) AS month,
        ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending
 FROM tx GROUP BY month ORDER BY month
+
+Spending per day over a recent window ("last 30 days", "past week" — swap the offset):
+WITH tx AS (...)
+SELECT txn_date AS day,
+       ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending
+FROM tx
+WHERE txn_date >= date('now', 'localtime', '-30 days')
+GROUP BY day ORDER BY day
 
 Top spending categories in one month. WHERE amount < 0 first, so categories that only ever took in money can't rank at 0.00:
 WITH tx AS (...)
 SELECT category, ROUND(SUM(-amount), 2) AS spending
 FROM tx
-WHERE amount < 0 AND strftime('%Y-%m', txn_date, 'unixepoch', 'localtime') = '2026-06'
+WHERE amount < 0 AND strftime('%Y-%m', txn_date) = '2026-06'
 GROUP BY category ORDER BY spending DESC LIMIT 5
 
 Running total and 3-month moving average. Aggregate the buckets in a second CTE, then window over that. Every filter belongs inside it, because only month and total exist by the outer SELECT:
 WITH tx AS (...), m AS (
-  SELECT strftime('%Y-%m', txn_date, 'unixepoch', 'localtime') AS month,
+  SELECT strftime('%Y-%m', txn_date) AS month,
          ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS total
   FROM tx
   WHERE category LIKE '%Dining%'  -- always LIKE, never =; swap the word in, or drop this line
@@ -168,23 +176,23 @@ FROM m ORDER BY month
 
 Two grouping levels at once (makes a table; it cannot be charted as lines):
 WITH tx AS (...)
-SELECT strftime('%Y-%m', txn_date, 'unixepoch', 'localtime') AS month, category_group,
+SELECT strftime('%Y-%m', txn_date) AS month, category_group,
        ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending
 FROM tx GROUP BY month, category_group ORDER BY month, spending DESC
 
 One line per category ("spending per category over time", "for each category"): the chart needs one row per time bucket with one COLUMN per category, so pivot — one SUM(CASE ...) column per category, up to eight, using the real names from the user's category list:
 WITH tx AS (...)
-SELECT date(txn_date, 'unixepoch', 'localtime') AS day,
+SELECT txn_date AS day,
        ROUND(SUM(CASE WHEN category LIKE '%Dining%' THEN -amount ELSE 0 END), 2) AS dining,
        ROUND(SUM(CASE WHEN category LIKE '%Groceries%' THEN -amount ELSE 0 END), 2) AS groceries
 FROM tx
-WHERE amount < 0 AND strftime('%Y-%m', txn_date, 'unixepoch', 'localtime') = '2026-06'
+WHERE amount < 0 AND strftime('%Y-%m', txn_date) = '2026-06'
 GROUP BY day ORDER BY day
 Then chart it with x day and series ["dining", "groceries"] — the column aliases, never the raw category names.
 
-Swap the bucket for another grain, keeping the rest of the shape. Years: strftime('%Y', txn_date, 'unixepoch', 'localtime') AS year. Monday-start weeks: date(txn_date, 'unixepoch', 'localtime', 'weekday 0', '-6 days') AS week.
+Swap the bucket for another grain, keeping the rest of the shape. Years: strftime('%Y', txn_date) AS year. Monday-start weeks: date(txn_date, 'weekday 0', '-6 days') AS week.
 Quarters have no strftime format ('%Q' does not exist and '%Y-Q' silently gives every row the same label), so build the label:
-strftime('%Y', txn_date, 'unixepoch', 'localtime') || '-Q' || ((CAST(strftime('%m', txn_date, 'unixepoch', 'localtime') AS INTEGER) + 2) / 3) AS quarter
+strftime('%Y', txn_date) || '-Q' || ((CAST(strftime('%m', txn_date) AS INTEGER) + 2) / 3) AS quarter
 
 Presenting results:
 - Shape rows the same way every time: time bucket first (aliased month, week or day), then the group label (category, category_group or account), then the measures under plain names (spending, income, net, running_total). One row per bucket per group.

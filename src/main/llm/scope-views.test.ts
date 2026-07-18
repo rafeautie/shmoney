@@ -29,15 +29,22 @@ function migratedDb(): DatabaseSync {
 
 /** milliunits in, so a view that forgets to divide reads back 1000x */
 function seed(db: DatabaseSync): void {
+  // 2026-06-11 12:00:00 UTC; midday keeps the local calendar date TZ-stable
+  // for offsets up to ±11h
+  const JUNE = 1781179200
+  const recent = Math.floor(Date.now() / 1000) - 5 * 86400
   db.exec(`
     INSERT INTO accounts (id, name, currency, balance, available_balance, balance_date, invert_balance)
     VALUES (1, 'Checking', 'USD', 1234560, 1000000, 0, 0),
            (2, 'Card', 'USD', 250000, NULL, 0, 1);
     INSERT INTO transactions (id, account_id, simplefin_id, posted, amount, description, pending,
                               transacted_at)
-    VALUES (1, 1, 't1', 100, -12340, 'Coffee', 0, 100),
-           (2, 1, 't2', 200, 500000, 'Paycheck', 0, 200),
-           (3, 2, 't3', 300, -1000, 'Gone', 0, 300);
+    VALUES (1, 1, 't1', ${JUNE}, -12340, 'Coffee', 0, ${JUNE}),
+           (2, 1, 't2', ${JUNE}, 500000, 'Paycheck', 0, ${JUNE}),
+           (3, 2, 't3', ${JUNE}, -1000, 'Gone', 0, ${JUNE}),
+           (4, 1, 't4', 0, -5000, 'Pending coffee', 1, ${JUNE}),
+           (5, 1, 't5', 0, -2000, 'Unknown date', 0, 0),
+           (6, 1, 't6', ${recent}, -1000, 'Recent', 0, ${recent});
     UPDATE transactions SET deleted_at = 999 WHERE id = 3;
     INSERT INTO holdings (id, account_id, simplefin_id, symbol, description, currency, shares,
                           market_value, cost_basis, purchase_price, created_at)
@@ -68,10 +75,17 @@ describe('scope views: amounts', () => {
     db = open(null)
   })
 
+  // rows 1, 2, 4, 5, 6 are visible (id 3 is soft-deleted); expectations are
+  // extended to cover the seam's new date-focused rows rather than scoping
+  // the query with WHERE id <= 2, so the query stays the naive one a model
+  // would actually write
   it('hands transactions.amount over as a real amount, not milliunits', () => {
     expect(query(db, 'SELECT amount FROM transactions ORDER BY id')).toEqual([
       { amount: -12.34 },
-      { amount: 500 }
+      { amount: 500 },
+      { amount: -5 },
+      { amount: -2 },
+      { amount: -1 }
     ])
   })
 
@@ -79,7 +93,7 @@ describe('scope views: amounts', () => {
   // obvious aggregate and stating a 1000x figure
   it('makes a bare SUM(amount) correct without the model scaling anything', () => {
     expect(query(db, 'SELECT ROUND(SUM(amount), 2) AS net FROM transactions')).toEqual([
-      { net: 487.66 }
+      { net: 479.66 }
     ])
   })
 
@@ -107,7 +121,63 @@ describe('scope views: amounts', () => {
   })
 
   it('still hides soft-deleted rows', () => {
-    expect(query(db, 'SELECT COUNT(*) AS n FROM transactions')).toEqual([{ n: 2 }])
+    expect(query(db, 'SELECT COUNT(*) AS n FROM transactions')).toEqual([{ n: 5 }])
+  })
+})
+
+describe('scope views: dates', () => {
+  let db: DatabaseSync
+  beforeAll(() => {
+    db = open(null)
+  })
+
+  it('exposes txn_date as local ISO text for dated rows', () => {
+    const rows = query(db, 'SELECT txn_date FROM transactions WHERE id IN (1, 2, 4, 6) ORDER BY id')
+    for (const row of rows) expect(row.txn_date).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it("derives the pending row's (id 4) txn_date from transacted_at, matching a posted row's date", () => {
+    const [postedRow, pendingRow] = query(
+      db,
+      'SELECT txn_date FROM transactions WHERE id IN (1, 4) ORDER BY id'
+    )
+    expect(pendingRow.txn_date).toEqual(expect.any(String))
+    expect(pendingRow.txn_date).toBe(postedRow.txn_date)
+  })
+
+  it('leaves txn_date NULL when both posted and transacted_at are unknown (id 5), and IS NOT NULL excludes it', () => {
+    expect(query(db, 'SELECT txn_date FROM transactions WHERE id = 5')).toEqual([
+      { txn_date: null }
+    ])
+    expect(
+      query(db, 'SELECT COUNT(*) AS n FROM transactions WHERE txn_date IS NOT NULL AND id = 5')
+    ).toEqual([{ n: 0 }])
+  })
+
+  it('returns posted as local ISO datetime text, or NULL when it was 0', () => {
+    expect(query(db, 'SELECT posted FROM transactions WHERE id = 1')).toEqual([
+      { posted: expect.stringMatching(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/) }
+    ])
+    expect(query(db, 'SELECT posted FROM transactions WHERE id = 5')).toEqual([{ posted: null }])
+  })
+
+  // REGRESSION: txn_date used to be exposed as an epoch INTEGER, compared
+  // against a date TEXT literal like date('now', ...). In SQLite every
+  // integer sorts before every text value, so `epoch_int >= 'YYYY-MM-DD'` was
+  // always false — a silent zero-row result, never an error — no matter how
+  // recent the data actually was.
+  it('a last-30-days comparison against txn_date actually matches the recent row', () => {
+    const [{ n }] = query(
+      db,
+      "SELECT COUNT(*) AS n FROM transactions WHERE txn_date >= date('now', 'localtime', '-30 days')"
+    ) as { n: number }[]
+    expect(n).toBeGreaterThanOrEqual(1)
+  })
+
+  it('a cutoff string comparison excludes rows dated before it', () => {
+    expect(
+      query(db, "SELECT COUNT(*) AS n FROM transactions WHERE txn_date >= '9999-01-01'")
+    ).toEqual([{ n: 0 }])
   })
 })
 
