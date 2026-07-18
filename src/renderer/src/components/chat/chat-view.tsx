@@ -5,7 +5,6 @@ import type { ChatMessage, ChatTurnScope } from '@shared/chat'
 import { cn } from '@/lib/utils'
 import { useMessages, type ActiveReply } from '@/lib/chat'
 import { ChatMessageRow } from '@/components/chat/chat-message-row'
-import { StreamingReply } from '@/components/chat/streaming-reply'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import {
@@ -141,11 +140,14 @@ export function ChatView({
                     <MarkerContent>{markers.get(message.id)}</MarkerContent>
                   </Marker>
                 )}
-                {message.status === 'streaming' ? (
-                  <StreamingReply reply={streaming ? reply : null} modelLoading={modelLoading} />
-                ) : (
-                  <ChatMessageRow message={message} />
-                )}
+                {/* one component type for every row, streaming or not: a
+                    settling turn keeps its instance, so the cards the user
+                    opened mid-reply don't snap shut when it lands */}
+                <ChatMessageRow
+                  message={message}
+                  reply={streaming ? reply : null}
+                  modelLoading={modelLoading}
+                />
               </MessageScrollerItem>
             ))}
           </MessageScrollerContent>

@@ -1,11 +1,4 @@
-import type {
-  ChartData,
-  ChartSpec,
-  ChartToolResult,
-  ChatChunkKind,
-  ChatToolCallEvent,
-  QueryToolResult
-} from '@shared/chat'
+import type { ChatChunkKind, ChatToolCallEvent } from '@shared/chat'
 import type { LlmDownloadProgress, LlmStatus } from '@shared/llm'
 import type { ChatToolScope } from './sql-tool'
 // type-only: erased at compile time, so the manager still never runtime-imports
@@ -42,39 +35,22 @@ export type WorkerCommand =
       history: ChatHistoryItem[]
       prompt: string
       toolScope: ChatToolScope
+      // the scope's single display currency, fixed per turn by the feature
+      // layer; the worker stamps it into chart display payloads so events and
+      // parts carry it from the source. Kept beside toolScope rather than in
+      // it: ChatToolScope belongs to the query tool's view scoping.
+      currency: string | null
     }
-
-/** one settled tool call, in the order the model made them */
-export type ChatFunctionCallRecord =
-  | { name: 'query'; args: { sql: string }; result: QueryToolResult }
-  // data is the snapshot a successful chart call drew from; null when the
-  // call failed validation
-  | { name: 'chart'; args: ChartSpec; result: ChartToolResult; data: ChartData | null }
-
-/**
- * The reply in generation order: answer text the model wrote between calls
- * (a call's preamble) sits before that call's record, so the feature layer
- * can persist parts that mirror how the turn actually unfolded.
- */
-export type ChatResponseItem =
-  { kind: 'text'; text: string } | { kind: 'call'; call: ChatFunctionCallRecord }
 
 /** a tool-call lifecycle event as it crosses the worker boundary: the shared
  * renderer event minus conversationId (the worker only knows command ids;
  * the feature layer adds the conversation when forwarding) */
 export type ChatToolCallPayload = DistributiveOmit<ChatToolCallEvent, 'conversationId'>
 
-/** reply payload of a 'chat' command */
-export interface ChatGenerationResult {
-  /** text and tool calls in generation order; text items are never empty */
-  items: ChatResponseItem[]
-  /** the model's chain of thought, '' when it answered without thinking */
-  reasoning: string
-  /** wall-clock time spent inside thought segments */
-  reasoningMs: number
-  /** true when the turn was aborted; items hold whatever was generated so far */
-  interrupted: boolean
-}
+/** reply payload of a 'chat' command: the assistant row's parts in their
+ * persisted format, built in generation order by the worker's TurnLog (which
+ * carries the full doc comments) so the feature layer stores them verbatim */
+export type { ChatGenerationResult } from './turn-log'
 
 // messages the worker sends back: either a reply to a specific command (by
 // id) or an unsolicited push event (status/progress), which carries no id

@@ -151,10 +151,12 @@ class LlmManager {
       onChunk: (text: string, kind: ChatChunkKind) => void
       /** narrows what the worker's query tool can see this turn */
       toolScope: ChatToolScope
+      /** the scope's display currency; the worker stamps it into chart payloads */
+      currency: string | null
       onToolEvent: (event: ChatToolCallPayload) => void
     }
   ): Promise<ChatGenerationResult> {
-    const { signal, onChunk, toolScope, onToolEvent } = opts
+    const { signal, onChunk, toolScope, currency, onToolEvent } = opts
 
     // register the handlers before the command is posted so no early token
     // can slip past; buffer and flush on a timer to keep IPC cheap.
@@ -191,7 +193,7 @@ class LlmManager {
 
     try {
       const result = await this.withModel(signal, () =>
-        this.sendWithId(id, { type: 'chat', history, prompt, toolScope })
+        this.sendWithId(id, { type: 'chat', history, prompt, toolScope, currency })
       )
       return result as ChatGenerationResult
     } finally {
@@ -235,16 +237,22 @@ class LlmManager {
 
   private handleWorkerMessage(msg: WorkerMessage): void {
     if ('event' in msg) {
-      if (msg.event === 'status') {
-        this.status = msg.status
-        sendToRenderer(LLM_IPC.statusChanged, msg.status)
-      } else if (msg.event === 'chatChunk') {
-        this.chatHandlers.get(msg.id)?.chunk(msg.text, msg.kind)
-      } else if (msg.event === 'chatToolCall') {
-        const { event: _event, id, ...payload } = msg
-        this.chatHandlers.get(id)?.tool(payload as ChatToolCallPayload)
-      } else {
-        sendToRenderer(LLM_IPC.downloadProgress, msg.progress satisfies LlmDownloadProgress)
+      switch (msg.event) {
+        case 'status':
+          this.status = msg.status
+          sendToRenderer(LLM_IPC.statusChanged, msg.status)
+          break
+        case 'downloadProgress':
+          sendToRenderer(LLM_IPC.downloadProgress, msg.progress satisfies LlmDownloadProgress)
+          break
+        case 'chatChunk':
+          this.chatHandlers.get(msg.id)?.chunk(msg.text, msg.kind)
+          break
+        case 'chatToolCall': {
+          const { event: _event, id, ...payload } = msg
+          this.chatHandlers.get(id)?.tool(payload as ChatToolCallPayload)
+          break
+        }
       }
       return
     }

@@ -15,3 +15,4 @@ src/renderer/src/generated/
 .vite
 # local update-flow testing (see docs/RELEASING.md)
 dev-app-update.yml
+*.tsbuildinfo

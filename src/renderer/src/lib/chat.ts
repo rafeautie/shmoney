@@ -1,15 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import {
-  sqlFromParamsText,
-  type ChartData,
-  type ChartSpec,
-  type Conversation,
-  type ConversationMessages,
-  type QueryToolResult
-} from '@shared/chat'
+import { sqlFromParamsText, type Conversation, type ConversationMessages } from '@shared/chat'
 import { ipcErrorMessage } from '@/lib/utils'
+import type { ChartCardState } from '@/components/chat/chat-chart'
+import type { QueryCardState } from '@/components/chat/query-card'
 
 export const CHAT_CONVERSATIONS_KEY = ['chat', 'conversations'] as const
 
@@ -101,57 +96,57 @@ export function useRenameConversation() {
 
 // ---------- the in-flight reply ----------
 
-/** One in-flight tool call, keyed by callId within the streaming reply. */
-export interface ActiveToolCall {
-  callId: number
-  /** which tool this call is; carried by every event from the first params chunk on */
-  name: string
-  /** raw params JSON streamed so far; sql derives from it until start supplies the real one */
-  paramsText: string
-  sql: string
-  status: 'writing' | 'running' | 'done'
-  /** a query call's settled result */
-  result: QueryToolResult | null
-  /** a successful chart call's renderable payload */
-  chart: { spec: ChartSpec; data: ChartData; currency: string | null } | null
-  /** a failed chart call's validation error */
-  chartError: string | null
-}
+/**
+ * One renderable entry of an assistant turn, live or settled, in the order it
+ * arrived. A turn may think several times (think, call a tool, think again),
+ * so reasoning is an ordinary item here rather than one field on the reply.
+ * Tool calls are carried as the card states the cards already accept, so the
+ * events this reducer sees turn into render-ready items once, with no second
+ * derivation between here and the transcript. The in-flight bookkeeping
+ * (callId, paramsText, startedAt) is absent on an item built from a persisted
+ * part, which has no call or thought in flight.
+ */
+export type TurnItem =
+  | { kind: 'text'; text: string }
+  | {
+      kind: 'reasoning'
+      text: string
+      /** frozen once the thought ends; null while it's still being written */
+      durationMs: number | null
+      /** when this thought's first chunk arrived; drives the live duration */
+      startedAt?: number
+    }
+  | {
+      kind: 'query'
+      state: QueryCardState
+      callId?: number
+      /** raw params JSON streamed so far; the live sql preview parses from it */
+      paramsText?: string
+    }
+  | { kind: 'chart'; state: ChartCardState; callId?: number }
 
-/** one streamed piece of the reply, in the order it arrived */
-export type ActiveReplyItem =
-  { kind: 'text'; text: string } | { kind: 'call'; call: ActiveToolCall }
-
-/** The streamed reply so far; all-empty = still waiting for the first token. */
+/** The streamed reply so far; no items = still waiting for the first token. */
 export interface ActiveReply {
   conversationId: number
-  /** the chain of thought streamed so far ('' when the model isn't thinking) */
-  reasoning: string
-  /** when the first reasoning chunk arrived; drives the live duration */
-  reasoningStartedAt: number | null
-  /** frozen once the answer (or a tool call) starts; the persisted row's value replaces it */
-  reasoningMs: number | null
-  /** answer text and tool calls in arrival order, mirroring the persisted parts */
-  items: ActiveReplyItem[]
+  /** reasoning, answer text and tool calls in arrival order, mirroring the persisted parts */
+  items: TurnItem[]
 }
 
 /** a reply entry that hasn't streamed anything yet */
 function emptyReply(conversationId: number): ActiveReply {
-  return {
-    conversationId,
-    reasoning: '',
-    reasoningStartedAt: null,
-    reasoningMs: null,
-    items: []
-  }
+  return { conversationId, items: [] }
 }
 
-/** the first answer chunk or tool call ends the thinking phase; freeze the live duration */
-function frozenReasoningMs(reply: ActiveReply): number | null {
-  return (
-    reply.reasoningMs ??
-    (reply.reasoningStartedAt !== null ? Date.now() - reply.reasoningStartedAt : null)
-  )
+/**
+ * Anything non-reasoning (an answer chunk or a tool event) ends the thought
+ * that was being written; freeze its live duration before the new item lands.
+ */
+function withFrozenReasoning(items: TurnItem[]): TurnItem[] {
+  const next = [...items]
+  const last = next[next.length - 1]
+  if (last?.kind === 'reasoning' && last.durationMs === null)
+    next[next.length - 1] = { ...last, durationMs: Date.now() - (last.startedAt ?? Date.now()) }
+  return next
 }
 
 /**
@@ -176,65 +171,95 @@ export function useStreamingReply(): {
     const offChunk = window.api.chat.onChunk(({ conversationId, text, kind }) => {
       setReply((prev) => {
         const base = entryFor(prev, conversationId)
-        if (kind === 'reasoning')
-          return {
-            ...base,
-            reasoning: base.reasoning + text,
-            reasoningStartedAt: base.reasoningStartedAt ?? Date.now()
-          }
+        if (kind === 'reasoning') {
+          // a thought merges into the trailing reasoning item, or opens a new
+          // one if the model already moved on to text or a tool since. A
+          // frozen thought is closed and never reopens: its duration is
+          // already settled, so more text would grow it under a stale timing
+          const items = [...base.items]
+          const last = items[items.length - 1]
+          if (last?.kind === 'reasoning' && last.durationMs === null)
+            items[items.length - 1] = { ...last, text: last.text + text }
+          else items.push({ kind: 'reasoning', text, startedAt: Date.now(), durationMs: null })
+          return { ...base, items }
+        }
         // answer text merges into the trailing text item, or opens a new one
-        // right after a tool call — mirroring how the parts will persist
-        const items = [...base.items]
+        // right after a tool call, mirroring how the parts will persist. A
+        // whitespace-only chunk with no item to merge into is the formatting
+        // glue the model emits between two calls; the worker's turn log drops
+        // it on persist, so it must not open an item here either, or the live
+        // sequence would carry an index the settled one doesn't
+        const items = withFrozenReasoning(base.items)
         const last = items[items.length - 1]
         if (last?.kind === 'text')
           items[items.length - 1] = { kind: 'text', text: last.text + text }
-        else items.push({ kind: 'text', text })
-        return { ...base, items, reasoningMs: frozenReasoningMs(base) }
+        else if (text.trim()) items.push({ kind: 'text', text })
+        return { ...base, items }
       })
     })
     const offTool = window.api.chat.onToolCall((event) => {
       setReply((prev) => {
         const base = entryFor(prev, event.conversationId)
-        const items = [...base.items]
-        const index = items.findIndex((i) => i.kind === 'call' && i.call.callId === event.callId)
-        const existing = index >= 0 ? items[index] : null
-        const current: ActiveToolCall =
-          existing?.kind === 'call'
-            ? existing.call
-            : {
-                callId: event.callId,
-                name: event.name,
-                paramsText: '',
-                sql: '',
-                status: 'writing',
-                result: null,
-                chart: null,
-                chartError: null
-              }
-        let next: ActiveToolCall
+        const items = withFrozenReasoning(base.items)
+        // each event finds its own card by callId; the call's first event
+        // (always 'params') is the one that appends it
+        const index = items.findIndex(
+          (i) => (i.kind === 'query' || i.kind === 'chart') && i.callId === event.callId
+        )
+        const current = index >= 0 ? items[index] : null
+        const callId = event.callId
+        // phase before name: the params event types its name as a plain
+        // string, so it is only within a phase that name discriminates
+        let next: TurnItem
         if (event.phase === 'params') {
-          const paramsText = current.paramsText + event.chunk
-          // sqlFromParamsText finds nothing in chart params, which is right
-          next = { ...current, name: event.name, paramsText, sql: sqlFromParamsText(paramsText) }
+          if (event.name === 'chart') {
+            next = { kind: 'chart', callId, state: { status: 'building', spec: null } }
+          } else {
+            // until 'start' supplies the real sql, it previews from the raw
+            // params JSON streamed so far
+            const paramsText =
+              (current?.kind === 'query' ? (current.paramsText ?? '') : '') + event.chunk
+            next = {
+              kind: 'query',
+              callId,
+              paramsText,
+              state: { status: 'writing', sql: sqlFromParamsText(paramsText) }
+            }
+          }
         } else if (event.phase === 'start') {
           next =
-            event.name === 'query'
-              ? { ...current, name: event.name, sql: event.sql, status: 'running' }
-              : { ...current, name: event.name, status: 'running' }
-        } else if (event.name === 'query') {
-          next = { ...current, name: event.name, status: 'done', result: event.result }
-        } else {
+            event.name === 'chart'
+              ? { kind: 'chart', callId, state: { status: 'building', spec: event.args } }
+              : { kind: 'query', callId, state: { status: 'running', sql: event.args.sql } }
+        } else if (event.name === 'chart') {
+          // the spec only ever arrives on 'start', so it is carried forward
+          // here rather than expected on the end event
+          const state = current?.kind === 'chart' ? current.state : null
           next = {
-            ...current,
-            name: event.name,
-            status: 'done',
-            chart: event.chart,
-            chartError: event.result.ok ? null : (event.result.error ?? 'Chart failed.')
+            kind: 'chart',
+            callId,
+            state: {
+              status: 'done',
+              spec: state?.status === 'building' ? state.spec : null,
+              display: event.display,
+              error: event.result.error
+            }
+          }
+        } else {
+          // same for the sql: the end event carries no args back
+          next = {
+            kind: 'query',
+            callId,
+            state: {
+              status: 'done',
+              sql: current?.kind === 'query' ? current.state.sql : '',
+              result: event.result
+            }
           }
         }
-        if (index >= 0) items[index] = { kind: 'call', call: next }
-        else items.push({ kind: 'call', call: next })
-        return { ...base, items, reasoningMs: frozenReasoningMs(base) }
+        if (index >= 0) items[index] = next
+        else items.push(next)
+        return { ...base, items }
       })
     })
     const offDone = window.api.chat.onMessageDone(({ conversationId, message }) => {

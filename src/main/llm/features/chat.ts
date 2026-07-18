@@ -4,7 +4,6 @@ import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
 import {
   CHAT_IPC,
   type ChatMessage,
-  type ChatMessagePart,
   type Conversation,
   type ConversationMessages,
   type SendChatInput,
@@ -226,27 +225,17 @@ type ReplayItem = { kind: 'text'; text: string } | { kind: 'call'; call: ReplayC
  * material, not conversation. Tool calls ARE replayed — interleaved with the
  * text around them, so the model re-sees the turn as it generated it — and a
  * turn stopped mid-query (calls but no text yet) is kept for the same reason.
- * Chart parts replay as their spec with the bare outcome — the data snapshot
- * is display material (and a copy of a query result the model already
- * replays), so it would only burn history budget.
+ * Every tool call replays uniformly — its args and result, never its display
+ * payload — which is structural rather than a per-tool convention: display
+ * simply isn't in this projection, so a chart's snapshotted rows never reach
+ * the model on replay, only its spec and bare outcome.
  */
 function replayable(row: Pick<ChatMessage, 'role' | 'status' | 'parts'>): ReplayItem[] | null {
   if (row.status === 'error') return null
   const items = row.parts.flatMap((p): ReplayItem[] => {
-    if (p.type === 'text') return p.text ? [{ kind: 'text', text: p.text }] : []
+    if (p.type === 'text') return p.text.trim() ? [{ kind: 'text', text: p.text }] : []
     if (p.type === 'functionCall')
       return [{ kind: 'call', call: { name: p.name, params: p.args, result: p.result } }]
-    if (p.type === 'chart')
-      return [
-        {
-          kind: 'call',
-          call: {
-            name: 'chart',
-            params: p.spec,
-            result: p.error ? { ok: false, error: p.error } : { ok: true }
-          }
-        }
-      ]
     return []
   })
   return items.length > 0 ? items : null
@@ -451,6 +440,41 @@ export function listMessages(conversationId: number): ConversationMessages {
   }
 }
 
+/** the send's target conversation: created on a null id, loaded otherwise */
+function getOrCreateConversation(input: SendChatInput, now: number): ConversationRow {
+  if (input.conversationId === null) {
+    if (input.accountId !== null && accountScope(input.accountId).accountId === null)
+      throw new Error('Account not found')
+    return db
+      .insert(conversations)
+      .values({
+        title: titleFrom(input.text),
+        createdAt: now,
+        updatedAt: now,
+        lastMessageAt: now,
+        modelLabel: LLM_MODEL.label,
+        accountId: input.accountId
+      })
+      .returning()
+      .get()
+  }
+  const row = db
+    .select()
+    .from(conversations)
+    .where(eq(conversations.id, input.conversationId))
+    .get()
+  if (!row || row.deletedAt !== null) throw new Error('Conversation not found')
+  return row
+}
+
+/** bump the conversation's recency stamps (list ordering) after a message lands */
+function touchConversation(id: number, now: number): void {
+  db.update(conversations)
+    .set({ lastMessageAt: now, updatedAt: now })
+    .where(eq(conversations.id, id))
+    .run()
+}
+
 /**
  * Accept one chat turn: persist the user message and a placeholder assistant
  * row (creating the conversation on a null id), then stream the reply in the
@@ -465,31 +489,7 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
   if (stage !== 'ready' && stage !== 'downloaded') throw new Error(`Model is not ready (${stage})`)
 
   const now = Date.now()
-  let conversationRow: ConversationRow
-  if (input.conversationId === null) {
-    if (input.accountId !== null && accountScope(input.accountId).accountId === null)
-      throw new Error('Account not found')
-    conversationRow = db
-      .insert(conversations)
-      .values({
-        title: titleFrom(input.text),
-        createdAt: now,
-        updatedAt: now,
-        lastMessageAt: now,
-        modelLabel: LLM_MODEL.label,
-        accountId: input.accountId
-      })
-      .returning()
-      .get()
-  } else {
-    const row = db
-      .select()
-      .from(conversations)
-      .where(eq(conversations.id, input.conversationId))
-      .get()
-    if (!row || row.deletedAt !== null) throw new Error('Conversation not found')
-    conversationRow = row
-  }
+  const conversationRow = getOrCreateConversation(input, now)
   // a scoped conversation whose account has since vanished falls back to all
   // accounts, consistently for both the prompt and the tool's scope views
   const scope = accountScope(conversationRow.accountId)
@@ -528,60 +528,23 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     })
     .returning()
     .get()
-  db.update(conversations)
-    .set({ lastMessageAt: now, updatedAt: now })
-    .where(eq(conversations.id, conversationRow.id))
-    .run()
+  touchConversation(conversationRow.id, now)
 
   const controller = new AbortController()
   activeChat = controller
   const context = promptDbContext(scope.accountId)
-  // the currency chart values format as, fixed per turn alongside the prompt
-  // context it derives from
-  const currency = resolveCurrency(context.accounts)
   const history = buildHistory(priorRows, buildSystemPrompt(scope, context))
-
-  // the reply generates in the background; its lifecycle reaches the renderer
-  // through push events, and the settled row is persisted either way
-  void enqueueGenerate(() =>
-    llmManager.chat(history, input.text, {
-      signal: controller.signal,
-      onChunk: (text, kind) =>
-        sendToRenderer(CHAT_IPC.chunk, { conversationId: conversationRow.id, text, kind }),
-      toolScope: { accountId: scope.accountId },
-      onToolEvent: (event) =>
-        sendToRenderer(CHAT_IPC.toolCall, {
-          conversationId: conversationRow.id,
-          // the worker doesn't know the scope's accounts; stamp the currency
-          // on chart payloads here so the streamed chart formats like the
-          // persisted part will
-          ...(event.phase === 'end' && event.name === 'chart' && event.chart
-            ? { ...event, chart: { ...event.chart, currency } }
-            : event)
-        })
-    })
-  )
-    .then((result) => finishTurn(assistantRow.id, result, null, currency))
-    .catch((err) => {
-      const empty = { items: [], reasoning: '', reasoningMs: 0 }
-      // a stop before the turn ever reached the model (still queued behind
-      // another generation) rejects instead of resolving interrupted; that's
-      // a stop, not a failure
-      if (controller.signal.aborted)
-        return finishTurn(assistantRow.id, { ...empty, interrupted: true }, null, currency)
-      // logged serialized, never raw: the error chain can drag the prompt
-      // along, and prompts carry the user's private conversation text
-      log.error('chat.generation-failed', err)
-      return finishTurn(
-        assistantRow.id,
-        { ...empty, interrupted: false },
-        String((err as Error)?.message ?? err),
-        currency
-      )
-    })
-    .finally(() => {
-      if (activeChat === controller) activeChat = null
-    })
+  launchGeneration({
+    conversationId: conversationRow.id,
+    assistantMessageId: assistantRow.id,
+    history,
+    prompt: input.text,
+    scope,
+    // the currency chart values format as, fixed per turn alongside the
+    // prompt context it derives from; the worker stamps it at the source
+    currency: resolveCurrency(context.accounts),
+    controller
+  })
 
   return {
     conversation: rowToConversation(conversationRow),
@@ -591,47 +554,60 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
 }
 
 /**
- * Persisted part order mirrors generation exactly: the chain of thought
- * leads, then the reply's items in order — preamble text before each call
- * sits before that call's part. Chart calls persist whether they succeeded or
- * failed (a failed one carries its error and no data), stamped with the
- * scope's currency.
+ * Generate the reply in the background: its lifecycle reaches the renderer
+ * through push events, and the settled row is persisted either way. Tool
+ * events forward verbatim; the worker already built them in their final
+ * shape, chart currency included.
  */
-export function assembleAssistantParts(
-  result: ChatGenerationResult,
+function launchGeneration(turn: {
+  conversationId: number
+  assistantMessageId: number
+  history: ChatHistoryItem[]
+  prompt: string
+  scope: ChatPromptScope
   currency: string | null
-): ChatMessagePart[] {
-  const parts: ChatMessagePart[] = []
-  if (result.reasoning)
-    parts.push({ type: 'reasoning', text: result.reasoning, durationMs: result.reasoningMs })
-  for (const item of result.items) {
-    if (item.kind === 'text') {
-      if (item.text) parts.push({ type: 'text', text: item.text })
-    } else if (item.call.name === 'query') {
-      parts.push({
-        type: 'functionCall',
-        name: item.call.name,
-        args: item.call.args,
-        result: item.call.result
-      })
-    } else {
-      parts.push({
-        type: 'chart',
-        spec: item.call.args,
-        data: item.call.data,
-        currency,
-        ...(item.call.result.ok ? {} : { error: item.call.result.error ?? 'Chart failed.' })
-      })
-    }
-  }
-  return parts
+  controller: AbortController
+}): void {
+  const { conversationId, assistantMessageId, controller } = turn
+  void enqueueGenerate(() =>
+    llmManager.chat(turn.history, turn.prompt, {
+      signal: controller.signal,
+      onChunk: (text, kind) => sendToRenderer(CHAT_IPC.chunk, { conversationId, text, kind }),
+      toolScope: { accountId: turn.scope.accountId },
+      currency: turn.currency,
+      onToolEvent: (event) => sendToRenderer(CHAT_IPC.toolCall, { conversationId, ...event })
+    })
+  )
+    .then((result) => finishTurn(assistantMessageId, result, null))
+    .catch((err) => {
+      // a stop before the turn ever reached the model (still queued behind
+      // another generation) rejects instead of resolving interrupted; that's
+      // a stop, not a failure
+      if (controller.signal.aborted)
+        return finishTurn(assistantMessageId, { parts: [], interrupted: true }, null)
+      // logged serialized, never raw: the error chain can drag the prompt
+      // along, and prompts carry the user's private conversation text
+      log.error('chat.generation-failed', err)
+      return finishTurn(
+        assistantMessageId,
+        { parts: [], interrupted: false },
+        String((err as Error)?.message ?? err)
+      )
+    })
+    .finally(() => {
+      if (activeChat === controller) activeChat = null
+    })
 }
 
+/**
+ * Settle the assistant row with the worker's result: the parts arrive already
+ * in their persisted format, built in generation order at the source (see
+ * turn-log.ts), so they are written verbatim.
+ */
 function finishTurn(
   assistantMessageId: number,
   result: ChatGenerationResult,
-  errorMessage: string | null,
-  currency: string | null
+  errorMessage: string | null
 ): void {
   const { interrupted } = result
   const now = Date.now()
@@ -641,17 +617,14 @@ function finishTurn(
   const row = db
     .update(chatMessages)
     .set({
-      parts: assembleAssistantParts(result, currency),
+      parts: result.parts,
       status: errorMessage !== null ? 'error' : interrupted ? 'interrupted' : 'complete',
       errorMessage
     })
     .where(eq(chatMessages.id, assistantMessageId))
     .returning()
     .get()
-  db.update(conversations)
-    .set({ lastMessageAt: now, updatedAt: now })
-    .where(eq(conversations.id, row.conversationId))
-    .run()
+  touchConversation(row.conversationId, now)
   sendToRenderer(CHAT_IPC.messageDone, {
     conversationId: row.conversationId,
     message: row

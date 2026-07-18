@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
-import type { ChartData, ChartSpec } from '@shared/chat'
+import type { ChartData, ChartDisplay, ChartSpec } from '@shared/chat'
 import { cn } from '@/lib/utils'
 import { formatBucketLabel } from '@/lib/format-date'
 import { usePrivacy } from '@/lib/settings'
@@ -331,7 +331,7 @@ function StatPart({
  * the validation error, mirroring how a failed query displays. Shown (not
  * dropped) so the turn reads as it actually unfolded.
  */
-export function ChartFailure({ error }: { error: string }) {
+function ChartFailure({ error }: { error: string }) {
   const [open, setOpen] = useState(false)
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -352,7 +352,7 @@ export function ChartFailure({ error }: { error: string }) {
 }
 
 /** The in-flight marker while the model writes or validates a chart call. */
-export function ChartBuilding() {
+function ChartBuilding() {
   return (
     <div className="flex w-fit animate-shimmer items-center gap-1.5 text-xs text-muted-foreground">
       <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} className="size-3.5" />
@@ -371,7 +371,7 @@ const cellText = (cell: unknown): string =>
  * current — and the Data toggle opens the exact rows the chart is drawn
  * from, so any chart can be audited in place.
  */
-export function ChatChart({
+function ChatChart({
   spec,
   data,
   currency,
@@ -443,4 +443,47 @@ export function ChatChart({
       )}
     </div>
   )
+}
+
+/**
+ * How far one chart call has got. 'done' mirrors the settled call's own
+ * fields rather than pre-deciding chart-vs-failure, so that decision (and the
+ * fallback message for a failure with no error text) lives in one place
+ * instead of at every caller. 'building' only happens mid-stream; a persisted
+ * part is always settled.
+ */
+export type ChartCardState =
+  | {
+      status: 'building'
+      /** the spec 'start' delivered, so it survives to 'done'; null before that. Nothing draws it yet */
+      spec: ChartSpec | null
+    }
+  | {
+      status: 'done'
+      /** null if the call somehow settled without its 'start' args */
+      spec: ChartSpec | null
+      /** null when the call failed validation: nothing to draw */
+      display: ChartDisplay | null
+      error?: string
+    }
+
+/**
+ * One chart call in the transcript, in whichever state it's reached. This is
+ * the only chart entry point the transcript uses, mirroring how QueryCard
+ * owns the query states, so streaming and persisted rows can't drift apart.
+ * asOf is the turn's age, which belongs to the message rather than to the
+ * call, so it arrives beside the state rather than inside it.
+ */
+export function ChartCard({ state, asOf }: { state: ChartCardState; asOf?: number }) {
+  if (state.status === 'building') return <ChartBuilding />
+  if (state.display && state.spec)
+    return (
+      <ChatChart
+        spec={state.spec}
+        data={state.display.data}
+        currency={state.display.currency}
+        asOf={asOf}
+      />
+    )
+  return <ChartFailure error={state.error ?? 'Chart failed.'} />
 }
