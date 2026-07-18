@@ -49,6 +49,13 @@ const RESULT: QueryToolResult = {
   durationMs: 5
 }
 
+// what a successful query result replays as (see replayResult in chat.ts)
+const REPLAYED_RESULT = {
+  ok: true,
+  rowCount: 1,
+  note: 'Expired; to reuse or chart this data, run the query again in the current reply.'
+}
+
 const SPEC: ChartSpec = {
   type: 'line',
   title: 'Spending by month',
@@ -165,7 +172,12 @@ describe('buildHistory', () => {
     expect(history[2]).toEqual({
       type: 'model',
       response: [
-        { type: 'functionCall', name: 'query', params: { sql: 'SELECT 1' }, result: RESULT },
+        {
+          type: 'functionCall',
+          name: 'query',
+          params: { sql: 'SELECT 1' },
+          result: REPLAYED_RESULT
+        },
         'the total is 42'
       ]
     })
@@ -194,7 +206,7 @@ describe('buildHistory', () => {
           type: 'functionCall',
           name: 'query',
           params: { sql: 'SELECT 42 AS total' },
-          result: RESULT
+          result: REPLAYED_RESULT
         },
         'the total is 42'
       ]
@@ -216,7 +228,12 @@ describe('buildHistory', () => {
     expect(history[2]).toEqual({
       type: 'model',
       response: [
-        { type: 'functionCall', name: 'query', params: { sql: 'SELECT 1' }, result: RESULT }
+        {
+          type: 'functionCall',
+          name: 'query',
+          params: { sql: 'SELECT 1' },
+          result: REPLAYED_RESULT
+        }
       ]
     })
   })
@@ -250,7 +267,7 @@ describe('buildHistory', () => {
           type: 'functionCall',
           name: 'query',
           params: { sql: 'SELECT 42 AS total' },
-          result: RESULT
+          result: REPLAYED_RESULT
         },
         { type: 'functionCall', name: 'chart', params: SPEC, result: { ok: true } },
         'see the chart'
@@ -278,7 +295,12 @@ describe('buildHistory', () => {
       type: 'model',
       response: [
         'Let me check.',
-        { type: 'functionCall', name: 'query', params: { sql: 'SELECT 1' }, result: RESULT },
+        {
+          type: 'functionCall',
+          name: 'query',
+          params: { sql: 'SELECT 1' },
+          result: REPLAYED_RESULT
+        },
         'Done.'
       ]
     })
@@ -315,6 +337,28 @@ describe('buildHistory', () => {
           result: { ok: false, error: 'no result' }
         },
         'sorry'
+      ]
+    })
+  })
+
+  it('replays a failed query result unchanged, keeping its error for the model', () => {
+    const failed: QueryToolResult = { ok: false, error: 'no such column: x', durationMs: 2 }
+    const history = buildHistory(
+      [
+        row('user', 'hi'),
+        {
+          role: 'assistant',
+          status: 'complete',
+          parts: [callPart('SELECT x', failed), { type: 'text', text: 'that failed' }]
+        }
+      ],
+      PROMPT
+    )
+    expect(history[2]).toEqual({
+      type: 'model',
+      response: [
+        { type: 'functionCall', name: 'query', params: { sql: 'SELECT x' }, result: failed },
+        'that failed'
       ]
     })
   })
@@ -423,6 +467,29 @@ describe('historyWindow', () => {
     )
     expect(window).toEqual({ start: 0, truncated: false })
   })
+
+  it('costs a query part at its replayed size, so huge result rows cannot evict the turn', () => {
+    const huge: QueryToolResult = {
+      ok: true,
+      columns: ['blob'],
+      rows: [['x'.repeat(BUDGET_CHARS)]],
+      rowCount: 1,
+      truncated: false,
+      durationMs: 5
+    }
+    const window = historyWindow(
+      [
+        {
+          role: 'assistant',
+          status: 'complete',
+          parts: [callPart('SELECT 1', huge), { type: 'text', text: 'big' }]
+        },
+        row('user', 'next')
+      ],
+      PROMPT
+    )
+    expect(window).toEqual({ start: 0, truncated: false })
+  })
 })
 
 describe('buildSystemPrompt', () => {
@@ -490,6 +557,7 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('"type": "line"')
     expect(prompt).toContain('"series": ["spending"]')
     expect(prompt).toContain('most recent query result')
+    expect(prompt).toContain('run the query again first')
   })
 })
 

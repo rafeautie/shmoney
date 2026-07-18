@@ -66,7 +66,11 @@ export function validateChartCall(
   lastResult: Pick<QueryToolResult, 'columns' | 'rows'> | null
 ): ChartToolResult {
   if (!lastResult?.columns || !lastResult.rows)
-    return { ok: false, error: 'There is no query result to chart; run query first.' }
+    return {
+      ok: false,
+      error:
+        'No query has run in this reply yet; results from earlier replies expire. Run the query now, then call chart again.'
+    }
   const { columns, rows } = lastResult
   if (rows.length === 0)
     return { ok: false, error: 'The last query returned no rows, so there is nothing to chart.' }

@@ -420,7 +420,7 @@ function chatFunctions(ctx: {
     }),
     chart: defineChatSessionFunction({
       description:
-        'Show a chart in your reply, drawn from your most recent query result. Call it after query returns the finished numbers; x and series must name result columns exactly as the SQL aliased them.',
+        'Show a chart in your reply, drawn from your most recent query result in this reply; results from earlier replies have expired, so query first. x and series must name result columns exactly as the SQL aliased them.',
       params: CHART_FUNCTION_PARAMS,
       handler(params) {
         const callId = state.handledCalls++

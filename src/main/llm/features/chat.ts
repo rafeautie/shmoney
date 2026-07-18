@@ -4,6 +4,7 @@ import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
 import {
   CHAT_IPC,
   type ChatMessage,
+  type ChatMessagePart,
   type Conversation,
   type ConversationMessages,
   type SendChatInput,
@@ -190,12 +191,12 @@ Presenting results:
 - ROUND(..., 2) in SQL, not in your head.
 - A bucket with no transactions returns no row at all, and SUM over no rows is NULL rather than 0. Both mean "no data for that period", which is not the same claim as "you spent 0.00" — say which one you found. When averaging over a period, divide by the number of calendar months in it, not by the number of rows you got back.
 
-Charts: when your final result is a trend over time, a breakdown by group, or one headline number, show it by calling the chart function after the query succeeds; it draws from your most recent query result. When the user asks to see, show or chart something, always call chart rather than describing the data. x and series must name columns exactly as the SQL aliased them. Adapt the closest example:
+Charts: when your final result is a trend over time, a breakdown by group, or one headline number, show it by calling the chart function after the query succeeds; it draws from your most recent query result in the current reply. Results from earlier replies have expired and cannot be charted, so to chart data you showed before, run the query again first. When the user asks to see, show or chart something, always call chart rather than describing the data. x and series must name columns exactly as the SQL aliased them. Adapt the closest example:
 - trend: {"type": "line", "title": "Spending by month", "x": "month", "series": ["spending"]}
 - breakdown: {"type": "bar", "title": "Top categories", "x": "category", "series": ["spending"]}, or "pie" for shares of a whole
 - one number: {"type": "stat", "title": "Total spending", "x": "spending", "series": ["spending"]}
 - one line per category or account: query with the pivot recipe above (one column per group), then pass the column aliases as series.
-If a chart call fails, do not apologize and do not stop: the error message tells you the exact fix. A wrong column name means call chart again with a column name copied from the error's list. A "repeats across rows" error means run the new pivot query the error describes, then call chart again with the new column aliases as series. Only after a corrected retry also fails may you give up, and then present the numbers in text instead. A chart only appears through the chart function call; never write a chart spec into your answer text. After charting, give the takeaway in a sentence or two; never repeat the charted rows as a table.
+If a chart call fails, do not apologize and do not stop: the error message tells you the exact fix. A "no query has run" error means run the needed query now, then call chart again. A wrong column name means call chart again with a column name copied from the error's list. A "repeats across rows" error means run the new pivot query the error describes, then call chart again with the new column aliases as series. Only after a corrected retry also fails may you give up, and then present the numbers in text instead. A chart only appears through the chart function call; never write a chart spec into your answer text. After charting, give the takeaway in a sentence or two; never repeat the charted rows as a table.
 
 ${renderContext(context)}
 
@@ -219,6 +220,24 @@ interface ReplayCall {
 type ReplayItem = { kind: 'text'; text: string } | { kind: 'call'; call: ReplayCall }
 
 /**
+ * The result a replayed call carries back to the model. Chart results are
+ * already tiny; a successful query result is rewritten — rows and columns
+ * dropped, an expiry note in their place — because the chart tool only draws
+ * from a query run in the current reply, and replaying stale rows convinced
+ * the model it had something to chart. The note plants the corrective move
+ * (re-run the query) exactly where the model reads. Failed results replay
+ * as-is: their error strings are already small and instructive.
+ */
+function replayResult(part: Extract<ChatMessagePart, { type: 'functionCall' }>): object {
+  if (part.name !== 'query' || !part.result.ok) return part.result
+  return {
+    ok: true,
+    rowCount: part.result.rowCount,
+    note: 'Expired; to reuse or chart this data, run the query again in the current reply.'
+  }
+}
+
+/**
  * What a row contributes to replayed history, in part order; null = skipped
  * entirely. Error rows carry no assistant content worth replaying. Reasoning
  * parts are never replayed: a past turn's chain of thought is display
@@ -228,14 +247,17 @@ type ReplayItem = { kind: 'text'; text: string } | { kind: 'call'; call: ReplayC
  * Every tool call replays uniformly — its args and result, never its display
  * payload — which is structural rather than a per-tool convention: display
  * simply isn't in this projection, so a chart's snapshotted rows never reach
- * the model on replay, only its spec and bare outcome.
+ * the model on replay, only its spec and bare outcome. Successful query
+ * results are likewise slimmed on replay (see replayResult): the chart tool
+ * can only draw from a query run in the current reply, and replaying stale
+ * rows taught the model the opposite.
  */
 function replayable(row: Pick<ChatMessage, 'role' | 'status' | 'parts'>): ReplayItem[] | null {
   if (row.status === 'error') return null
   const items = row.parts.flatMap((p): ReplayItem[] => {
     if (p.type === 'text') return p.text.trim() ? [{ kind: 'text', text: p.text }] : []
     if (p.type === 'functionCall')
-      return [{ kind: 'call', call: { name: p.name, params: p.args, result: p.result } }]
+      return [{ kind: 'call', call: { name: p.name, params: p.args, result: replayResult(p) } }]
     return []
   })
   return items.length > 0 ? items : null

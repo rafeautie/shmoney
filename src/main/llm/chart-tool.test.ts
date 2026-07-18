@@ -28,7 +28,8 @@ describe('validateChartCall', () => {
   it('tells the model to query first when there is no result yet', () => {
     expect(validateChartCall(spec(), null)).toEqual({
       ok: false,
-      error: 'There is no query result to chart; run query first.'
+      error:
+        'No query has run in this reply yet; results from earlier replies expire. Run the query now, then call chart again.'
     })
   })
 
