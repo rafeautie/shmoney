@@ -44,7 +44,9 @@ const CTX: PromptDbContext = {
   dateRange: { min: '2026-01', max: '2026-07' }
 }
 
-const PROMPT = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+const SCOPE = { accountId: null, accountName: null }
+
+const PROMPT = buildSystemPrompt(SCOPE, CTX)
 
 // A fragment starts at a line opening a statement and runs while the following
 // lines continue it: indented, or opening a clause. Prose resumes at a line
@@ -174,6 +176,26 @@ describe('system prompt SQL', () => {
     }
   )
 
+  // REGRESSION: the prompt teaches by transcript, and an early draft printed
+  // the chart call as a line of that transcript — `chart {"type": "bar", …}`
+  // alone on a line, exactly where model output goes. The model wrote it into
+  // its answer as text and drew no chart. A tool call is made, never written,
+  // so the prompt may not contain a line a model could emit verbatim as one.
+  // The JSON specs stay legal where they read as reference ("- trend: {…}").
+  // Two shapes qualify, both from that draft: a tool name heading a line that
+  // also carries a JSON payload, and a tool name alone on a line as a label
+  // over the SQL below it. Prose that merely opens with the word ("Chart with x
+  // day, group month…") is not a line the model can emit as a call, and stays
+  // legal.
+  it('never shows a tool call as an emittable line', () => {
+    const emittable = PROMPT.split('\n').map((line) => line.trim())
+    expect(
+      emittable.filter(
+        (line) => /^(chart|query)\b.*\{/i.test(line) || /^(chart|query)$/i.test(line)
+      )
+    ).toEqual([])
+  })
+
   it('never tells the model to divide by 1000; the scope views already did', () => {
     expect(PROMPT).not.toContain('/ 1000')
     expect(PROMPT).not.toContain('/1000')
@@ -190,12 +212,12 @@ describe('system prompt SQL', () => {
     for (const clause of windows) expect(clause).toContain('ROWS BETWEEN')
   })
 
-  it('does not let an income-only group be reported as having spent 0.00', () => {
-    // every spending recipe filters the rows before summing, rather than
-    // relying on CASE alone, so a group that only ever took money in is absent
+  it('does not let an income-only category be reported as having spent 0.00', () => {
+    // the breakdown recipes filter the rows before summing, rather than relying
+    // on CASE alone, so a category that only ever took money in is absent
     // instead of ranking at 0.00
-    const twoLevel = RECIPES.find((r) => r.includes('category_group'))
-    expect(twoLevel).toContain('WHERE amount < 0')
+    const breakdown = RECIPES.find((r) => r.includes('GROUP BY category ORDER BY'))
+    expect(breakdown).toContain('WHERE amount < 0')
   })
 })
 
@@ -326,7 +348,7 @@ describe('system prompt silent-wrong-answer guards', () => {
     // a 3-calendar-month window; the prompt has to say so, because SQL cannot
     const months = rows(`SELECT month FROM tx GROUP BY month ORDER BY month`).map((r) => r.month)
     expect(months).toEqual(['2026-05', '2026-06', '2026-07']) // no gap-free guarantee
-    expect(PROMPT).toContain('averages the last three months THAT HAVE DATA')
+    expect(PROMPT).toContain('those are the three months that have data')
   })
 
   it('gives the model an account NAME to group by, so a chart axis is not 1, 2, 3', () => {
@@ -362,16 +384,13 @@ describe('system prompt silent-wrong-answer guards', () => {
  * copies omits currency; it ships as a recipe, and only to the users it binds.
  */
 describe('system prompt currency guidance', () => {
-  const mixed = buildSystemPrompt(
-    { accountId: null, accountName: null },
-    {
-      ...CTX,
-      accounts: [
-        { name: 'Chase Checking', currency: 'USD' },
-        { name: 'Amex 💳 Card', currency: 'EUR' }
-      ]
-    }
-  )
+  const MIXED_CTX: PromptDbContext = {
+    ...CTX,
+    accounts: [
+      { name: 'Chase Checking', currency: 'USD' },
+      { name: 'Amex 💳 Card', currency: 'EUR' }
+    ]
+  }
 
   it('stays silent when every account shares a currency', () => {
     expect(PROMPT).not.toContain('do NOT share a currency')
@@ -380,6 +399,7 @@ describe('system prompt currency guidance', () => {
   })
 
   it('adds exactly one runnable recipe when the accounts disagree', () => {
+    const mixed = buildSystemPrompt(SCOPE, MIXED_CTX)
     expect(mixed).toContain('do NOT share a currency')
     const added = sqlFragments(mixed).filter((f) => !RECIPES.includes(f))
     expect(added).toHaveLength(1)
@@ -390,6 +410,24 @@ describe('system prompt currency guidance', () => {
     expect(grouped.every((r) => r.currency === 'USD' || r.currency === 'EUR')).toBe(true)
     expect(new Set(grouped.map((r) => r.currency)).size).toBe(2)
     for (const name of Object.keys(grouped[0])) expect(name).toMatch(SAFE_IDENTIFIER)
+  })
+})
+
+/**
+ * The user's-data section is what lets the model filter by a real name instead
+ * of guessing one, so it has to actually say what the context gives it.
+ */
+describe('system prompt user data content', () => {
+  it('names the account, a category and the date span', () => {
+    expect(PROMPT).toContain('Chase Checking')
+    expect(PROMPT).toContain('🍽️ Dining Out')
+    expect(PROMPT).toContain('2026-01')
+    expect(PROMPT).toContain('2026-07')
+  })
+
+  it('says there is no data for an empty scope', () => {
+    const empty: PromptDbContext = { accounts: [], categories: [], dateRange: null }
+    expect(buildSystemPrompt(SCOPE, empty)).toContain('no transaction data')
   })
 })
 

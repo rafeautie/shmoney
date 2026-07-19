@@ -534,13 +534,13 @@ describe('buildSystemPrompt', () => {
     const prompt = buildSystemPrompt({ accountId: 3, accountName: 'Chase Checking' }, CTX)
     expect(prompt).not.toMatch(/1000/)
     expect(prompt).not.toMatch(/milliunit/i)
-    expect(prompt).toContain('Money columns are already real amounts')
+    expect(prompt).toContain('Money columns hold real amounts')
   })
 
   it('never asks the model to convert epochs, which the views already did', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
     expect(prompt).not.toMatch(/unixepoch/i)
-    expect(prompt).toContain('txn_date IS NOT NULL')
+    expect(prompt).toContain("txn_date is 'YYYY-MM-DD'")
   })
 
   it('does not mention invert_balance, which the accounts view applies', () => {
@@ -558,16 +558,17 @@ describe('buildSystemPrompt', () => {
     expect(prompt).not.toContain('Category number 199')
   })
 
-  it('documents the pending exclusion and the cross-currency rule', () => {
+  it('documents the pending exclusion and the tables the model can reach', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
     expect(prompt).toContain('pending = 0')
-    expect(prompt).toContain('group by currency')
     expect(prompt).toContain('action_log')
+    // the cross-currency rule renders only for mixed-currency users; that
+    // conditional lives in prompt-sql.test.ts, which runs the recipe it adds
   })
 
   it('teaches the chart function with literal exemplars', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('the chart function call')
+    expect(prompt).toContain('calling the chart function')
     expect(prompt).toContain('"type": "line"')
     expect(prompt).toContain('"series": ["spending"]')
     expect(prompt).toContain('most recent query result')
@@ -582,23 +583,23 @@ describe('buildSystemPrompt', () => {
   // editing, or the model falls back to prose plus a table.
   it('picks the output from the result shape, with every branch stated', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('shape of the result you got back')
+    expect(prompt).toContain('SHAPE of the result you received')
     // the branches deliberately overlap (two rows WITH a group column matches
     // both the two-row line and a chart line), so first-match is the tiebreaker
     // and has to survive: without it the model has no rule for the overlap
-    expect(prompt).toContain('FIRST line below that matches')
-    expect(prompt).toContain('three or more rows: chart it')
-    expect(prompt).toContain('exactly two rows')
+    expect(prompt).toContain('take the FIRST matching line')
+    expect(prompt).toContain('Three or more rows, an x column and a measure: chart it')
+    expect(prompt).toContain('Exactly two rows')
     expect(prompt).toContain('Markdown table, never a chart')
     // REGRESSION: the model charted `bar` with x = month while this rule was a
     // trailing clause on two bullets. It only holds as its own sentence.
-    expect(prompt).toContain('the chart is a line')
+    expect(prompt).toContain('spending by month is a line, never a bar')
     // REGRESSION: it printed the four charted rows as a table and then charted
     // them, with the old prohibition sitting in the section's last line
     expect(prompt).toContain('A chart REPLACES the rows it draws')
-    // comparison wording is matched as literal words, not as a category
-    for (const trigger of ['"vs"', '"compared to"', '"did I spend more"'])
-      expect(prompt).toContain(trigger)
+    // a comparison is taught as a whole worked turn rather than as wording to
+    // classify, since this model matches shapes far better than intents
+    expect(prompt).toContain('did I spend more in July than June?')
   })
 
   // Both claims are about the chart tool's real behavior, so a prompt that
@@ -606,17 +607,20 @@ describe('buildSystemPrompt', () => {
   // worse, a chart that silently omits rows (pie over a signed measure).
   it('states the chart tool limits it actually enforces', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('line and bar only, never on pie or stat')
-    expect(prompt).toContain('never for net')
+    expect(prompt).toContain('group works on line and bar only')
+    expect(prompt).toContain('never over net')
     // the series cap is interpolated, so it can never drift from the tool
     expect(prompt).toContain(`more than ${MAX_CHART_SERIES} distinct values`)
     expect(MAX_CHART_SERIES).toBeGreaterThan(0)
   })
 
+  // every worked turn ends on an answer sentence quoting a figure that is
+  // visibly sitting in the rows printed right above it, so the copy path the
+  // model learns is "read it off the row" rather than "chart it and move on"
   it('puts the number in the answer, not only in the chart', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('Lead with the answer')
-    expect(prompt).toContain('as you can see above')
+    expect(prompt).toContain('I answer:')
+    expect(prompt).toContain('state the figure in a sentence AND chart it as stat')
   })
 
   // REGRESSION: told to lead with a number after charting a per-day result
@@ -625,11 +629,12 @@ describe('buildSystemPrompt', () => {
   // row it received, so the escape hatch (query the total) rides with it.
   it('sources the leading number from a row, never from mental arithmetic', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('point at in a row you received')
-    expect(prompt).toContain('does NOT contain its own total')
-    expect(prompt).toContain('run one more query for the total')
-    // and when even that is impossible, no total beats a plausible one
-    expect(prompt).toContain('state no total at all')
+    expect(prompt).toContain('must sit in a row a query actually returned to you')
+    expect(prompt).toContain('carries no total of its own')
+    expect(prompt).toContain('I query the total')
+    // and the example figures are labelled fictional, so they are never quoted
+    // back at the user as if they were this user's data
+    expect(prompt).toContain('are INVENTED to show the shape')
   })
 })
 
