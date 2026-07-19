@@ -48,14 +48,14 @@ describe('validateQuerySql', () => {
 describe('scopeViewsDdl', () => {
   it('always hides soft-deleted rows, without narrowing when unscoped', () => {
     const ddl = scopeViewsDdl({ accountId: null }).join('\n')
-    expect(ddl).toContain('WHERE deleted_at IS NULL')
+    expect(ddl).toContain('WHERE t.deleted_at IS NULL')
     expect(ddl).not.toContain('account_id =')
     expect(ddl).not.toContain('WHERE id =')
   })
 
   it('narrows transactions, accounts and holdings to the scoped account', () => {
     const ddl = scopeViewsDdl({ accountId: 7 }).join('\n')
-    expect(ddl).toContain('WHERE deleted_at IS NULL AND account_id = 7')
+    expect(ddl).toContain('WHERE t.deleted_at IS NULL AND t.account_id = 7')
     expect(ddl).toContain('FROM main.accounts WHERE id = 7')
     expect(ddl).toContain('FROM main.holdings WHERE account_id = 7')
   })
@@ -72,7 +72,15 @@ describe('scopeViewsDdl', () => {
   // views against the real schema; see scope-views.test.ts
   it('drops each view before recreating it', () => {
     const ddl = scopeViewsDdl({ accountId: null })
-    for (const name of ['transactions', 'accounts', 'holdings', 'budgets', 'connections']) {
+    for (const name of [
+      'transactions',
+      'accounts',
+      'holdings',
+      'budgets',
+      'connections',
+      'rules',
+      'action_log'
+    ]) {
       const drop = ddl.findIndex((s) => s === `DROP VIEW IF EXISTS temp.${name}`)
       const create = ddl.findIndex((s) => s.startsWith(`CREATE TEMP VIEW ${name} `))
       expect(drop).toBeGreaterThanOrEqual(0)

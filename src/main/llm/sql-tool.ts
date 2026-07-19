@@ -93,14 +93,18 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     // compares dates against strings, and an epoch INTEGER compared to date
     // TEXT is always false in SQLite - a silent zero-row result rather than an
     // error.
+    // currency is joined in from accounts so the model can group by it instead
+    // of blending currencies across accounts
     'CREATE TEMP VIEW transactions AS ' +
-      'SELECT id, account_id, ' +
-      "datetime(NULLIF(posted, 0), 'unixepoch', 'localtime') AS posted, " +
-      'amount / 1000.0 AS amount, description, pending, ' +
-      "datetime(NULLIF(transacted_at, 0), 'unixepoch', 'localtime') AS transacted_at, " +
-      'category_id, ' +
-      "date(NULLIF(COALESCE(NULLIF(posted, 0), transacted_at), 0), 'unixepoch', 'localtime') AS txn_date " +
-      `FROM main.transactions WHERE deleted_at IS NULL${and(`account_id = ${accountId}`)}`,
+      'SELECT t.id, t.account_id, ' +
+      "datetime(NULLIF(t.posted, 0), 'unixepoch', 'localtime') AS posted, " +
+      't.amount / 1000.0 AS amount, t.description, t.pending, ' +
+      "datetime(NULLIF(t.transacted_at, 0), 'unixepoch', 'localtime') AS transacted_at, " +
+      't.category_id, ' +
+      "date(NULLIF(COALESCE(NULLIF(t.posted, 0), t.transacted_at), 0), 'unixepoch', 'localtime') AS txn_date, " +
+      'a.currency ' +
+      `FROM main.transactions t JOIN main.accounts a ON a.id = t.account_id ` +
+      `WHERE t.deleted_at IS NULL${and(`t.account_id = ${accountId}`)}`,
     'DROP VIEW IF EXISTS temp.accounts',
     // invert_balance is applied here and the column left out, matching
     // applyInvert in ipc/connections.ts: the flip is a read-time display rule
@@ -130,7 +134,23 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     'DROP VIEW IF EXISTS temp.connections',
     'CREATE TEMP VIEW connections AS ' +
       "SELECT id, datetime(NULLIF(last_synced_at, 0), 'unixepoch', 'localtime') AS last_synced_at, " +
-      "datetime(created_at, 'localtime') AS created_at FROM main.connections"
+      "datetime(created_at, 'localtime') AS created_at FROM main.connections",
+    // never scoped: rules apply across all accounts. created_at/updated_at are
+    // unix seconds, NOT NULL, with no 0 sentinel to guard against
+    'DROP VIEW IF EXISTS temp.rules',
+    'CREATE TEMP VIEW rules AS ' +
+      'SELECT id, name, enabled, priority, conditions, action, ' +
+      "datetime(created_at, 'unixepoch', 'localtime') AS created_at, " +
+      "datetime(updated_at, 'unixepoch', 'localtime') AS updated_at FROM main.rules",
+    // never scoped: history spans every account. created_at/undone_at are unix
+    // MILLISECONDS (see the actionLog comment in schema.ts), so they're divided
+    // before the epoch conversion; changes is left out on purpose, it's huge
+    // and internal
+    'DROP VIEW IF EXISTS temp.action_log',
+    'CREATE TEMP VIEW action_log AS ' +
+      "SELECT id, datetime(created_at / 1000, 'unixepoch', 'localtime') AS created_at, " +
+      "source, label, datetime(undone_at / 1000, 'unixepoch', 'localtime') AS undone_at " +
+      'FROM main.action_log'
   ]
 }
 

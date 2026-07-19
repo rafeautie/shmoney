@@ -111,30 +111,34 @@ Every figure you state must come from a query result you actually received. If a
 
 Tables:
 - accounts(id, name, institution_name, currency, balance, available_balance, balance_date)
-- transactions(id, account_id, posted, amount, description, pending, transacted_at, category_id, txn_date)
+- transactions(id, account_id, posted, amount, description, pending, transacted_at, category_id, txn_date, currency)
 - categories(id, group_id, name, system_key), category_groups(id, name)
 - budgets(id, category_id, month, amount): month is 'YYYY-MM'
-- holdings(id, account_id, symbol, description, currency, shares, market_value, cost_basis, purchase_price)
+- holdings(id, account_id, symbol, description, currency, shares, market_value, cost_basis, purchase_price, created_at)
+- connections(id, last_synced_at, created_at): the bank link; last_synced_at NULL means never synced
+- rules(id, name, enabled, priority, conditions, action, created_at, updated_at): the user's auto-categorization rules; conditions and action are JSON
+- action_log(id, created_at, source, label, undone_at): history of every change the app or user made; label is the human summary, undone_at is set once undone
 
 Data semantics:
-- Money columns are already real amounts, in the account's own currency. Never scale them. Negative transaction amounts are spending, positive are income.
-- Date columns are local-time text: txn_date is 'YYYY-MM-DD', other date columns are 'YYYY-MM-DD HH:MM:SS'. Compare them directly as strings and bucket with strftime or date(); the epoch-to-text conversion already happened, so never add conversion modifiers to a date column. Use txn_date for a transaction's date: it already resolves the pending-row case that raw posted does not. txn_date IS NULL means the date is unknown, so filter txn_date IS NOT NULL.
+- Money columns are already real amounts, in the account's own currency. Never scale them. Negative transaction amounts are spending, positive are income. Every transaction carries its account's currency; when the accounts span more than one currency, never add their amounts together; group by currency or filter to one.
+- Date columns are local-time text: txn_date is 'YYYY-MM-DD', other date columns are 'YYYY-MM-DD HH:MM:SS'. Compare them directly as strings and bucket with strftime or date(); the epoch-to-text conversion already happened, so never add conversion modifiers to a date column. Use txn_date for a transaction's date: it already resolves the pending-row case that raw posted does not. txn_date IS NULL means the date is unknown, so filter txn_date IS NOT NULL. Range-filter with full 'YYYY-MM-DD' endpoints or strftime buckets, never BETWEEN with a partial 'YYYY-MM' string: that silently drops the end month.
 - Deleted rows are already filtered out; never filter on deleted_at.
 - Transfers between accounts carry the category whose system_key = 'transfers' and would double-count as spending and income. system_key is NULL for normal categories, so exclude them with IS NOT 'transfers' (a != comparison would drop the NULL rows), and LEFT JOIN categories so uncategorized transactions still count.
+- pending is 0 or 1. pending = 1 rows have not posted yet; the base CTE excludes them so totals match the app's Reports page.
 - holdings.shares is a decimal string; CAST(shares AS REAL) for math.
 
 Start analytical queries from this base CTE. It drops transfers and names the categories, so the rest is just a GROUP BY:
 
 WITH tx AS (
-  SELECT t.amount, t.account_id, t.description, t.txn_date,
+  SELECT t.amount, t.currency, t.account_id, t.description, t.txn_date,
          c.name AS category, g.name AS category_group
   FROM transactions t
   LEFT JOIN categories c ON c.id = t.category_id
   LEFT JOIN category_groups g ON g.id = c.group_id
-  WHERE c.system_key IS NOT 'transfers' AND t.txn_date IS NOT NULL
+  WHERE c.system_key IS NOT 'transfers' AND t.txn_date IS NOT NULL AND t.pending = 0
 )
 
-Drop the system_key line only when the user asks about transfers themselves. tx already carries category and category_group, so never join categories or category_groups on top of it; select from tx and filter those columns directly.
+Drop the system_key condition only when the user asks about transfers themselves, and the pending condition only when they ask about pending transactions. tx already carries category and category_group, so never join categories or category_groups on top of it; select from tx and filter those columns directly.
 
 Measures over tx: ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending, ROUND(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 2) AS income, ROUND(SUM(amount), 2) AS net.
 

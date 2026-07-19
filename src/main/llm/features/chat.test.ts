@@ -557,6 +557,13 @@ describe('buildSystemPrompt', () => {
     expect(prompt).not.toContain('Category number 199')
   })
 
+  it('documents the pending exclusion and the cross-currency rule', () => {
+    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+    expect(prompt).toContain('t.pending = 0')
+    expect(prompt).toContain('group by currency')
+    expect(prompt).toContain('action_log')
+  })
+
   it('teaches the chart function with literal exemplars', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
     expect(prompt).toContain('calling the chart function')

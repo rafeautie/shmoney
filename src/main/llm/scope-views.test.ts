@@ -32,13 +32,14 @@ function seed(db: DatabaseSync): void {
   // 2026-06-11 12:00:00 UTC; midday keeps the local calendar date TZ-stable
   // for offsets up to ±11h
   const JUNE = 1781179200
+  const JUNE_MS = 1781179200123 // same instant, but action_log's epochs are milliseconds
   const recent = Math.floor(Date.now() / 1000) - 5 * 86400
   db.exec(`
     INSERT INTO connections (id, access_url_encrypted, last_synced_at, created_at)
     VALUES (1, 'enc', ${JUNE}, '2026-06-11 12:00:00');
     INSERT INTO accounts (id, name, currency, balance, available_balance, balance_date, invert_balance)
     VALUES (1, 'Checking', 'USD', 1234560, 1000000, 0, 0),
-           (2, 'Card', 'USD', 250000, NULL, 0, 1);
+           (2, 'Card', 'EUR', 250000, NULL, 0, 1);
     INSERT INTO transactions (id, account_id, simplefin_id, posted, amount, description, pending,
                               transacted_at)
     VALUES (1, 1, 't1', ${JUNE}, -12340, 'Coffee', 0, ${JUNE}),
@@ -56,6 +57,13 @@ function seed(db: DatabaseSync): void {
     INSERT INTO category_groups (id, name) VALUES (901, 'Test Group');
     INSERT INTO categories (id, group_id, name) VALUES (901, 901, 'Test Category');
     INSERT INTO budgets (id, category_id, month, amount) VALUES (1, 901, '2026-07', 30000);
+    INSERT INTO rules (id, name, priority, conditions, action, created_at, updated_at)
+    VALUES (901, 'Test Rule', 1, '{"version":1}', '{"version":1}', ${JUNE}, ${JUNE});
+    -- created_at/undone_at are unix MILLISECONDS; a millis value mistakenly
+    -- fed to unixepoch as seconds would land in year ~58400
+    INSERT INTO action_log (id, created_at, source, label, changes, undone_at)
+    VALUES (901, ${JUNE_MS}, 'user', 'Applied rule', '[]', NULL),
+           (902, ${JUNE_MS}, 'user', 'Undone change', '[]', ${JUNE_MS});
   `)
 }
 
@@ -125,6 +133,12 @@ describe('scope views: amounts', () => {
   it('still hides soft-deleted rows', () => {
     expect(query(db, 'SELECT COUNT(*) AS n FROM transactions')).toEqual([{ n: 5 }])
   })
+
+  it("carries the account's currency on transactions", () => {
+    expect(query(db, 'SELECT currency FROM transactions WHERE account_id = 1 LIMIT 1')).toEqual([
+      { currency: 'USD' }
+    ])
+  })
 })
 
 describe('scope views: dates', () => {
@@ -191,6 +205,40 @@ describe('scope views: dates', () => {
         created_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
       }
     ])
+  })
+})
+
+describe('scope views: rules and action_log', () => {
+  let db: DatabaseSync
+  beforeAll(() => {
+    db = open(null)
+  })
+
+  it('returns rules created_at/updated_at as datetime text', () => {
+    expect(query(db, 'SELECT created_at, updated_at FROM rules WHERE id = 901')).toEqual([
+      {
+        created_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/),
+        updated_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+      }
+    ])
+  })
+
+  // REGRESSION: created_at/undone_at are unix MILLISECONDS; a millis value
+  // mistakenly fed to unixepoch as seconds would land in year ~58400
+  it("renders action_log's millisecond epochs as the correct 2026-06 local date", () => {
+    const rows = query(db, 'SELECT created_at, undone_at FROM action_log ORDER BY id') as {
+      created_at: string
+      undone_at: string | null
+    }[]
+    expect(rows[0].created_at.startsWith('2026-06')).toBe(true)
+    expect(rows[0].undone_at).toBeNull()
+    expect(rows[1].undone_at).toEqual(expect.any(String))
+    expect(rows[1].undone_at!.startsWith('2026-06')).toBe(true)
+  })
+
+  it('does not expose the changes column', () => {
+    const columns = query(db, 'PRAGMA table_info(action_log)').map((c) => c.name)
+    expect(columns).not.toContain('changes')
   })
 })
 
