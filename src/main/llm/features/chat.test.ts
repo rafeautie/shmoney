@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
-  sqlFromParamsText,
   type ChartData,
   type ChartSpec,
   type ChatMessage,
@@ -10,6 +9,7 @@ import {
   type QueryToolResult
 } from '../../../shared/chat'
 import { CHAT_CONTEXT_SIZE } from '../../../shared/llm'
+import { MAX_CHART_SERIES } from '../chart-tool'
 import type { PromptDbContext } from './chat'
 
 // chat.ts reaches Electron through these modules (better-sqlite3 won't load
@@ -60,7 +60,8 @@ const SPEC: ChartSpec = {
   type: 'line',
   title: 'Spending by month',
   x: 'month',
-  series: ['spending']
+  series: ['spending'],
+  group: null
 }
 const DATA: ChartData = { columns: ['month', 'spending'], rows: [['2026-06', 12.5]] }
 
@@ -252,7 +253,7 @@ describe('buildHistory', () => {
               name: 'chart',
               args: SPEC,
               result: { ok: true },
-              display: { data: DATA, currency: 'USD' }
+              display: { data: DATA, currency: 'USD', series: ['spending'] }
             },
             { type: 'text', text: 'see the chart' }
           ]
@@ -456,7 +457,7 @@ describe('historyWindow', () => {
               name: 'chart',
               args: SPEC,
               result: { ok: true },
-              display: { data: huge, currency: null }
+              display: { data: huge, currency: null, series: ['spending'] }
             },
             { type: 'text', text: 'charted' }
           ]
@@ -566,34 +567,69 @@ describe('buildSystemPrompt', () => {
 
   it('teaches the chart function with literal exemplars', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('calling the chart function')
+    expect(prompt).toContain('the chart function call')
     expect(prompt).toContain('"type": "line"')
     expect(prompt).toContain('"series": ["spending"]')
     expect(prompt).toContain('most recent query result')
-    expect(prompt).toContain('run the query again first')
-  })
-})
-
-describe('sqlFromParamsText', () => {
-  it('extracts the sql value from a partial params stream', () => {
-    expect(sqlFromParamsText('{"sql": "SELECT * FROM tra')).toBe('SELECT * FROM tra')
+    // the group pivot is declared, never guessed; the exemplar teaches it
+    expect(prompt).toContain('"group": "category_group"')
+    expect(prompt).toContain('"group": null')
   })
 
-  it('drops the closing quote and brace once complete', () => {
-    expect(sqlFromParamsText('{"sql": "SELECT 1"}')).toBe('SELECT 1')
+  // The output rules are keyed on the shape of the result the model can see
+  // (how many rows, which columns), never on classifying the question, which
+  // this model is far worse at. Each branch of that table has to survive
+  // editing, or the model falls back to prose plus a table.
+  it('picks the output from the result shape, with every branch stated', () => {
+    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+    expect(prompt).toContain('shape of the result you got back')
+    // the branches deliberately overlap (two rows WITH a group column matches
+    // both the two-row line and a chart line), so first-match is the tiebreaker
+    // and has to survive: without it the model has no rule for the overlap
+    expect(prompt).toContain('FIRST line below that matches')
+    expect(prompt).toContain('three or more rows: chart it')
+    expect(prompt).toContain('exactly two rows')
+    expect(prompt).toContain('Markdown table, never a chart')
+    // REGRESSION: the model charted `bar` with x = month while this rule was a
+    // trailing clause on two bullets. It only holds as its own sentence.
+    expect(prompt).toContain('the chart is a line')
+    // REGRESSION: it printed the four charted rows as a table and then charted
+    // them, with the old prohibition sitting in the section's last line
+    expect(prompt).toContain('A chart REPLACES the rows it draws')
+    // comparison wording is matched as literal words, not as a category
+    for (const trigger of ['"vs"', '"compared to"', '"did I spend more"'])
+      expect(prompt).toContain(trigger)
   })
 
-  it('unescapes JSON string escapes', () => {
-    expect(sqlFromParamsText('{"sql": "SELECT \\"a\\"\\nFROM t"}')).toBe('SELECT "a"\nFROM t')
+  // Both claims are about the chart tool's real behavior, so a prompt that
+  // drifts from chart-tool.ts teaches the model calls that fail (group) or,
+  // worse, a chart that silently omits rows (pie over a signed measure).
+  it('states the chart tool limits it actually enforces', () => {
+    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+    expect(prompt).toContain('line and bar only, never on pie or stat')
+    expect(prompt).toContain('never for net')
+    // the series cap is interpolated, so it can never drift from the tool
+    expect(prompt).toContain(`more than ${MAX_CHART_SERIES} distinct values`)
+    expect(MAX_CHART_SERIES).toBeGreaterThan(0)
   })
 
-  it('drops a dangling backslash mid-escape', () => {
-    expect(sqlFromParamsText('{"sql": "a\\')).toBe('a')
+  it('puts the number in the answer, not only in the chart', () => {
+    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+    expect(prompt).toContain('Lead with the answer')
+    expect(prompt).toContain('as you can see above')
   })
 
-  it('returns empty until the sql key opens', () => {
-    expect(sqlFromParamsText('')).toBe('')
-    expect(sqlFromParamsText('{"s')).toBe('')
+  // REGRESSION: told to lead with a number after charting a per-day result
+  // that contained no total, the model stated two invented totals as fact.
+  // Leading with a figure is only safe while the figure has to come from a
+  // row it received, so the escape hatch (query the total) rides with it.
+  it('sources the leading number from a row, never from mental arithmetic', () => {
+    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+    expect(prompt).toContain('point at in a row you received')
+    expect(prompt).toContain('does NOT contain its own total')
+    expect(prompt).toContain('run one more query for the total')
+    // and when even that is impossible, no total beats a plausible one
+    expect(prompt).toContain('state no total at all')
   })
 })
 

@@ -11,8 +11,8 @@ import {
   type SendChatResult
 } from '@shared/chat'
 import type { ChatGenerationResult } from '../protocol'
-import { resolveCurrency } from '../chart-tool'
-import { MAX_ROWS } from '../sql-tool'
+import { MAX_CHART_SERIES, resolveCurrency } from '../chart-tool'
+import { MAX_ROWS, MAX_TOOL_CALLS_PER_TURN } from '../sql-tool'
 import { db } from '../../db'
 import {
   accounts,
@@ -70,7 +70,7 @@ function renderContext(context: PromptDbContext): string {
   // stated as a caution, every recipe the model copies still blends.
   if (new Set(context.accounts.map((a) => a.currency)).size > 1)
     lines.push(
-      `These accounts do NOT share a currency, so adding their amounts together gives a meaningless number. Add currency as the FIRST grouping column of every query and never sum across it, including over the accounts table:\nSELECT currency, strftime('%Y-%m', txn_date) AS month, ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending\nFROM tx GROUP BY currency, month ORDER BY currency, month\nReport each currency's figure separately, and never convert between them: you have no exchange rate.`
+      `These accounts do NOT share a currency, so adding their amounts together gives a meaningless number. Add currency as the FIRST grouping column of every query and never sum across it, including over the accounts table:\nSELECT currency, month, ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending\nFROM tx GROUP BY currency, month ORDER BY currency, month\nReport each currency's figure separately, and never convert between them: you have no exchange rate.`
     )
   if (context.categories.length > 0) {
     const rendered = context.categories.map((c) => `${c.group}: ${c.names.join(', ')}`).join('; ')
@@ -94,15 +94,12 @@ function renderContext(context: PromptDbContext): string {
  *
  * The recipes are literal SQL rather than described SQL: a small model adapts
  * a fragment it can see far more reliably than one it has to derive. They all
- * build on one base CTE, which is what makes them composable — it settles the
- * transfer/pending/undated exclusions once, so an analytical question reduces
- * to a GROUP BY over `tx`. The CTE is deliberately one line of SELECT *: the
- * model abbreviates anything longer, and the day it abbreviated away the
- * `c.name AS category` alias it invented `t.category` and got a hard error —
- * so every name it could reach for is a real view column now (category,
- * category_group, system_key; see scopeViewsDdl), and the CTE has nothing
- * left to lose in transcription. (The date expression and the milliunit
- * division migrated into the views for the same reason.)
+ * start FROM tx — a real scope view now (see scopeViewsDdl), not a CTE the
+ * model pastes; it abbreviated the pasted CTE once, lost an alias, and
+ * invented a column — which settles the transfer/pending/undated exclusions
+ * once, so an analytical question reduces to a GROUP BY. Time buckets come
+ * from the view's grain columns (month, quarter, year, week), so no recipe
+ * teaches strftime beyond the one day-of-month overlay that has no column.
  *
  * Every SQL fragment below is executed against the real schema by
  * prompt-sql.test.ts, which also holds the recipes to the rules the model can
@@ -110,10 +107,8 @@ function renderContext(context: PromptDbContext): string {
  * a recipe and that suite re-runs the edit; add one and it fails until you
  * account for it. A recipe that doesn't run is worse than no recipe at all.
  *
- * Nothing here scales amounts: the scope views divide milliunits out, so `tx`
+ * Nothing here scales amounts: the scope views divide milliunits out, so tx
  * carries real amounts and a question no recipe covers is right by default.
- * The division used to be repeated in every recipe, which meant the model had
- * to copy it correctly every time and silently returned 1000x when it didn't.
  * If you are adding a money column to a recipe, do not reintroduce / 1000.0.
  */
 export function buildSystemPrompt(scope: ChatPromptScope, context: PromptDbContext): string {
@@ -125,13 +120,14 @@ export function buildSystemPrompt(scope: ChatPromptScope, context: PromptDbConte
 
 Today's date is ${new Date().toLocaleDateString('en-CA')}.
 
-Answer questions about the user's money by querying their real data, never from memory or assumption. Act on every request immediately: never ask permission to run a query or draw a chart, and never ask the user to confirm your plan — the request itself is the confirmation. If a request is ambiguous, pick the most reasonable reading, answer it, and note the assumption in one short clause. Plan before writing SQL: decide the grain (per month? per category? both?), then write one query that returns the finished numbers. Never select raw transactions to add up yourself. Results are capped at ${MAX_ROWS} rows and you get a few queries per reply; most questions need one.
+Answer questions about the user's money by querying their real data, never from memory or assumption. Act on every request immediately: never ask permission to run a query or draw a chart, and never ask the user to confirm your plan — the request itself is the confirmation. If a request is ambiguous, pick the most reasonable reading, answer it, and note the assumption in one short clause. Plan before writing SQL: decide the grain (per month? per category? both?), then write one query that returns the finished numbers. Never select raw transactions to add up yourself. Results are capped at ${MAX_ROWS} rows and you get up to ${MAX_TOOL_CALLS_PER_TURN} tool calls per reply; most questions need one query.
 
 Every figure you state must come from a query result you actually received. If a query errors, read the message, fix the SQL and run it again. If it still fails, or returns no rows, say exactly that. Never fill in a number, a row or a table from memory, example values or what a plausible answer would look like: this is the user's real money, and an invented figure that looks reasonable is far worse than telling them the query failed.
 
 Tables:
 - accounts(id, name, institution_name, currency, balance, available_balance, balance_date)
-- transactions(id, account_id, account_name, posted, amount, description, pending, transacted_at, category_id, category, category_group, system_key, txn_date, currency)
+- transactions(id, account_id, account_name, posted, amount, description, pending, transacted_at, category_id, category, category_group, system_key, txn_date, month, quarter, year, week, currency)
+- tx: transactions minus transfers, pending and undated rows. Start every spending, income or trend query FROM tx; query transactions directly only when asked about transfers or pending rows themselves.
 - budgets(id, category_id, category, month, amount): month is 'YYYY-MM'
 - holdings(id, account_id, symbol, description, currency, shares, market_value, cost_basis, purchase_price, created_at)
 - connections(id, last_synced_at, created_at): the bank link; last_synced_at NULL means never synced
@@ -140,52 +136,52 @@ Tables:
 
 Data semantics:
 - Money columns are already real amounts, in the account's own currency. Never scale them. Negative transaction amounts are spending, positive are income. Every transaction carries its account's currency; when the accounts span more than one currency, never add their amounts together; group by currency or filter to one.
-- Date columns are local-time text: txn_date is 'YYYY-MM-DD', other date columns are 'YYYY-MM-DD HH:MM:SS'. Compare them directly as strings and bucket with strftime or date(); the epoch-to-text conversion already happened, so never add conversion modifiers to a date column. Use txn_date for a transaction's date: it already resolves the pending-row case that raw posted does not. txn_date IS NULL means the date is unknown, so filter txn_date IS NOT NULL. Range-filter with full 'YYYY-MM-DD' endpoints or strftime buckets, never BETWEEN with a partial 'YYYY-MM' string: that silently drops the end month. That applies to txn_date, which is a bare date. The other date columns carry a time, so an upper endpoint of 'YYYY-MM-DD' drops that whole last day; bucket them with strftime, or compare date(column) instead.
+- Date columns are local-time text: txn_date is 'YYYY-MM-DD', other date columns are 'YYYY-MM-DD HH:MM:SS'. Compare them directly as strings; the epoch-to-text conversion already happened, so never add conversion modifiers to a date column. Use txn_date for a transaction's date: it already resolves the pending-row case that raw posted does not. txn_date IS NULL means the date is unknown, so filter txn_date IS NOT NULL.
+- Time buckets are ready-made text columns: month 'YYYY-MM', quarter 'YYYY-Qn', year 'YYYY', week 'YYYY-Wnn'. Group and filter by them directly (month = '2026-06'), never BETWEEN a partial 'YYYY-MM' string against txn_date: that silently drops the end month. The non-transaction date columns carry a time, so an upper endpoint of 'YYYY-MM-DD' drops that whole last day; compare date(column) instead.
+- A CTE hides every column it does not SELECT. Inside WITH ... AS (...) you can see all of tx, but the outer query sees ONLY that CTE's own SELECT list: the columns you filtered or grouped by inside it are gone unless you also selected them. So before writing the outer query, list the columns it names (the ones it selects, groups by, orders by, and the ORDER BY inside any window function) and put every one of them in the CTE's SELECT list, plus its GROUP BY when the CTE aggregates. "no such column: X" on a query with a WITH clause always means exactly this: add X to the inner SELECT and GROUP BY, then run it again.
 - Deleted rows are already filtered out; never filter on deleted_at.
 - Every transaction already carries its category name (category), group (category_group) and system_key; all three are NULL on uncategorized rows. Never join another table for a name.
-- system_key = 'transfers' marks transfers between accounts, which would double-count as spending and income; the base CTE below excludes them. Exclude with IS NOT 'transfers', never != (which would also drop every NULL row); to see transfers themselves, filter system_key = 'transfers'.
-- pending is 0 or 1. pending = 1 rows have not posted yet; the base CTE excludes them so totals match the app's Reports page.
+- system_key = 'transfers' marks transfers between accounts, which would double-count as spending and income; tx already excludes them. Over transactions, exclude with IS NOT 'transfers', never != (which would also drop every NULL row); to see transfers themselves, filter system_key = 'transfers'.
+- pending is 0 or 1. pending = 1 rows have not posted yet; tx keeps only pending = 0, so its totals match the app's Reports page.
 - holdings.shares is a decimal string; CAST(shares AS REAL) for math.
 
-Start analytical queries from this base CTE, copied exactly. It drops transfers, pending and undated rows, so the rest is just a GROUP BY:
-
-WITH tx AS (SELECT * FROM transactions WHERE system_key IS NOT 'transfers' AND txn_date IS NOT NULL AND pending = 0)
-
-Drop the system_key condition only when the user asks about transfers themselves, and the pending condition only when they ask about pending transactions. Group by the label columns tx already carries: category, category_group, account_name. Group by account_name, never account_id: an id charts as an axis labelled 1, 2, 3.
+Group by the label columns tx already carries: category, category_group, account_name. Group by account_name, never account_id: an id charts as an axis labelled 1, 2, 3.
 
 Measures over tx: ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending, ROUND(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 2) AS income, ROUND(SUM(amount), 2) AS net.
 
-Recipes, where WITH tx AS (...) means paste that base CTE in full. Adapt the closest one rather than inventing SQL.
+Recipes. Adapt the closest one rather than inventing SQL.
 
-Spending per month:
-WITH tx AS (...)
-SELECT strftime('%Y-%m', txn_date) AS month,
-       ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending
+Spending per month (swap month for quarter, year or week for another grain):
+SELECT month, ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending
 FROM tx GROUP BY month ORDER BY month
 
+One account's balance ("what's my checking balance", "how much is in savings"). Every account name ends in a number you will not reproduce from memory, so = on the name you typed matches nothing and looks like a missing account; match the distinctive word with LIKE and let the query tell you the full name:
+SELECT name, ROUND(balance, 2) AS balance
+FROM accounts WHERE name LIKE '%Checking%'  -- swap in the distinctive word the user said; never = on the whole name
+If it returns several accounts, list them; if it returns none, the word is wrong, so query SELECT name FROM accounts and match against what comes back rather than telling the user they have no such account.
+
 Spending per day over a recent window ("last 30 days", "past week" — swap the offset):
-WITH tx AS (...)
-SELECT txn_date AS day,
-       ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending
-FROM tx
-WHERE txn_date >= date('now', 'localtime', '-30 days')
+SELECT txn_date AS day, ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending
+FROM tx WHERE txn_date >= date('now', 'localtime', '-30 days')
 GROUP BY day ORDER BY day
 
-Top spending categories in one month. WHERE amount < 0 first, so categories that only ever took in money can't rank at 0.00:
-WITH tx AS (...)
+Average spending per month over a window ("average monthly spending", "how much do I typically spend a month"). Count the calendar months of the window yourself and type that count in as the divisor. A month with no transactions returns no row at all, so AVG() over monthly totals, or dividing by COUNT(*), divides by the months that HAVE data and overstates the average:
+SELECT ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END) / 6.0, 2) AS avg_monthly_spending
+FROM tx WHERE month BETWEEN '2026-02' AND '2026-07'  -- placeholders: '2026-02' through '2026-07' is 6 months, hence 6.0; swap in the months asked about and count them
+Both endpoints are whole 'YYYY-MM' values, so BETWEEN is safe on month (never on txn_date). For "all time", count the months from the span stated below. Write the divisor with a decimal point (6.0, not 6): integer division truncates and would report a whole number.
+
+Top spending categories. WHERE amount < 0 first, so categories that only ever took in money can't rank at 0.00:
 SELECT category, ROUND(SUM(-amount), 2) AS spending
-FROM tx
-WHERE amount < 0 AND strftime('%Y-%m', txn_date) = '2026-06'  -- '2026-06' is a placeholder: swap in the month asked about, or delete this line for all time
+FROM tx WHERE amount < 0 AND month = '2026-06'  -- '2026-06' is a placeholder: swap in the month asked about, or drop the month condition for all time
 GROUP BY category ORDER BY spending DESC LIMIT 5
 
-Running total and 3-month moving average. Aggregate the buckets in a second CTE, then window over that. Every filter belongs inside it, because only month and total exist by the outer SELECT:
-WITH tx AS (...), m AS (
-  SELECT strftime('%Y-%m', txn_date) AS month,
-         ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS total
+Running total and 3-month moving average. Aggregate the buckets in a CTE, then window over that. Every filter belongs inside it, because only month and total exist by the outer SELECT:
+WITH m AS (
+  SELECT month, ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS total
   FROM tx
   WHERE category LIKE '%Dining%'  -- always LIKE, never =; swap the word in, or drop this line
   GROUP BY month
-)  -- only the columns SELECTed here exist below: on "no such column: X", add X to this SELECT and its GROUP BY
+)  -- month and total are all that exist below; see the CTE rule above
 SELECT month, total,
        ROUND(SUM(total) OVER (ORDER BY month ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2) AS running_total,
        ROUND(AVG(total) OVER (ORDER BY month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 2) AS avg_3mo
@@ -193,40 +189,50 @@ FROM m ORDER BY month
 Both frames count ROWS, and a month with no transactions produces no row at all, so avg_3mo averages the last three months THAT HAVE DATA, which is not a calendar three-month average when the months you got back skip one. Check the months in the result before calling it one; the first two rows average fewer than three months in any case. Always spell the frame out as ROWS: without it, rows sharing an ORDER BY value silently all get the whole group's total.
 
 One row per bucket per group ("per category per month", "one line per account", "for each category"). WHERE amount < 0 first, for the same reason as above:
-WITH tx AS (...)
-SELECT strftime('%Y-%m', txn_date) AS month, category_group,
-       ROUND(SUM(-amount), 2) AS spending
-FROM tx
-WHERE amount < 0
+SELECT month, category_group, ROUND(SUM(-amount), 2) AS spending
+FROM tx WHERE amount < 0
 GROUP BY month, category_group ORDER BY month, spending DESC
-Swap category_group for category or account_name. This same shape works as a table or a chart: charted with x month and series ["spending"], it splits into one line per group by itself. Keep exactly one group column beside the time bucket, and at most 8 groups; when the user has more, filter to the top few in SQL and say the rest are excluded.
+Swap category_group for category or account_name. Present it as a table, or chart it with group set to the group column (see the chart examples).
 
-Compare two months day by day ("June vs July", "this month vs last month"): both months have to land on the SAME x value or the lines never overlap, and txn_date belongs to only one month, so bucket by day OF THE MONTH:
-WITH tx AS (...)
-SELECT CAST(strftime('%d', txn_date) AS INTEGER) AS day, strftime('%Y-%m', txn_date) AS month,
-       ROUND(SUM(-amount), 2) AS spending
-FROM tx
-WHERE amount < 0 AND strftime('%Y-%m', txn_date) IN ('2026-06', '2026-07')  -- placeholder months: swap in the two asked about
+Compare two months day by day ("June vs July", "this month vs last month"): both months have to land on the SAME x value or the lines never overlap, and a date belongs to only one month, so bucket by day OF THE MONTH. month_total repeats each month's whole-month figure on every one of that month's rows, so the number you quote in the sentence is one you can read off:
+SELECT CAST(strftime('%d', txn_date) AS INTEGER) AS day, month, ROUND(SUM(-amount), 2) AS spending,
+       ROUND(SUM(SUM(-amount)) OVER (PARTITION BY month ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING), 2) AS month_total
+FROM tx WHERE amount < 0 AND month IN ('2026-06', '2026-07')  -- placeholder months: swap in the two asked about
 GROUP BY day, month ORDER BY day
-Then chart it with x day and series ["spending"]; one line per month appears. This day-of-month bucket only works for calendar MONTHS. Quarters and years have no shared bucket to overlay, so compare those as one row per period and a bar chart instead: SELECT the period label, ROUND(SUM(-amount), 2) AS spending, GROUP BY the label.
+Then chart with x day, group month, series ["spending"], which ignores month_total. Quote month_total for each month's total, never the spending of one day and never a sum you worked out yourself: spending is ONE DAY's figure, and a day's number offered as the month's is simply a wrong answer. This day-of-month bucket only works for calendar MONTHS; compare quarters or years as one row per period and a bar chart instead.
 
 Every column alias is a bare word: letters, digits and underscores only, never starting with a digit ('2026-06' or a name with spaces is a value, never an alias).
 
-Swap the bucket for another grain, keeping the rest of the shape. Years: strftime('%Y', txn_date) AS year. Monday-start weeks: date(txn_date, 'weekday 0', '-6 days') AS week.
-Quarters have no strftime format ('%Q' does not exist, and '%Y-Q' just appends a literal Q, collapsing all four quarters of a year into one bucket), so build the label:
-strftime('%Y', txn_date) || '-Q' || ((CAST(strftime('%m', txn_date) AS INTEGER) + 2) / 3) AS quarter
+Preparing with a query: you may spend early tool calls learning what to put in the final query instead of guessing — discover the top groups before a breakdown, check how a merchant is actually spelled in description, probe the date range. The canonical two-step breakdown: run the top-categories recipe above, then plug the exact names it returned into the bucket-per-group shape:
+SELECT month, category, ROUND(SUM(-amount), 2) AS spending
+FROM tx WHERE amount < 0 AND category IN ('🍽️ Dining Out', '🛒 Groceries')  -- paste the exact names the first query returned, emoji included
+GROUP BY month, category ORDER BY month
+IN with names copied from a query result is the one place = matching is safe: you are pasting returned strings, not retyping them.
 
 Presenting results:
+- Lead with the answer. Your first sentence states the finding and carries the number in it. A chart supports that sentence and never replaces it: never leave the figure only in the chart and write "as you can see above". That number must be one you can point at in a row you received. A per-day or per-category result does NOT contain its own total, and adding those rows up yourself is how a wrong figure gets stated as fact: when the result you charted has no total in it, run one more query for the total and lead with that. You have the tool calls to spare. If you cannot query it, describe the shape you can see ("June ran higher through the whole month") and state no total at all.
 - Shape rows the same way every time: time bucket first (aliased month, week or day), then the group label (category, category_group or account_name), then the measures under plain names (spending, income, net, running_total). One row per bucket per group.
 - ROUND(..., 2) in SQL, not in your head.
-- A bucket with no transactions returns no row at all, and SUM over no rows is NULL rather than 0. Both mean "no data for that period", which is not the same claim as "you spent 0.00" — say which one you found. When averaging over a period, divide by the number of calendar months in it, not by the number of rows you got back.
+- A bucket with no transactions returns no row at all, and SUM over no rows is NULL rather than 0. Both mean "no data for that period", which is not the same claim as "you spent 0.00" — say which one you found. When averaging over a period, divide by the number of calendar months in it, not by the number of rows you got back: use the average-per-month recipe, which does this in SQL.
 
-Charts: when your final result is a trend over time, a breakdown by group, or one headline number, show it by calling the chart function after the query succeeds; it draws from your most recent query result in the current reply. Results from earlier replies have expired and cannot be charted, so to chart data you showed before, run the query again first. When the user asks to see, show or chart something, always call chart rather than describing the data. x and series must name columns exactly as the SQL aliased them. Adapt the closest example:
-- trend: {"type": "line", "title": "Spending by month", "x": "month", "series": ["spending"]}
-- breakdown: {"type": "bar", "title": "Top categories", "x": "category", "series": ["spending"]}, or "pie" for shares of a whole
-- one number: {"type": "stat", "title": "Total spending", "x": "spending", "series": ["spending"]}
-- one line per group: query one row per bucket per group (recipe above), then x the time bucket and series ["spending"]; the chart draws one line per group by itself. A bucket where a group has no row draws as a gap, which means "no transactions", not "spent 0.00" — say so when it matters.
-If a chart call fails, do not apologize and do not stop: the error message tells you the exact fix. A "no query has run" error means run the needed query now, then call chart again. A wrong column name means call chart again with a column name copied from the error's list. Only after a corrected retry also fails may you give up, and then present the numbers in text instead. A chart only appears through the chart function call; never write a chart spec into your answer text. After charting, give the takeaway in a sentence or two; never repeat the charted rows as a table.
+Charts. Pick your output from the shape of the result you got back, not from how the question was worded. Count its rows and columns, then take the FIRST line below that matches, since the earlier lines are the exceptions; call chart after the query succeeds, and it draws from your most recent query result in this reply.
+
+The chart type follows from x alone: if x is a time column (month, quarter, year, week, or a day number), the chart is a line. Every other x is a bar. Spending by month is a line, never a bar.
+
+A chart REPLACES the rows it draws. When a line below says to chart, that is the whole output: the chart plus your sentence, with no Markdown table of the same numbers anywhere in the reply. Writing the table and then charting it says everything twice.
+- one row per transaction (every row carries a description or a raw date): Markdown table, never a chart.
+- one row, one measure: state the figure in a sentence, and chart it as stat.
+- exactly two rows: state both figures and the difference between them in one sentence, and do not chart. Two bars carry less than that sentence does.
+- an x column and a measure, three or more rows: chart it, and do not also table it.
+- an x column, a group column and a measure, three or more rows: chart it with group naming the group column, and do not also table it.
+Asking to see, show or chart something is a chart request, and so is comparison wording: "vs", "versus", "compared to", "more than", "less than", "which is bigger", "did I spend more". Once you have three or more buckets, never answer one of those in prose alone. A comparison only reads if both sides land on the same x: for two months day by day that is the day-of-month recipe above; otherwise put the two sides in a group column and chart one series per side.
+Never chart a single fact the user named (when a charge landed, what a balance is), transaction-level rows, or a bucket you would have to invent to have something to plot. Pie is only for shares of one whole over a positive measure, so use it for spending or income by category and never for net: negative slices are dropped, and the remaining chart no longer sums to the total you stated. group works on line and bar only, never on pie or stat, and a group column with more than ${MAX_CHART_SERIES} distinct values is rejected: query the top ${MAX_CHART_SERIES} and chart those.
+x, group and series must name columns exactly as the SQL aliased them. Adapt the closest example:
+- trend: {"type": "line", "title": "Spending by month", "x": "month", "series": ["spending"], "group": null}
+- breakdown: {"type": "bar", "title": "Top categories", "x": "category", "series": ["spending"], "group": null}, or "pie" for shares of a whole
+- one number: {"type": "stat", "title": "Total spending", "x": "spending", "series": ["spending"], "group": null}
+- one line per group: query one row per bucket per group (recipe above), then name the group column: {"type": "line", "title": "Spending by category", "x": "month", "group": "category_group", "series": ["spending"]}. A bucket where a group has no row draws as a gap, which means "no transactions", not "spent 0.00" — say so when it matters.
+If a chart call fails, do not apologize and do not stop: the error message tells you the exact fix. A "no query has run" error means run the needed query now, then call chart again. A wrong column name means call chart again with a column name copied from the error's list. Only after a corrected retry also fails may you give up, and then present the numbers in text instead. A chart only appears through the chart function call; never write a chart spec into your answer text. Give the takeaway in a sentence or two.
 
 ${renderContext(context)}
 
@@ -607,9 +613,9 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
 
 /**
  * Generate the reply in the background: its lifecycle reaches the renderer
- * through push events, and the settled row is persisted either way. Tool
- * events forward verbatim; the worker already built them in their final
- * shape, chart currency included.
+ * through push events, and the settled row is persisted either way. Part
+ * patches forward verbatim; the worker's turn log already built them in
+ * their final shape, chart currency included.
  */
 function launchGeneration(turn: {
   conversationId: number
@@ -624,10 +630,9 @@ function launchGeneration(turn: {
   void enqueueGenerate(() =>
     llmManager.chat(turn.history, turn.prompt, {
       signal: controller.signal,
-      onChunk: (text, kind) => sendToRenderer(CHAT_IPC.chunk, { conversationId, text, kind }),
       toolScope: { accountId: turn.scope.accountId },
       currency: turn.currency,
-      onToolEvent: (event) => sendToRenderer(CHAT_IPC.toolCall, { conversationId, ...event })
+      onPart: (index, part) => sendToRenderer(CHAT_IPC.part, { conversationId, index, part })
     })
   )
     .then((result) => finishTurn(assistantMessageId, result, null))
