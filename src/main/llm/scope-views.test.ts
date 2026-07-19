@@ -34,6 +34,8 @@ function seed(db: DatabaseSync): void {
   const JUNE = 1781179200
   const recent = Math.floor(Date.now() / 1000) - 5 * 86400
   db.exec(`
+    INSERT INTO connections (id, access_url_encrypted, last_synced_at, created_at)
+    VALUES (1, 'enc', ${JUNE}, '2026-06-11 12:00:00');
     INSERT INTO accounts (id, name, currency, balance, available_balance, balance_date, invert_balance)
     VALUES (1, 'Checking', 'USD', 1234560, 1000000, 0, 0),
            (2, 'Card', 'USD', 250000, NULL, 0, 1);
@@ -178,6 +180,17 @@ describe('scope views: dates', () => {
     expect(
       query(db, "SELECT COUNT(*) AS n FROM transactions WHERE txn_date >= '9999-01-01'")
     ).toEqual([{ n: 0 }])
+  })
+
+  // connections.created_at is TEXT (current_timestamp default), not an epoch;
+  // an 'unixepoch' conversion here silently turns every row NULL
+  it('hands both connection timestamps over as datetime text, never NULL', () => {
+    expect(query(db, 'SELECT last_synced_at, created_at FROM connections')).toEqual([
+      {
+        last_synced_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/),
+        created_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/)
+      }
+    ])
   })
 })
 

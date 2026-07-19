@@ -124,11 +124,13 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     'DROP VIEW IF EXISTS temp.budgets',
     'CREATE TEMP VIEW budgets AS ' +
       'SELECT id, category_id, month, amount / 1000.0 AS amount FROM main.budgets',
-    // never scoped, but always shadowed: strips the encrypted access URL
+    // never scoped, but always shadowed: strips the encrypted access URL.
+    // created_at is already UTC text (current_timestamp default), not an
+    // epoch, so it only needs the localtime shift
     'DROP VIEW IF EXISTS temp.connections',
     'CREATE TEMP VIEW connections AS ' +
       "SELECT id, datetime(NULLIF(last_synced_at, 0), 'unixepoch', 'localtime') AS last_synced_at, " +
-      "datetime(NULLIF(created_at, 0), 'unixepoch', 'localtime') AS created_at FROM main.connections"
+      "datetime(created_at, 'localtime') AS created_at FROM main.connections"
   ]
 }
 
