@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Analytics01Icon, ArrowDown01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons'
+import { Analytics01Icon, ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import {
   Bar,
   BarChart,
@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/chart'
 import { BLUR_Y_TICK_LABELS, paletteColor } from '@/components/reports/chart-style'
 import { ChatTableViewport } from '@/components/chat/chat-table'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { ToolCallCard } from '@/components/chat/tool-call'
 
 // A chart the model composed over its own query result, rendered from the
 // persisted part (or the streamed equivalent). Values are real amounts (the
@@ -326,47 +326,12 @@ function StatPart({
   )
 }
 
-/**
- * A failed chart call in the transcript: a one-line marker that expands to
- * the validation error, mirroring how a failed query displays. Shown (not
- * dropped) so the turn reads as it actually unfolded.
- */
-function ChartFailure({ error }: { error: string }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="group/chart flex w-fit items-center gap-1.5 text-xs text-destructive">
-        <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} className="size-3.5" />
-        Chart failed
-        <HugeiconsIcon
-          icon={ArrowRight01Icon}
-          strokeWidth={2}
-          className="-ml-0.5 size-3.5 group-data-panel-open/chart:rotate-90"
-        />
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <p className="mt-1.5 text-xs text-muted-foreground">{error}</p>
-      </CollapsibleContent>
-    </Collapsible>
-  )
-}
-
-/** The in-flight marker while the model writes or validates a chart call. */
-function ChartBuilding() {
-  return (
-    <div className="flex w-fit animate-shimmer items-center gap-1.5 text-xs text-muted-foreground">
-      <HugeiconsIcon icon={Analytics01Icon} strokeWidth={2} className="size-3.5" />
-      Building chart…
-    </div>
-  )
-}
-
 const cellText = (cell: unknown): string =>
   cell === null ? 'NULL' : typeof cell === 'string' ? formatBucketLabel(cell) : String(cell)
 
 /**
  * One chart part in the transcript: a titled card the same family as
- * ChatTableCard. `asOf` (the message's createdAt) marks the snapshot's age —
+ * ChatTable. `asOf` (the message's createdAt) marks the snapshot's age —
  * the data underneath keeps moving, and an old chart shouldn't pretend to be
  * current — and the Data toggle opens the exact rows the chart is drawn
  * from, so any chart can be audited in place.
@@ -471,19 +436,43 @@ export type ChartCardState =
  * One chart call in the transcript, in whichever state it's reached. This is
  * the only chart entry point the transcript uses, mirroring how QueryCard
  * owns the query states, so streaming and persisted rows can't drift apart.
- * asOf is the turn's age, which belongs to the message rather than to the
- * call, so it arrives beside the state rather than inside it.
+ * The standard tool card carries the call (input = the spec, output = the
+ * tiny result the model got back); the chart itself renders below it, since
+ * the chart is the deliverable, not the call record. asOf is the turn's age,
+ * which belongs to the message rather than to the call, so it arrives beside
+ * the state rather than inside it.
  */
 export function ChartCard({ state, asOf }: { state: ChartCardState; asOf?: number }) {
-  if (state.status === 'building') return <ChartBuilding />
-  if (state.display && state.spec)
-    return (
+  const drawn = state.status === 'done' && state.display !== null && state.spec !== null
+  const failed = state.status === 'done' && !drawn
+  const card = (
+    <ToolCallCard
+      icon={Analytics01Icon}
+      label={
+        state.status === 'building' ? 'Building chart…' : failed ? 'Chart failed' : 'Built chart'
+      }
+      active={state.status === 'building'}
+      failed={failed}
+      input={state.spec ?? undefined}
+      output={
+        state.status === 'done'
+          ? failed
+            ? { ok: false, error: state.error ?? 'Chart failed.' }
+            : { ok: true }
+          : undefined
+      }
+    />
+  )
+  if (state.status !== 'done' || state.display === null || state.spec === null) return card
+  return (
+    <div className="flex flex-col gap-1.5">
+      {card}
       <ChatChart
         spec={state.spec}
         data={state.display.data}
         currency={state.display.currency}
         asOf={asOf}
       />
-    )
-  return <ChartFailure error={state.error ?? 'Chart failed.'} />
+    </div>
+  )
 }

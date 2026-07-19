@@ -5,9 +5,8 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
-// Shared shell for tabular content in the chat transcript: query-tool results
-// (ChatTableCard + ChatTableViewport) and markdown tables in answers
-// (ChatTable, the packaged untitled form).
+// Shared shell for tabular content in the chat transcript: markdown tables in
+// answers (ChatTable) and the chart card's Data toggle (ChatTableViewport).
 
 /** Copy (tab-separated, pastes into spreadsheets) and CSV download, built from the rendered rows. */
 function ChatTableActions({
@@ -94,22 +93,12 @@ export function ChatTableViewport({ children }: { children: React.ReactNode }) {
   )
 }
 
-/**
- * The generalized query-card body: a padded muted card with a header row
- * (title on the left, copy/download aligned right) above arbitrary content.
- * The query card titles it with the SQL; markdown tables use it untitled.
- */
-export function ChatTableCard({
-  title,
-  actions = true,
+/** Card for markdown tables in answers: copy/download header above the table. */
+export function ChatTable({
   children,
   className
 }: {
-  /** left side of the header row; omit for plain tables */
-  title?: React.ReactNode
-  /** hide while there are no rendered rows to serialize */
-  actions?: boolean
-  children?: React.ReactNode
+  children: React.ReactNode
   className?: string
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -121,28 +110,11 @@ export function ChatTableCard({
       ref={containerRef}
       className={cn('overflow-hidden rounded-lg border bg-muted/30 text-xs', className)}
     >
-      {(title != null || actions) && (
-        <div className="flex items-start justify-between gap-2 p-2">
-          <div className="min-w-0 flex-1 h-full my-1">{title}</div>
-          {actions && <ChatTableActions containerRef={containerRef} className="shrink-0" />}
-        </div>
-      )}
-      {children}
-    </div>
-  )
-}
-
-/** Packaged form for markdown tables in answers: the same card, untitled. */
-export function ChatTable({
-  children,
-  className
-}: {
-  children: React.ReactNode
-  className?: string
-}) {
-  return (
-    <ChatTableCard className={className}>
+      <div className="flex items-start justify-between gap-2 p-2">
+        <div className="min-w-0 flex-1" />
+        <ChatTableActions containerRef={containerRef} className="shrink-0" />
+      </div>
       <ChatTableViewport>{children}</ChatTableViewport>
-    </ChatTableCard>
+    </div>
   )
 }

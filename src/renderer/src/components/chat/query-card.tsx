@@ -1,11 +1,6 @@
-import { useState } from 'react'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowRight01Icon, DatabaseIcon } from '@hugeicons/core-free-icons'
+import { DatabaseIcon } from '@hugeicons/core-free-icons'
 import type { QueryToolResult } from '@shared/chat'
-import { cn } from '@/lib/utils'
-import { ChatTableCard } from '@/components/chat/chat-table'
-import { QueryResult } from '@/components/chat/query-result'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { ToolCallCard } from '@/components/chat/tool-call'
 
 /**
  * One query tool call's lifecycle, live or replayed from a persisted part:
@@ -32,50 +27,19 @@ function cardLabel(state: QueryCardState): string {
 }
 
 /**
- * The transcript's window into a `query` tool call: a one-line summary that
- * expands to the SQL and its result. Collapsed by default, live and replayed
- * alike — the shimmering label carries the activity; the user's own toggle
- * always wins.
+ * The transcript's window into a `query` tool call: the standard tool card
+ * with the SQL as input (previewed live while it streams) and the exact
+ * result the model received as output.
  */
 export function QueryCard({ state }: { state: QueryCardState }) {
-  const active = state.status !== 'done'
-  const [userOpen, setUserOpen] = useState<boolean | null>(null)
-  const open = userOpen ?? false
-  const failed = state.status === 'done' && !state.result.ok
-  // the copy/download actions serialize the rendered rows; hide them when
-  // there is nothing to serialize (still writing, error, or an empty result)
-  const hasRows = state.status === 'done' && state.result.ok && (state.result.rows?.length ?? 0) > 0
-
   return (
-    <Collapsible open={open} onOpenChange={setUserOpen}>
-      <CollapsibleTrigger
-        className={cn(
-          'group/query flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground',
-          active && 'animate-shimmer',
-          failed && 'text-destructive hover:text-destructive'
-        )}
-      >
-        <HugeiconsIcon icon={DatabaseIcon} strokeWidth={2} className="size-3.5" />
-        <span>{cardLabel(state)}</span>
-        <HugeiconsIcon
-          icon={ArrowRight01Icon}
-          strokeWidth={2}
-          className="-ml-0.5 size-3.5 group-data-panel-open/query:rotate-90"
-        />
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <ChatTableCard
-          className="mt-1.5"
-          title={
-            <pre className="font-sans whitespace-pre-wrap wrap-break-word text-muted-foreground">
-              {state.sql || '…'}
-            </pre>
-          }
-          actions={hasRows}
-        >
-          {state.status === 'done' && <QueryResult result={state.result} />}
-        </ChatTableCard>
-      </CollapsibleContent>
-    </Collapsible>
+    <ToolCallCard
+      icon={DatabaseIcon}
+      label={cardLabel(state)}
+      active={state.status !== 'done'}
+      failed={state.status === 'done' && !state.result.ok}
+      input={state.sql || undefined}
+      output={state.status === 'done' ? state.result : undefined}
+    />
   )
 }
