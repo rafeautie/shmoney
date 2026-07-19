@@ -31,7 +31,7 @@ import {
   validateQuerySql,
   type ChatToolScope
 } from './sql-tool'
-import { CHART_FUNCTION_PARAMS, prepareChart } from './chart-tool'
+import { CHART_FUNCTION_PARAMS, chartCallNote, prepareChart } from './chart-tool'
 
 const modelsDir: string = (() => {
   const dir = process.env.LLM_MODELS_DIR
@@ -404,12 +404,21 @@ function chatFunctions(ctx: {
             : runQuery(sql)
         if (result.ok) state.lastQuery = result
         turn.settleCall({ name: 'query', args: { sql }, result })
-        return result
+        // Append chartCallNote last, where a chart call is about to be
+        // written: the exact legal column names, plus the group recipe when
+        // the result is unambiguously long-form. Same reasoning as the chart
+        // handler's note below — a rule adjacent to the generation point
+        // beats the same rule in the system prompt — and this one carries the
+        // model's OWN aliases and result shape, which no system prompt can.
+        // In-turn only; replayed calls carry a bare result.
+        return result.ok && result.columns?.length && result.rows?.length
+          ? { ...result, note: chartCallNote(result.columns, result.rows) }
+          : result
       }
     }),
     chart: defineChatSessionFunction({
       description:
-        'Show a chart in your reply, drawn from your most recent query result in this reply; results from earlier replies have expired, so query first. x, group and series name result columns exactly as the SQL aliased them. For a result with one row per x per group, set group to the group column and series to the single measure column; otherwise group is null.',
+        "Show a chart in your reply, drawn from your most recent query result in this reply; results from earlier replies have expired, so query first. Every name you write in x, group and series must appear verbatim in that result's columns array — a name from an example, or one you aliased in an earlier query, is rejected. For a result with one row per x per group, set group to the group column and series to the single measure column; otherwise group is null.",
       params: CHART_FUNCTION_PARAMS,
       handler(params) {
         state.handledCalls++

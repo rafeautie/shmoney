@@ -18,6 +18,14 @@ export const MAX_CHART_SERIES = 8
  * (the grammar treats them all as required), so `x` exists even for stat,
  * where validation ignores it. Descriptions are the model's main
  * documentation for each field; the exemplars live in the system prompt.
+ *
+ * No description here names a column, not even as an "e.g.". This model copies
+ * a literal it can see in preference to reading a value it has to look up, and
+ * these three fields are exactly where that hurts: the earlier `e.g.
+ * ["spending"]` on series and `here "category"` on group read as defaults, and
+ * came back verbatim against results that had aliased something else. A field
+ * whose only job is to echo a name from the last result must describe WHERE to
+ * read that name, and must not sit next to a plausible answer.
  */
 export const CHART_FUNCTION_PARAMS = {
   type: 'object',
@@ -34,12 +42,12 @@ export const CHART_FUNCTION_PARAMS = {
     x: {
       type: 'string',
       description:
-        'The label column from your last query result: the time bucket or group name. For stat, repeat the value column.'
+        'The label column: the time bucket or group name. Copy it character-for-character from the columns array of your last query result. For stat, repeat the value column here.'
     },
     group: {
       type: ['string', 'null'],
       description:
-        'For a result with one row per x per group (e.g. month, category, spent): the column whose values become the series, here "category". Otherwise null.'
+        "Null, unless your last result has one row per x per group — its columns being the x, a group label, and one measure. Then: the group label column, copied character-for-character from that result's columns array; its values become one line each."
     },
     series: {
       type: 'array',
@@ -47,7 +55,7 @@ export const CHART_FUNCTION_PARAMS = {
       minItems: 1,
       maxItems: MAX_CHART_SERIES,
       description:
-        'Numeric value column(s) from your last query result, e.g. ["spending"]. With group, exactly the one measure column; pie takes exactly one; stat takes the value column plus optionally a change column.'
+        'The numeric value column(s), each copied character-for-character from the columns array of your last query result — never a name from an example, and never a name that query did not alias. With group, exactly the one measure column; pie takes exactly one; stat takes the value column plus optionally a change column.'
     }
   }
 } as const
@@ -86,7 +94,9 @@ function seriesProblem(
   for (const name of series) {
     const index = columns.indexOf(name)
     if (!rows.every((row) => isPlottable(row[index])))
-      return err(`Column "${name}" is not numeric; series columns must be numbers. ${available}`)
+      return err(
+        `Column "${name}" is not numeric; series columns must be numbers. A label column belongs in x or group, never in series. ${available}`
+      )
     if (rows.every((row) => row[index] === null))
       return err(
         `Column "${name}" is NULL in every row, meaning no transactions matched the query. Say that instead of charting it.`
@@ -149,10 +159,12 @@ export function prepareChart(
     )
   const { columns, rows } = lastResult
   if (rows.length === 0)
-    return err('The last query returned no rows, so there is nothing to chart.')
+    return err(
+      'The last query returned no rows, so there is nothing to chart. Tell the user there is no data for that instead.'
+    )
 
   const group = spec.group ?? null
-  const available = `The last result's columns are: ${columns.join(', ')}.`
+  const available = `The last result's columns are: ${columns.join(', ')}. Call chart again with names copied from that list.`
   for (const name of [...spec.series, ...(group === null ? [] : [group])])
     if (!columns.includes(name))
       return err(`Column "${name}" is not in the last query result. ${available}`)
@@ -165,7 +177,8 @@ export function prepareChart(
 
   // stat has no axis: x is ignored (the grammar forces one), rows pass whole
   if (spec.type === 'stat') {
-    if (group !== null) return err('group applies to line and bar charts only.')
+    if (group !== null)
+      return err('group applies to line and bar charts only. Call chart again with group null.')
     if (spec.series.length > 2)
       return err('stat takes the value column plus at most one change column.')
     return passthrough()
@@ -174,14 +187,19 @@ export function prepareChart(
   if (!columns.includes(spec.x))
     return err(`Column "${spec.x}" is not in the last query result. ${available}`)
   if (spec.series.includes(spec.x))
-    return err(`Use different columns for x ("${spec.x}") and series.`)
+    return err(
+      `Use different columns for x ("${spec.x}") and series: x is the label axis and series the measure. Only stat repeats one column in both.`
+    )
 
   const xIndex = columns.indexOf(spec.x)
   const xValues = rows.map((row) => row[xIndex])
   const xRepeats = new Set(xValues).size < xValues.length
 
   if (spec.type === 'pie') {
-    if (group !== null) return err('group applies to line and bar charts only.')
+    if (group !== null)
+      return err(
+        'group applies to line and bar charts only. Chart this result as a line or bar with group, or query one row per slice and chart the pie with group null.'
+      )
     if (spec.series.length !== 1) return err('A pie chart takes exactly one series column.')
     if (xRepeats)
       return err(
@@ -193,7 +211,10 @@ export function prepareChart(
   // line/bar with the model's GROUP BY column named: pivot on it, one series
   // per group value, the single series entry being the measure to plot
   if (group !== null) {
-    if (group === spec.x) return err(`Use different columns for x ("${spec.x}") and group.`)
+    if (group === spec.x)
+      return err(
+        `Use different columns for x ("${spec.x}") and group: x is the bucket each row belongs to, group the other label that splits rows into lines.`
+      )
     if (spec.series.length !== 1)
       return err('With group, series must be exactly the one measure column to plot per group.')
     const problem = seriesProblem(columns, rows, spec.series, available)
@@ -213,6 +234,72 @@ export function prepareChart(
       `Column "${spec.x}" repeats across rows. Either query one row per ${spec.x}, or pass group: the column whose values split the rows into series.`
     )
   return passthrough()
+}
+
+/** a label column of a long-form result, with its distinct-value count */
+interface LongFormLabel {
+  name: string
+  distinct: number
+}
+
+/**
+ * Recognize the canonical long form — exactly three columns of which exactly
+ * one is the numeric measure, both labels repeating, every label pair unique —
+ * and nothing looser. Day-number comparisons (two numeric columns) and
+ * transaction listings (duplicate pairs) fall through on purpose: a hint that
+ * guesses wrong teaches the model a wrong call, which is worse than no hint.
+ */
+function longFormShape(
+  columns: string[],
+  rows: unknown[][]
+): { labels: [LongFormLabel, LongFormLabel]; measure: string } | null {
+  if (columns.length !== 3 || rows.length < 3) return null
+  const numericIdx = [0, 1, 2].filter(
+    (i) => rows.every((row) => isPlottable(row[i])) && rows.some((row) => row[i] !== null)
+  )
+  if (numericIdx.length !== 1) return null
+  const labelIdx = [0, 1, 2].filter((i) => i !== numericIdx[0])
+  const labels = labelIdx.map((i) => ({
+    name: columns[i],
+    distinct: new Set(rows.map((row) => groupLabel(row[i]))).size
+  }))
+  // both labels must repeat (else a direct draw already works), and each
+  // (label, label) pair must be unique (else this is a listing, not a pivot)
+  if (labels.some((label) => label.distinct === rows.length)) return null
+  const pairs = new Set(
+    rows.map((row) => `${groupLabel(row[labelIdx[0]])} ${groupLabel(row[labelIdx[1]])}`)
+  )
+  if (pairs.size !== rows.length) return null
+  return { labels: [labels[0], labels[1]], measure: columns[numericIdx[0]] }
+}
+
+/**
+ * The note the worker appends to every successful query result, standing
+ * between the rows and the model's next token — the spot where an instruction
+ * actually lands on this model. Its job is keeping the model out of
+ * prepareChart's error branches instead of recovering through them: it
+ * re-names the legal chart columns (they are already under `columns`, but
+ * that key sits ahead of up to MAX_ROWS rows of data, and the model reaches
+ * for a remembered literal over a name it has to scroll back for), and when
+ * the result is unambiguously long-form it states the group recipe — and the
+ * series cap where a label column would blow it — before the xRepeats or
+ * too-many-groups rejection has to teach the same thing at the cost of a
+ * wasted call.
+ */
+export function chartCallNote(columns: string[], rows: unknown[][]): string {
+  const base = `If you chart this result, x, group and series must each be one of these exact names: ${columns.join(', ')}.`
+  const shape = longFormShape(columns, rows)
+  if (!shape) return base
+  const [a, b] = shape.labels
+  const capped = shape.labels.filter((label) => label.distinct > MAX_CHART_SERIES)
+  return [
+    base,
+    `It is one row per ${a.name} per ${b.name}: chart it with one of those as x, the other as group, and series just ["${shape.measure}"].`,
+    ...capped.map(
+      (label) =>
+        `"${label.name}" has ${label.distinct} distinct values, over the ${MAX_CHART_SERIES}-series cap, so re-query keeping its top ${MAX_CHART_SERIES} before grouping by it.`
+    )
+  ].join(' ')
 }
 
 /**

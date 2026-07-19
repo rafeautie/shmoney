@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { ChartSpec } from '../../shared/chat'
-import { MAX_CHART_SERIES, prepareChart, resolveCurrency } from './chart-tool'
+import { MAX_CHART_SERIES, chartCallNote, prepareChart, resolveCurrency } from './chart-tool'
 
 const RESULT = {
   columns: ['month', 'spending', 'income'],
@@ -245,6 +245,89 @@ describe('prepareChart: group pivots', () => {
     )
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.error).toContain('one row per category')
+  })
+})
+
+// the note appended to every successful query result: exact column names
+// always, the group recipe only when the long form is certain — a hint that
+// guesses wrong teaches a wrong call, so every ambiguous shape stays silent
+describe('chartCallNote', () => {
+  const LONG_FORM = [
+    ['2026-05', 'Dining', 120],
+    ['2026-05', 'Groceries', 80],
+    ['2026-06', 'Dining', 95],
+    ['2026-06', 'Groceries', 60]
+  ]
+
+  it('always names the exact legal columns', () => {
+    const note = chartCallNote(['month', 'spending'], [['2026-05', 120]])
+    expect(note).toContain('exact names: month, spending')
+    expect(note).not.toContain('one row per')
+  })
+
+  it('states the group recipe for the canonical long form', () => {
+    const note = chartCallNote(['month', 'category', 'spending'], LONG_FORM)
+    expect(note).toContain('one row per month per category')
+    expect(note).toContain('the other as group')
+    expect(note).toContain('["spending"]')
+  })
+
+  it('treats a NULL label (uncategorized rows) as a real group value', () => {
+    const rows = [
+      ['2026-05', 'Dining', 120],
+      ['2026-05', null, 33],
+      ['2026-06', 'Dining', 95],
+      ['2026-06', null, 21]
+    ]
+    expect(chartCallNote(['month', 'category', 'spending'], rows)).toContain('one row per')
+  })
+
+  it('warns when a label column would blow the series cap', () => {
+    const rows = ['2026-05', '2026-06'].flatMap((month) =>
+      Array.from({ length: MAX_CHART_SERIES + 1 }, (_, i) => [month, `Cat ${i}`, i + 1])
+    )
+    const note = chartCallNote(['month', 'category', 'spending'], rows)
+    expect(note).toContain(`"category" has ${MAX_CHART_SERIES + 1} distinct values`)
+    expect(note).toContain(`top ${MAX_CHART_SERIES}`)
+  })
+
+  it('stays silent when two columns are numeric (day-number comparisons)', () => {
+    const rows = [
+      [1, '2026-06', 62.1],
+      [1, '2026-07', 15.44],
+      [2, '2026-06', 8.0],
+      [2, '2026-07', 12.5]
+    ]
+    expect(chartCallNote(['day', 'month', 'spending'], rows)).not.toContain('one row per')
+  })
+
+  it('stays silent on a listing whose label pairs repeat', () => {
+    const rows = [
+      ['2026-05', 'Starbucks', -6.2],
+      ['2026-05', 'Starbucks', -5.8],
+      ['2026-06', 'Starbucks', -6.2]
+    ]
+    expect(chartCallNote(['month', 'description', 'amount'], rows)).not.toContain('one row per')
+  })
+
+  it('stays silent when a label never repeats (a direct draw already works)', () => {
+    const rows = [
+      ['2026-05', 'Dining', 120],
+      ['2026-06', 'Groceries', 80],
+      ['2026-07', 'Transport', 44]
+    ]
+    expect(chartCallNote(['month', 'category', 'spending'], rows)).not.toContain('one row per')
+  })
+
+  it('never hints outside exactly three columns', () => {
+    const four = [
+      ['2026-05', 'Dining', 120, 200],
+      ['2026-05', 'Groceries', 80, 200],
+      ['2026-06', 'Dining', 95, 95]
+    ]
+    expect(chartCallNote(['month', 'category', 'spending', 'total'], four)).not.toContain(
+      'one row per'
+    )
   })
 })
 
