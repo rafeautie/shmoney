@@ -1,33 +1,9 @@
-import type { ComponentProps, CSSProperties } from 'react'
+import type { ComponentProps } from 'react'
 import { Streamdown, defaultRehypePlugins } from 'streamdown'
 import { Amount } from '@/components/amount'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { ChatTable } from '@/components/chat/chat-table'
 import { rehypeAmount } from '@/lib/rehype-amount'
-import { usePrivacy } from '@/lib/settings'
-
-// While blurred, a gradient mask on the wrapper fades the blur halo out over a
-// few px in every direction: unmasked it bleeds into neighboring prose and the
-// line box crops it on top, while a rectangular clip cuts it off hard.
-const BLUR_FADE_MASK: CSSProperties = {
-  maskImage:
-    'linear-gradient(to right, transparent, black 5px, black calc(100% - 5px), transparent), linear-gradient(to bottom, transparent, black 3px, black calc(100% - 3px), transparent)',
-  maskComposite: 'intersect'
-}
-
-function AmountTag({ amount, currency }: { amount: string; currency: string }) {
-  const { blurAmounts } = usePrivacy()
-  return (
-    <span className="inline-block" style={blurAmounts ? BLUR_FADE_MASK : undefined}>
-      <Amount
-        value={Math.round(Number(amount) * 1000)}
-        currency={currency}
-        colored={false}
-        className="inline-block"
-      />
-    </span>
-  )
-}
 
 // markdown tables render through the same shell as query results (height cap,
 // sticky header, copy/download) with plain cell elements, so both kinds of
@@ -49,7 +25,17 @@ const streamdownComponents: ComponentProps<typeof Streamdown>['components'] = {
       'data-currency'?: string
     }
     if (amount === undefined) return <span {...props}>{children}</span>
-    return <AmountTag amount={amount} currency={String(currency)} />
+    // inline-block + clip-path keep the privacy blur inside the amount's own
+    // box: unclipped, the halo bleeds into neighboring prose and the line box
+    // crops it at the top
+    return (
+      <Amount
+        value={Math.round(Number(amount) * 1000)}
+        currency={String(currency)}
+        colored={false}
+        className="inline-block rounded-xl [clip-path:inset(0_round_0.3rem)]"
+      />
+    )
   }
 }
 
