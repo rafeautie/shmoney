@@ -75,8 +75,8 @@ function ActivityPage() {
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Activity</h2>
         <p className="text-muted-foreground">
-          Rule suggestions to review, then a permanent history of every change to your transactions
-          and budgets, manual or automatic. Undo or redo any change.
+          Rule suggestions to review, then a permanent history of every change to your transactions,
+          budgets, and chats, manual or automatic. Undo or redo any change.
         </p>
       </div>
 
@@ -177,6 +177,10 @@ function EntryRow({
   const isCategoryEntry = entry.changes.some((c) => c.field === 'categoryId')
   // envelope fill entries: one change per (category, month), no transaction context
   const isBudgetEntry = entry.changes.some((c) => c.field === 'budgetAmount')
+  // conversation rename/delete entries: no transaction or budget context
+  const isConversationEntry = entry.changes.some(
+    (c) => c.field === 'conversationTitle' || c.field === 'conversationDeletedAt'
+  )
 
   const toggle = useMutation({
     mutationFn: () =>
@@ -199,7 +203,10 @@ function EntryRow({
             </div>
             <div className="text-xs text-muted-foreground">
               {format(new Date(entry.createdAt), 'p')} ·{' '}
-              {plural(entry.changes.length, isBudgetEntry ? 'change' : 'transaction')}
+              {plural(
+                entry.changes.length,
+                isBudgetEntry ? 'change' : isConversationEntry ? 'conversation' : 'transaction'
+              )}
             </div>
           </div>
         </CollapsibleTrigger>
@@ -208,7 +215,6 @@ function EntryRow({
             {entry.source === 'rule' ? 'Rule' : entry.source === 'import' ? 'Import' : 'Auto'}
           </Badge>
         )}
-        {undone && <Badge variant="outline">Undone</Badge>}
         <Button
           variant="ghost"
           size="sm"
@@ -268,6 +274,22 @@ function EntryRow({
                       <span className="text-muted-foreground">Removed</span>
                     )}
                   </TableCell>
+                  {isCategoryEntry && <TableCell />}
+                </TableRow>
+              ) : change.field === 'conversationTitle' ||
+                change.field === 'conversationDeletedAt' ? (
+                <TableRow
+                  key={`conversation:${change.conversationId}`}
+                  className="hover:bg-transparent"
+                >
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="w-full max-w-0 truncate">
+                    {change.field === 'conversationTitle'
+                      ? `Renamed "${change.before ?? 'Untitled'}" to "${change.after}"`
+                      : (change.title ?? 'Untitled conversation')}
+                  </TableCell>
+                  <TableCell />
                   {isCategoryEntry && <TableCell />}
                 </TableRow>
               ) : (

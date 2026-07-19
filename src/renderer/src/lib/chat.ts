@@ -56,10 +56,13 @@ export function useStopChat() {
   return useMutation({ mutationFn: () => window.api.chat.stop() })
 }
 
-/** Soft delete with an undo toast; Undo restores the row and its messages. */
+/** Soft delete with an undo toast; Undo replays the same action-log entry Ctrl+Z would. */
 export function useDeleteConversation() {
   const queryClient = useQueryClient()
-  const invalidate = () => void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
+    void queryClient.invalidateQueries({ queryKey: ['actionLog'] })
+  }
   return useMutation({
     mutationFn: (id: number) => window.api.chat.delete(id),
     onMutate: (id) => {
@@ -67,13 +70,14 @@ export function useDeleteConversation() {
         prev?.filter((c) => c.id !== id)
       )
     },
-    onSuccess: (_deleted, id) => {
+    onSuccess: (actionId) => {
+      if (actionId === null) return
       toast('Conversation deleted', {
         action: {
           label: 'Undo',
           onClick: () => {
-            window.api.chat
-              .restore(id)
+            window.api.actionLog
+              .undoEntry(actionId)
               .then(invalidate)
               .catch(() => {})
           }
@@ -88,7 +92,10 @@ export function useRenameConversation() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (input: { id: number; title: string }) => window.api.chat.rename(input),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
+      void queryClient.invalidateQueries({ queryKey: ['actionLog'] })
+    }
   })
 }
 

@@ -260,7 +260,6 @@ export const CHAT_IPC = {
   listConversations: 'chat:listConversations',
   renameConversation: 'chat:renameConversation',
   deleteConversation: 'chat:deleteConversation',
-  restoreConversation: 'chat:restoreConversation',
   setConversationAccount: 'chat:setConversationAccount',
   listMessages: 'chat:listMessages',
   send: 'chat:send',

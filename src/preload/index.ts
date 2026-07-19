@@ -298,9 +298,9 @@ const api = {
     /** Narrow (or widen, accountId null) the conversation's query scope; next turn on */
     setAccount: (input: SetConversationAccountInput): Promise<boolean> =>
       ipcRenderer.invoke(CHAT_IPC.setConversationAccount, input),
-    /** Soft delete, restorable via restore (undo toast) */
-    delete: (id: number): Promise<boolean> => ipcRenderer.invoke(CHAT_IPC.deleteConversation, id),
-    restore: (id: number): Promise<boolean> => ipcRenderer.invoke(CHAT_IPC.restoreConversation, id),
+    /** Soft delete; resolves to the action-log entry id (null when nothing was deleted) */
+    delete: (id: number): Promise<number | null> =>
+      ipcRenderer.invoke(CHAT_IPC.deleteConversation, id),
     onPart: (callback: (event: ChatPartEvent) => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent, event: ChatPartEvent): void =>
         callback(event)

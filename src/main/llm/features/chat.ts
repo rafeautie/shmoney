@@ -262,7 +262,7 @@ function rowToConversation(row: ConversationRow): Conversation {
 }
 
 export function listConversations(): Conversation[] {
-  // soft-deleted rows are excluded here and restored by restoreConversation
+  // soft-deleted rows are excluded here and restored by undoing the delete (action log)
   return db
     .select()
     .from(conversations)

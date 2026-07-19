@@ -259,7 +259,7 @@ export const budgets = sqliteTable(
 
 // chat conversations with the local model. Deleting is a soft delete (undo
 // toast, same convention as transactions.deletedAt); messages stay attached
-// and come back with a restore. Soft-deleted rows still around at the next
+// and come back with an undo. Soft-deleted rows still around at the next
 // app startup are purged for good.
 export const conversations = sqliteTable('conversations', {
   id: integer('id').primaryKey({ autoIncrement: true }),

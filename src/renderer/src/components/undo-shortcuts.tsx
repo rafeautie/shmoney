@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { UndoResult } from '@shared/ipc'
-import { Badge } from '@/components/ui/badge'
 
 type Direction = 'undo' | 'redo'
 
@@ -15,29 +14,25 @@ const DURATION_MS = 6000
 // the confirmation itself is a toggle you can bounce between.
 function showUndoToast(result: UndoResult, direction: Direction, queryClient: QueryClient): void {
   const undone = direction === 'undo'
-  toast(
-    <span className="flex min-w-0 items-center gap-2">
-      <Badge variant="secondary">{undone ? 'Undone' : 'Redone'}</Badge>
-      <span className="truncate">{result.label}</span>
-    </span>,
-    {
-      duration: DURATION_MS,
-      action: {
-        label: undone ? 'Redo' : 'Undo',
-        onClick: () => {
-          const run = undone
-            ? window.api.actionLog.redoEntry(result.id)
-            : window.api.actionLog.undoEntry(result.id)
-          run
-            .then((next) => {
-              queryClient.invalidateQueries()
-              showUndoToast(next, undone ? 'redo' : 'undo', queryClient)
-            })
-            .catch(() => {})
-        }
+  // no undone/redone badge: the action button ("Redo" after an undo) says
+  // which way the entry just went
+  toast(result.label, {
+    duration: DURATION_MS,
+    action: {
+      label: undone ? 'Redo' : 'Undo',
+      onClick: () => {
+        const run = undone
+          ? window.api.actionLog.redoEntry(result.id)
+          : window.api.actionLog.undoEntry(result.id)
+        run
+          .then((next) => {
+            queryClient.invalidateQueries()
+            showUndoToast(next, undone ? 'redo' : 'undo', queryClient)
+          })
+          .catch(() => {})
       }
     }
-  )
+  })
 }
 
 /** App-wide Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y over the persisted action log. To match
