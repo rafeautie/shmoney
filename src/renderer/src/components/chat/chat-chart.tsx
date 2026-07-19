@@ -329,8 +329,14 @@ function StatPart({
   )
 }
 
-const cellText = (cell: unknown): string =>
-  cell === null ? 'NULL' : typeof cell === 'string' ? formatBucketLabel(cell) : String(cell)
+const cellText = (cell: unknown, isSeries: boolean, currency: string | null): string =>
+  cell === null
+    ? 'NULL'
+    : typeof cell === 'string'
+      ? formatBucketLabel(cell)
+      : typeof cell === 'number' || typeof cell === 'bigint'
+        ? formatValue(Number(cell), isSeries ? currency : null)
+        : String(cell)
 
 /**
  * One chart part in the transcript: a titled card the same family as
@@ -355,6 +361,8 @@ function ChatChart({
   asOf?: number
 }) {
   const [showData, setShowData] = useState(false)
+  const { blurAmounts } = usePrivacy()
+  const seriesIndexes = new Set(series.map((name) => data.columns.indexOf(name)))
   return (
     <div
       data-slot="chat-chart"
@@ -403,7 +411,21 @@ function ChatChart({
                 {data.rows.map((row, i) => (
                   <tr key={i}>
                     {row.map((cell, j) => (
-                      <td key={j}>{cellText(cell)}</td>
+                      <td key={j}>
+                        {/* blur an inner span, not the cell, so the table's
+                            borders stay crisp; see AssistantBubble for the
+                            clip-path rationale */}
+                        <span
+                          className={cn(
+                            'inline-block',
+                            blurAmounts &&
+                              seriesIndexes.has(j) &&
+                              'blur-sm select-none [clip-path:inset(0)]'
+                          )}
+                        >
+                          {cellText(cell, seriesIndexes.has(j), currency)}
+                        </span>
+                      </td>
                     ))}
                   </tr>
                 ))}
