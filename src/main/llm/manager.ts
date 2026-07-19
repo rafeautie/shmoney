@@ -1,13 +1,12 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { app, utilityProcess, BrowserWindow, type UtilityProcess } from 'electron'
-import type { ChatChunkKind } from '@shared/chat'
+import type { StreamingChatPart } from '@shared/chat'
 import { LLM_IPC, LLM_MODEL, type LlmDownloadProgress, type LlmStatus } from '@shared/llm'
 import { dbPath } from '../db'
 import { createLogger } from '../logging'
 import type {
   ChatGenerationResult,
-  ChatToolCallPayload,
   DistributiveOmit,
   WorkerCommand,
   WorkerMessage
@@ -35,24 +34,18 @@ export function sendToRenderer(channel: string, payload: unknown): void {
 // another request follows, then unload to give its RAM back
 const IDLE_UNLOAD_MS = 60_000
 
-// streamed chat tokens arrive faster than the UI needs paints; batch them so a
-// 20-60 tok/s stream costs ~20 IPC messages a second instead of hundreds
-const CHUNK_FLUSH_MS = 50
+// streamed part patches arrive faster than the UI needs paints; coalesce to
+// the latest patch per index so a 20-60 tok/s stream costs ~20 IPC messages a
+// second instead of hundreds
+const PART_FLUSH_MS = 50
 
 class LlmManager {
   private worker: UtilityProcess | null = null
   private status: LlmStatus | null = null
   private nextId = 1
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
-  // chat streaming: chatChunk and chatToolCall events route to their command's
-  // handlers by id
-  private chatHandlers = new Map<
-    number,
-    {
-      chunk: (text: string, kind: ChatChunkKind) => void
-      tool: (event: ChatToolCallPayload) => void
-    }
-  >()
+  // chat streaming: chatPart patches route to their command's handler by id
+  private chatHandlers = new Map<number, (index: number, part: StreamingChatPart) => void>()
   private inFlight = 0
   private idleTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -139,56 +132,42 @@ class LlmManager {
   /**
    * One conversational turn: the caller supplies the full prior history (the
    * worker is stateless across turns) and receives the reply streamed through
-   * `onChunk` in {@link CHUNK_FLUSH_MS} batches, then whole in the result.
-   * Same lifecycle contract as {@link generate} — but an aborted chat
-   * resolves with `interrupted: true` instead of rejecting.
+   * `onPart` as full-part patches in {@link PART_FLUSH_MS} batches, then whole
+   * in the result. Same lifecycle contract as {@link generate} — but an
+   * aborted chat resolves with `interrupted: true` instead of rejecting.
    */
   async chat(
     history: ChatHistoryItem[],
     prompt: string,
     opts: {
       signal: AbortSignal
-      onChunk: (text: string, kind: ChatChunkKind) => void
       /** narrows what the worker's query tool can see this turn */
       toolScope: ChatToolScope
       /** the scope's display currency; the worker stamps it into chart payloads */
       currency: string | null
-      onToolEvent: (event: ChatToolCallPayload) => void
+      onPart: (index: number, part: StreamingChatPart) => void
     }
   ): Promise<ChatGenerationResult> {
-    const { signal, onChunk, toolScope, currency, onToolEvent } = opts
+    const { signal, toolScope, currency, onPart } = opts
 
-    // register the handlers before the command is posted so no early token
-    // can slip past; buffer and flush on a timer to keep IPC cheap.
-    // A batch holds one kind of text: a kind change (thought → answer)
-    // flushes what's buffered so ordering survives the batching.
+    // register the handler before the command is posted so no early patch can
+    // slip past. Each patch carries the full part, so coalescing is just
+    // "latest per index"; flushing in index order preserves the transcript
+    // order structurally, with no cross-kind flush rules.
     const id = this.nextId++
-    let buffer = ''
-    let bufferKind: ChatChunkKind = 'text'
+    const patches = new Map<number, StreamingChatPart>()
     let flushTimer: ReturnType<typeof setTimeout> | null = null
     const flush = (): void => {
       if (flushTimer) clearTimeout(flushTimer)
       flushTimer = null
-      if (!buffer) return
-      const text = buffer
-      buffer = ''
-      onChunk(text, bufferKind)
+      if (patches.size === 0) return
+      const entries = [...patches.entries()].sort(([a], [b]) => a - b)
+      patches.clear()
+      for (const [index, part] of entries) onPart(index, part)
     }
-    this.chatHandlers.set(id, {
-      chunk: (text, kind) => {
-        if (kind !== bufferKind) {
-          flush()
-          bufferKind = kind
-        }
-        buffer += text
-        flushTimer ??= setTimeout(flush, CHUNK_FLUSH_MS)
-      },
-      tool: (event) => {
-        // deliver buffered text first so a tool card never appears ahead of
-        // the prose the model generated before it
-        flush()
-        onToolEvent(event)
-      }
+    this.chatHandlers.set(id, (index, part) => {
+      patches.set(index, part)
+      flushTimer ??= setTimeout(flush, PART_FLUSH_MS)
     })
 
     try {
@@ -197,7 +176,6 @@ class LlmManager {
       )
       return result as ChatGenerationResult
     } finally {
-      if (flushTimer) clearTimeout(flushTimer)
       flush() // deliver any buffered tail before callers see the settled promise
       this.chatHandlers.delete(id)
     }
@@ -245,14 +223,9 @@ class LlmManager {
         case 'downloadProgress':
           sendToRenderer(LLM_IPC.downloadProgress, msg.progress satisfies LlmDownloadProgress)
           break
-        case 'chatChunk':
-          this.chatHandlers.get(msg.id)?.chunk(msg.text, msg.kind)
+        case 'chatPart':
+          this.chatHandlers.get(msg.id)?.(msg.index, msg.part)
           break
-        case 'chatToolCall': {
-          const { event: _event, id, ...payload } = msg
-          this.chatHandlers.get(id)?.tool(payload as ChatToolCallPayload)
-          break
-        }
       }
       return
     }

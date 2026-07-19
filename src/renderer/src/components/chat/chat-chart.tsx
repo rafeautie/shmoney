@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis
 } from 'recharts'
-import type { ChartData, ChartDisplay, ChartSpec } from '@shared/chat'
+import type { ChartData, ChartDisplay, ChartSpec, ChartToolResult } from '@shared/chat'
 import { cn } from '@/lib/utils'
 import { formatBucketLabel } from '@/lib/format-date'
 import { usePrivacy } from '@/lib/settings'
@@ -417,68 +417,57 @@ function ChatChart({
 }
 
 /**
- * How far one chart call has got. 'done' mirrors the settled call's own
- * fields rather than pre-deciding chart-vs-failure, so that decision (and the
- * fallback message for a failure with no error text) lives in one place
- * instead of at every caller. 'building' only happens mid-stream; a persisted
- * part is always settled.
+ * One chart call in the transcript, straight off its part — pending (no
+ * result yet: the model is still writing the call) or settled — the only
+ * chart entry point the transcript uses, so streaming and persisted rows
+ * can't drift apart. The standard tool card carries the call (input = the
+ * spec, output = the tiny result the model got back); the chart itself
+ * renders below it, since the chart is the deliverable, not the call record.
+ * asOf is the turn's age, which belongs to the message rather than to the
+ * call, so it arrives beside the part fields.
  */
-export type ChartCardState =
-  | {
-      status: 'building'
-      /** the spec 'start' delivered, so it survives to 'done'; null before that. Nothing draws it yet */
-      spec: ChartSpec | null
-    }
-  | {
-      status: 'done'
-      /** null if the call somehow settled without its 'start' args */
-      spec: ChartSpec | null
-      /** null when the call failed validation: nothing to draw */
-      display: ChartDisplay | null
-      error?: string
-    }
-
-/**
- * One chart call in the transcript, in whichever state it's reached. This is
- * the only chart entry point the transcript uses, mirroring how QueryCard
- * owns the query states, so streaming and persisted rows can't drift apart.
- * The standard tool card carries the call (input = the spec, output = the
- * tiny result the model got back); the chart itself renders below it, since
- * the chart is the deliverable, not the call record. asOf is the turn's age,
- * which belongs to the message rather than to the call, so it arrives beside
- * the state rather than inside it.
- */
-export function ChartCard({ state, asOf }: { state: ChartCardState; asOf?: number }) {
-  const drawn = state.status === 'done' && state.display !== null && state.spec !== null
-  const failed = state.status === 'done' && !drawn
+export function ChartCard({
+  spec,
+  result,
+  display,
+  asOf
+}: {
+  /** absent while the model is still writing the call's params */
+  spec?: ChartSpec
+  result?: ChartToolResult
+  /** null when the call failed validation: nothing to draw */
+  display?: ChartDisplay | null
+  asOf?: number
+}) {
+  const drawn = result?.ok === true && display != null && spec !== undefined
+  const failed = result !== undefined && !drawn
   const card = (
     <ToolCallCard
       icon={Analytics01Icon}
-      label={
-        state.status === 'building' ? 'Building chart…' : failed ? 'Chart failed' : 'Built chart'
-      }
-      active={state.status === 'building'}
+      label={!result ? 'Building chart…' : failed ? 'Chart failed' : 'Built chart'}
+      active={!result}
       failed={failed}
-      input={state.spec ?? undefined}
+      input={spec}
       output={
-        state.status === 'done'
+        result
           ? failed
-            ? { ok: false, error: state.error ?? 'Chart failed.' }
+            ? { ok: false, error: result.error ?? 'Chart failed.' }
             : { ok: true }
           : undefined
       }
     />
   )
-  if (state.status !== 'done' || state.display === null || state.spec === null) return card
+  if (!drawn) return card
   return (
     <div className="flex flex-col gap-1.5">
       {card}
       <ChatChart
-        spec={state.spec}
-        // parts persisted before the pivot existed carry no resolved series
-        series={state.display.series ?? state.spec.series}
-        data={state.display.data}
-        currency={state.display.currency}
+        spec={spec}
+        // the one back-compat seam: parts persisted before the pivot existed
+        // carry no resolved series in their JSON, so fall back to the spec's
+        series={display.series ?? spec.series}
+        data={display.data}
+        currency={display.currency}
         asOf={asOf}
       />
     </div>

@@ -5,7 +5,7 @@ import type { QueryToolResult } from '@shared/chat'
 // any other Electron-bound import) so vitest can load it; the worker owns the
 // actual connection.
 
-export const MAX_ROWS = 50
+export const MAX_ROWS = 100
 export const MAX_RESULT_CHARS = 4000
 /** longer string cells are clipped so one giant description can't eat the char cap */
 export const MAX_CELL_CHARS = 300
@@ -82,6 +82,11 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     throw new Error(`invalid scope accountId: ${String(accountId)}`)
   const and = (clause: string): string => (accountId === null ? '' : ` AND ${clause}`)
   const where = (clause: string): string => (accountId === null ? '' : ` WHERE ${clause}`)
+  // the epoch a transaction's date derives from; NULL when unknown, so every
+  // grain column below is NULL alongside txn_date
+  const txnEpoch = 'NULLIF(COALESCE(NULLIF(t.posted, 0), t.transacted_at), 0)'
+  const grain = (format: string): string =>
+    `strftime('${format}', ${txnEpoch}, 'unixepoch', 'localtime')`
   return [
     'DROP VIEW IF EXISTS temp.transactions',
     // txn_date is exposed as a real column rather than left for the model to
@@ -109,12 +114,29 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
       't.amount / 1000.0 AS amount, t.description, t.pending, ' +
       "datetime(NULLIF(t.transacted_at, 0), 'unixepoch', 'localtime') AS transacted_at, " +
       't.category_id, c.name AS category, g.name AS category_group, c.system_key, ' +
-      "date(NULLIF(COALESCE(NULLIF(t.posted, 0), t.transacted_at), 0), 'unixepoch', 'localtime') AS txn_date, " +
+      `date(${txnEpoch}, 'unixepoch', 'localtime') AS txn_date, ` +
+      // every time grain a recipe reaches for is a real column, so the model
+      // never writes strftime itself: month 'YYYY-MM', quarter 'YYYY-Qn',
+      // year 'YYYY', week 'YYYY-Wnn' — all sortable local-time text, NULL
+      // alongside txn_date. ('01' + 2) / 3 relies on SQLite's numeric
+      // coercion in arithmetic to turn the month text into a quarter number.
+      `${grain('%Y-%m')} AS month, ` +
+      `${grain('%Y')} || '-Q' || ((${grain('%m')} + 2) / 3) AS quarter, ` +
+      `${grain('%Y')} AS year, ` +
+      `${grain('%Y-W%W')} AS week, ` +
       'a.currency ' +
       `FROM main.transactions t JOIN main.accounts a ON a.id = t.account_id ` +
       'LEFT JOIN main.categories c ON c.id = t.category_id ' +
       'LEFT JOIN main.category_groups g ON g.id = c.group_id ' +
       `WHERE t.deleted_at IS NULL${and(`t.account_id = ${accountId}`)}`,
+    // the analysis-ready subset every spending/income recipe starts from: what
+    // the prompt's base CTE used to be, promoted to a real view so the model
+    // never copies a CTE line verbatim (it abbreviated one once and invented
+    // columns). Built on the temp transactions view, so it inherits scoping,
+    // milliunit division, and the grain columns.
+    'DROP VIEW IF EXISTS temp.tx',
+    'CREATE TEMP VIEW tx AS SELECT * FROM temp.transactions ' +
+      "WHERE system_key IS NOT 'transfers' AND txn_date IS NOT NULL AND pending = 0",
     'DROP VIEW IF EXISTS temp.accounts',
     // invert_balance is applied here and the column left out, matching
     // applyInvert in ipc/connections.ts: the flip is a read-time display rule

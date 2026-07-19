@@ -285,9 +285,7 @@ describe('system prompt silent-wrong-answer guards', () => {
     // the seeded account is 'Chase Checking', so a bare = on a remembered word
     // finds nothing while the recipe's LIKE finds it: the actual failure mode
     expect(db.prepare(recipe as string).all()).toHaveLength(1)
-    expect(
-      db.prepare(`SELECT name FROM accounts WHERE name = 'Checking'`).all()
-    ).toHaveLength(0)
+    expect(db.prepare(`SELECT name FROM accounts WHERE name = 'Checking'`).all()).toHaveLength(0)
   })
 
   it('warns that a full-date upper endpoint drops the last day of a timed column', () => {

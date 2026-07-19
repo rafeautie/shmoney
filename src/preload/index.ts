@@ -81,9 +81,8 @@ import {
 } from '@shared/import'
 import {
   CHAT_IPC,
-  type ChatChunkEvent,
   type ChatMessageDoneEvent,
-  type ChatToolCallEvent,
+  type ChatPartEvent,
   type Conversation,
   type ConversationMessages,
   type RenameConversationInput,
@@ -288,7 +287,7 @@ const api = {
       ipcRenderer.invoke(CHAT_IPC.listMessages, conversationId),
     /**
      * Send one turn (null conversationId creates the conversation). Resolves
-     * once accepted; the reply arrives via onChunk/onMessageDone pushes.
+     * once accepted; the reply arrives via onPart/onMessageDone pushes.
      */
     send: (input: SendChatInput): Promise<SendChatResult> =>
       ipcRenderer.invoke(CHAT_IPC.send, input),
@@ -302,17 +301,11 @@ const api = {
     /** Soft delete, restorable via restore (undo toast) */
     delete: (id: number): Promise<boolean> => ipcRenderer.invoke(CHAT_IPC.deleteConversation, id),
     restore: (id: number): Promise<boolean> => ipcRenderer.invoke(CHAT_IPC.restoreConversation, id),
-    onChunk: (callback: (event: ChatChunkEvent) => void): (() => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, event: ChatChunkEvent): void =>
+    onPart: (callback: (event: ChatPartEvent) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, event: ChatPartEvent): void =>
         callback(event)
-      ipcRenderer.on(CHAT_IPC.chunk, listener)
-      return () => ipcRenderer.removeListener(CHAT_IPC.chunk, listener)
-    },
-    onToolCall: (callback: (event: ChatToolCallEvent) => void): (() => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, event: ChatToolCallEvent): void =>
-        callback(event)
-      ipcRenderer.on(CHAT_IPC.toolCall, listener)
-      return () => ipcRenderer.removeListener(CHAT_IPC.toolCall, listener)
+      ipcRenderer.on(CHAT_IPC.part, listener)
+      return () => ipcRenderer.removeListener(CHAT_IPC.part, listener)
     },
     onMessageDone: (callback: (event: ChatMessageDoneEvent) => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent, event: ChatMessageDoneEvent): void =>

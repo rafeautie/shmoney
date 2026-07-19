@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { ChartData, ChartSpec, QueryToolResult } from '../../shared/chat'
+import type { ChartData, ChartSpec, QueryToolResult, StreamingChatPart } from '../../shared/chat'
 import { createTurnLog } from './turn-log'
 
 const RESULT: QueryToolResult = {
@@ -15,15 +15,17 @@ const SPEC: ChartSpec = {
   type: 'line',
   title: 'Spending by month',
   x: 'month',
-  series: ['spending']
+  series: ['spending'],
+  group: null
 }
 const DATA: ChartData = { columns: ['month', 'spending'], rows: [['2026-06', 12.5]] }
 
 describe('createTurnLog', () => {
   it('persists a leading reasoning segment as a reasoning part ahead of the rest', () => {
     const turn = createTurnLog()
-    turn.pushReasoning('thinking', 10)
-    turn.pushCall({ name: 'query', args: { sql: 'SELECT 42' }, result: RESULT })
+    turn.reasoningChunk('thinking')
+    turn.closeReasoning(10)
+    turn.settleCall({ name: 'query', args: { sql: 'SELECT 42' }, result: RESULT })
     turn.pushText('the total is 42')
     expect(turn.finish('the total is 42', false)).toEqual({
       parts: [
@@ -39,7 +41,7 @@ describe('createTurnLog', () => {
     const turn = createTurnLog()
     turn.pushText('Let me check')
     turn.pushText(' your data.')
-    turn.pushCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
+    turn.settleCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
     turn.pushText('All done.')
     expect(turn.finish('Let me check your data.All done.', false).parts).toEqual([
       { type: 'text', text: 'Let me check your data.' },
@@ -56,9 +58,12 @@ describe('createTurnLog', () => {
 
   it('keeps reasoning interleaved between calls in its generated position', () => {
     const turn = createTurnLog()
-    turn.pushReasoning('I should check the data', 20)
-    turn.pushCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
-    turn.pushReasoning('now I can answer', 15)
+    turn.reasoningChunk('I should ')
+    turn.reasoningChunk('check the data')
+    turn.closeReasoning(20)
+    turn.settleCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
+    turn.reasoningChunk('now I can answer')
+    turn.closeReasoning(15)
     turn.pushText('the total is 1')
     expect(turn.finish('the total is 1', false).parts).toEqual([
       { type: 'reasoning', text: 'I should check the data', durationMs: 20 },
@@ -74,12 +79,12 @@ describe('createTurnLog', () => {
   // log only has to carry the call through unchanged
   it('carries a successful chart call through with its display payload', () => {
     const turn = createTurnLog()
-    turn.pushCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
-    turn.pushCall({
+    turn.settleCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
+    turn.settleCall({
       name: 'chart',
       args: SPEC,
       result: { ok: true },
-      display: { data: DATA, currency: 'USD' }
+      display: { data: DATA, currency: 'USD', series: ['spending'] }
     })
     turn.pushText('spending is trending down')
     expect(turn.finish('spending is trending down', false).parts).toEqual([
@@ -89,7 +94,7 @@ describe('createTurnLog', () => {
         name: 'chart',
         args: SPEC,
         result: { ok: true },
-        display: { data: DATA, currency: 'USD' }
+        display: { data: DATA, currency: 'USD', series: ['spending'] }
       },
       { type: 'text', text: 'spending is trending down' }
     ])
@@ -97,7 +102,7 @@ describe('createTurnLog', () => {
 
   it('persists a failed chart call with its error and null display', () => {
     const turn = createTurnLog()
-    turn.pushCall({
+    turn.settleCall({
       name: 'chart',
       args: SPEC,
       result: { ok: false, error: 'no result' },
@@ -116,14 +121,25 @@ describe('createTurnLog', () => {
     ])
   })
 
-  it('drops whitespace-only text between calls so no empty bubble persists', () => {
+  it('never opens a part for whitespace-only glue between calls', () => {
     const turn = createTurnLog()
-    turn.pushCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
+    turn.settleCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
     turn.pushText('\n')
-    turn.pushCall({ name: 'query', args: { sql: 'SELECT 2' }, result: RESULT })
+    turn.settleCall({ name: 'query', args: { sql: 'SELECT 2' }, result: RESULT })
     expect(turn.finish('\n', false).parts).toEqual([
       { type: 'functionCall', name: 'query', args: { sql: 'SELECT 1' }, result: RESULT },
       { type: 'functionCall', name: 'query', args: { sql: 'SELECT 2' }, result: RESULT }
+    ])
+  })
+
+  it('folds buffered leading whitespace into the text part real text opens', () => {
+    const turn = createTurnLog()
+    turn.settleCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
+    turn.pushText('\n')
+    turn.pushText('Done.')
+    expect(turn.finish('\nDone.', false).parts).toEqual([
+      { type: 'functionCall', name: 'query', args: { sql: 'SELECT 1' }, result: RESULT },
+      { type: 'text', text: '\nDone.' }
     ])
   })
 
@@ -142,7 +158,7 @@ describe('createTurnLog', () => {
   it('appends the tail as its own part when a call closed the trailing text', () => {
     const turn = createTurnLog()
     turn.pushText('Checking.')
-    turn.pushCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
+    turn.settleCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
     expect(turn.finish('Checking.Done.', false).parts).toEqual([
       { type: 'text', text: 'Checking.' },
       { type: 'functionCall', name: 'query', args: { sql: 'SELECT 1' }, result: RESULT },
@@ -154,5 +170,63 @@ describe('createTurnLog', () => {
     const turn = createTurnLog()
     turn.pushText('hello')
     expect(turn.finish('different', false).parts).toEqual([{ type: 'text', text: 'hello' }])
+  })
+})
+
+describe('createTurnLog: part patches', () => {
+  function record(): { patches: [number, StreamingChatPart][]; onPart: typeof push } {
+    const patches: [number, StreamingChatPart][] = []
+    const push = (index: number, part: StreamingChatPart): void => {
+      // snapshot: the log mutates parts in place, and the wire serializes
+      patches.push([index, structuredClone(part)])
+    }
+    return { patches, onPart: push }
+  }
+
+  it('patches the same index as a part grows, and the next as a new one opens', () => {
+    const { patches, onPart } = record()
+    const turn = createTurnLog(onPart)
+    turn.pushText('Hel')
+    turn.pushText('lo.')
+    turn.settleCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
+    expect(patches).toEqual([
+      [0, { type: 'text', text: 'Hel' }],
+      [0, { type: 'text', text: 'Hello.' }],
+      [1, { type: 'functionCall', name: 'query', args: { sql: 'SELECT 1' }, result: RESULT }]
+    ])
+  })
+
+  it('opens a pending call the settle then replaces at the same index', () => {
+    const { patches, onPart } = record()
+    const turn = createTurnLog(onPart)
+    turn.openCall('query')
+    turn.settleCall({ name: 'query', args: { sql: 'SELECT 1' }, result: RESULT })
+    expect(patches).toEqual([
+      [0, { type: 'functionCall', name: 'query' }],
+      [0, { type: 'functionCall', name: 'query', args: { sql: 'SELECT 1' }, result: RESULT }]
+    ])
+  })
+
+  it('streams a thought as a pending reasoning part, then stamps its duration', () => {
+    const { patches, onPart } = record()
+    const turn = createTurnLog(onPart)
+    turn.reasoningChunk('hm')
+    turn.reasoningChunk('m')
+    turn.closeReasoning(12)
+    expect(patches).toEqual([
+      [0, { type: 'reasoning', text: 'hm', durationMs: null }],
+      [0, { type: 'reasoning', text: 'hmm', durationMs: null }],
+      [0, { type: 'reasoning', text: 'hmm', durationMs: 12 }]
+    ])
+  })
+
+  it('drops a call still pending at finish (aborted mid-params)', () => {
+    const turn = createTurnLog()
+    turn.pushText('Checking.')
+    turn.openCall('query')
+    expect(turn.finish('Checking.', true)).toEqual({
+      parts: [{ type: 'text', text: 'Checking.' }],
+      interrupted: true
+    })
   })
 })

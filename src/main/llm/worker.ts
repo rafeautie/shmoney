@@ -363,9 +363,7 @@ async function ensureChatSession(): Promise<LlamaChatSession> {
 
 // the mutable call bookkeeping the turn's two tool handlers share
 interface ChatTurnState {
-  // handler invocations arrive in generation order, so this counter lines up
-  // with onFunctionCallParamsChunk's callIndex (params are grammar-constrained
-  // to the schema, so a generated call can't fail parsing and skip its handler)
+  // counts handler invocations to enforce the per-turn tool budget
   handledCalls: number
   // what the chart tool draws from: charts always visualize the turn's most
   // recent successful query result, so no result-id plumbing is needed
@@ -373,17 +371,17 @@ interface ChatTurnState {
 }
 
 /**
- * The two tools a chat turn exposes. Each handler reports through both sinks
- * at once, the turn log (persisted parts) and post() (streamed events), so
- * both carry the same final shapes, chart currency included.
+ * The two tools a chat turn exposes. Handlers report through the turn log
+ * alone — it is the single assembler, and its part patches are the stream —
+ * so events and persisted parts carry the same shapes by construction, chart
+ * currency included.
  */
 function chatFunctions(ctx: {
-  id: number
   turn: TurnLog
   currency: string | null
   state: ChatTurnState
 }): ChatSessionModelFunctions {
-  const { id, turn, currency, state } = ctx
+  const { turn, currency, state } = ctx
   const overBudget =
     'The tool budget for this reply is used up; answer with the data you already have.'
   return {
@@ -399,41 +397,32 @@ function chatFunctions(ctx: {
         }
       },
       handler({ sql }) {
-        const callId = state.handledCalls++
-        post({
-          event: 'chatToolCall',
-          id,
-          callId,
-          phase: 'start',
-          name: 'query',
-          args: { sql }
-        })
+        state.handledCalls++
         const result =
           state.handledCalls > MAX_TOOL_CALLS_PER_TURN
             ? { ok: false, error: overBudget, durationMs: 0 }
             : runQuery(sql)
         if (result.ok) state.lastQuery = result
-        turn.pushCall({ name: 'query', args: { sql }, result })
-        post({ event: 'chatToolCall', id, callId, phase: 'end', name: 'query', result })
+        turn.settleCall({ name: 'query', args: { sql }, result })
         return result
       }
     }),
     chart: defineChatSessionFunction({
       description:
-        'Show a chart in your reply, drawn from your most recent query result in this reply; results from earlier replies have expired, so query first. x and series name result columns exactly as the SQL aliased them; a result with one row per bucket per group draws one line per group when series is the single measure column.',
+        'Show a chart in your reply, drawn from your most recent query result in this reply; results from earlier replies have expired, so query first. x, group and series name result columns exactly as the SQL aliased them. For a result with one row per x per group, set group to the group column and series to the single measure column; otherwise group is null.',
       params: CHART_FUNCTION_PARAMS,
       handler(params) {
-        const callId = state.handledCalls++
+        state.handledCalls++
         // re-shape out of the grammar's readonly inference into the shared type
         const spec: ChartSpec = {
           type: params.type,
           title: params.title,
           x: params.x,
-          series: [...params.series]
+          series: [...params.series],
+          group: params.group
         }
-        post({ event: 'chatToolCall', id, callId, phase: 'start', name: 'chart', args: spec })
         // prepareChart owns the whole spec-to-drawable step (including the
-        // long-form pivot), so its data is the single source of what renders;
+        // group pivot), so its data is the single source of what renders;
         // the model still only ever sees the tiny ok/error result
         const prepared =
           state.handledCalls > MAX_TOOL_CALLS_PER_TURN
@@ -445,8 +434,7 @@ function chatFunctions(ctx: {
         const display = prepared.ok
           ? { data: prepared.data, currency, series: prepared.series }
           : null
-        turn.pushCall({ name: 'chart', args: spec, result, display })
-        post({ event: 'chatToolCall', id, callId, phase: 'end', name: 'chart', result, display })
+        turn.settleCall({ name: 'chart', args: spec, result, display })
         // steer the follow-up prose from the result itself — instructions
         // this close to where the model writes next land far more reliably
         // on a small model than the same words back in the system prompt.
@@ -481,20 +469,23 @@ async function handleChat(
     // feature owns history in the DB), so switching conversations needs nothing
     session.setChatHistory(history)
 
-    // the turn log assembles the reply as persisted parts in generation order:
-    // answer chunks merge into the trailing text part and each tool handler
-    // pushes its call record between them (see turn-log.ts)
-    const turn = createTurnLog()
+    // the turn log is the single assembler of the reply (see turn-log.ts):
+    // every mutation below reports the changed part as a chatPart patch, and
+    // finish() yields the same parts for persistence
+    const turn = createTurnLog((index, part) => post({ event: 'chatPart', id, index, part }))
     const state: ChatTurnState = { handledCalls: 0, lastQuery: null }
-    const functions = chatFunctions({ id, turn, currency, state })
+    const functions = chatFunctions({ turn, currency, state })
 
     // the chat wrapper routes the model's chain of thought into segments, so
-    // prompt() resolves with the answer alone; each closed segment becomes its
+    // prompt() resolves with the answer alone; each segment streams into its
     // own reasoning part, in generation order, so a turn that thinks, calls a
     // tool, then thinks again keeps both thoughts where they happened rather
     // than collapsing into one lump
-    let segmentText = ''
     let segmentStart: number | null = null
+    // handler invocations arrive in generation order under
+    // maxParallelFunctionCalls: 1, so the first params chunk of each callIndex
+    // opens the pending card its handler then settles
+    let openedCallIndex: number | null = null
     // stopOnAbortSignal makes an abort return the text generated so far
     // instead of throwing, so a stopped reply still reaches the DB
     const text = await session.prompt(prompt, {
@@ -504,36 +495,28 @@ async function handleChat(
       // one call at a time keeps the params stream, handler invocations, and
       // the transcript's card order trivially aligned
       maxParallelFunctionCalls: 1,
-      onFunctionCallParamsChunk: (chunk) =>
-        post({
-          event: 'chatToolCall',
-          id,
-          callId: chunk.callIndex,
-          phase: 'params',
-          name: chunk.functionName,
-          chunk: chunk.paramsChunk
-        }),
+      onFunctionCallParamsChunk: (chunk) => {
+        if (chunk.callIndex !== openedCallIndex) {
+          openedCallIndex = chunk.callIndex
+          turn.openCall(chunk.functionName)
+        }
+      },
       onResponseChunk: (chunk) => {
         if (chunk.type === 'segment') {
           if (chunk.segmentStartTime) segmentStart = chunk.segmentStartTime.getTime()
-          if (chunk.text) {
-            segmentText += chunk.text
-            post({ event: 'chatChunk', id, text: chunk.text, kind: 'reasoning' })
-          }
+          if (chunk.text) turn.reasoningChunk(chunk.text)
           if (chunk.segmentEndTime && segmentStart !== null) {
-            turn.pushReasoning(segmentText, chunk.segmentEndTime.getTime() - segmentStart)
-            segmentText = ''
+            turn.closeReasoning(chunk.segmentEndTime.getTime() - segmentStart)
             segmentStart = null
           }
         } else if (chunk.text) {
           turn.pushText(chunk.text)
-          post({ event: 'chatChunk', id, text: chunk.text, kind: 'text' })
         }
       }
     })
-    // an abort mid-thought leaves the segment open; push what was thought so
-    // far, timed until now, so a stopped turn still persists that thought
-    if (segmentStart !== null) turn.pushReasoning(segmentText, Date.now() - segmentStart)
+    // an abort mid-thought leaves the segment open; close it timed until now,
+    // so a stopped turn still persists that thought
+    if (segmentStart !== null) turn.closeReasoning(Date.now() - segmentStart)
     return turn.finish(text, controller.signal.aborted)
   } finally {
     if (activeGeneration === controller) activeGeneration = null

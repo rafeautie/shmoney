@@ -74,6 +74,7 @@ describe('scopeViewsDdl', () => {
     const ddl = scopeViewsDdl({ accountId: null })
     for (const name of [
       'transactions',
+      'tx',
       'accounts',
       'holdings',
       'budgets',

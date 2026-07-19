@@ -1,4 +1,4 @@
-import type { ChatChunkKind, ChatToolCallEvent } from '@shared/chat'
+import type { StreamingChatPart } from '@shared/chat'
 import type { LlmDownloadProgress, LlmStatus } from '@shared/llm'
 import type { ChatToolScope } from './sql-tool'
 // type-only: erased at compile time, so the manager still never runtime-imports
@@ -27,7 +27,7 @@ export type WorkerCommand =
   // because an AbortSignal can't cross the process boundary.
   | { id: number; type: 'abortGenerate' }
   // one conversational turn: replace the chat session's history, then stream
-  // the reply to `prompt` back as chatChunk events carrying this command's id.
+  // the reply to `prompt` back as chatPart events carrying this command's id.
   // toolScope narrows what the query tool's scope views expose for this turn.
   | {
       id: number
@@ -42,11 +42,6 @@ export type WorkerCommand =
       currency: string | null
     }
 
-/** a tool-call lifecycle event as it crosses the worker boundary: the shared
- * renderer event minus conversationId (the worker only knows command ids;
- * the feature layer adds the conversation when forwarding) */
-export type ChatToolCallPayload = DistributiveOmit<ChatToolCallEvent, 'conversationId'>
-
 /** reply payload of a 'chat' command: the assistant row's parts in their
  * persisted format, built in generation order by the worker's TurnLog (which
  * carries the full doc comments) so the feature layer stores them verbatim */
@@ -59,11 +54,8 @@ export type WorkerMessage =
   | { id: number; ok: false; error: string }
   | { event: 'status'; status: LlmStatus }
   | { event: 'downloadProgress'; progress: LlmDownloadProgress }
-  // streamed text of an in-flight chat, tied to its command id. `kind`
-  // separates the visible answer from thought-segment text.
-  | { event: 'chatChunk'; id: number; text: string; kind: ChatChunkKind }
-  // lifecycle of one query tool call inside an in-flight chat, also tied to
-  // the command id; callId distinguishes calls within the turn. params chunks
-  // stream the argument text while the model writes it, start marks execution
-  // with the parsed SQL, end carries the full (already size-capped) result.
-  | ({ event: 'chatToolCall'; id: number } & ChatToolCallPayload)
+  // one part patch of an in-flight chat, tied to its command id: the full
+  // current part at `index`, straight from the worker's TurnLog (the single
+  // assembler; see turn-log.ts). The feature layer adds the conversation id
+  // when forwarding to the renderer.
+  | { event: 'chatPart'; id: number; index: number; part: StreamingChatPart }

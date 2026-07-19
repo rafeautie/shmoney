@@ -232,6 +232,46 @@ describe('scope views: dates', () => {
   })
 })
 
+// the grain columns and the tx view exist so recipes never make the model
+// write strftime or copy a base CTE; both fragile in its hands
+describe('scope views: time grains and tx', () => {
+  let db: DatabaseSync
+  beforeAll(() => {
+    db = open(null)
+  })
+
+  it('exposes month, quarter, year and week as sortable local-time text', () => {
+    expect(query(db, 'SELECT month, quarter, year, week FROM transactions WHERE id = 1')).toEqual([
+      {
+        month: '2026-06',
+        quarter: '2026-Q2',
+        year: '2026',
+        week: expect.stringMatching(/^2026-W\d{2}$/)
+      }
+    ])
+  })
+
+  it('leaves every grain NULL alongside a NULL txn_date (id 5)', () => {
+    expect(query(db, 'SELECT month, quarter, year, week FROM transactions WHERE id = 5')).toEqual([
+      { month: null, quarter: null, year: null, week: null }
+    ])
+  })
+
+  it('tx keeps only settled, dated, non-transfer rows', () => {
+    expect(query(db, 'SELECT id FROM tx ORDER BY id')).toEqual([{ id: 1 }, { id: 2 }])
+  })
+
+  it('tx inherits real amounts and the grain columns from the transactions view', () => {
+    expect(query(db, 'SELECT month, amount FROM tx WHERE id = 1')).toEqual([
+      { month: '2026-06', amount: -12.34 }
+    ])
+  })
+
+  it('tx narrows with the scoped account like its base view', () => {
+    expect(query(open(2), 'SELECT COUNT(*) AS n FROM tx')).toEqual([{ n: 0 }])
+  })
+})
+
 describe('scope views: rules and action_log', () => {
   let db: DatabaseSync
   beforeAll(() => {

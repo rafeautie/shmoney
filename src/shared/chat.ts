@@ -53,6 +53,14 @@ export interface ChartSpec {
   x: string
   /** numeric value columns; pie uses only the first, stat shows the first plus an optional second as a signed change */
   series: string[]
+  /**
+   * For a long-form result (one row per x per group): the column whose values
+   * become the series — the model's natural GROUP BY column, stated instead
+   * of guessed. null when the result already has one column per series.
+   * Requires exactly one series entry: the measure to plot per group.
+   * Undefined only on parts persisted before the field existed.
+   */
+  group: string | null
 }
 
 /** the charted rows, snapshotted from the source query result so history renders stably without re-querying */
@@ -84,11 +92,11 @@ export interface ChartDisplay {
   currency: string | null
   /**
    * The series labels to draw, resolved by the main process. They match
-   * spec.series for a direct draw but diverge when a long-form result was
-   * pivoted into one line per group (the labels are then the group values).
-   * Absent on parts persisted before the pivot existed; render spec.series.
+   * spec.series for a direct draw and are the group values after a pivot.
+   * Parts persisted before the pivot existed lack the field in their JSON;
+   * the settled render path fills it from spec.series in one place.
    */
-  series?: string[]
+  series: string[]
 }
 
 /**
@@ -117,8 +125,18 @@ export type ChatMessagePart =
   | { type: 'reasoning'; text: string; durationMs: number }
   | ({ type: 'functionCall' } & ChatToolCall)
 
-/** which stream a chat chunk belongs to: the visible answer or the chain of thought */
-export type ChatChunkKind = 'text' | 'reasoning'
+/**
+ * A part as it crosses the wire mid-turn: either the settled shape it will
+ * persist as, or one of the two pending forms that settle in place — a thought
+ * still being written (durationMs null), or a tool call whose params the model
+ * is still writing (no args or result yet). One vocabulary for streaming and
+ * persisted rendering; the renderer derives "active" from the pending form and
+ * never assembles anything itself.
+ */
+export type StreamingChatPart =
+  | ChatMessagePart
+  | { type: 'reasoning'; text: string; durationMs: null }
+  | { type: 'functionCall'; name: string; args?: undefined; result?: undefined }
 
 export type ChatRole = 'user' | 'assistant'
 /** 'streaming' = the placeholder row of a reply still being generated */
@@ -171,25 +189,6 @@ export function messageText(message: Pick<ChatMessage, 'parts'>): string {
     .join('')
 }
 
-/**
- * Best-effort extraction of the sql value from a partial params JSON stream
- * (`{"sql": "SELECT …`) for live display while the model writes a tool call.
- * The exact SQL replaces it once the call starts executing, so this only has
- * to look right mid-stream, not parse perfectly.
- */
-export function sqlFromParamsText(paramsText: string): string {
-  const opening = /"sql"\s*:\s*"/.exec(paramsText)
-  if (!opening) return ''
-  let body = paramsText.slice(opening.index + opening[0].length)
-  // drop the params object's closing quote/brace once generated; while the
-  // stream is mid-escape, drop the dangling backslash too
-  body = body.replace(/(?<!\\)"\s*\}?\s*$/, '')
-  if (/(?<!\\)\\$/.test(body)) body = body.slice(0, -1)
-  return body.replace(/\\(["\\/nrt])/g, (_, c: string) =>
-    c === 'n' ? '\n' : c === 'r' ? '\r' : c === 't' ? '\t' : c
-  )
-}
-
 // ---------- IPC inputs ----------
 
 export const sendChatSchema = z.object({
@@ -218,11 +217,17 @@ export type SetConversationAccountInput = z.infer<typeof setConversationAccountS
 
 // ---------- push event payloads ----------
 
-/** streamed text since the last chunk event (main throttles to ~50ms batches) */
-export interface ChatChunkEvent {
+/**
+ * The one streaming event of an in-flight reply: the full current part at
+ * `index` (main coalesces to ~50ms batches, latest patch per index). The
+ * worker's TurnLog is the only assembler; the renderer just applies
+ * `parts[index] = part` and renders. Chart display payloads ride on the
+ * settled part exactly as they persist.
+ */
+export interface ChatPartEvent {
   conversationId: number
-  text: string
-  kind: ChatChunkKind
+  index: number
+  part: StreamingChatPart
 }
 
 /** the assistant row is finalized (complete, interrupted, or errored) */
@@ -230,31 +235,6 @@ export interface ChatMessageDoneEvent {
   conversationId: number
   message: ChatMessage
 }
-
-/**
- * Lifecycle of one in-flight tool call, keyed by callId within the streaming
- * reply and discriminated by the tool's name: params chunks stream the
- * argument text as the model writes it, start marks execution with the parsed
- * args, end carries the full (already size-capped) result. The start/end
- * fields mirror ChatToolCall, so the settled event is the part. A chart end
- * also carries the display payload needed to draw mid-stream; its currency is
- * stamped by the worker from the turn's command (the feature layer fixes it
- * per turn), so events and parts carry it from the source.
- */
-export type ChatToolCallEvent =
-  | { conversationId: number; callId: number; phase: 'params'; name: string; chunk: string }
-  | { conversationId: number; callId: number; phase: 'start'; name: 'query'; args: { sql: string } }
-  | { conversationId: number; callId: number; phase: 'start'; name: 'chart'; args: ChartSpec }
-  | { conversationId: number; callId: number; phase: 'end'; name: 'query'; result: QueryToolResult }
-  | {
-      conversationId: number
-      callId: number
-      phase: 'end'
-      name: 'chart'
-      result: ChartToolResult
-      /** null when the call failed validation (nothing to draw) */
-      display: ChartDisplay | null
-    }
 
 /** chat:listMessages payload: the rows plus where the model's replay window starts */
 export interface ConversationMessages {
@@ -286,7 +266,6 @@ export const CHAT_IPC = {
   send: 'chat:send',
   stop: 'chat:stop',
   // main → renderer push events
-  chunk: 'chat:chunk',
-  messageDone: 'chat:messageDone',
-  toolCall: 'chat:toolCall'
+  part: 'chat:part',
+  messageDone: 'chat:messageDone'
 } as const

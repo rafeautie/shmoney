@@ -16,6 +16,7 @@ function spec(overrides: Partial<ChartSpec> = {}): ChartSpec {
     title: 'Spending by month',
     x: 'month',
     series: ['spending'],
+    group: null,
     ...overrides
   }
 }
@@ -119,88 +120,31 @@ describe('prepareChart: direct draws', () => {
   })
 })
 
-// the shape the model's natural GROUP BY produces: one row per bucket per
-// group. Both long-form spellings must DRAW, never bounce back as an error
-// for the model to fix with pivot SQL it cannot reliably write.
-describe('prepareChart: long-form pivots', () => {
-  const LONG = {
-    columns: ['day', 'month', 'spending'],
+// the shape the model's natural GROUP BY produces: one row per x per group,
+// pivoted on the column the model NAMES in spec.group — stated intent, no
+// value-scanning guesswork
+describe('prepareChart: group pivots', () => {
+  const BY_CATEGORY = {
+    columns: ['month', 'category', 'spending'],
     rows: [
-      [1, '2026-06', 12.5],
-      [1, '2026-07', 40],
-      [2, '2026-06', 8]
+      ['2026-05', 'Dining', 120],
+      ['2026-05', 'Groceries', 80],
+      ['2026-06', 'Dining', 95]
     ]
   }
 
-  // REGRESSION: asked for two months of daily spending as two lines, the
-  // model queried long-form and passed the month VALUES as series; this used
-  // to be a dead-end "no such column" error
-  it('draws series that name VALUES of a group column, one line per value', () => {
-    const result = prepareChart(spec({ x: 'day', series: ['2026-06', '2026-07'] }), LONG)
-    expect(result).toEqual({
-      ok: true,
-      data: {
-        columns: ['day', '2026-06', '2026-07'],
-        rows: [
-          [1, 12.5, 40],
-          [2, 8, null] // no July row for day 2: a gap, never a fabricated 0
-        ]
-      },
-      series: ['2026-06', '2026-07']
-    })
-  })
-
-  it('draws only the values asked for, in the order asked', () => {
-    const result = prepareChart(spec({ x: 'day', series: ['2026-07'] }), LONG)
-    expect(result).toEqual({
-      ok: true,
-      data: {
-        columns: ['day', '2026-07'],
-        rows: [
-          [1, 40],
-          [2, null]
-        ]
-      },
-      series: ['2026-07']
-    })
-  })
-
-  it('splits a repeated-x result into one line per group value', () => {
-    const byCategory = {
-      columns: ['month', 'category', 'spending'],
-      rows: [
-        ['2026-05', 'Dining', 120],
-        ['2026-05', 'Groceries', 80],
-        ['2026-06', 'Dining', 95]
-      ]
-    }
-    expect(prepareChart(spec({ series: ['spending'] }), byCategory)).toEqual({
+  it('pivots on the named group column, one series per group value', () => {
+    expect(prepareChart(spec({ group: 'category' }), BY_CATEGORY)).toEqual({
       ok: true,
       data: {
         columns: ['month', 'Dining', 'Groceries'],
         rows: [
           ['2026-05', 120, 80],
-          ['2026-06', 95, null]
+          ['2026-06', 95, null] // no Groceries row for June: a gap, never a fabricated 0
         ]
       },
       series: ['Dining', 'Groceries']
     })
-  })
-
-  // REGRESSION (of the old coaching error): grouping by account must key on
-  // the account_name column, not assume category
-  it('groups a repeated-x result by whatever label column is present', () => {
-    const byAccount = {
-      columns: ['month', 'account_name', 'spending'],
-      rows: [
-        ['2026-05', 'Chase Checking', 120],
-        ['2026-05', 'Amex Card', 80],
-        ['2026-06', 'Chase Checking', 95]
-      ]
-    }
-    const result = prepareChart(spec({ series: ['spending'] }), byAccount)
-    expect(result.ok).toBe(true)
-    if (result.ok) expect(result.series).toEqual(['Chase Checking', 'Amex Card'])
   })
 
   it('labels a NULL group (uncategorized rows) rather than dropping it', () => {
@@ -211,7 +155,7 @@ describe('prepareChart: long-form pivots', () => {
         ['2026-05', null, 33]
       ]
     }
-    const result = prepareChart(spec({ series: ['spending'] }), withNullGroup)
+    const result = prepareChart(spec({ group: 'category' }), withNullGroup)
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.series).toEqual(['Dining', '(none)'])
   })
@@ -221,8 +165,7 @@ describe('prepareChart: long-form pivots', () => {
       columns: ['month', 'category', 'spending'],
       rows: Array.from({ length: MAX_CHART_SERIES + 1 }, (_, i) => ['2026-05', `Cat ${i}`, i + 1])
     }
-    // every x is the same month, so x repeats and the group count overflows
-    const result = prepareChart(spec({ series: ['spending'] }), many)
+    const result = prepareChart(spec({ group: 'category' }), many)
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.error).toContain(`${MAX_CHART_SERIES + 1} distinct values`)
@@ -230,40 +173,62 @@ describe('prepareChart: long-form pivots', () => {
     }
   })
 
-  it('reports two candidate group columns instead of guessing', () => {
-    const twoLabels = {
-      columns: ['month', 'category', 'account_name', 'spending'],
-      rows: [
-        ['2026-05', 'Dining', 'Chase', 120],
-        ['2026-05', 'Groceries', 'Chase', 80]
-      ]
+  it('holds group to exactly one series: the measure', () => {
+    const twoMeasures = {
+      columns: ['month', 'category', 'spending', 'income'],
+      rows: [['2026-05', 'Dining', 120, 0]]
     }
-    const result = prepareChart(spec({ series: ['spending'] }), twoLabels)
+    const result = prepareChart(
+      spec({ group: 'category', series: ['spending', 'income'] }),
+      twoMeasures
+    )
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toContain('one measure')
+  })
+
+  it('rejects group doubling as x', () => {
+    const result = prepareChart(spec({ x: 'category', group: 'category' }), BY_CATEGORY)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.error).toContain('different columns')
+  })
+
+  it('names a group column that is not in the result', () => {
+    const result = prepareChart(spec({ group: 'categry' }), BY_CATEGORY)
     expect(result.ok).toBe(false)
     if (!result.ok) {
-      expect(result.error).toContain('"category"')
-      expect(result.error).toContain('"account_name"')
+      expect(result.error).toContain('"categry"')
+      expect(result.error).toContain('month, category, spending')
     }
   })
 
-  it('reports an ambiguous measure when value-series leave several candidates', () => {
-    const twoMeasures = {
-      columns: ['day', 'month', 'spending', 'income'],
-      rows: [
-        [1, '2026-06', 12.5, 0],
-        [1, '2026-07', 40, 10]
-      ]
+  it('keeps group out of stat and pie', () => {
+    for (const type of ['stat', 'pie'] as const) {
+      const result = prepareChart(spec({ type, group: 'category' }), BY_CATEGORY)
+      expect(result.ok).toBe(false)
+      if (!result.ok) expect(result.error).toContain('line and bar')
     }
-    const result = prepareChart(spec({ x: 'day', series: ['2026-06', '2026-07'] }), twoMeasures)
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toContain('no single value column')
   })
 
-  it('still reports a genuine typo as a typo, not as a pivot', () => {
-    // 'spend' is no column and no value, so nothing to pivot on
-    const result = prepareChart(spec({ series: ['spend'] }), RESULT)
+  it('treats a missing group field (pre-group persisted parts) as no group', () => {
+    const legacy = { ...spec(), group: undefined } as unknown as ChartSpec
+    expect(prepareChart(legacy, RESULT).ok).toBe(true)
+  })
+
+  // the two spellings the old heuristics absorbed must now bounce back as
+  // corrective errors that point at group, not draw by guesswork
+  it('answers series naming group VALUES with a plain missing-column error', () => {
+    const result = prepareChart(spec({ x: 'month', series: ['Dining', 'Groceries'] }), BY_CATEGORY)
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toContain('is not in the last query result')
+    if (!result.ok) expect(result.error).toContain('"Dining"')
+  })
+
+  it('answers a repeated x without group by naming group as the fix', () => {
+    const result = prepareChart(spec(), BY_CATEGORY)
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.error).toContain('repeats across rows')
+      expect(result.error).toContain('group')
+    }
   })
 
   it('keeps pie out of the pivot: repeated slices are a query problem', () => {
