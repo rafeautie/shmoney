@@ -105,10 +105,13 @@ function TooltipValue({
 
 function AxisChart({
   spec,
+  series,
   data,
   currency
 }: {
   spec: ChartSpec
+  /** resolved series labels (display.series when present); columns of data */
+  series: string[]
   data: ChartData
   currency: string | null
 }) {
@@ -120,7 +123,7 @@ function AxisChart({
   // animation from nothing.
   const { xIndex, seriesIndexes, plot } = useMemo(() => {
     const xIndex = data.columns.indexOf(spec.x)
-    const seriesIndexes = spec.series.map((name) => data.columns.indexOf(name))
+    const seriesIndexes = series.map((name) => data.columns.indexOf(name))
     const plot = data.rows.map((row) => {
       const entry: Record<string, unknown> = { x: String(row[xIndex] ?? '') }
       seriesIndexes.forEach((column, i) => {
@@ -129,12 +132,12 @@ function AxisChart({
       return entry
     })
     return { xIndex, seriesIndexes, plot }
-  }, [data, spec])
+  }, [data, spec, series])
   if (xIndex < 0 || seriesIndexes.some((i) => i < 0) || plot.length === 0)
     return <ChartNote>Nothing to chart.</ChartNote>
 
   const chartConfig: ChartConfig = Object.fromEntries(
-    spec.series.map((name, i) => [`s${i}`, { label: name, color: paletteColor(i) }])
+    series.map((name, i) => [`s${i}`, { label: name, color: paletteColor(i) }])
   )
   const axes = (
     <>
@@ -173,7 +176,7 @@ function AxisChart({
     />
   )
   // one series reads from the title; a legend only earns its space with several
-  const legend = spec.series.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null
+  const legend = series.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null
 
   return (
     <ChartContainer
@@ -185,7 +188,7 @@ function AxisChart({
           {axes}
           {tooltip}
           {legend}
-          {spec.series.map((_name, i) => (
+          {series.map((_name, i) => (
             <Line
               key={i}
               dataKey={`s${i}`}
@@ -201,7 +204,7 @@ function AxisChart({
           {axes}
           {tooltip}
           {legend}
-          {spec.series.length === 1 ? (
+          {series.length === 1 ? (
             // a single-series breakdown colors per bar, like the report's
             // categorical bar chart
             <Bar dataKey="s0" radius={[2, 2, 0, 0]}>
@@ -210,7 +213,7 @@ function AxisChart({
               ))}
             </Bar>
           ) : (
-            spec.series.map((_name, i) => (
+            series.map((_name, i) => (
               <Bar key={i} dataKey={`s${i}`} fill={`var(--color-s${i})`} radius={[2, 2, 0, 0]} />
             ))
           )}
@@ -338,11 +341,14 @@ const cellText = (cell: unknown): string =>
  */
 function ChatChart({
   spec,
+  series,
   data,
   currency,
   asOf
 }: {
   spec: ChartSpec
+  /** resolved series labels; spec.series unless a pivot renamed the lines */
+  series: string[]
   data: ChartData
   currency: string | null
   /** unix ms the chart was generated; omit while streaming (it's live) */
@@ -379,7 +385,7 @@ function ChatChart({
       ) : spec.type === 'pie' ? (
         <PieChartPart spec={spec} data={data} currency={currency} />
       ) : (
-        <AxisChart spec={spec} data={data} currency={currency} />
+        <AxisChart spec={spec} series={series} data={data} currency={currency} />
       )}
       {showData && (
         // escape the card's padding so the table runs flush to its edges
@@ -469,6 +475,8 @@ export function ChartCard({ state, asOf }: { state: ChartCardState; asOf?: numbe
       {card}
       <ChatChart
         spec={state.spec}
+        // parts persisted before the pivot existed carry no resolved series
+        series={state.display.series ?? state.spec.series}
         data={state.display.data}
         currency={state.display.currency}
         asOf={asOf}

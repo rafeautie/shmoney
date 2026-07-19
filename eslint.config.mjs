@@ -4,7 +4,8 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default tseslint.config(
-  { ignores: ['**/node_modules', '**/out', '**/dist', '**/drizzle', '**/*.gen.ts'] },
+  // .claude holds agent skill scripts (CDP drivers etc.), not app code
+  { ignores: ['**/node_modules', '**/out', '**/dist', '**/drizzle', '**/*.gen.ts', '.claude'] },
   tseslint.configs.recommended,
   {
     rules: {

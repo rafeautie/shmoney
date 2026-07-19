@@ -1,31 +1,13 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { DatabaseSync } from 'node:sqlite'
+import type { DatabaseSync } from 'node:sqlite'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { scopeViewsDdl } from './sql-tool'
+import { migratedDb } from './test-db'
 
 // The scope views are the seam that hands the model its data, and their whole
 // job is to be exactly right about units. String-matching the DDL only proves
-// the text; these run it. better-sqlite3 can't load here (Electron ABI), so
-// this uses node's own SQLite against the real migrations — which also means a
-// column renamed out from under a view fails here rather than in a chat reply.
-
-const DRIZZLE = join(__dirname, '../../../drizzle')
-
-interface Journal {
-  entries: { idx: number; tag: string }[]
-}
-
-function migratedDb(): DatabaseSync {
-  const journal = JSON.parse(readFileSync(join(DRIZZLE, 'meta/_journal.json'), 'utf8')) as Journal
-  const db = new DatabaseSync(':memory:')
-  for (const entry of [...journal.entries].sort((a, b) => a.idx - b.idx)) {
-    const sql = readFileSync(join(DRIZZLE, `${entry.tag}.sql`), 'utf8')
-    for (const statement of sql.split('--> statement-breakpoint'))
-      if (statement.trim()) db.exec(statement)
-  }
-  return db
-}
+// the text; these run it, against the real migrations (see test-db.ts) — which
+// also means a column renamed out from under a view fails here rather than in
+// a chat reply.
 
 /** milliunits in, so a view that forgets to divide reads back 1000x */
 function seed(db: DatabaseSync): void {
@@ -41,14 +23,18 @@ function seed(db: DatabaseSync): void {
     VALUES (1, 'Checking', 'USD', 1234560, 1000000, 0, 0),
            (2, 'Card', 'EUR', 250000, NULL, 0, 1);
     INSERT INTO transactions (id, account_id, simplefin_id, posted, amount, description, pending,
-                              transacted_at)
-    VALUES (1, 1, 't1', ${JUNE}, -12340, 'Coffee', 0, ${JUNE}),
-           (2, 1, 't2', ${JUNE}, 500000, 'Paycheck', 0, ${JUNE}),
-           (3, 2, 't3', ${JUNE}, -1000, 'Gone', 0, ${JUNE}),
-           (4, 1, 't4', 0, -5000, 'Pending coffee', 1, ${JUNE}),
-           (5, 1, 't5', 0, -2000, 'Unknown date', 0, 0),
-           (6, 1, 't6', ${recent}, -1000, 'Recent', 0, ${recent});
+                              transacted_at, category_id)
+    VALUES (1, 1, 't1', ${JUNE}, -12340, 'Coffee', 0, ${JUNE}, NULL),
+           (2, 1, 't2', ${JUNE}, 500000, 'Paycheck', 0, ${JUNE}, NULL),
+           (3, 2, 't3', ${JUNE}, -1000, 'Gone', 0, ${JUNE}, NULL),
+           (4, 1, 't4', 0, -5000, 'Pending coffee', 1, ${JUNE}, NULL),
+           (5, 1, 't5', 0, -2000, 'Unknown date', 0, 0, NULL),
+           (6, 1, 't6', ${recent}, -1000, 'Recent', 0, ${recent}, NULL);
     UPDATE transactions SET deleted_at = 999 WHERE id = 3;
+    -- id 6 becomes a transfer via the migration-seeded system category, looked
+    -- up by system_key so the test never hardcodes a seeded id
+    UPDATE transactions SET category_id = (SELECT id FROM categories WHERE system_key = 'transfers')
+    WHERE id = 6;
     INSERT INTO holdings (id, account_id, simplefin_id, symbol, description, currency, shares,
                           market_value, cost_basis, purchase_price, created_at)
     VALUES (1, 1, 'h1', 'VTI', 'Total Market', 'USD', '1.23456789', 5000000, 4000000, 200000, 0);
@@ -56,6 +42,7 @@ function seed(db: DatabaseSync): void {
     -- categories, and both carry unique indexes
     INSERT INTO category_groups (id, name) VALUES (901, 'Test Group');
     INSERT INTO categories (id, group_id, name) VALUES (901, 901, 'Test Category');
+    UPDATE transactions SET category_id = 901 WHERE id = 1;
     INSERT INTO budgets (id, category_id, month, amount) VALUES (1, 901, '2026-07', 30000);
     INSERT INTO rules (id, name, priority, conditions, action, created_at, updated_at)
     VALUES (901, 'Test Rule', 1, '{"version":1}', '{"version":1}', ${JUNE}, ${JUNE});
@@ -137,6 +124,43 @@ describe('scope views: amounts', () => {
   it("carries the account's currency on transactions", () => {
     expect(query(db, 'SELECT currency FROM transactions WHERE account_id = 1 LIMIT 1')).toEqual([
       { currency: 'USD' }
+    ])
+  })
+})
+
+// every label the model reaches for must be a real column: it wrote
+// `t.category` against a view without one, so the view grew one
+describe('scope views: category names', () => {
+  let db: DatabaseSync
+  beforeAll(() => {
+    db = open(null)
+  })
+
+  it('carries category, category_group and system_key on transactions', () => {
+    expect(
+      query(db, 'SELECT category, category_group, system_key FROM transactions WHERE id = 1')
+    ).toEqual([{ category: 'Test Category', category_group: 'Test Group', system_key: null }])
+  })
+
+  it('keeps uncategorized rows, with all three labels NULL', () => {
+    expect(
+      query(db, 'SELECT category, category_group, system_key FROM transactions WHERE id = 2')
+    ).toEqual([{ category: null, category_group: null, system_key: null }])
+  })
+
+  it("marks a transfer with system_key = 'transfers', the app's own vocabulary", () => {
+    expect(query(db, 'SELECT system_key FROM transactions WHERE id = 6')).toEqual([
+      { system_key: 'transfers' }
+    ])
+    // and the base CTE's exclusion, spelled NULL-safe, keeps every other row
+    expect(
+      query(db, "SELECT COUNT(*) AS n FROM transactions WHERE system_key IS NOT 'transfers'")
+    ).toEqual([{ n: 4 }])
+  })
+
+  it('carries the category name on budgets', () => {
+    expect(query(db, 'SELECT category, amount FROM budgets')).toEqual([
+      { category: 'Test Category', amount: 30 }
     ])
   })
 })

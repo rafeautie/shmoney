@@ -93,17 +93,27 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     // compares dates against strings, and an epoch INTEGER compared to date
     // TEXT is always false in SQLite - a silent zero-row result rather than an
     // error.
-    // currency is joined in from accounts so the model can group by it instead
-    // of blending currencies across accounts
+    // Every name the model reaches for is a real column here: currency and
+    // account_name from accounts ("spending per account" grouped by the bare
+    // account_id charts as an axis labelled 1, 2, 3), category/category_group/
+    // system_key from the category tables. The model treats a name it has seen
+    // as a column it can select (it wrote `t.category` against a view without
+    // one), so a name it would have to join for is a name it doesn't get.
+    // system_key rides along raw — the app's own domain language for system
+    // categories ('transfers'), NULL on normal categories — rather than any
+    // derived flag; the stored is_transfer flag was retired for exactly that
+    // vocabulary.
     'CREATE TEMP VIEW transactions AS ' +
-      'SELECT t.id, t.account_id, ' +
+      'SELECT t.id, t.account_id, a.name AS account_name, ' +
       "datetime(NULLIF(t.posted, 0), 'unixepoch', 'localtime') AS posted, " +
       't.amount / 1000.0 AS amount, t.description, t.pending, ' +
       "datetime(NULLIF(t.transacted_at, 0), 'unixepoch', 'localtime') AS transacted_at, " +
-      't.category_id, ' +
+      't.category_id, c.name AS category, g.name AS category_group, c.system_key, ' +
       "date(NULLIF(COALESCE(NULLIF(t.posted, 0), t.transacted_at), 0), 'unixepoch', 'localtime') AS txn_date, " +
       'a.currency ' +
       `FROM main.transactions t JOIN main.accounts a ON a.id = t.account_id ` +
+      'LEFT JOIN main.categories c ON c.id = t.category_id ' +
+      'LEFT JOIN main.category_groups g ON g.id = c.group_id ' +
       `WHERE t.deleted_at IS NULL${and(`t.account_id = ${accountId}`)}`,
     'DROP VIEW IF EXISTS temp.accounts',
     // invert_balance is applied here and the column left out, matching
@@ -124,10 +134,13 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
       `FROM main.holdings${where(`account_id = ${accountId}`)}`,
     // never scoped (budgets are per-category), but shadowed so its amount is
     // divided like every other money column; unshadowed, it was the one money
-    // table the model still read in raw milliunits
+    // table the model still read in raw milliunits. Carries the category name
+    // for the same reason transactions does: "how am I doing against my Dining
+    // budget" should never need a hand-written join.
     'DROP VIEW IF EXISTS temp.budgets',
     'CREATE TEMP VIEW budgets AS ' +
-      'SELECT id, category_id, month, amount / 1000.0 AS amount FROM main.budgets',
+      'SELECT b.id, b.category_id, c.name AS category, b.month, b.amount / 1000.0 AS amount ' +
+      'FROM main.budgets b LEFT JOIN main.categories c ON c.id = b.category_id',
     // never scoped, but always shadowed: strips the encrypted access URL.
     // created_at is already UTC text (current_timestamp default), not an
     // epoch, so it only needs the localtime shift

@@ -1,0 +1,401 @@
+import type { DatabaseSync } from 'node:sqlite'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { scopeViewsDdl } from '../sql-tool'
+import { migratedDb } from '../test-db'
+import type { PromptDbContext } from './chat'
+
+// chat.ts reaches Electron through these modules; stub them so the prompt
+// builder stays loadable (same pattern as chat.test.ts)
+vi.mock('../../db', () => ({ db: {} }))
+vi.mock('../../logging', () => ({
+  createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() })
+}))
+vi.mock('../manager', () => ({ llmManager: {}, sendToRenderer: vi.fn() }))
+vi.mock('../queue', () => ({ enqueueGenerate: vi.fn() }))
+
+const { buildSystemPrompt } = await import('./chat')
+
+/**
+ * The system prompt's recipes are the model's working memory for SQL: a small
+ * model adapts a fragment it can see far more reliably than one it derives, so
+ * a recipe that doesn't run is worse than no recipe at all. These tests EXECUTE
+ * every SQL fragment in the prompt against the real schema behind the real
+ * scope views, rather than string-matching it.
+ *
+ * The fragments are extracted from the built prompt rather than transcribed
+ * here, so editing a recipe re-tests the edit instead of testing a stale copy.
+ *
+ * This exists because of a shipped bug: the pivot recipe named its columns
+ * after the group ("AS dining"), the model pivoted by month instead, and the
+ * derived alias `spending_2026-06` was a syntax error. Hence SAFE_IDENTIFIER
+ * below, which holds every recipe to the naming rule the model can only infer
+ * from them.
+ */
+
+const CTX: PromptDbContext = {
+  accounts: [
+    { name: 'Chase Checking', currency: 'USD' },
+    { name: 'Amex 💳 Card', currency: 'USD' }
+  ],
+  categories: [
+    { group: '🎉 Wants', names: ['🍽️ Dining Out'] },
+    { group: '📌 Needs', names: ['🛒 Groceries'] }
+  ],
+  dateRange: { min: '2026-01', max: '2026-07' }
+}
+
+const PROMPT = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+
+// A fragment starts at a line opening a statement and runs while the following
+// lines continue it: indented, or opening a clause. Prose resumes at a line
+// that does neither ("Then chart it with x day..."), which ends the fragment.
+const SQL_START = /^(WITH|SELECT)\b/
+const SQL_CONT = /^(\s|\)|SELECT|FROM|WHERE|GROUP|ORDER|LIMIT|HAVING|JOIN|LEFT|INNER|UNION|WITH)/
+
+function sqlFragments(prompt: string): string[] {
+  const lines = prompt.split('\n')
+  const blocks: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    if (!SQL_START.test(lines[i])) continue
+    const block = [lines[i]]
+    while (i + 1 < lines.length && lines[i + 1].trim() !== '' && SQL_CONT.test(lines[i + 1]))
+      block.push(lines[++i])
+    blocks.push(block.join('\n'))
+  }
+  return blocks
+}
+
+const FRAGMENTS = sqlFragments(PROMPT)
+// the base CTE defines tx; every other fragment selects from it. It is one
+// line of SELECT * on purpose: the model abbreviates anything longer, and
+// abbreviation is how it lost the category alias and invented `t.category`
+const BASE = FRAGMENTS.find((f) => f.includes('SELECT * FROM transactions'))
+const RECIPES = FRAGMENTS.filter((f) => f !== BASE)
+
+/**
+ * Paste the base CTE in full, exactly as the prompt tells the model to. A
+ * fragment written as a bare SELECT over tx gets it prepended; `WITH tx AS
+ * (...), m AS (` works by substitution, since the base CTE closes with the `)`
+ * the trailing comma needs.
+ */
+function expand(recipe: string): string {
+  if (recipe.includes('WITH tx AS (...)')) return recipe.replace('WITH tx AS (...)', BASE!)
+  return `${BASE} ${recipe}`
+}
+
+// the categories the migrations seed by default, which are also the ones the
+// prompt's recipes LIKE-match; using them keeps the emoji in play, since a
+// filter that drops the emoji matches nothing
+const DINING = 5 // 🍽️ Dining Out
+const GROCERIES = 11 // 🛒 Groceries
+const TRANSFERS = 17 // 🔄 Transfers, system_key = 'transfers'
+
+function seed(db: DatabaseSync): void {
+  // local midday, so the calendar date is TZ-stable for offsets up to ±11h
+  const day = (month: number, dayOfMonth: number): number =>
+    Math.floor(Date.UTC(2026, month - 1, dayOfMonth, 12) / 1000)
+  db.exec(`
+    INSERT INTO accounts (id, name, currency, balance, available_balance, balance_date, invert_balance)
+    VALUES (1, 'Chase Checking', 'USD', 1234560, 1000000, 0, 0),
+           (2, 'Amex 💳 Card', 'EUR', 250000, NULL, 0, 0);
+    INSERT INTO transactions (id, account_id, simplefin_id, posted, amount, description, pending,
+                              transacted_at, category_id)
+    VALUES (1, 1, 't1', ${day(6, 3)}, -12340, 'Coffee', 0, ${day(6, 3)}, ${DINING}),
+           (2, 1, 't2', ${day(6, 3)}, -8000, 'Market', 0, ${day(6, 3)}, ${GROCERIES}),
+           (3, 1, 't3', ${day(6, 15)}, 500000, 'Paycheck', 0, ${day(6, 15)}, NULL),
+           (4, 1, 't4', ${day(7, 3)}, -25000, 'Dinner', 0, ${day(7, 3)}, ${DINING}),
+           (5, 1, 't5', ${day(7, 20)}, -3000, 'Snacks', 0, ${day(7, 20)}, NULL),
+           (6, 2, 't6', ${day(5, 9)}, -4500, 'Euro lunch', 0, ${day(5, 9)}, ${DINING}),
+           (7, 1, 't7', ${day(7, 21)}, -99000, 'Moved to savings', 0, ${day(7, 21)}, ${TRANSFERS}),
+           (8, 1, 't8', 0, -5000, 'Pending', 1, ${day(7, 22)}, ${DINING}),
+           (9, 1, 't9', 0, -2000, 'Undated', 0, 0, ${DINING}),
+           -- on the last day of a month, which is where a 'YYYY-MM-DD' upper
+           -- endpoint against a timed column silently loses rows
+           (10, 1, 't10', ${day(7, 31)}, -7000, 'Last day', 0, ${day(7, 31)}, ${GROCERIES});
+  `)
+}
+
+function open(): DatabaseSync {
+  const db = migratedDb()
+  seed(db)
+  for (const ddl of scopeViewsDdl({ accountId: null })) db.exec(ddl)
+  return db
+}
+
+/**
+ * What SQLite will accept unquoted. A column alias derived from a VALUE rather
+ * than written as a word (a month, a quarter label, an account name) lands
+ * outside this, and the model does not reach for double quotes.
+ */
+const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+describe('system prompt SQL', () => {
+  let db: DatabaseSync
+  beforeAll(() => {
+    db = open()
+  })
+
+  it('extracts the base CTE and every recipe from the prompt', () => {
+    expect(BASE).toBeDefined()
+    // bump deliberately when adding a recipe, and add its assertions below;
+    // this is what stops a new recipe from shipping unexecuted
+    expect(RECIPES).toHaveLength(6)
+  })
+
+  it('runs the base CTE, and it drops transfers, pending and undated rows', () => {
+    const rows = db.prepare(`${BASE} SELECT * FROM tx`).all()
+    // rows 1-6 and 10 survive; 7 is a transfer, 8 is pending, 9 has no date
+    expect(rows).toHaveLength(7)
+    expect(rows.map((r) => (r as { description: string }).description)).not.toContain(
+      'Moved to savings'
+    )
+  })
+
+  // REGRESSION: the model abbreviated the old seven-line base CTE, lost its
+  // `c.name AS category` alias, and wrote `t.category` — a hard error against
+  // a view without that column. The labels are real view columns now, so the
+  // abbreviated CTE the model writes on its own still runs.
+  it('an abbreviated base CTE reaching for t.category still runs', () => {
+    expect(() =>
+      db
+        .prepare(
+          `WITH tx AS (SELECT t.amount, t.category, t.txn_date FROM transactions t
+             WHERE t.txn_date IS NOT NULL AND t.pending = 0)
+           SELECT strftime('%Y-%m', txn_date) AS month, category, ROUND(SUM(-amount), 2) AS spending
+           FROM tx WHERE amount < 0 GROUP BY month, category ORDER BY month, spending DESC`
+        )
+        .all()
+    ).not.toThrow()
+  })
+
+  it.each(RECIPES.map((sql, i) => [i, sql] as const))('recipe %i executes', (_i, recipe) => {
+    expect(() => db.prepare(expand(recipe)).all()).not.toThrow()
+  })
+
+  it.each(RECIPES.map((sql, i) => [i, sql] as const))(
+    'recipe %i returns rows, so the shape is exercised, not just parsed',
+    (_i, recipe) => {
+      expect((db.prepare(expand(recipe)).all() as unknown[]).length).toBeGreaterThan(0)
+    }
+  )
+
+  // the shipped bug, generalized: every recipe must MODEL a safe alias, since
+  // the model infers its naming rule from these columns
+  it.each(RECIPES.map((sql, i) => [i, sql] as const))(
+    'recipe %i names every column as a bare identifier',
+    (_i, recipe) => {
+      const [row] = db.prepare(expand(recipe)).all() as Record<string, unknown>[]
+      for (const name of Object.keys(row)) expect(name).toMatch(SAFE_IDENTIFIER)
+    }
+  )
+
+  it('never tells the model to divide by 1000; the scope views already did', () => {
+    expect(PROMPT).not.toContain('/ 1000')
+    expect(PROMPT).not.toContain('/1000')
+  })
+
+  // REGRESSION: a bare `OVER (ORDER BY month)` uses the default RANGE frame,
+  // which gives every row sharing the ORDER BY value the whole group's total.
+  // Harmless in the recipe as written (month is unique there) but silently
+  // wrong the moment the model adapts it to a query grouped by month AND
+  // something else, which the recipe right above it does.
+  it('spells out a ROWS frame on every window function, so adapting one stays correct', () => {
+    const windows = PROMPT.match(/OVER \([^)]*\)/g) ?? []
+    expect(windows.length).toBeGreaterThan(0)
+    for (const clause of windows) expect(clause).toContain('ROWS BETWEEN')
+  })
+
+  it('does not let an income-only group be reported as having spent 0.00', () => {
+    // every spending recipe filters the rows before summing, rather than
+    // relying on CASE alone, so a group that only ever took money in is absent
+    // instead of ranking at 0.00
+    const twoLevel = RECIPES.find((r) => r.includes('category_group'))
+    expect(twoLevel).toContain('WHERE amount < 0')
+  })
+})
+
+/**
+ * Traps that produce a wrong NUMBER rather than an error, verified by running
+ * the wrong form beside the right one. These are the expensive failures: the
+ * model states the figure as fact and the user has no way to see it is off.
+ */
+describe('system prompt silent-wrong-answer guards', () => {
+  let db: DatabaseSync
+  beforeAll(() => {
+    db = open()
+  })
+
+  const rows = (sql: string): Record<string, unknown>[] =>
+    db.prepare(sql).all() as Record<string, unknown>[]
+
+  it('warns that a full-date upper endpoint drops the last day of a timed column', () => {
+    // txn_date is a bare date, but posted/transacted_at carry a time, so
+    // '2026-07-31' as an upper bound sorts before '2026-07-31 12:00:00'
+    const range = "BETWEEN '2026-07-01' AND '2026-07-31'"
+    const onTxnDate = rows(
+      `${BASE} SELECT description FROM tx WHERE txn_date ${range} ORDER BY txn_date`
+    ).map((r) => r.description)
+    const onPosted = rows(
+      `SELECT description FROM transactions WHERE posted ${range} ORDER BY posted`
+    ).map((r) => r.description)
+    const guarded = rows(
+      `SELECT description FROM transactions WHERE date(posted) ${range} ORDER BY posted`
+    ).map((r) => r.description)
+
+    expect(onTxnDate).toContain('Last day') // bare date column: fine
+    expect(onPosted).not.toContain('Last day') // same range, timed column: gone
+    expect(guarded).toContain('Last day') // the form the prompt prescribes
+    expect(PROMPT).toContain('drops that whole last day')
+  })
+
+  it('warns that NOT LIKE on category silently drops uncategorized rows', () => {
+    const dining = rows(`${BASE} SELECT COUNT(*) AS n FROM tx WHERE category LIKE '%Dining%'`)
+    const notDining = rows(
+      `${BASE} SELECT COUNT(*) AS n FROM tx WHERE category NOT LIKE '%Dining%'`
+    )
+    const guarded = rows(
+      `${BASE} SELECT COUNT(*) AS n FROM tx WHERE (category NOT LIKE '%Dining%' OR category IS NULL)`
+    )
+    const total = rows(`${BASE} SELECT COUNT(*) AS n FROM tx`)[0].n as number
+    // the two halves of a NOT LIKE split do not add up; the guarded form does
+    expect((dining[0].n as number) + (notDining[0].n as number)).toBeLessThan(total)
+    expect((dining[0].n as number) + (guarded[0].n as number)).toBe(total)
+    expect(PROMPT).toContain('OR category IS NULL')
+  })
+
+  it('warns that avg_3mo counts rows, not calendar months, when a month has no data', () => {
+    // the seeded data has no April, so a 3-row window over Mar/May/Jun is not
+    // a 3-calendar-month window; the prompt has to say so, because SQL cannot
+    const months = rows(
+      `${BASE} SELECT strftime('%Y-%m', txn_date) AS month FROM tx GROUP BY month ORDER BY month`
+    ).map((r) => r.month)
+    expect(months).toEqual(['2026-05', '2026-06', '2026-07']) // no gap-free guarantee
+    expect(PROMPT).toContain('averages the last three months THAT HAVE DATA')
+  })
+
+  it("states the quarter trap precisely: '%Y-Q' collapses a year, it does not label rows alike", () => {
+    expect(
+      rows(`${BASE} SELECT DISTINCT strftime('%Y-Q', txn_date) AS q FROM tx ORDER BY q`)
+    ).toEqual([{ q: '2026-Q' }])
+    expect(PROMPT).toContain('collapsing all four quarters of a year into one bucket')
+  })
+
+  it('gives the model an account NAME to group by, so a chart axis is not 1, 2, 3', () => {
+    // the view carries it (the base CTE is SELECT *): a name the model must
+    // join for is a name it will not get
+    expect(
+      rows(
+        `${BASE} SELECT account_name, ROUND(SUM(-amount), 2) AS spending
+         FROM tx WHERE amount < 0 GROUP BY account_name ORDER BY spending DESC`
+      )
+    ).toEqual([
+      { account_name: 'Chase Checking', spending: 55.34 },
+      { account_name: 'Amex 💳 Card', spending: 4.5 }
+    ])
+  })
+
+  it('gives the model a category_id, so budgets can be joined without a name match', () => {
+    // budgets key on category_id; without it on tx the obvious join is a hard
+    // error and the only working alternative is joining on the name string
+    expect(() =>
+      rows(
+        `${BASE} SELECT b.month, ROUND(SUM(-tx.amount), 2) AS actual
+         FROM tx JOIN budgets b ON b.category_id = tx.category_id
+         WHERE tx.amount < 0 GROUP BY b.month`
+      )
+    ).not.toThrow()
+  })
+})
+
+/**
+ * The currency rule renders only for users whose accounts disagree about it.
+ * Stated as a caution it was ignored, because every recipe the model actually
+ * copies omits currency; it ships as a recipe, and only to the users it binds.
+ */
+describe('system prompt currency guidance', () => {
+  const mixed = buildSystemPrompt(
+    { accountId: null, accountName: null },
+    {
+      ...CTX,
+      accounts: [
+        { name: 'Chase Checking', currency: 'USD' },
+        { name: 'Amex 💳 Card', currency: 'EUR' }
+      ]
+    }
+  )
+
+  it('stays silent when every account shares a currency', () => {
+    expect(PROMPT).not.toContain('do NOT share a currency')
+    // and costs those users no extra recipe to misread
+    expect(sqlFragments(PROMPT)).toHaveLength(FRAGMENTS.length)
+  })
+
+  it('adds exactly one runnable recipe when the accounts disagree', () => {
+    expect(mixed).toContain('do NOT share a currency')
+    const added = sqlFragments(mixed).filter((f) => !FRAGMENTS.includes(f))
+    expect(added).toHaveLength(1)
+
+    const db = open()
+    const grouped = db.prepare(expand(added[0])).all() as Record<string, unknown>[]
+    // the point of the recipe: USD and EUR never land in the same row
+    expect(grouped.every((r) => r.currency === 'USD' || r.currency === 'EUR')).toBe(true)
+    expect(new Set(grouped.map((r) => r.currency)).size).toBe(2)
+    for (const name of Object.keys(grouped[0])) expect(name).toMatch(SAFE_IDENTIFIER)
+  })
+})
+
+/**
+ * Fragments the prompt states inline in prose rather than as whole statements.
+ * Each is asserted to appear in the prompt verbatim before being run, so the
+ * test can't drift from the text it is checking.
+ */
+describe('system prompt inline expressions', () => {
+  let db: DatabaseSync
+  beforeAll(() => {
+    db = open()
+  })
+
+  /** confirm the prompt really says this, then evaluate it over the seeded rows */
+  function evaluate(expression: string): Record<string, unknown>[] {
+    expect(PROMPT).toContain(expression)
+    return db.prepare(`${BASE} SELECT ${expression} FROM tx GROUP BY 1 ORDER BY 1`).all() as Record<
+      string,
+      unknown
+    >[]
+  }
+
+  it('buckets by year', () => {
+    expect(evaluate("strftime('%Y', txn_date) AS year")).toEqual([{ year: '2026' }])
+  })
+
+  it('buckets by Monday-start week, and every label really is a Monday', () => {
+    const rows = evaluate("date(txn_date, 'weekday 0', '-6 days') AS week")
+    expect(rows.length).toBeGreaterThan(0)
+    for (const { week } of rows as { week: string }[])
+      expect(db.prepare(`SELECT strftime('%w', '${week}') AS dow`).get()).toEqual({ dow: '1' }) // 1 = Monday
+  })
+
+  it("builds quarter labels, since strftime has no '%Q'", () => {
+    const rows = evaluate(
+      "strftime('%Y', txn_date) || '-Q' || ((CAST(strftime('%m', txn_date) AS INTEGER) + 2) / 3) AS quarter"
+    )
+    expect(rows).toEqual([{ quarter: '2026-Q2' }, { quarter: '2026-Q3' }])
+  })
+
+  // totals over every non-transfer, non-pending, dated row: 12.34 + 8 + 25 + 3
+  // + 7 spent on the USD account, 4.50 on the EUR one, 500 in. They
+  // deliberately blend currencies, which is what an unqualified measure does;
+  // the prompt's separate rule is to GROUP BY currency, not to change these.
+  it.each([
+    ['spending', 'ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending', 59.84],
+    ['income', 'ROUND(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 2) AS income', 500],
+    ['net', 'ROUND(SUM(amount), 2) AS net', 440.16]
+  ])('the %s measure is stated correctly and sums real amounts', (_name, expression, total) => {
+    expect(PROMPT).toContain(expression)
+    const [row] = db.prepare(`${BASE} SELECT ${expression} FROM tx`).all() as Record<
+      string,
+      number
+    >[]
+    expect(Object.values(row)[0]).toBeCloseTo(total, 2)
+  })
+})

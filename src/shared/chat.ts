@@ -82,6 +82,13 @@ export interface ChartToolResult {
 export interface ChartDisplay {
   data: ChartData
   currency: string | null
+  /**
+   * The series labels to draw, resolved by the main process. They match
+   * spec.series for a direct draw but diverge when a long-form result was
+   * pivoted into one line per group (the labels are then the group values).
+   * Absent on parts persisted before the pivot existed; render spec.series.
+   */
+  series?: string[]
 }
 
 /**

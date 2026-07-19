@@ -559,7 +559,7 @@ describe('buildSystemPrompt', () => {
 
   it('documents the pending exclusion and the cross-currency rule', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('t.pending = 0')
+    expect(prompt).toContain('pending = 0')
     expect(prompt).toContain('group by currency')
     expect(prompt).toContain('action_log')
   })

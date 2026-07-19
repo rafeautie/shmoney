@@ -20,7 +20,7 @@ import {
   type LlamaContext
 } from 'node-llama-cpp'
 import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
-import type { ChartSpec, QueryToolResult } from '@shared/chat'
+import type { ChartSpec, ChartToolResult, QueryToolResult } from '@shared/chat'
 import type { ChatGenerationResult, WorkerCommand, WorkerMessage } from './protocol'
 import { createTurnLog, type TurnLog } from './turn-log'
 import {
@@ -31,7 +31,7 @@ import {
   validateQuerySql,
   type ChatToolScope
 } from './sql-tool'
-import { CHART_FUNCTION_PARAMS, validateChartCall } from './chart-tool'
+import { CHART_FUNCTION_PARAMS, prepareChart } from './chart-tool'
 
 const modelsDir: string = (() => {
   const dir = process.env.LLM_MODELS_DIR
@@ -420,7 +420,7 @@ function chatFunctions(ctx: {
     }),
     chart: defineChatSessionFunction({
       description:
-        'Show a chart in your reply, drawn from your most recent query result in this reply; results from earlier replies have expired, so query first. x and series must name result columns exactly as the SQL aliased them.',
+        'Show a chart in your reply, drawn from your most recent query result in this reply; results from earlier replies have expired, so query first. x and series name result columns exactly as the SQL aliased them; a result with one row per bucket per group draws one line per group when series is the single measure column.',
       params: CHART_FUNCTION_PARAMS,
       handler(params) {
         const callId = state.handledCalls++
@@ -432,15 +432,19 @@ function chatFunctions(ctx: {
           series: [...params.series]
         }
         post({ event: 'chatToolCall', id, callId, phase: 'start', name: 'chart', args: spec })
-        const result =
+        // prepareChart owns the whole spec-to-drawable step (including the
+        // long-form pivot), so its data is the single source of what renders;
+        // the model still only ever sees the tiny ok/error result
+        const prepared =
           state.handledCalls > MAX_TOOL_CALLS_PER_TURN
-            ? { ok: false, error: overBudget }
-            : validateChartCall(spec, state.lastQuery)
-        const data =
-          result.ok && state.lastQuery?.columns && state.lastQuery.rows
-            ? { columns: state.lastQuery.columns, rows: state.lastQuery.rows }
-            : null
-        const display = data ? { data, currency } : null
+            ? ({ ok: false, error: overBudget } as const)
+            : prepareChart(spec, state.lastQuery)
+        const result: ChartToolResult = prepared.ok
+          ? { ok: true }
+          : { ok: false, error: prepared.error }
+        const display = prepared.ok
+          ? { data: prepared.data, currency, series: prepared.series }
+          : null
         turn.pushCall({ name: 'chart', args: spec, result, display })
         post({ event: 'chatToolCall', id, callId, phase: 'end', name: 'chart', result, display })
         // steer the follow-up prose from the result itself — instructions
