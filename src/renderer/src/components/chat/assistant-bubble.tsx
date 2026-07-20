@@ -33,7 +33,8 @@ const streamdownComponents: ComponentProps<typeof Streamdown>['components'] = {
         value={Math.round(Number(amount) * 1000)}
         currency={String(currency)}
         colored={false}
-        className="inline-block rounded-xl [clip-path:inset(0_round_0.3rem)]"
+        className="inline-block"
+        blurClassName="[clip-path:inset(1px_round_9999px)]"
       />
     )
   }

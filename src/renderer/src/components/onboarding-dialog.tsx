@@ -19,6 +19,7 @@ import {
 import { ipcErrorMessage, cn } from '@/lib/utils'
 import { useOnboarding } from '@/lib/settings'
 import { useConnectSimpleFin } from '@/hooks/use-connect-simplefin'
+import { ExperimentalBadge } from '@/components/experimental-badge'
 import { Logo } from '@/components/logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -88,9 +89,9 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
         onDone()
       }}
     >
-      <DialogContent className="flex h-108 flex-col gap-0 p-6 min-w-3xl">
+      <DialogContent className="flex min-h-120 flex-col gap-0 p-6 min-w-3xl">
         <Logo />
-        {/* fixed-height body so the footer stays put as steps change height */}
+        {/* min-height keeps short steps roomy; taller steps let the card grow */}
         <div className="mt-5 flex-1 space-y-4 overflow-y-auto">
           {step === 0 && <WelcomeStep />}
           {step === 1 && <FeaturesStep />}
@@ -201,7 +202,11 @@ function FeaturesStep(): React.JSX.Element {
         <FeatureItem icon={Exchange01Icon} title="Transfers handled for you">
           Movements between your own accounts stay out of your income and expense totals.
         </FeatureItem>
-        <FeatureItem icon={BubbleChatIcon} title="Chat with your finances (experimental)">
+        <FeatureItem
+          icon={BubbleChatIcon}
+          title="Chat with your finances"
+          badge={<ExperimentalBadge />}
+        >
           Ask a local, on-device model about your money; it queries your data and charts the answer,
           fully offline.
         </FeatureItem>
@@ -362,10 +367,12 @@ function Spinner(): React.JSX.Element {
 function FeatureItem({
   icon,
   title,
+  badge,
   children
 }: {
   icon: IconType
   title: string
+  badge?: React.ReactNode
   children: React.ReactNode
 }): React.JSX.Element {
   return (
@@ -374,7 +381,10 @@ function FeatureItem({
         <HugeiconsIcon icon={icon} size={16} />
       </div>
       <div className="space-y-0.5">
-        <p className="font-medium text-foreground">{title}</p>
+        <p className="flex items-center gap-2 font-medium text-foreground">
+          {title}
+          {badge}
+        </p>
         <p className="text-muted-foreground">{children}</p>
       </div>
     </div>
