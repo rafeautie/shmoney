@@ -34,7 +34,16 @@ export function ThemeSync() {
   const { settings } = useSettings()
 
   useLayoutEffect(() => {
-    document.documentElement.classList.toggle('dark', settings.theme === 'dark')
+    const root = document.documentElement
+    // Suppress color transitions for the flip so every component repaints in one
+    // instant step instead of fading at its own duration (see .theme-changing).
+    root.classList.add('theme-changing')
+    root.classList.toggle('dark', settings.theme === 'dark')
+    // Force a synchronous reflow so the new colors commit with transitions off,
+    // then restore transitions on the next frame.
+    void root.offsetHeight
+    const id = requestAnimationFrame(() => root.classList.remove('theme-changing'))
+    return () => cancelAnimationFrame(id)
   }, [settings.theme])
 
   return null
