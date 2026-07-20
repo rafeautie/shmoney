@@ -23,7 +23,7 @@ export function Amount({ value, currency, colored = true, className, blurClassNa
         colored && value > 0 && blurAmounts && 'bg-green-500/30 dark:bg-green-400/30',
         colored && value < 0 && 'text-red-600 dark:text-red-500',
         colored && value < 0 && blurAmounts && 'bg-red-600/30 dark:bg-red-500/30',
-        blurAmounts && 'bg-foreground/30 blur-md select-none',
+        blurAmounts && 'bg-foreground/30 blur-sm select-none',
         className,
         blurAmounts && blurClassName
       )}

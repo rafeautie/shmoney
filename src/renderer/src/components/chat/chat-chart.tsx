@@ -419,8 +419,8 @@ function ChatChart({
                           className={cn(
                             'inline-block',
                             blurAmounts &&
-                              seriesIndexes.has(j) &&
-                              'blur-sm select-none [clip-path:inset(0)]'
+                            seriesIndexes.has(j) &&
+                            'blur-sm select-none [clip-path:inset(0)]'
                           )}
                         >
                           {cellText(cell, seriesIndexes.has(j), currency)}
