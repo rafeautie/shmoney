@@ -20,10 +20,10 @@ export function Amount({ value, currency, colored = true, className, blurClassNa
       className={cn(
         'tabular-nums duration-0',
         colored && value > 0 && 'text-green-500 dark:text-green-400',
-        colored && value > 0 && blurAmounts && 'bg-green-500/30 dark:bg-green-400/30',
+        colored && value > 0 && blurAmounts && 'bg-green-500/20 dark:bg-green-400/20',
         colored && value < 0 && 'text-red-600 dark:text-red-500',
-        colored && value < 0 && blurAmounts && 'bg-red-600/30 dark:bg-red-500/30',
-        blurAmounts && 'bg-foreground/30 blur-sm select-none',
+        colored && value < 0 && blurAmounts && 'bg-red-600/20 dark:bg-red-500/20',
+        blurAmounts && 'bg-foreground/20 blur-sm select-none',
         className,
         blurAmounts && blurClassName
       )}

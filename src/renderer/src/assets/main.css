@@ -203,14 +203,15 @@
   }
 }
 
-/* While the theme is flipping, suppress every color transition so the whole UI
- * repaints in one instant step. Without this, the global 250ms fade above and
- * the shorter per-component transitions run at different speeds, revealing the
- * mismatch. ThemeSync adds this class, flips the theme, then removes it on the
- * next frame. Unlayered + !important so it wins over the utilities above. */
-html.theme-changing *,
-html.theme-changing *::before,
-html.theme-changing *::after {
+/* While a global appearance flip is in flight (theme swap, blur-amounts
+ * toggle), suppress every transition so the whole UI repaints in one instant
+ * step. Without this, the global 250ms fade above and the shorter per-component
+ * transitions run at different speeds, revealing the mismatch. ThemeSync adds
+ * this class, applies the change, then removes it on the next frame. Unlayered +
+ * !important so it wins over the utilities above. */
+html.suppress-transitions *,
+html.suppress-transitions *::before,
+html.suppress-transitions *::after {
   transition: none !important;
 }
 

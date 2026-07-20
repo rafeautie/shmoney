@@ -35,16 +35,19 @@ export function ThemeSync() {
 
   useLayoutEffect(() => {
     const root = document.documentElement
-    // Suppress color transitions for the flip so every component repaints in one
-    // instant step instead of fading at its own duration (see .theme-changing).
-    root.classList.add('theme-changing')
+    // Suppress transitions for appearance flips that recolor/reblur many
+    // elements at once (theme swap, blur-amounts toggle) so they repaint in one
+    // instant step instead of each fading at its own duration. The blur classes
+    // are already committed to the DOM by the time this layout effect runs, so
+    // adding the class here still catches them (see .suppress-transitions).
+    root.classList.add('suppress-transitions')
     root.classList.toggle('dark', settings.theme === 'dark')
-    // Force a synchronous reflow so the new colors commit with transitions off,
+    // Force a synchronous reflow so the new styles commit with transitions off,
     // then restore transitions on the next frame.
     void root.offsetHeight
-    const id = requestAnimationFrame(() => root.classList.remove('theme-changing'))
+    const id = requestAnimationFrame(() => root.classList.remove('suppress-transitions'))
     return () => cancelAnimationFrame(id)
-  }, [settings.theme])
+  }, [settings.theme, settings.blurAmounts])
 
   return null
 }

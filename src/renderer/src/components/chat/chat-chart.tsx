@@ -92,7 +92,7 @@ function TooltipValue({
       <div className="flex flex-1 items-center justify-between gap-4 leading-none">
         <span className="text-muted-foreground">{label}</span>
         <span
-          className={cn('font-mono font-medium tabular-nums', blurAmounts && 'blur-sm select-none')}
+          className={cn('font-mono font-medium tabular-nums', blurAmounts && 'blur-sm select-none bg-foreground/20')}
         >
           {formatValue(value, currency)}
         </span>
@@ -420,7 +420,7 @@ function ChatChart({
                             'inline-block',
                             blurAmounts &&
                             seriesIndexes.has(j) &&
-                            'blur-sm select-none [clip-path:inset(0)]'
+                            'blur-sm select-none bg-foreground/20'
                           )}
                         >
                           {cellText(cell, seriesIndexes.has(j), currency)}

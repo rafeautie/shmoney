@@ -16,4 +16,4 @@ export function paletteColor(index: number): string {
 // Recharts renders y-axis tick text outside the g that YAxis's className lands
 // on, so the privacy blur has to target the labels from the chart container.
 export const BLUR_Y_TICK_LABELS =
-  '[&_.recharts-yAxis-tick-labels]:blur-sm [&_.recharts-yAxis-tick-labels]:select-none'
+  '[&_.recharts-yAxis-tick-labels]:blur-sm [&_.recharts-yAxis-tick-labels]:select-none [&_.recharts-yAxis-tick-labels]:bg-foreground/20'

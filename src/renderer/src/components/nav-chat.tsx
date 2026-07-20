@@ -26,7 +26,7 @@ export function NavChat() {
       <SidebarGroup className="min-h-0">
         <SidebarGroupLabel
           render={<CollapsibleTrigger />}
-          className="group/chat-section w-full cursor-pointer pe-14 hover:text-sidebar-foreground"
+          className="group/chat-section w-full cursor-pointer pe-14 hover:text-sidebar-foreground group-data-[collapsible=icon]:pointer-events-none"
         >
           Chat
           <HugeiconsIcon
