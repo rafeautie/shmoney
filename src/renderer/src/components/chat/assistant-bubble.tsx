@@ -34,7 +34,7 @@ const streamdownComponents: ComponentProps<typeof Streamdown>['components'] = {
         currency={String(currency)}
         colored={false}
         className="inline-block"
-        blurClassName='scale-85'
+        blurClassName="scale-85"
       />
     )
   }

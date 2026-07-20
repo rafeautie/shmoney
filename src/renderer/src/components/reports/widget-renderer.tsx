@@ -3,14 +3,10 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { format } from 'date-fns'
 import {
-  Area,
-  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   PolarAngleAxis,
@@ -36,6 +32,7 @@ import { cn, formatAmount } from '@/lib/utils'
 import { formatBucketLabel, formatMonthLong } from '@/lib/format-date'
 import { usePrivacy } from '@/lib/settings'
 import { Amount } from '@/components/amount'
+import { Chart, type FormatValue } from '@/components/charts/chart'
 import { EnvelopeProgressRow } from '@/components/budget/envelope-progress'
 import { TransactionsTable } from '@/components/transactions-table'
 import { Badge } from '@/components/ui/badge'
@@ -51,8 +48,8 @@ import {
   ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart'
-import { BLUR_Y_TICK_LABELS, paletteColor } from './chart-style'
-import { groupTotals, pivotTimeSeries, type SeriesInfo } from './data'
+import { BLUR_Y_TICK_LABELS, paletteColor } from '@/components/charts/chart-style'
+import { groupTotals, pivotTimeSeries } from './data'
 import { useResolvedQuery, useWidgetData } from './use-widget-data'
 
 function formatMeasureValue(measure: Measure, value: number, currency: string): string {
@@ -76,6 +73,14 @@ function tickFormatter(measure: Measure, currency: string): (value: number) => s
       return new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value / 1000)
     }
   }
+}
+
+function makeFormatValue(measure: Measure, fallbackCurrency: string): FormatValue {
+  const compact = tickFormatter(measure, fallbackCurrency)
+  return (value, opts) =>
+    opts?.compact
+      ? compact(value)
+      : formatMeasureValue(measure, value, opts?.currency ?? fallbackCurrency)
 }
 
 /** Shared body for chart tooltips: label on the left, formatted value on the right. */
@@ -154,12 +159,6 @@ function WidgetSkeleton() {
   )
 }
 
-function chartConfigFor(series: SeriesInfo[]): ChartConfig {
-  return Object.fromEntries(
-    series.map((s, i) => [s.key, { label: s.label, color: paletteColor(i) }])
-  )
-}
-
 // ---------- time-series charts (line / bar / area) ----------
 
 function TimeSeriesChart({
@@ -175,7 +174,6 @@ function TimeSeriesChart({
   currencies: string[]
   resolved: ResolvedQuery
 }) {
-  const { blurAmounts } = usePrivacy()
   const grain = config.query.timeGrain as Exclude<TimeGrain, 'none'>
   const { data, series, tooManyBuckets } = useMemo(
     () =>
@@ -196,107 +194,27 @@ function TimeSeriesChart({
     return <CenteredNote>No transactions match these filters.</CenteredNote>
   }
 
-  const chartConfig = chartConfigFor(series)
-  const stacked = config.display?.stacked ?? false
-  const measure = config.query.measure
   const currency = currencies[0] ?? 'USD'
-  const yTick = tickFormatter(measure, currency)
-  const tooltip = (
-    <ChartTooltip
-      content={
-        <ChartTooltipContent
-          labelFormatter={(label) => (typeof label === 'string' ? formatBucketLabel(label) : label)}
-          formatter={(value, name, item) => (
-            <TooltipRow
-              color={item.color}
-              label={chartConfig[name as string]?.label ?? name}
-              measure={measure}
-              value={value as number}
-              currency={series.find((s) => s.key === name)?.currency ?? currency}
-            />
-          )}
-        />
-      }
-    />
-  )
-  const legend = config.display?.showLegend ? (
-    <ChartLegend content={<ChartLegendContent />} />
-  ) : null
-  const axes = (
-    <>
-      <CartesianGrid vertical={false} />
-      <XAxis
-        dataKey="bucket"
-        tickLine={false}
-        axisLine={false}
-        tickMargin={8}
-        minTickGap={24}
-        tickFormatter={formatBucketLabel}
-      />
-      <YAxis tickLine={false} axisLine={false} width={56} tickFormatter={yTick} />
-    </>
-  )
+  const measure = config.query.measure
+  const fv = makeFormatValue(measure, currency)
+  const chartSeries = series.map((s) => ({ key: s.key, label: s.label, currency: s.currency }))
+  const kind = widget.type === 'line' ? 'line' : widget.type === 'area' ? 'area' : 'bar'
 
   return (
     <div className="relative h-full px-4 pb-4">
       <MixedCurrencyBadge currencies={currencies} />
-      <ChartContainer
-        config={chartConfig}
-        className={cn(
-          'aspect-auto h-full w-full',
-          blurAmounts && measure !== 'count' && BLUR_Y_TICK_LABELS
-        )}
-      >
-        {widget.type === 'line' ? (
-          <LineChart data={data} margin={{ top: 16, right: 8 }}>
-            {axes}
-            {tooltip}
-            {legend}
-            {series.map((s) => (
-              <Line
-                key={s.key}
-                dataKey={s.key}
-                type="monotone"
-                stroke={`var(--color-${s.key})`}
-                strokeWidth={2}
-                dot={false}
-              />
-            ))}
-          </LineChart>
-        ) : widget.type === 'area' ? (
-          <AreaChart data={data} margin={{ top: 16, right: 8 }}>
-            {axes}
-            {tooltip}
-            {legend}
-            {series.map((s) => (
-              <Area
-                key={s.key}
-                dataKey={s.key}
-                type="monotone"
-                stroke={`var(--color-${s.key})`}
-                fill={`var(--color-${s.key})`}
-                fillOpacity={0.3}
-                stackId={stacked ? 'stack' : s.key}
-              />
-            ))}
-          </AreaChart>
-        ) : (
-          <BarChart data={data} margin={{ top: 16, right: 8 }}>
-            {axes}
-            {tooltip}
-            {legend}
-            {series.map((s) => (
-              <Bar
-                key={s.key}
-                dataKey={s.key}
-                fill={`var(--color-${s.key})`}
-                stackId={stacked ? 'stack' : undefined}
-                radius={stacked ? 0 : [2, 2, 0, 0]}
-              />
-            ))}
-          </BarChart>
-        )}
-      </ChartContainer>
+      <Chart
+        kind={kind}
+        data={data}
+        xKey="bucket"
+        series={chartSeries}
+        formatValue={fv}
+        formatLabel={formatBucketLabel}
+        stacked={config.display?.stacked ?? false}
+        legend={config.display?.showLegend ?? false}
+        sensitive={measure !== 'count'}
+        className="h-full"
+      />
     </div>
   )
 }
@@ -312,7 +230,6 @@ function CategoricalBarChart({
   rows: QueryRow[]
   currencies: string[]
 }) {
-  const { blurAmounts } = usePrivacy()
   const totals = useMemo(
     () => groupTotals(rows, config.query.sort ?? { by: 'value', dir: 'desc' }, config.query.limit),
     [rows, config.query.sort, config.query.limit]
@@ -322,48 +239,22 @@ function CategoricalBarChart({
   }
   const measure = config.query.measure
   const currency = currencies[0] ?? 'USD'
-  const chartConfig: ChartConfig = { value: { label: 'Value' } }
+  const fv = makeFormatValue(measure, currency)
+  const data = totals.map((t) => ({ label: t.label, value: t.value, currency: t.currency }))
   return (
     <div className="relative h-full px-4 pb-4">
       <MixedCurrencyBadge currencies={currencies} />
-      <ChartContainer
-        config={chartConfig}
-        className={cn(
-          'aspect-auto h-full w-full',
-          blurAmounts && measure !== 'count' && BLUR_Y_TICK_LABELS
-        )}
-      >
-        <BarChart data={totals} margin={{ top: 16, right: 8 }}>
-          <CartesianGrid vertical={false} />
-          <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            width={56}
-            tickFormatter={tickFormatter(measure, currency)}
-          />
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                hideLabel
-                formatter={(value, _name, item) => (
-                  <TooltipRow
-                    label={item.payload?.label}
-                    measure={measure}
-                    value={value as number}
-                    currency={item.payload?.currency ?? currency}
-                  />
-                )}
-              />
-            }
-          />
-          <Bar dataKey="value" radius={[2, 2, 0, 0]}>
-            {totals.map((t, i) => (
-              <Cell key={`${t.groupId}-${t.currency}`} fill={paletteColor(i)} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ChartContainer>
+      <Chart
+        kind="bar"
+        data={data}
+        xKey="label"
+        series={[{ key: 'value', label: 'Value' }]}
+        formatValue={fv}
+        colorByPoint
+        tooltipMode="point"
+        sensitive={measure !== 'count'}
+        className="h-full"
+      />
     </div>
   )
 }
@@ -394,44 +285,22 @@ function PieChartWidget({
     )
   }
   const measure = config.query.measure
-  // keyed by slice label: ChartLegendContent looks up entries by the datum's
-  // nameKey value; no color field since cells set an explicit fill
-  const chartConfig: ChartConfig = Object.fromEntries(
-    totals.map((t) => [t.label, { label: t.label }])
-  )
-  const data = totals.map((t, i) => ({ ...t, fill: paletteColor(i) }))
+  const fv = makeFormatValue(measure, currencies[0] ?? 'USD')
+  const data = totals.map((t) => ({ label: t.label, value: t.value, currency: t.currency }))
   return (
     <div className="relative h-full px-4 pb-4">
       <MixedCurrencyBadge currencies={currencies} />
-      <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
-        <PieChart>
-          <ChartTooltip
-            content={
-              <ChartTooltipContent
-                hideLabel
-                formatter={(value, _name, item) => (
-                  <TooltipRow
-                    label={item.payload?.label}
-                    measure={measure}
-                    value={value as number}
-                    currency={item.payload?.currency}
-                  />
-                )}
-              />
-            }
-          />
-          {config.display?.showLegend ? (
-            <ChartLegend content={<ChartLegendContent nameKey="label" />} />
-          ) : null}
-          <Pie
-            data={data}
-            dataKey="value"
-            nameKey="label"
-            innerRadius={config.display?.donut ? '55%' : 0}
-            strokeWidth={2}
-          />
-        </PieChart>
-      </ChartContainer>
+      <Chart
+        kind="pie"
+        data={data}
+        labelKey="label"
+        valueKey="value"
+        formatValue={fv}
+        donut={config.display?.donut ?? false}
+        legend={config.display?.showLegend ?? false}
+        sensitive={measure !== 'count'}
+        className="h-full"
+      />
     </div>
   )
 }
@@ -585,15 +454,20 @@ function StatCardWidget({
   if (byCurrency.length === 0) {
     return <CenteredNote>No transactions match these filters.</CenteredNote>
   }
+  const fv = makeFormatValue(measure, currencies[0] ?? 'USD')
+  const items = byCurrency.map(({ currency, value }) => ({
+    value,
+    currency,
+    colored: measure === 'sum',
+    sensitive: measure !== 'count'
+  }))
   return (
-    // the padding also gives the privacy blur halo room inside the overflow-hidden clip box
-    <div className="flex h-full flex-col items-start justify-center gap-1 overflow-hidden p-4">
-      {byCurrency.map(({ currency, value }) => (
-        <div key={currency} className="text-3xl font-semibold tracking-tight tabular-nums">
-          <MeasureValue measure={measure} value={value} currency={currency} />
-        </div>
-      ))}
-    </div>
+    <Chart
+      kind="stat"
+      items={items}
+      formatValue={fv}
+      className="h-full justify-center overflow-hidden p-4"
+    />
   )
 }
 

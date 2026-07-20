@@ -2,41 +2,20 @@ import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Analytics01Icon, ArrowDown01Icon } from '@hugeicons/core-free-icons'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  XAxis,
-  YAxis
-} from 'recharts'
 import type { ChartData, ChartDisplay, ChartSpec, ChartToolResult } from '@shared/chat'
 import { cn } from '@/lib/utils'
 import { formatBucketLabel } from '@/lib/format-date'
 import { usePrivacy } from '@/lib/settings'
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig
-} from '@/components/ui/chart'
-import { BLUR_Y_TICK_LABELS, paletteColor } from '@/components/reports/chart-style'
+import { Chart, type FormatValue } from '@/components/charts/chart'
 import { ChatTableViewport } from '@/components/chat/chat-table'
 import { ToolCallCard } from '@/components/chat/tool-call'
 
 // A chart the model composed over its own query result, rendered from the
 // persisted part (or the streamed equivalent). Values are real amounts (the
 // scope views already divided milliunits out), so unlike report widgets
-// nothing here divides by anything. Reuses the report charts' foundation —
-// ChartContainer theming, the --chart palette, the privacy blur — while
-// mapping columns straight onto Recharts, since the model's SQL already
-// shaped the data.
+// nothing here divides by anything. Mapping from ChartData onto the shared
+// <Chart> component's props happens in ChatChart below, since the model's
+// SQL already shaped the data.
 
 // pie slices beyond the top 8 collapse into "Other", mirroring PieChartWidget
 const MAX_PIE_SLICES = 8
@@ -49,7 +28,7 @@ function toNumber(cell: unknown): number | null {
 }
 
 /** real amounts as the scope's currency, or plain numbers when mixed/unknown */
-function formatValue(value: number, currency: string | null, compact = false): string {
+function formatChatValue(value: number, currency: string | null, compact = false): string {
   const options: Intl.NumberFormatOptions = compact
     ? { notation: 'compact' }
     : { maximumFractionDigits: 2 }
@@ -67,275 +46,13 @@ function formatValue(value: number, currency: string | null, compact = false): s
   return new Intl.NumberFormat(undefined, options).format(value)
 }
 
-/** the never-crash fallback for a part that doesn't add up (shouldn't happen: calls are validated) */
-function ChartNote({ children }: { children: React.ReactNode }) {
-  return <p className="py-6 text-center text-muted-foreground italic">{children}</p>
-}
-
-function TooltipValue({
-  label,
-  value,
-  currency,
-  color
-}: {
-  label: React.ReactNode
-  value: number
-  currency: string | null
-  color?: string
-}) {
-  const { blurAmounts } = usePrivacy()
-  return (
-    <>
-      {color && (
-        <div className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: color }} />
-      )}
-      <div className="flex flex-1 items-center justify-between gap-4 leading-none">
-        <span className="text-muted-foreground">{label}</span>
-        <span
-          className={cn('font-mono font-medium tabular-nums', blurAmounts && 'blur-sm select-none bg-foreground/20')}
-        >
-          {formatValue(value, currency)}
-        </span>
-      </div>
-    </>
-  )
-}
-
-// ---------- line / bar (an x axis plus one series per value column) ----------
-
-function AxisChart({
-  spec,
-  series,
-  data,
-  currency
-}: {
-  spec: ChartSpec
-  /** resolved series labels (display.series when present); columns of data */
-  series: string[]
-  data: ChartData
-  currency: string | null
-}) {
-  const { blurAmounts } = usePrivacy()
-  // dataKeys and CSS color vars use sanitized keys (x, s0, s1…) so column
-  // names with dots or spaces can never break Recharts path lookup or CSS.
-  // One memo for the whole pipeline: a plot recomputed on unrelated re-renders
-  // (e.g. the Data toggle) hands Recharts a new array and restarts the line
-  // animation from nothing.
-  const { xIndex, seriesIndexes, plot } = useMemo(() => {
-    const xIndex = data.columns.indexOf(spec.x)
-    const seriesIndexes = series.map((name) => data.columns.indexOf(name))
-    const plot = data.rows.map((row) => {
-      const entry: Record<string, unknown> = { x: String(row[xIndex] ?? '') }
-      seriesIndexes.forEach((column, i) => {
-        entry[`s${i}`] = toNumber(row[column])
-      })
-      return entry
-    })
-    return { xIndex, seriesIndexes, plot }
-  }, [data, spec, series])
-  if (xIndex < 0 || seriesIndexes.some((i) => i < 0) || plot.length === 0)
-    return <ChartNote>Nothing to chart.</ChartNote>
-
-  const chartConfig: ChartConfig = Object.fromEntries(
-    series.map((name, i) => [`s${i}`, { label: name, color: paletteColor(i) }])
-  )
-  const axes = (
-    <>
-      <CartesianGrid vertical={false} />
-      <XAxis
-        dataKey="x"
-        tickLine={false}
-        axisLine={false}
-        tickMargin={8}
-        minTickGap={24}
-        tickFormatter={formatBucketLabel}
-      />
-      <YAxis
-        tickLine={false}
-        axisLine={false}
-        width={56}
-        tickFormatter={(value: number) => formatValue(value, currency, true)}
-      />
-    </>
-  )
-  const tooltip = (
-    <ChartTooltip
-      content={
-        <ChartTooltipContent
-          labelFormatter={(label) => (typeof label === 'string' ? formatBucketLabel(label) : label)}
-          formatter={(value, name, item) => (
-            <TooltipValue
-              color={item.color}
-              label={chartConfig[name as string]?.label ?? name}
-              value={value as number}
-              currency={currency}
-            />
-          )}
-        />
-      }
-    />
-  )
-  // one series reads from the title; a legend only earns its space with several
-  const legend = series.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null
-
-  return (
-    <ChartContainer
-      config={chartConfig}
-      className={cn('aspect-auto h-56 w-full', blurAmounts && BLUR_Y_TICK_LABELS)}
-    >
-      {spec.type === 'line' ? (
-        <LineChart data={plot} margin={{ top: 8, right: 8 }}>
-          {axes}
-          {tooltip}
-          {legend}
-          {series.map((_name, i) => (
-            <Line
-              key={i}
-              dataKey={`s${i}`}
-              type="monotone"
-              stroke={`var(--color-s${i})`}
-              strokeWidth={2}
-              dot={false}
-            />
-          ))}
-        </LineChart>
-      ) : (
-        <BarChart data={plot} margin={{ top: 8, right: 8 }}>
-          {axes}
-          {tooltip}
-          {legend}
-          {series.length === 1 ? (
-            // a single-series breakdown colors per bar, like the report's
-            // categorical bar chart
-            <Bar dataKey="s0" radius={[2, 2, 0, 0]}>
-              {plot.map((_entry, i) => (
-                <Cell key={i} fill={paletteColor(i)} />
-              ))}
-            </Bar>
-          ) : (
-            series.map((_name, i) => (
-              <Bar key={i} dataKey={`s${i}`} fill={`var(--color-s${i})`} radius={[2, 2, 0, 0]} />
-            ))
-          )}
-        </BarChart>
-      )}
-    </ChartContainer>
-  )
-}
-
-// ---------- pie ----------
-
-function PieChartPart({
-  spec,
-  data,
-  currency
-}: {
-  spec: ChartSpec
-  data: ChartData
-  currency: string | null
-}) {
-  const xIndex = data.columns.indexOf(spec.x)
-  const valueIndex = data.columns.indexOf(spec.series[0])
-  const slices = useMemo(() => {
-    const positive = data.rows
-      .map((row) => ({ label: String(row[xIndex] ?? ''), value: toNumber(row[valueIndex]) ?? 0 }))
-      .filter((slice) => slice.value > 0)
-      .sort((a, b) => b.value - a.value)
-    const top = positive.slice(0, MAX_PIE_SLICES)
-    const rest = positive.slice(MAX_PIE_SLICES)
-    if (rest.length > 0)
-      top.push({ label: 'Other', value: rest.reduce((sum, s) => sum + s.value, 0) })
-    return top.map((slice, i) => ({ ...slice, fill: paletteColor(i) }))
-  }, [data.rows, xIndex, valueIndex])
-  if (xIndex < 0 || valueIndex < 0) return <ChartNote>Nothing to chart.</ChartNote>
-  if (slices.length === 0) return <ChartNote>No positive values to chart.</ChartNote>
-
-  // keyed by slice label: the legend looks entries up by the datum's nameKey
-  const chartConfig: ChartConfig = Object.fromEntries(
-    slices.map((slice) => [slice.label, { label: slice.label }])
-  )
-  return (
-    <ChartContainer config={chartConfig} className="aspect-auto h-56 w-full">
-      <PieChart>
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              hideLabel
-              formatter={(value, _name, item) => (
-                <TooltipValue
-                  label={item.payload?.label}
-                  value={value as number}
-                  currency={currency}
-                />
-              )}
-            />
-          }
-        />
-        {/* unlabeled slices are unreadable, so the pie always carries its legend */}
-        <ChartLegend content={<ChartLegendContent nameKey="label" />} />
-        <Pie data={slices} dataKey="value" nameKey="label" strokeWidth={2} />
-      </PieChart>
-    </ChartContainer>
-  )
-}
-
-// ---------- stat (one headline number, optionally with a signed change) ----------
-
-function StatPart({
-  spec,
-  data,
-  currency
-}: {
-  spec: ChartSpec
-  data: ChartData
-  currency: string | null
-}) {
-  const { blurAmounts } = usePrivacy()
-  const row = data.rows[0]
-  const value = toNumber(row?.[data.columns.indexOf(spec.series[0])])
-  const changeColumn = spec.series[1]
-  const change = changeColumn ? toNumber(row?.[data.columns.indexOf(changeColumn)]) : null
-  if (value === null) return <ChartNote>Nothing to chart.</ChartNote>
-
-  return (
-    <div className="flex flex-col gap-1 py-1">
-      <div
-        className={cn(
-          'text-3xl font-semibold tracking-tight tabular-nums',
-          blurAmounts && 'blur-sm select-none'
-        )}
-      >
-        {formatValue(value, currency)}
-      </div>
-      {change !== null && (
-        <div className="flex items-center gap-1.5">
-          <span
-            className={cn(
-              'font-medium tabular-nums',
-              change > 0 && 'text-green-600 dark:text-green-500',
-              change < 0 && 'text-red-600 dark:text-red-500',
-              change === 0 && 'text-muted-foreground',
-              blurAmounts && 'blur-sm select-none'
-            )}
-          >
-            {change > 0 ? '+' : ''}
-            {formatValue(change, currency)}
-          </span>
-          {/* the column's alias is the only context the spec carries for the change */}
-          <span className="text-muted-foreground">{changeColumn}</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
 const cellText = (cell: unknown, isSeries: boolean, currency: string | null): string =>
   cell === null
     ? 'NULL'
     : typeof cell === 'string'
       ? formatBucketLabel(cell)
       : typeof cell === 'number' || typeof cell === 'bigint'
-        ? formatValue(Number(cell), isSeries ? currency : null)
+        ? formatChatValue(Number(cell), isSeries ? currency : null)
         : String(cell)
 
 /**
@@ -363,6 +80,57 @@ function ChatChart({
   const [showData, setShowData] = useState(false)
   const { blurAmounts } = usePrivacy()
   const seriesIndexes = new Set(series.map((name) => data.columns.indexOf(name)))
+  const formatValue: FormatValue = (v, opts) => formatChatValue(v, currency, opts?.compact)
+
+  // dataKeys use sanitized keys (x, s0, s1…) so column names with dots or
+  // spaces can never break Recharts path lookup or CSS. One memo for the
+  // whole pipeline: a plot recomputed on unrelated re-renders (e.g. the Data
+  // toggle) hands the shared chart a new array and restarts the line
+  // animation from nothing.
+  const { axisData, axisSeries } = useMemo(() => {
+    const xIndex = data.columns.indexOf(spec.x)
+    const seriesIndexes = series.map((name) => data.columns.indexOf(name))
+    if (xIndex < 0 || seriesIndexes.some((i) => i < 0)) return { axisData: [], axisSeries: [] }
+    const axisData = data.rows.map((row) => {
+      const entry: Record<string, string | number | null> = { x: String(row[xIndex] ?? '') }
+      seriesIndexes.forEach((column, i) => {
+        entry[`s${i}`] = toNumber(row[column])
+      })
+      return entry
+    })
+    const axisSeries = series.map((name, i) => ({ key: `s${i}`, label: name }))
+    return { axisData, axisSeries }
+  }, [data, spec, series])
+
+  // reproduces PieChartWidget's rollup: positive slices, sorted desc, top 8
+  // collapsed with the rest into "Other". Memoized for the same reason as
+  // the axis plot above.
+  const pieSlices = useMemo(() => {
+    const xIndex = data.columns.indexOf(spec.x)
+    const valueIndex = data.columns.indexOf(spec.series[0])
+    if (xIndex < 0 || valueIndex < 0) return []
+    const positive = data.rows
+      .map((row) => ({ label: String(row[xIndex] ?? ''), value: toNumber(row[valueIndex]) ?? 0 }))
+      .filter((slice) => slice.value > 0)
+      .sort((a, b) => b.value - a.value)
+    const top = positive.slice(0, MAX_PIE_SLICES)
+    const rest = positive.slice(MAX_PIE_SLICES)
+    if (rest.length > 0)
+      top.push({ label: 'Other', value: rest.reduce((sum, s) => sum + s.value, 0) })
+    return top
+  }, [data, spec])
+
+  // one headline number, optionally with a signed period-over-period change.
+  // Cheap enough to recompute every render, unlike the two plots above.
+  const statRow = data.rows[0]
+  const statValue = toNumber(statRow?.[data.columns.indexOf(spec.series[0])])
+  const changeColumn = spec.series[1]
+  const changeValue = changeColumn ? toNumber(statRow?.[data.columns.indexOf(changeColumn)]) : null
+  const statChange =
+    changeValue === null || !changeColumn ? null : { value: changeValue, label: changeColumn }
+  const statItems =
+    statValue === null ? [] : [{ value: statValue, currency, colored: false, change: statChange }]
+
   return (
     <div
       data-slot="chat-chart"
@@ -389,11 +157,28 @@ function ChatChart({
         </div>
       </div>
       {spec.type === 'stat' ? (
-        <StatPart spec={spec} data={data} currency={currency} />
+        <Chart kind="stat" items={statItems} formatValue={formatValue} className="py-1" />
       ) : spec.type === 'pie' ? (
-        <PieChartPart spec={spec} data={data} currency={currency} />
+        <Chart
+          kind="pie"
+          data={pieSlices}
+          labelKey="label"
+          valueKey="value"
+          formatValue={formatValue}
+          className="h-56"
+        />
       ) : (
-        <AxisChart spec={spec} series={series} data={data} currency={currency} />
+        <Chart
+          kind={spec.type}
+          data={axisData}
+          xKey="x"
+          series={axisSeries}
+          formatValue={formatValue}
+          formatLabel={formatBucketLabel}
+          colorByPoint
+          legend="auto"
+          className="h-56"
+        />
       )}
       {showData && (
         // escape the card's padding so the table runs flush to its edges
@@ -419,8 +204,8 @@ function ChatChart({
                           className={cn(
                             'inline-block',
                             blurAmounts &&
-                            seriesIndexes.has(j) &&
-                            'blur-sm select-none bg-foreground/20'
+                              seriesIndexes.has(j) &&
+                              'blur-sm select-none bg-foreground/20'
                           )}
                         >
                           {cellText(cell, seriesIndexes.has(j), currency)}

@@ -1,6 +1,6 @@
-// Chart styling shared by the report widgets and the chat charts, split from
-// widget-renderer.tsx so both surfaces color and blur identically (and so the
-// component file keeps only component exports, which fast refresh needs).
+// Chart styling shared by the report widgets and the chat charts, kept out of
+// chart.tsx so the component file holds only component exports (which fast
+// refresh needs) and so both surfaces color and blur identically.
 
 const PALETTE_SIZE = 10
 
