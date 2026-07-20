@@ -83,7 +83,7 @@ function ChatPage() {
         <ChatModelGate />
       ) : (
         <>
-          <ChatView conversationId={conversationId} reply={reply} modelLoading={modelLoading} />
+          <ChatView conversationId={conversationId} reply={reply} />
           {!modelAvailable ? (
             // existing conversations stay readable without the model; only
             // the composer gives way to an explanation

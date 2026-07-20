@@ -2,6 +2,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Loading03Icon, SparklesIcon } from '@hugeicons/core-free-icons'
 import { messageText, type ChatMessage, type StreamingChatPart } from '@shared/chat'
 import type { ActiveReply } from '@/lib/chat'
+import { useLlmStatus } from '@/lib/llm'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
@@ -70,22 +71,29 @@ function Parts({
 }
 
 /** The turn is accepted but nothing has streamed yet. */
-function WaitingMarker({ modelLoading }: { modelLoading: boolean }) {
+function WaitingMarker() {
+  // While a waiting turn has no chunk yet, the model is "loading" whenever it
+  // isn't confirmed in memory — not only during the brief 'loading' window.
+  // The status push that flips 'downloaded'→'loading' lands a beat after the
+  // turn starts, so gating on 'loading' alone would flash "Thinking…" for that
+  // beat before "Loading model…". Reading live status here (as LlmStatusBadge
+  // does) keeps this in step with the worker without prop drilling.
+  const loading = useLlmStatus().data?.stage !== 'ready'
   return (
     // keyed remounts fade each marker state in gently: waiting marker →
     // first content, and the label flips inside. The fade lives on a wrapper
     // because animate-in and the marker's own animate-shimmer would fight over
     // `animation`
-    <div key={modelLoading ? 'loading' : 'thinking'} className="animate-in fade-in-0 duration-300">
+    <div key={loading ? 'loading' : 'thinking'} className="animate-in fade-in-0 duration-300">
       <Marker role="status" className="w-fit animate-shimmer">
         <MarkerIcon>
-          {modelLoading ? (
+          {loading ? (
             <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />
           ) : (
             <HugeiconsIcon icon={SparklesIcon} strokeWidth={2} />
           )}
         </MarkerIcon>
-        <MarkerContent>{modelLoading ? 'Loading model…' : 'Thinking…'}</MarkerContent>
+        <MarkerContent>{loading ? 'Loading model…' : 'Thinking…'}</MarkerContent>
       </Marker>
     </div>
   )
@@ -100,14 +108,11 @@ function WaitingMarker({ modelLoading }: { modelLoading: boolean }) {
  */
 export function ChatMessageRow({
   message,
-  reply,
-  modelLoading = false
+  reply
 }: {
   message: ChatMessage
   /** the streamed reply, passed only while this row is the streaming one */
   reply?: ActiveReply | null
-  /** the model is loading into memory; the waiting marker says so */
-  modelLoading?: boolean
 }) {
   if (message.role === 'user') {
     return (
@@ -141,7 +146,7 @@ export function ChatMessageRow({
     ? (reply?.parts ?? []).filter((part) => part !== undefined)
     : message.parts
 
-  if (streaming && parts.length === 0) return <WaitingMarker modelLoading={modelLoading} />
+  if (streaming && parts.length === 0) return <WaitingMarker />
 
   return (
     // the fade-in only runs on mount, i.e. when the first part replaces the

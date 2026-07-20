@@ -46,13 +46,10 @@ function scopeMarkers(messages: ChatMessage[]): Map<number, string> {
 /** The transcript: the conversation's messages with the in-flight reply streaming in place. */
 export function ChatView({
   conversationId,
-  reply,
-  modelLoading = false
+  reply
 }: {
   conversationId: number | null
   reply: ActiveReply | null
-  /** the model is loading into memory; the waiting marker says so */
-  modelLoading?: boolean
 }) {
   const { messages, truncatedBeforeId } = useMessages(conversationId).data ?? {
     messages: [],
@@ -143,11 +140,7 @@ export function ChatView({
                 {/* one component type for every row, streaming or not: a
                     settling turn keeps its instance, so the cards the user
                     opened mid-reply don't snap shut when it lands */}
-                <ChatMessageRow
-                  message={message}
-                  reply={streaming ? reply : null}
-                  modelLoading={modelLoading}
-                />
+                <ChatMessageRow message={message} reply={streaming ? reply : null} />
               </MessageScrollerItem>
             ))}
           </MessageScrollerContent>
