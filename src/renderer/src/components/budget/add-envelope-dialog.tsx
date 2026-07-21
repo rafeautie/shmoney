@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDown01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
@@ -43,6 +43,16 @@ export function AddEnvelopeDialog({
   const [amount, setAmount] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
 
+  // reset the form whenever the dialog (re)opens: Cancel and a successful add
+  // both close via the controlled `open` prop, bypassing the Dialog's own
+  // onOpenChange, so a close-time reset would miss them and leak stale state
+  useEffect(() => {
+    if (!open) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- wholesale reset on reopen is the point; the extra render on a closed->open transition is harmless
+    setCategory(null)
+    setAmount('')
+  }, [open])
+
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
     queryFn: () => window.api.categories.list()
@@ -67,12 +77,10 @@ export function AddEnvelopeDialog({
   const ungrouped = (data?.ungrouped ?? []).filter((c) => !budgeted.has(c.id))
 
   const parsedAmount = parseDollars(amount)
-  const canSubmit = category !== null && parsedAmount !== null && !create.isPending
-
-  function reset() {
-    setCategory(null)
-    setAmount('')
-  }
+  // require a positive fill: parseDollars('') is 0 (not null), so an untouched
+  // field would otherwise create a $0 envelope
+  const canSubmit =
+    category !== null && parsedAmount !== null && parsedAmount > 0 && !create.isPending
 
   function pick(c: Category) {
     setCategory(c)
@@ -80,13 +88,7 @@ export function AddEnvelopeDialog({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) reset()
-        onOpenChange(next)
-      }}
-    >
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-100">
         <DialogHeader>
           <DialogTitle>Add envelope</DialogTitle>

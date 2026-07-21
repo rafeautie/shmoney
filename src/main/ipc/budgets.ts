@@ -42,13 +42,22 @@ export function registerBudgetsIpc(): void {
         .where(and(eq(budgets.categoryId, categoryId), eq(budgets.month, month)))
         .get()
       if (existing?.amount === amount) return
+      // "Added" only when the category has no fills yet (the envelope is being
+      // created); editing an inherited fill at a fresh month is a change to an
+      // envelope that already exists, not a new one
+      const isNewEnvelope =
+        tx
+          .select({ id: budgets.id })
+          .from(budgets)
+          .where(eq(budgets.categoryId, categoryId))
+          .get() === undefined
       tx.insert(budgets)
         .values({ categoryId, month, amount })
         .onConflictDoUpdate({ target: [budgets.categoryId, budgets.month], set: { amount } })
         .run()
       recordAction(tx, {
         source: 'user',
-        label: existing ? `Changed ${name} envelope fill` : `Added ${name} envelope`,
+        label: isNewEnvelope ? `Added ${name} envelope` : `Changed ${name} envelope fill`,
         changes: [
           {
             field: 'budgetAmount',
