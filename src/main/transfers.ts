@@ -12,6 +12,8 @@ export interface TransferCandidate {
   amount: number
   /** unix seconds */
   date: number
+  /** the leg's account currency; only same-currency legs can pair */
+  currency: string
   /** whether this leg is already marked as a transfer */
   isTransfer: boolean
 }
@@ -25,7 +27,7 @@ export interface TransferPair {
 
 /**
  * Pair up inter-account transfers. A pair is an equal-and-opposite amount in two
- * different accounts posted within a few days. Only unambiguous 1:1 matches are
+ * different accounts of the same currency posted within a few days. Only unambiguous 1:1 matches are
  * returned — if a leg could pair with more than one candidate, none of them are
  * matched (a wrong pairing silently corrupts reports, so we defer to manual
  * marking).
@@ -66,6 +68,7 @@ export function detectTransferPairs(rows: TransferCandidate[]): TransferPair[] {
         const b = list[j]
         if (
           a.amount === -b.amount &&
+          a.currency === b.currency &&
           a.accountId !== b.accountId &&
           Math.abs(a.date - b.date) <= TRANSFER_WINDOW_SECONDS
         ) {

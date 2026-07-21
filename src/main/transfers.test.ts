@@ -6,7 +6,7 @@ const DAY = 24 * 60 * 60
 // a transfer leg; id is required (pairing and toMark are keyed by it), the rest
 // default to an equal-and-opposite-friendly baseline
 function leg(over: Partial<TransferCandidate> & Pick<TransferCandidate, 'id'>): TransferCandidate {
-  return { accountId: 1, amount: -5000, date: 1000, isTransfer: false, ...over }
+  return { accountId: 1, amount: -5000, date: 1000, currency: 'USD', isTransfer: false, ...over }
 }
 
 describe('detectTransferPairs', () => {
@@ -80,6 +80,14 @@ describe('detectTransferPairs', () => {
     const pairs = detectTransferPairs([
       leg({ id: 1, accountId: 1, amount: -5000, date: 1000 }),
       leg({ id: 2, accountId: 2, amount: 5000, date: 1000 + TRANSFER_WINDOW_SECONDS + 1 })
+    ])
+    expect(pairs).toEqual([])
+  })
+
+  it('does not pair equal-and-opposite legs in different currencies', () => {
+    const pairs = detectTransferPairs([
+      leg({ id: 1, accountId: 1, amount: -5000, date: 1000, currency: 'USD' }),
+      leg({ id: 2, accountId: 2, amount: 5000, date: 1000, currency: 'EUR' })
     ])
     expect(pairs).toEqual([])
   })

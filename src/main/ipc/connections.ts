@@ -2,15 +2,7 @@ import { ipcMain, safeStorage } from 'electron'
 import { and, asc, count, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm'
 import { db } from '../db'
 import { createLogger } from '../logging'
-import {
-  connections,
-  accounts,
-  categories,
-  holdings,
-  transactions,
-  settings,
-  actionLog
-} from '../db/schema'
+import { connections, accounts, categories, holdings, transactions, settings } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
 import { claimAccessUrl, fetchAccounts, parseAmount, SfinErrlistError } from '../simplefin'
 import { transactionsPage, transactionDate } from './transactions-page'
@@ -85,11 +77,15 @@ export function detectAndMarkTransfersInTx(tx: Tx): number {
     id: transactions.id,
     accountId: transactions.accountId,
     amount: transactions.amount,
-    date: transactionDate
+    date: transactionDate,
+    // currency gates pairing so equal integer magnitudes in different currencies
+    // (e.g. -$100.00 vs +€100.00) are never mistaken for a transfer
+    currency: accounts.currency
   }
   const unmarked = tx
     .select(candidateColumns)
     .from(transactions)
+    .innerJoin(accounts, eq(transactions.accountId, accounts.id))
     .where(
       and(
         eq(transactions.pending, false),
@@ -112,6 +108,7 @@ export function detectAndMarkTransfersInTx(tx: Tx): number {
   const marked = tx
     .select(candidateColumns)
     .from(transactions)
+    .innerJoin(accounts, eq(transactions.accountId, accounts.id))
     .where(
       and(
         eq(transactions.pending, false),
@@ -319,14 +316,18 @@ export function registerConnectionsIpc(): void {
   ipcMain.handle(IPC.connectionDisconnect, () => {
     // deleting the connection cascades to its accounts, their transactions and
     // holdings. Manual accounts (null connectionId) and their transactions are
-    // untouched. Then clean up everything that pointed at the now-deleted data:
-    // - the audit log has no FK, so clear it rather than leave orphaned entries
-    // - rule suggestions backed only by the deleted transactions are orphaned;
-    //   prune those (keeping any still matching surviving manual-account rows)
-    //   so no stale suggestion or its notification lingers. Runs after the
-    //   cascade so the match counts reflect what's actually left.
+    // untouched. Then prune rule suggestions backed only by the deleted
+    // transactions (keeping any still matching surviving manual-account rows) so
+    // no stale suggestion or its notification lingers; runs after the cascade so
+    // the match counts reflect what's actually left.
+    //
+    // The action_log is deliberately left intact: it's the shared, indestructible
+    // backbone for undo and the Activity page across budgets, chats, imports and
+    // manual accounts, none of which a disconnect touches. Entries that referenced
+    // now-deleted synced transactions are already tolerated everywhere (listEntries
+    // renders them with null context; undo/redo's guarded writes no-op on missing
+    // rows), so clearing the table would only destroy still-valid history.
     db.delete(connections).run()
-    db.delete(actionLog).run()
     pruneOrphanedSuggestions()
     return true
   })
