@@ -47,7 +47,9 @@ export function transactionsPage(
     .innerJoin(accounts, eq(transactions.accountId, accounts.id))
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
     .where(visible)
-    .orderBy(order(transactionSortColumns[q.sortBy], q.sortDir))
+    // id is a stable tiebreaker so LIMIT/OFFSET pages don't dup or skip rows when
+    // the sort column ties (manual/imported rows all share local-noon dates)
+    .orderBy(order(transactionSortColumns[q.sortBy], q.sortDir), order(transactions.id, q.sortDir))
     .limit(q.pageSize)
     .offset(q.page * q.pageSize)
     .all()

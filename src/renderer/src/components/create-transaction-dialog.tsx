@@ -83,7 +83,10 @@ export function CreateTransactionDialog({
         ].find((c) => c.id === categoryId)?.name ?? null)
 
   const magnitude = Number(amount)
-  const amountValid = amount.trim() !== '' && Number.isFinite(magnitude) && magnitude > 0
+  // reject amounts that round to zero milliunits (e.g. 0.0004) before submit,
+  // rather than letting the server bounce them with "Amount must not be zero"
+  const amountValid =
+    amount.trim() !== '' && Number.isFinite(magnitude) && Math.round(magnitude * 1000) > 0
   const ready = amountValid && description.trim() !== ''
 
   const create = useMutation({
