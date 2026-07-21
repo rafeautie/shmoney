@@ -126,7 +126,7 @@ describe('system prompt SQL', () => {
   it('extracts every recipe from the prompt', () => {
     // bump deliberately when adding a recipe, and add its assertions below;
     // this is what stops a new recipe from shipping unexecuted
-    expect(RECIPES).toHaveLength(11)
+    expect(RECIPES).toHaveLength(12)
   })
 
   // the merchant recipe answers "where / which store do I spend" by grouping on

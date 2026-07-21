@@ -99,6 +99,42 @@ export interface ChartDisplay {
   series: string[]
 }
 
+// ---------- calc & dates ----------
+
+/**
+ * Outcome of one `calc` tool call: the evaluated number, or an error phrased
+ * for the model. Like every tool result this is also what the model receives
+ * back, so it stays tiny.
+ */
+export interface CalcToolResult {
+  ok: boolean
+  /** present when ok is true */
+  value?: number
+  /** present when ok is false */
+  error?: string
+}
+
+/** what the `resolve_dates` tool resolves a relative period into */
+export type DateUnit = 'day' | 'week' | 'month' | 'quarter' | 'year'
+
+/**
+ * Outcome of one `resolve_dates` tool call: concrete bounds the model then
+ * filters on. start/end are inclusive 'YYYY-MM-DD' bounds for txn_date, and
+ * months lists every 'YYYY-MM' the window touches (for the month/quarter/year
+ * grain columns). Error strings are phrased for the model.
+ */
+export interface DateWindowToolResult {
+  ok: boolean
+  /** inclusive lower bound, 'YYYY-MM-DD' */
+  start?: string
+  /** inclusive upper bound, 'YYYY-MM-DD' */
+  end?: string
+  /** every calendar month the window spans, as 'YYYY-MM' */
+  months?: string[]
+  /** present when ok is false */
+  error?: string
+}
+
 /**
  * One settled tool call, discriminated by tool name. args and result are
  * exactly what crossed the model boundary, and are the only fields that replay
@@ -111,6 +147,14 @@ export type ChatToolCall =
   // and result.error carries the message (displayed, like a failed query,
   // rather than silently dropped).
   | { name: 'chart'; args: ChartSpec; result: ChartToolResult; display: ChartDisplay | null }
+  // calc and resolve_dates never draw anything, so they carry no display: their
+  // whole output is the small result the model reads back and states.
+  | { name: 'calc'; args: { expression: string }; result: CalcToolResult }
+  | {
+      name: 'resolve_dates'
+      args: { unit: DateUnit; count: number; includeCurrent: boolean }
+      result: DateWindowToolResult
+    }
 
 // messages store an array of parts, so tool calls are a variant here, not a
 // schema migration. Every part sits in generation order, reasoning included:

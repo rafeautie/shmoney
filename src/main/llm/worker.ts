@@ -38,6 +38,8 @@ import {
   type ChatToolScope
 } from './sql-tool'
 import { CHART_FUNCTION_PARAMS, chartCallNote, prepareChart } from './chart-tool'
+import { CALC_FUNCTION_PARAMS, evaluateExpression } from './calc-tool'
+import { RESOLVE_DATES_PARAMS, resolveDateWindow } from './resolve-dates-tool'
 
 const modelsDir: string = (() => {
   const dir = process.env.LLM_MODELS_DIR
@@ -415,17 +417,21 @@ interface ChatTurnState {
 }
 
 /**
- * The two tools a chat turn exposes. Handlers report through the turn log
- * alone — it is the single assembler, and its part patches are the stream —
- * so events and persisted parts carry the same shapes by construction, chart
- * currency included.
+ * The tools a chat turn exposes. Handlers report through the turn log alone —
+ * it is the single assembler, and its part patches are the stream — so events
+ * and persisted parts carry the same shapes by construction, chart currency
+ * included. query and chart read/draw the finance data; calc and resolve_dates
+ * are database-free helpers for the two things a small model gets wrong on its
+ * own — arithmetic and date math — so their results never touch state.lastQuery.
  */
 function chatFunctions(ctx: {
   turn: TurnLog
   currency: string | null
   state: ChatTurnState
+  // the turn's local date, so resolve_dates shares one "now" with the prompt
+  today: string
 }): ChatSessionModelFunctions {
-  const { turn, currency, state } = ctx
+  const { turn, currency, state, today } = ctx
   const overBudget =
     'The tool budget for this reply is used up; answer with the data you already have.'
   return {
@@ -499,6 +505,39 @@ function chatFunctions(ctx: {
             }
           : result
       }
+    }),
+    calc: defineChatSessionFunction({
+      description:
+        'Evaluate one arithmetic expression and get the exact number back. Reach for it whenever an answer needs arithmetic you would otherwise do in your head, above all to combine figures from more than one query result: a percentage of one figure against another, a difference, a ratio, or a growth figure. It does not read the database, so write the actual numbers into the expression rather than column names. Supports + - * / ** and parentheses.',
+      params: CALC_FUNCTION_PARAMS,
+      handler({ expression }) {
+        state.handledCalls++
+        const result =
+          state.handledCalls > MAX_TOOL_CALLS_PER_TURN
+            ? { ok: false, error: overBudget }
+            : evaluateExpression(expression)
+        turn.settleCall({ name: 'calc', args: { expression }, result })
+        return result
+      }
+    }),
+    resolve_dates: defineChatSessionFunction({
+      description:
+        "Turn a relative time period into the exact dates to filter on, so you never compute a date in your head. Give it a unit (day, week, month, quarter, year), a count, and whether to include the current in-progress period; it returns { start, end } as 'YYYY-MM-DD' bounds plus the list of months the window covers. Use it for phrases like 'the last 3 months', 'the past 90 days', or 'year to date'. A specific named period such as June 2026 or 2026-Q2 you filter directly, without this.",
+      params: RESOLVE_DATES_PARAMS,
+      handler(params) {
+        state.handledCalls++
+        const args = {
+          unit: params.unit,
+          count: params.count,
+          includeCurrent: params.includeCurrent
+        }
+        const result =
+          state.handledCalls > MAX_TOOL_CALLS_PER_TURN
+            ? { ok: false, error: overBudget }
+            : resolveDateWindow(args, today)
+        turn.settleCall({ name: 'resolve_dates', args, result })
+        return result
+      }
     })
   }
 }
@@ -527,7 +566,9 @@ async function handleChat(
     // finish() yields the same parts for persistence
     const turn = createTurnLog((index, part) => post({ event: 'chatPart', id, index, part }))
     const state: ChatTurnState = { handledCalls: 0, lastQuery: null }
-    const functions = chatFunctions({ turn, currency, state })
+    // one local date for the whole turn, same 'YYYY-MM-DD' the prompt quotes
+    const today = new Date().toLocaleDateString('en-CA')
+    const functions = chatFunctions({ turn, currency, state, today })
 
     // the chat wrapper routes the model's chain of thought into segments, so
     // prompt() resolves with the answer alone; each segment streams into its

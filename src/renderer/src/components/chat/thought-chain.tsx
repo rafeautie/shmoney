@@ -4,6 +4,8 @@ import {
   Analytics01Icon,
   ArrowRight01Icon,
   BrainIcon,
+  Calculator01Icon,
+  Calendar03Icon,
   DatabaseIcon
 } from '@hugeicons/core-free-icons'
 import type { StreamingChatPart } from '@shared/chat'
@@ -63,16 +65,19 @@ function formatQueryDuration(ms: number): string {
  * every tool. Returns null for a shape this build doesn't know (e.g. a row
  * written before the formats merged); the chain drops it rather than guess.
  */
+/** icon and in-flight label per tool, the one place a tool name maps to chrome */
+const PENDING: Record<string, { icon: IconSvgElement; label: string }> = {
+  query: { icon: DatabaseIcon, label: 'Writing query…' },
+  chart: { icon: Analytics01Icon, label: 'Building chart…' },
+  calc: { icon: Calculator01Icon, label: 'Calculating…' },
+  resolve_dates: { icon: Calendar03Icon, label: 'Resolving dates…' }
+}
+
 function describeTool(part: ToolPart): ToolView | null {
   // pending: the model is still writing this call's params
   if (part.result === undefined) {
-    const chart = part.name === 'chart'
-    return {
-      icon: chart ? Analytics01Icon : DatabaseIcon,
-      label: chart ? 'Building chart…' : 'Writing query…',
-      active: true,
-      failed: false
-    }
+    const pending = PENDING[part.name] ?? { icon: DatabaseIcon, label: 'Working…' }
+    return { ...pending, active: true, failed: false }
   }
   if (part.name === 'query') {
     const { result } = part
@@ -98,6 +103,28 @@ function describeTool(part: ToolPart): ToolView | null {
       input: part.args,
       // the model never saw the chart data, only this tiny ack/error
       output: drawn ? { ok: true } : { ok: false, error: part.result.error ?? 'Chart failed.' }
+    }
+  }
+  if (part.name === 'calc') {
+    const { result } = part
+    return {
+      icon: Calculator01Icon,
+      label: result.ok ? `Calculated · ${result.value}` : 'Calculation failed',
+      active: false,
+      failed: !result.ok,
+      input: part.args.expression,
+      output: result
+    }
+  }
+  if (part.name === 'resolve_dates') {
+    const { result } = part
+    return {
+      icon: Calendar03Icon,
+      label: result.ok ? `Resolved dates · ${result.start} to ${result.end}` : 'Date lookup failed',
+      active: false,
+      failed: !result.ok,
+      input: part.args,
+      output: result
     }
   }
   return null
