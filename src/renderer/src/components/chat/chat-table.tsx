@@ -75,8 +75,6 @@ export function ChatTableViewport({ children }: { children: React.ReactNode }) {
     <ScrollArea
       horizontal
       className="bg-background"
-      // scrollbars stay hidden until the pointer is over the table (or it scrolls)
-      scrollbarClassName="opacity-0 transition-opacity data-hovering:opacity-100 data-scrolling:opacity-100"
       // border-separate because sticky headers and collapsed borders don't mix.
       // The top border lives on the th cells (not the container) so the line
       // rides with the sticky header.
