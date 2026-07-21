@@ -50,7 +50,7 @@ export function ChatWarnings() {
   if (items.length === 0) return null
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 overflow-hidden">
       {items.map((w) => (
         <ChatWarning
           key={w.key}
