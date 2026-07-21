@@ -85,10 +85,11 @@ function loadRules(tx: Tx): Rule[] {
     })
 }
 
-// rules that are safe to run now: drops rules whose target category was
-// deleted (applying one would violate the FK and abort the whole sync)
+// rules that are safe to run now: drops disabled rules (the user toggled them
+// off) and rules whose target category was deleted (applying one would violate
+// the FK and abort the whole sync)
 function loadApplicableRules(tx: Tx): Rule[] {
-  const all = loadRules(tx)
+  const all = loadRules(tx).filter((r) => r.enabled)
   const wanted = [...new Set(all.map((r) => r.action.categoryId))]
   if (wanted.length === 0) return all
   const existing = new Set(
@@ -107,9 +108,10 @@ function loadApplicableRules(tx: Tx): Rule[] {
 }
 
 // enabled, applicable rules in priority order — used by the suggestion detector
-// to skip descriptions an existing rule already handles
+// to skip descriptions an existing rule already handles (loadApplicableRules
+// already drops disabled rules)
 export function loadEnabledRules(): Rule[] {
-  return db.transaction((tx) => loadApplicableRules(tx).filter((r) => r.enabled))
+  return db.transaction((tx) => loadApplicableRules(tx))
 }
 
 // Narrows which rows a run considers: an explicit id list or a single account.

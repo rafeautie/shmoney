@@ -195,7 +195,7 @@ function SyncNotice({
       role={isError ? 'alert' : 'status'}
       className={
         isError
-          ? 'flex gap-3 rounded-lg border border-destructive/25 bg-destructive/10 p-3 text-destructive dark:bg-destructive/15'
+          ? 'flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400'
           : 'flex gap-3 rounded-lg border border-border bg-muted/50 p-3 text-muted-foreground'
       }
     >
@@ -205,7 +205,11 @@ function SyncNotice({
           {title}
         </p>
         {hint && <p className="text-xs">{hint}</p>}
-        <ul className={isError ? 'space-y-1 text-sm text-destructive/90' : 'space-y-1 text-sm'}>
+        <ul
+          className={
+            isError ? 'space-y-1 text-sm text-amber-700/90 dark:text-amber-400/90' : 'space-y-1 text-sm'
+          }
+        >
           {errors.map((error, i) => (
             <li key={`${error.code}-${i}`} className="leading-snug">
               {error.msg}
