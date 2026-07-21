@@ -207,7 +207,9 @@ function SyncNotice({
         {hint && <p className="text-xs">{hint}</p>}
         <ul
           className={
-            isError ? 'space-y-1 text-sm text-amber-700/90 dark:text-amber-400/90' : 'space-y-1 text-sm'
+            isError
+              ? 'space-y-1 text-sm text-amber-700/90 dark:text-amber-400/90'
+              : 'space-y-1 text-sm'
           }
         >
           {errors.map((error, i) => (
