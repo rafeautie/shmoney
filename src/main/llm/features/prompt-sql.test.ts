@@ -126,7 +126,23 @@ describe('system prompt SQL', () => {
   it('extracts every recipe from the prompt', () => {
     // bump deliberately when adding a recipe, and add its assertions below;
     // this is what stops a new recipe from shipping unexecuted
-    expect(RECIPES).toHaveLength(10)
+    expect(RECIPES).toHaveLength(11)
+  })
+
+  // the merchant recipe answers "where / which store do I spend" by grouping on
+  // the raw description — the column the app has no cleaner substitute for — so
+  // the user never has to say "group by description". It filters to spending and
+  // comes back one row per description.
+  it('groups spending by raw description, so "which store" needs no merchant column', () => {
+    const recipe = RECIPES.find((r) => r.includes('GROUP BY description'))
+    expect(recipe).toBeDefined()
+    expect(recipe).toContain('WHERE amount < 0')
+    const rows = db.prepare(recipe as string).all() as Record<string, unknown>[]
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every((r) => 'description' in r && typeof r.spending === 'number')).toBe(true)
+    // one row per description: the group key never repeats
+    const labels = rows.map((r) => r.description)
+    expect(new Set(labels).size).toBe(labels.length)
   })
 
   // the income-vs-spending recipe: the two sides of a measure comparison are
