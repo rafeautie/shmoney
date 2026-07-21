@@ -38,11 +38,7 @@ function IOSection({ label, children }: { label: string; children: React.ReactNo
 function OutputSection({ value }: { value: unknown }) {
   return (
     <IOSection label="Output">
-      <ScrollArea
-        className="rounded-md border bg-background"
-        scrollbarClassName="opacity-0 transition-opacity data-hovering:opacity-100 data-scrolling:opacity-100"
-        viewPortClassName="max-h-56"
-      >
+      <ScrollArea className="rounded-md border bg-background" viewPortClassName="max-h-56">
         <pre className="p-2 font-mono whitespace-pre-wrap wrap-break-word text-muted-foreground">
           {ioText(value)}
         </pre>
