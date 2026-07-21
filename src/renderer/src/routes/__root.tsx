@@ -1,5 +1,6 @@
 import { Outlet, createRootRoute } from '@tanstack/react-router'
 import { AppSidebar } from '@/components/app-sidebar'
+import { AutoSyncHost } from '@/components/auto-sync-host'
 import { NotificationCenter } from '@/components/notification-center'
 import { Onboarding } from '@/components/onboarding-dialog'
 import { RuleSuggestionsHost } from '@/components/rule-suggestions-host'
@@ -41,6 +42,7 @@ function RootComponent() {
             </main>
           </SidebarInset>
           <UndoShortcuts />
+          <AutoSyncHost />
           <RuleSuggestionsHost />
           <Onboarding />
           <Toaster position="bottom-right" />
