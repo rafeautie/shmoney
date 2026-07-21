@@ -588,7 +588,9 @@ describe('buildSystemPrompt', () => {
     // both the two-row line and a chart line), so first-match is the tiebreaker
     // and has to survive: without it the model has no rule for the overlap
     expect(prompt).toContain('take the FIRST matching line')
-    expect(prompt).toContain('Three or more rows, an x column and a measure: chart it')
+    expect(prompt).toContain(
+      'Three or more rows, an x column and one or more measures: chart it, every measure in series'
+    )
     expect(prompt).toContain('Exactly two rows')
     expect(prompt).toContain('Markdown table, never a chart')
     // REGRESSION: the model charted `bar` with x = month while this rule was a

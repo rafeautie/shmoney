@@ -1,8 +1,14 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Download01Icon } from '@hugeicons/core-free-icons'
-import { LLM_MODEL } from '@shared/llm'
-import { useLlmDownloadProgress, useLlmStatus } from '@/lib/llm'
+import { Alert02Icon, Download01Icon } from '@hugeicons/core-free-icons'
+import { LLM_MODELS } from '@shared/llm'
+import {
+  useLlmDownloadProgress,
+  useLlmStatus,
+  useLlmSupported,
+  useModelActions,
+  useModelState,
+  useSelectedModel
+} from '@/lib/llm'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Progress } from '@/components/ui/progress'
@@ -13,21 +19,31 @@ function formatBytes(bytes: number): string {
 
 /** Shown instead of the chat when the model isn't on disk yet. */
 export function ChatModelGate() {
-  const queryClient = useQueryClient()
+  const supported = useLlmSupported()
+  const selected = useSelectedModel()
+  const model = LLM_MODELS[selected]
   const status = useLlmStatus().data
-  const progress = useLlmDownloadProgress()
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['llm'] })
+  const stage = useModelState(selected).stage
+  const progress = useLlmDownloadProgress()[selected]
+  const actions = useModelActions()
 
-  const download = useMutation({
-    mutationFn: () => window.api.llm.download(),
-    onSettled: invalidate
-  })
-  const cancelDownload = useMutation({
-    mutationFn: () => window.api.llm.cancelDownload(),
-    onSettled: invalidate
-  })
-
-  const stage = status?.stage ?? 'notDownloaded'
+  // an unsupported machine can't run any model, so there's nothing to download
+  // and no download UI makes sense here
+  if (!supported) {
+    return (
+      <Empty className="flex-1 border-none">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <HugeiconsIcon icon={Alert02Icon} />
+          </EmptyMedia>
+          <EmptyTitle>Chat isn&apos;t available on this device</EmptyTitle>
+          <EmptyDescription>
+            This computer doesn&apos;t have enough memory to run the on-device model chat needs.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    )
+  }
 
   return (
     <Empty className="flex-1 border-none">
@@ -37,8 +53,8 @@ export function ChatModelGate() {
         </EmptyMedia>
         <EmptyTitle>Download the model to chat</EmptyTitle>
         <EmptyDescription>
-          Chat runs on {LLM_MODEL.label}, the same on-device model behind auto-categorize. It
-          downloads once and everything stays on this computer.
+          Chat runs on {model.label}, the same on-device model behind auto-categorize. It downloads
+          once and everything stays on this computer.
         </EmptyDescription>
       </EmptyHeader>
 
@@ -62,20 +78,27 @@ export function ChatModelGate() {
           </p>
           <Button
             variant="outline"
-            disabled={cancelDownload.isPending}
-            onClick={() => cancelDownload.mutate()}
+            disabled={actions.cancelDownload.isPending}
+            onClick={() => actions.cancelDownload.mutate(selected)}
           >
             Cancel
           </Button>
         </div>
       ) : (
-        <Button disabled={download.isPending} onClick={() => download.mutate()}>
-          {download.isPending ? 'Starting…' : stage === 'error' ? 'Retry download' : 'Download'}
+        <Button
+          disabled={actions.download.isPending}
+          onClick={() => actions.download.mutate(selected)}
+        >
+          {actions.download.isPending
+            ? 'Starting…'
+            : stage === 'error'
+              ? 'Retry download'
+              : 'Download'}
         </Button>
       )}
 
-      {stage === 'error' && status?.error && (
-        <p className="max-w-sm text-xs text-destructive">{status.error}</p>
+      {stage === 'error' && status?.models[selected].error && (
+        <p className="max-w-sm text-xs text-destructive">{status.models[selected].error}</p>
       )}
     </Empty>
   )

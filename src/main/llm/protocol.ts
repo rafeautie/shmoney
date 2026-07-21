@@ -1,5 +1,5 @@
 import type { StreamingChatPart } from '@shared/chat'
-import type { LlmDownloadProgress, LlmStatus } from '@shared/llm'
+import type { LlmDownloadProgress, ModelId, ModelStage, RuntimeStage } from '@shared/llm'
 import type { ChatToolScope } from './sql-tool'
 // type-only: erased at compile time, so the manager still never runtime-imports
 // node-llama-cpp (the worker is the only place that does)
@@ -11,13 +11,16 @@ import type { ChatHistoryItem } from 'node-llama-cpp'
 export type DistributiveOmit<T, K extends keyof never> = T extends unknown ? Omit<T, K> : never
 
 // commands the manager sends to the worker; each carries a numeric id the
-// worker echoes back on its reply so concurrent calls can be correlated
+// worker echoes back on its reply so concurrent calls can be correlated.
+// Download/delete/load name the model they act on; generate/chat don't — the
+// manager guarantees the selected model is loaded before dispatching them, and
+// the worker runs whatever is currently in memory.
 export type WorkerCommand =
-  | { id: number; type: 'download' }
-  | { id: number; type: 'cancelDownload' }
+  | { id: number; type: 'download'; modelId: ModelId }
+  | { id: number; type: 'cancelDownload'; modelId: ModelId }
   // remove the downloaded file from disk, disposing it first if it's loaded
-  | { id: number; type: 'delete' }
-  | { id: number; type: 'load' }
+  | { id: number; type: 'delete'; modelId: ModelId }
+  | { id: number; type: 'load'; modelId: ModelId }
   | { id: number; type: 'unload' }
   // the generic inference primitive every LLM feature is built on: a prompt,
   // and an optional JSON schema that constrains decoding to that shape
@@ -48,11 +51,18 @@ export type WorkerCommand =
 export type { ChatGenerationResult } from './turn-log'
 
 // messages the worker sends back: either a reply to a specific command (by
-// id) or an unsolicited push event (status/progress), which carries no id
+// id) or an unsolicited push event, which carries no id. The manager assembles
+// these into the composite LlmStatus (it owns selection and file existence);
+// the worker only reports the transitions it directly causes.
 export type WorkerMessage =
   | { id: number; ok: true; result: unknown }
   | { id: number; ok: false; error: string }
-  | { event: 'status'; status: LlmStatus }
+  // a per-model download/file lifecycle transition (downloading → verifying →
+  // downloaded, or notDownloaded/error). The manager writes it into models[id].
+  | { event: 'modelStage'; modelId: ModelId; stage: ModelStage; error: string | null }
+  // the loaded (selected) model's in-memory transition; error is set only when
+  // a load fails, and the manager stores it as runtimeError.
+  | { event: 'runtime'; stage: RuntimeStage; error: string | null }
   | { event: 'downloadProgress'; progress: LlmDownloadProgress }
   // one part patch of an in-flight chat, tied to its command id: the full
   // current part at `index`, straight from the worker's TurnLog (the single

@@ -78,7 +78,7 @@ function WaitingMarker() {
   // turn starts, so gating on 'loading' alone would flash "Thinking…" for that
   // beat before "Loading model…". Reading live status here (as LlmStatusBadge
   // does) keeps this in step with the worker without prop drilling.
-  const loading = useLlmStatus().data?.stage !== 'ready'
+  const loading = useLlmStatus().data?.runtime !== 'ready'
   return (
     // keyed remounts fade each marker state in gently: waiting marker →
     // first content, and the label flips inside. The fade lives on a wrapper

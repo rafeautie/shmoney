@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon, CheckmarkCircle02Icon } from '@hugeicons/core-free-icons'
-import { LLM_MODEL } from '@shared/llm'
+import { LLM_MODELS, MODEL_IDS, type ModelId, type ModelStage } from '@shared/llm'
 import { cn, plural } from '@/lib/utils'
 import { useSuggestionsUi } from '@/lib/suggestions-ui'
 import { Button } from '@/components/ui/button'
@@ -271,18 +271,23 @@ function NotificationPanel({
 }
 
 /** Fires a completion message when a model download finishes, so the circle
- * turns green for it (the download itself surfaces no message otherwise). */
+ * turns green for it (the download itself surfaces no message otherwise). Tracks
+ * each model's stage independently, since the two can download at different times. */
 function useDownloadCompleteNotice() {
-  const stage = useLlmStatus().data?.stage
+  const models = useLlmStatus().data?.models
   const notify = useNotify()
-  const prev = useRef(stage)
+  const prev = useRef<Partial<Record<ModelId, ModelStage>>>({})
   useEffect(() => {
-    const wasInProgress = prev.current === 'downloading' || prev.current === 'verifying'
-    if (wasInProgress && (stage === 'downloaded' || stage === 'ready')) {
-      notify(`${LLM_MODEL.label} ready`, { description: 'Download complete.' })
+    for (const id of MODEL_IDS) {
+      const wasInProgress = prev.current[id] === 'downloading' || prev.current[id] === 'verifying'
+      if (wasInProgress && models?.[id].stage === 'downloaded') {
+        notify(`${LLM_MODELS[id].label} ready`, { description: 'Download complete.' })
+      }
     }
-    prev.current = stage
-  }, [stage, notify])
+    prev.current = models
+      ? Object.fromEntries(MODEL_IDS.map((id) => [id, models[id].stage]))
+      : prev.current
+  }, [models, notify])
 }
 
 /** Fires the "restart to update" message when an app-update download finishes.

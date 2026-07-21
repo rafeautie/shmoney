@@ -1,6 +1,6 @@
 import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { ChatHistoryItem, ChatModelResponse } from 'node-llama-cpp'
-import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
+import { CHAT_CONTEXT_SIZE, LLM_MODELS } from '@shared/llm'
 import {
   CHAT_IPC,
   type ChatMessage,
@@ -313,7 +313,9 @@ function getOrCreateConversation(input: SendChatInput, now: number): Conversatio
         createdAt: now,
         updatedAt: now,
         lastMessageAt: now,
-        modelLabel: LLM_MODEL.label,
+        // stamp the model that will answer this conversation: the current
+        // selection, resolved at creation time
+        modelLabel: LLM_MODELS[llmManager.getStatus().selected].label,
         accountId: input.accountId
       })
       .returning()
@@ -346,8 +348,10 @@ function touchConversation(id: number, now: number): void {
  */
 export async function sendChatMessage(input: SendChatInput): Promise<SendChatResult> {
   if (activeChat) throw new Error('A chat reply is already being generated')
-  const { stage } = llmManager.getStatus()
-  if (stage !== 'ready' && stage !== 'downloaded') throw new Error(`Model is not ready (${stage})`)
+  // the selected model must be on disk; it loads into memory on demand
+  const status = llmManager.getStatus()
+  const stage = status.models[status.selected].stage
+  if (stage !== 'downloaded') throw new Error(`Model is not ready (${stage})`)
 
   const now = Date.now()
   const conversationRow = getOrCreateConversation(input, now)

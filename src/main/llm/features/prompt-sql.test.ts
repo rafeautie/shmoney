@@ -126,7 +126,19 @@ describe('system prompt SQL', () => {
   it('extracts every recipe from the prompt', () => {
     // bump deliberately when adding a recipe, and add its assertions below;
     // this is what stops a new recipe from shipping unexecuted
-    expect(RECIPES).toHaveLength(9)
+    expect(RECIPES).toHaveLength(10)
+  })
+
+  // the income-vs-spending recipe: the two sides of a measure comparison are
+  // columns of ONE query (each charts as its own series), never two queries
+  it('keeps income and spending as columns of one query, so each draws its own line', () => {
+    const recipe = RECIPES.find((r) => r.includes('AS income') && r.includes('AS spending'))
+    expect(recipe).toBeDefined()
+    const rows = db.prepare(recipe as string).all() as Record<string, unknown>[]
+    // seeded months: May (spend only), June (spend + paycheck), July (spend only)
+    expect(rows).toHaveLength(3)
+    const june = rows.find((r) => r.month === '2026-06')
+    expect(june).toMatchObject({ income: 500, spending: 20.34, net: 479.66 })
   })
 
   it('tx drops transfers, pending and undated rows', () => {

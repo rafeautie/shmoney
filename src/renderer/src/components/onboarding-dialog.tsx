@@ -21,6 +21,7 @@ import { useOnboarding } from '@/lib/settings'
 import { useConnectSimpleFin } from '@/hooks/use-connect-simplefin'
 import { ExperimentalBadge } from '@/components/experimental-badge'
 import { Logo } from '@/components/logo'
+import { ModelPicker } from '@/components/model-picker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,7 +35,7 @@ import {
 
 type IconType = React.ComponentProps<typeof HugeiconsIcon>['icon']
 
-const STEP_COUNT = 5
+const STEP_COUNT = 6
 
 /** First-run onboarding. Auto-opens whenever onboarding hasn't been finished or
  * skipped — fresh installs default to not-complete. Users can replay it any time
@@ -95,9 +96,10 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
         <div className="mt-5 flex-1 space-y-4 overflow-y-auto">
           {step === 0 && <WelcomeStep />}
           {step === 1 && <FeaturesStep />}
-          {step === 2 && <BudgetsStep />}
-          {step === 3 && <SimpleFinStep />}
-          {step === 4 && (
+          {step === 2 && <ModelStep />}
+          {step === 3 && <BudgetsStep />}
+          {step === 4 && <SimpleFinStep />}
+          {step === 5 && (
             <PasteTokenStep
               setupToken={setupToken}
               onChange={setSetupToken}
@@ -211,6 +213,24 @@ function FeaturesStep(): React.JSX.Element {
           fully offline.
         </FeatureItem>
       </div>
+    </>
+  )
+}
+
+function ModelStep(): React.JSX.Element {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Choose your AI model</DialogTitle>
+        <DialogDescription>
+          Auto-categorize and chat run on a private model that lives on this device. Pick one to
+          download now, or skip and set it up later in Settings; the pick that best fits this
+          computer is recommended.
+        </DialogDescription>
+      </DialogHeader>
+      {/* the same picker used in Settings: choosing a model downloads it in the
+          background, and the notification center tracks the download from here */}
+      <ModelPicker />
     </>
   )
 }

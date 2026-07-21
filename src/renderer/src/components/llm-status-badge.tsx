@@ -9,16 +9,16 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
  * (settings card, chat composer) can drop it in.
  */
 export function LlmStatusBadge({ className }: { className?: string }) {
-  const stage = useLlmStatus().data?.stage
+  const runtime = useLlmStatus().data?.runtime
 
   const { dot, label, explanation } =
-    stage === 'ready'
+    runtime === 'ready'
       ? {
           dot: 'bg-emerald-500',
           label: 'Loaded',
           explanation: 'The model is in memory and responds right away.'
         }
-      : stage === 'loading'
+      : runtime === 'loading'
         ? {
             dot: 'bg-amber-500 animate-pulse',
             label: 'Loading',

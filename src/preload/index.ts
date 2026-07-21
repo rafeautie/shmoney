@@ -37,8 +37,11 @@ import {
   LLM_IPC,
   type CategorizeProgress,
   type CategorizeResult,
+  type HardwareInfo,
   type LlmDownloadProgress,
-  type LlmStatus
+  type LlmStatus,
+  type ModelDiskSizes,
+  type ModelId
 } from '@shared/llm'
 import {
   RULES_IPC,
@@ -249,12 +252,20 @@ const api = {
   },
   llm: {
     getStatus: (): Promise<LlmStatus> => ipcRenderer.invoke(LLM_IPC.getStatus),
-    /** Downloaded model file size in bytes, or null if it isn't on disk */
-    getDiskSize: (): Promise<number | null> => ipcRenderer.invoke(LLM_IPC.getDiskSize),
-    download: (): Promise<LlmStatus> => ipcRenderer.invoke(LLM_IPC.download),
-    cancelDownload: (): Promise<void> => ipcRenderer.invoke(LLM_IPC.cancelDownload),
-    /** Remove the downloaded model file to reclaim disk space */
-    deleteModel: (): Promise<LlmStatus> => ipcRenderer.invoke(LLM_IPC.deleteModel),
+    /** Downloaded file size in bytes per model; null for a model not on disk */
+    getDiskSizes: (): Promise<ModelDiskSizes> => ipcRenderer.invoke(LLM_IPC.getDiskSizes),
+    /** Total system RAM, for computing which models this machine can run */
+    getHardware: (): Promise<HardwareInfo> => ipcRenderer.invoke(LLM_IPC.getHardware),
+    download: (modelId: ModelId): Promise<LlmStatus> =>
+      ipcRenderer.invoke(LLM_IPC.download, modelId),
+    cancelDownload: (modelId: ModelId): Promise<void> =>
+      ipcRenderer.invoke(LLM_IPC.cancelDownload, modelId),
+    /** Remove a downloaded model file to reclaim disk space */
+    deleteModel: (modelId: ModelId): Promise<LlmStatus> =>
+      ipcRenderer.invoke(LLM_IPC.deleteModel, modelId),
+    /** Switch which model inference uses; loads on next generate */
+    selectModel: (modelId: ModelId): Promise<LlmStatus> =>
+      ipcRenderer.invoke(LLM_IPC.selectModel, modelId),
     /** Auto-categorize a scope — a selection, one account, or (scope omitted) everything */
     categorize: (scope?: CategorizeScopeInput): Promise<CategorizeResult> =>
       ipcRenderer.invoke(LLM_IPC.categorize, scope ?? {}),

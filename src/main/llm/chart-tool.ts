@@ -55,7 +55,7 @@ export const CHART_FUNCTION_PARAMS = {
       minItems: 1,
       maxItems: MAX_CHART_SERIES,
       description:
-        'The numeric value column(s), each copied character-for-character from the columns array of your last query result — never a name from an example, and never a name that query did not alias. With group, exactly the one measure column; pie takes exactly one; stat takes the value column plus optionally a change column.'
+        'The numeric value column(s), each copied character-for-character from the columns array of your last query result — never a name from an example, and never a name that query did not alias. Naming several draws one line or bar set each, which is how two measures are compared. With group, exactly the one measure column; pie takes exactly one; stat takes the value column plus optionally a change column.'
     }
   }
 } as const

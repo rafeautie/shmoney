@@ -45,10 +45,10 @@ export function StorageSettings() {
     queryKey: ['storage', 'databaseSize'],
     queryFn: () => window.api.storage.getDatabaseSize()
   })
-  // same key as the Local LLM card, so model downloads/deletes refresh this too
+  // under the shared 'llm' key, so model downloads/deletes refresh this too
   const llmSize = useQuery({
-    queryKey: ['llm', 'diskSize'],
-    queryFn: () => window.api.llm.getDiskSize()
+    queryKey: ['llm', 'diskSizes'],
+    queryFn: () => window.api.llm.getDiskSizes()
   })
 
   const barRef = useRef<HTMLDivElement>(null)
@@ -84,7 +84,10 @@ export function StorageSettings() {
   }
 
   const data = llmSize.isPending ? undefined : size.data
-  const llmBytes = llmSize.data ?? 0
+  // both models can be on disk at once; the LLM segment is their combined size
+  const llmBytes = llmSize.data
+    ? Object.values(llmSize.data).reduce((sum: number, bytes) => sum + (bytes ?? 0), 0)
+    : 0
   let segments: { label: string; bytes: number; color: string }[] = []
   if (data) {
     const byTable = new Map(data.tables.map((t) => [t.name, t.bytes]))

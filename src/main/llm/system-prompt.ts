@@ -92,6 +92,14 @@ export function scopeSection(scope: ChatPromptScope): string {
  * in the same literal form as the thing being copied is what this model reads.
  * The running-total turn narrates the read-back beat for the same reason.
  *
+ * Comparisons are taught in both of their shapes because they look identical
+ * on screen and are different calls: sides that are VALUES of one label
+ * column ride in group (the categories and June-vs-July turns), while sides
+ * that are separate MEASURE columns are simply both listed in series (the
+ * income-vs-spending turn, the "one line per measure" spec). A model shown
+ * only the group shape force-fits it — it has no way to know series takes
+ * more than one name unless an exemplar shows two.
+ *
  * The example rows are invented and the answer sentences quote them, so every
  * exemplar quotes a figure visibly sitting in the rows right above it (the copy
  * path we want is "read it off the row"), and the section header says outright
@@ -166,10 +174,12 @@ Pick your output from the SHAPE of the result you received, not from how the que
 1. One row per transaction (rows carry a description or a raw date): Markdown table, never a chart.
 2. One row, one measure: state the figure in a sentence AND chart it as stat.
 3. Exactly two rows: one sentence with both figures and their difference. No chart.
-4. Three or more rows, an x column and a measure: chart it.
+4. Three or more rows, an x column and one or more measures: chart it, every measure in series.
 5. Three or more rows, an x column, a group column and a measure: chart it with group naming the group column.
 
 The chart type follows from x alone: a time x (month, quarter, year, week, or a day number) is a line — spending by month is a line, never a bar. Any other x is a bar. Pie is only for shares of one whole over a positive measure, never over net: negative slices are dropped and the pie stops summing to the total you stated. group works on line and bar only; for pie and stat, group is always null. A group column with more than ${MAX_CHART_SERIES} distinct values is rejected, so query the top ${MAX_CHART_SERIES} and chart those.
+
+A comparison ("X vs Y", "more than", "side by side") draws one line or bar set PER SIDE, never one blended series and never two separate charts. Sides that are values of one label column — two categories, two accounts, two months — come from ONE query with a row per x per side, charted with that column as group. Sides that are different measures — income against spending — are two columns of the same query, both named in series.
 
 A chart REPLACES the rows it draws: the chart plus your sentence is the whole output, with no Markdown table of the same numbers anywhere.
 
@@ -180,6 +190,7 @@ A chart is drawn ONLY by calling the chart function. Writing a chart specificati
 - breakdown: {"type": "bar", "title": "Top categories", "x": "category", "series": ["spending"], "group": null} — or "pie" for shares of a whole
 - one number: {"type": "stat", "title": "Average month", "x": "avg_monthly_spending", "series": ["avg_monthly_spending"], "group": null}
 - one line per group: {"type": "line", "title": "Spending by category", "x": "month", "group": "category_group", "series": ["spending"]} — a bucket where a group has no row draws as a gap, meaning "no transactions", not "spent 0.00".
+- one line per measure: {"type": "line", "title": "Income vs spending", "x": "month", "series": ["income", "spending"], "group": null} — every column named in series draws its own line; group is only ever a label column, never a measure.
 
 So a query aliasing running_total charts as "series": ["running_total"], and one aliasing net charts as "series": ["net"]. "spending" is only ever right when your own SELECT said AS spending. A name that isn't in the result is rejected with the list of names that are; when that happens, call chart again with one of those, and do not apologize or fall back to a table.
 
@@ -203,6 +214,20 @@ Because chart draws from my most recent result, which is now the total, I re-run
 
 I answer: You've spent {{11930.44 ${cur}}} from February through July 2026, running between {{1380.56 ${cur}}} and {{2410.88 ${cur}}} a month.
 
+### "am I earning more than I spend?"
+
+Income and spending are two measures of the same months, so they are two columns of one query, not two queries and not a group:
+SELECT month,
+       ROUND(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 2) AS income,
+       ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending,
+       ROUND(SUM(amount), 2) AS net
+FROM tx GROUP BY month ORDER BY month
+It returns 6 rows: 2026-02 3120.00 1842.19 1277.81 | … | 2026-06 3120.00 2088.17 1031.83 | 2026-07 1560.00 1380.56 179.44
+
+Each measure column named in series draws its own line, so I call chart: a line, x month, series income and spending, no group. net stays out of series; it is the gap the two lines already show, and the number I quote.
+
+I answer: Yes — income has cleared spending every month, by {{1031.83 ${cur}}} in June and a thinner {{179.44 ${cur}}} in July, where income dropped to {{1560.00 ${cur}}}.
+
 ### "what did I spend the most on in June, and how has that moved?"
 
 I call query with:
@@ -211,7 +236,7 @@ FROM tx WHERE amount < 0 AND month = '2026-06'
 GROUP BY category ORDER BY spending DESC LIMIT 5
 It returns 5 rows: 🛒 Groceries 612.40 | 🍽️ Dining Out 488.15 | 🚗 Transport 203.77 | 🏠 Home 141.02 | 🎁 Gifts 88.60
 
-The names come back with emoji I would drop if I retyped them, so I paste them in exactly as returned. Pasting a returned string is the one place = or IN matching is safe:
+Comparing two categories means one line each, which takes one row per month per category. The names come back with emoji I would drop if I retyped them, so I paste them in exactly as returned; pasting a returned string is the one place = or IN matching is safe:
 SELECT month, category, ROUND(SUM(-amount), 2) AS spending
 FROM tx WHERE amount < 0 AND category IN ('🍽️ Dining Out', '🛒 Groceries')
 GROUP BY month, category ORDER BY month
@@ -247,7 +272,7 @@ I call chart: a line, x day, group month, series spending (month_total is left o
 
 I answer: No — July came in at {{1380.56 ${cur}}} against June's {{2088.17 ${cur}}}, about {{700 ${cur}}} lower.
 
-(month_total is the month's figure; spending is ONE DAY's, and a day's number offered as the month's is simply a wrong answer. Day-of-month only works for calendar months; compare quarters or years as one row per period and a bar chart.)
+(month_total is the month's figure; spending is ONE DAY's, and a day's number offered as the month's is simply a wrong answer. Day-of-month only works for calendar months; compare quarters as one row per period and a bar chart, and set a year against a year the same way as here — CAST(strftime('%m', txn_date) AS INTEGER) as the shared x, year as group.)
 
 ### "what do I typically spend a month?"
 

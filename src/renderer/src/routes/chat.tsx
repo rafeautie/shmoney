@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useIsMutating } from '@tanstack/react-query'
+import { DEFAULT_MODEL_ID } from '@shared/llm'
 import {
   useConversations,
   useSendChat,
@@ -8,7 +9,7 @@ import {
   useStopChat,
   useStreamingReply
 } from '@/lib/chat'
-import { CATEGORIZE_MUTATION_KEY, useLlmStatus } from '@/lib/llm'
+import { CATEGORIZE_MUTATION_KEY, useLlmStatus, useLlmSupported } from '@/lib/llm'
 import { ChatInput } from '@/components/chat/chat-input'
 import { ChatInputNotice } from '@/components/chat/chat-input-notice'
 import { ChatModelGate } from '@/components/chat/chat-model-gate'
@@ -27,11 +28,14 @@ function ChatPage() {
   const conversationId = c ?? null
   const navigate = useNavigate({ from: '/chat' })
 
-  const stage = useLlmStatus().data?.stage ?? 'notDownloaded'
-  // loading counts as available: the model is on disk and a turn is usable the
-  // moment it finishes loading, so the page must not fall back to the gate
-  const modelAvailable = stage === 'downloaded' || stage === 'ready' || stage === 'loading'
-  const modelLoading = stage === 'loading'
+  const status = useLlmStatus().data
+  const supported = useLlmSupported()
+  const selected = status?.selected ?? DEFAULT_MODEL_ID
+  const stage = status?.models[selected].stage ?? 'notDownloaded'
+  // the file being present is all a turn needs; it loads into memory on demand.
+  // an unsupported machine can never make it available.
+  const modelAvailable = supported && stage === 'downloaded'
+  const modelLoading = status?.runtime === 'loading'
   const categorizeRunning = useIsMutating({ mutationKey: CATEGORIZE_MUTATION_KEY }) > 0
   const sendChat = useSendChat()
   const stopChat = useStopChat()

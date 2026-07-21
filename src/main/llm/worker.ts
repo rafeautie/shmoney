@@ -19,7 +19,13 @@ import {
   type LlamaModel,
   type LlamaContext
 } from 'node-llama-cpp'
-import { CHAT_CONTEXT_SIZE, LLM_MODEL } from '@shared/llm'
+import {
+  CHAT_CONTEXT_SIZE,
+  LLM_MODELS,
+  type ModelId,
+  type ModelStage,
+  type RuntimeStage
+} from '@shared/llm'
 import type { ChartSpec, ChartToolResult, QueryToolResult } from '@shared/chat'
 import type { ChatGenerationResult, WorkerCommand, WorkerMessage } from './protocol'
 import { createTurnLog, type TurnLog } from './turn-log'
@@ -77,6 +83,9 @@ async function ensureLlama(): Promise<Llama> {
 }
 
 interface LoadedModel {
+  // which registry model is in memory, so a load for a different model swaps it
+  // out and delete only disposes when it targets the loaded one
+  modelId: ModelId
   model: LlamaModel
   context: LlamaContext
   session: LlamaChatSession
@@ -93,10 +102,11 @@ interface ChatSessionState {
 }
 let chatLoaded: ChatSessionState | null = null
 
-// the in-flight download. `canceled` lets us tell a user cancel apart from a real
-// failure: aborting can make download() either resolve or reject, so the outcome
-// is decided by this flag, not by whether the promise threw.
-let activeDownload: { abortController: AbortController; canceled: boolean } | null = null
+// in-flight downloads, keyed by model so both models can download independently
+// and a cancel targets one. `canceled` lets us tell a user cancel apart from a
+// real failure: aborting can make download() either resolve or reject, so the
+// outcome is decided by this flag, not by whether the promise threw.
+const activeDownloads = new Map<ModelId, { abortController: AbortController; canceled: boolean }>()
 
 // the controller for the generate currently running, so abortGenerate can stop it
 let activeGeneration: AbortController | null = null
@@ -176,6 +186,17 @@ function post(message: WorkerMessage): void {
   process.parentPort.postMessage(message)
 }
 
+// the manager assembles the composite LlmStatus; the worker only reports the
+// transitions it directly causes — a model's file lifecycle, and the loaded
+// model's runtime lifecycle — as these two event kinds.
+function postModelStage(modelId: ModelId, stage: ModelStage, error: string | null = null): void {
+  post({ event: 'modelStage', modelId, stage, error })
+}
+
+function postRuntime(stage: RuntimeStage, error: string | null = null): void {
+  post({ event: 'runtime', stage, error })
+}
+
 async function disposeLoaded(): Promise<void> {
   // the tool connection follows the model's lifecycle: idle unload closes it
   // too, and the next chat turn reopens it
@@ -194,21 +215,22 @@ async function disposeLoaded(): Promise<void> {
   loaded = null
 }
 
-async function handleDownload(): Promise<null> {
+async function handleDownload(modelId: ModelId): Promise<null> {
+  const model = LLM_MODELS[modelId]
   const record = { abortController: new AbortController(), canceled: false }
-  activeDownload = record
-  post({ event: 'status', status: { stage: 'downloading', error: null } })
+  activeDownloads.set(modelId, record)
+  postModelStage(modelId, 'downloading')
 
   try {
     const downloader = await createModelDownloader({
-      modelUri: LLM_MODEL.hfUri,
+      modelUri: model.hfUri,
       dirPath: modelsDir,
-      fileName: LLM_MODEL.fileName,
+      fileName: model.fileName,
       skipExisting: true,
       onProgress: ({ totalSize, downloadedSize }) =>
         post({
           event: 'downloadProgress',
-          progress: { downloadedBytes: downloadedSize, totalBytes: totalSize }
+          progress: { modelId, downloadedBytes: downloadedSize, totalBytes: totalSize }
         })
     })
     await downloader.download({ signal: record.abortController.signal })
@@ -216,79 +238,90 @@ async function handleDownload(): Promise<null> {
     // a canceled download can reject; that's not a failure, so fall through to
     // the flag below. Only a genuine error surfaces as an error status.
     if (!record.canceled) {
-      post({ event: 'status', status: { stage: 'error', error: String(err) } })
+      postModelStage(modelId, 'error', String(err))
       throw err
     }
   } finally {
-    activeDownload = null
+    activeDownloads.delete(modelId)
   }
 
   // Verify the finished file against the pinned hash before ever reporting it
   // as downloaded; a mismatched file (corrupted or tampered upstream) is
   // deleted on the spot so it can never be loaded.
   if (!record.canceled) {
-    const filePath = modelFilePath(LLM_MODEL.fileName)
-    post({ event: 'status', status: { stage: 'verifying', error: null } })
+    const filePath = modelFilePath(model.fileName)
+    postModelStage(modelId, 'verifying')
     const hash = crypto.createHash('sha256')
     await pipeline(fs.createReadStream(filePath), hash)
     const actual = hash.digest('hex')
-    if (actual !== LLM_MODEL.sha256) {
+    if (actual !== model.sha256) {
       await fs.promises.rm(filePath, { force: true })
       const error = 'Downloaded model failed checksum verification and was deleted'
-      post({ event: 'status', status: { stage: 'error', error } })
-      throw new Error(`${error} (expected ${LLM_MODEL.sha256}, got ${actual})`)
+      postModelStage(modelId, 'error', error)
+      throw new Error(`${error} (expected ${model.sha256}, got ${actual})`)
     }
   }
 
   // A cancel removes the partial file, so the model is back to notDownloaded; a
   // real completion is downloaded. Decided by the flag, not the promise outcome.
-  post({
-    event: 'status',
-    status: { stage: record.canceled ? 'notDownloaded' : 'downloaded', error: null }
-  })
+  postModelStage(modelId, record.canceled ? 'notDownloaded' : 'downloaded')
   return null
 }
 
-function handleCancelDownload(): null {
-  if (!activeDownload) return null
-  activeDownload.canceled = true
-  activeDownload.abortController.abort()
+function handleCancelDownload(modelId: ModelId): null {
+  const record = activeDownloads.get(modelId)
+  if (!record) return null
+  record.canceled = true
+  record.abortController.abort()
   return null
 }
 
-async function handleDelete(): Promise<null> {
-  // dispose first: on Windows the file stays locked while it's memory-mapped
-  if (loaded) await disposeLoaded()
-  await fs.promises.rm(modelFilePath(LLM_MODEL.fileName), { force: true })
-  post({ event: 'status', status: { stage: 'notDownloaded', error: null } })
+async function handleDelete(modelId: ModelId): Promise<null> {
+  const model = LLM_MODELS[modelId]
+  // dispose first, but only when it's this model that's loaded: on Windows the
+  // file stays locked while it's memory-mapped
+  if (loaded?.modelId === modelId) {
+    await disposeLoaded()
+    postRuntime('unloaded')
+  }
+  await fs.promises.rm(modelFilePath(model.fileName), { force: true })
+  postModelStage(modelId, 'notDownloaded')
   return null
 }
 
-async function handleLoad(): Promise<null> {
-  const filePath = modelFilePath(LLM_MODEL.fileName)
+async function handleLoad(modelId: ModelId): Promise<null> {
+  const model = LLM_MODELS[modelId]
+  const filePath = modelFilePath(model.fileName)
   if (!fs.existsSync(filePath)) throw new Error('Model is not downloaded yet')
 
   if (loaded) {
-    post({ event: 'status', status: { stage: 'ready', error: null } })
-    return null
+    // already the right model in memory: nothing to do
+    if (loaded.modelId === modelId) {
+      postRuntime('ready')
+      return null
+    }
+    // switching models: drop the old one before loading the new (one model in
+    // memory at a time), so the previous selection's RAM is freed first
+    await disposeLoaded()
+    postRuntime('unloaded')
   }
 
-  post({ event: 'status', status: { stage: 'loading', error: null } })
+  postRuntime('loading')
   try {
     const llamaInstance = await ensureLlama()
-    const model = await llamaInstance.loadModel({ modelPath: filePath })
-    const context = await model.createContext({ contextSize: LLM_MODEL.contextSize })
+    const llamaModel = await llamaInstance.loadModel({ modelPath: filePath })
+    const context = await llamaModel.createContext({ contextSize: model.contextSize })
     const session = new LlamaChatSession({
       contextSequence: context.getSequence(),
       // Gemma 4 reasons by default; disable it so a prompt returns the answer
       // directly (features like categorize parse the response as JSON).
       chatWrapper: new Gemma4ChatWrapper()
     })
-    loaded = { model, context, session }
-    post({ event: 'status', status: { stage: 'ready', error: null } })
+    loaded = { modelId, model: llamaModel, context, session }
+    postRuntime('ready')
     return null
   } catch (err) {
-    post({ event: 'status', status: { stage: 'error', error: String(err) } })
+    postRuntime('unloaded', String(err))
     throw err
   }
 }
@@ -296,7 +329,7 @@ async function handleLoad(): Promise<null> {
 async function handleUnload(): Promise<null> {
   if (!loaded) return null
   await disposeLoaded()
-  post({ event: 'status', status: { stage: 'downloaded', error: null } })
+  postRuntime('unloaded')
   return null
 }
 
@@ -535,13 +568,13 @@ async function handleChat(
 async function dispatch(command: WorkerCommand): Promise<unknown> {
   switch (command.type) {
     case 'download':
-      return handleDownload()
+      return handleDownload(command.modelId)
     case 'cancelDownload':
-      return handleCancelDownload()
+      return handleCancelDownload(command.modelId)
     case 'delete':
-      return handleDelete()
+      return handleDelete(command.modelId)
     case 'load':
-      return handleLoad()
+      return handleLoad(command.modelId)
     case 'unload':
       return handleUnload()
     case 'generate':
