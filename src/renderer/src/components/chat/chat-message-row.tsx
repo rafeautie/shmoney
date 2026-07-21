@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Loading03Icon, SparklesIcon } from '@hugeicons/core-free-icons'
 import { messageText, type ChatMessage, type StreamingChatPart } from '@shared/chat'
@@ -7,13 +8,11 @@ import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
 import { AssistantBubble } from '@/components/chat/assistant-bubble'
-import { ChartCard } from '@/components/chat/chat-chart'
-import { QueryCard } from '@/components/chat/query-card'
-import { ThoughtChain } from '@/components/chat/thought-chain'
+import { ThoughtChain, type ChainPart } from '@/components/chat/thought-chain'
 
 /**
  * An assistant turn's parts, strictly in order, nothing held back: chains of
- * thought, preamble text, tool cards, charts and answer text exactly as they
+ * thought, preamble text, tool calls, charts and answer text exactly as they
  * were generated. Streaming and settled rows render the same parts through
  * this same mapping — a streamed part IS the persisted part (or its pending
  * form), so a landing turn cannot visibly change. The streaming flag drives
@@ -21,6 +20,11 @@ import { ThoughtChain } from '@/components/chat/thought-chain'
  * forms themselves (a thought with no duration, a call with no result). asOf
  * is the turn's age, carried here rather than on each chart because it
  * belongs to the message.
+ *
+ * A turn's reasoning and tool calls collapse into one ThoughtChain — a single
+ * chain of thought — rather than stacking as separate panels and cards. A run
+ * is broken only by text (the answer), so interleaved thinking never splits the
+ * tool calls into two summaries.
  */
 function Parts({
   parts,
@@ -33,41 +37,28 @@ function Parts({
   asOf?: number
 }) {
   const lastIndex = parts.length - 1
-  return parts.map((part, i) => {
-    switch (part.type) {
-      case 'text':
-        return (
-          <AssistantBubble key={i} text={part.text} isStreaming={streaming && i === lastIndex} />
-        )
-      case 'reasoning':
-        return (
-          <ThoughtChain
-            key={i}
-            reasoning={{ text: part.text, durationMs: part.durationMs }}
-            active={part.durationMs === null}
-          />
-        )
-      case 'functionCall':
-        // pending: the model is still writing this call's params
-        if (part.result === undefined)
-          return part.name === 'chart' ? <ChartCard key={i} /> : <QueryCard key={i} />
-        if (part.name === 'chart')
-          return (
-            <ChartCard
-              key={i}
-              spec={part.args}
-              result={part.result}
-              display={part.display}
-              asOf={asOf}
-            />
-          )
-        if (part.name === 'query')
-          return <QueryCard key={i} sql={part.args.sql} result={part.result} />
-        // a shape this build doesn't know, e.g. a row written before the
-        // formats merged; skipping beats guessing which tool it was
-        return null
+  const nodes: ReactNode[] = []
+  let run: ChainPart[] = []
+  let runStart = 0
+  const flushRun = () => {
+    if (run.length === 0) return
+    nodes.push(<ThoughtChain key={`chain-${runStart}`} parts={run} asOf={asOf} />)
+    run = []
+  }
+  parts.forEach((part, i) => {
+    if (part.type === 'text') {
+      flushRun()
+      nodes.push(
+        <AssistantBubble key={i} text={part.text} isStreaming={streaming && i === lastIndex} />
+      )
+      return
     }
+    // reasoning or a tool call: both are steps of the same chain of thought
+    if (run.length === 0) runStart = i
+    run.push(part)
   })
+  flushRun()
+  return nodes
 }
 
 /** The turn is accepted but nothing has streamed yet. */

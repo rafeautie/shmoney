@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Analytics01Icon, ArrowDown01Icon } from '@hugeicons/core-free-icons'
-import type { ChartData, ChartDisplay, ChartSpec, ChartToolResult } from '@shared/chat'
+import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
+import type { ChartData, ChartSpec } from '@shared/chat'
 import { cn } from '@/lib/utils'
 import { formatBucketLabel } from '@/lib/format-date'
 import { usePrivacy } from '@/lib/settings'
 import { Chart, type FormatValue } from '@/components/charts/chart'
 import { ChatTableViewport } from '@/components/chat/chat-table'
-import { ToolCallCard } from '@/components/chat/tool-call'
 
 // A chart the model composed over its own query result, rendered from the
 // persisted part (or the streamed equivalent). Values are real amounts (the
@@ -62,7 +61,7 @@ const cellText = (cell: unknown, isSeries: boolean, currency: string | null): st
  * current — and the Data toggle opens the exact rows the chart is drawn
  * from, so any chart can be audited in place.
  */
-function ChatChart({
+export function ChatChart({
   spec,
   series,
   data,
@@ -219,64 +218,6 @@ function ChatChart({
           </ChatTableViewport>
         </div>
       )}
-    </div>
-  )
-}
-
-/**
- * One chart call in the transcript, straight off its part — pending (no
- * result yet: the model is still writing the call) or settled — the only
- * chart entry point the transcript uses, so streaming and persisted rows
- * can't drift apart. The standard tool card carries the call (input = the
- * spec, output = the tiny result the model got back); the chart itself
- * renders below it, since the chart is the deliverable, not the call record.
- * asOf is the turn's age, which belongs to the message rather than to the
- * call, so it arrives beside the part fields.
- */
-export function ChartCard({
-  spec,
-  result,
-  display,
-  asOf
-}: {
-  /** absent while the model is still writing the call's params */
-  spec?: ChartSpec
-  result?: ChartToolResult
-  /** null when the call failed validation: nothing to draw */
-  display?: ChartDisplay | null
-  asOf?: number
-}) {
-  const drawn = result?.ok === true && display != null && spec !== undefined
-  const failed = result !== undefined && !drawn
-  const card = (
-    <ToolCallCard
-      icon={Analytics01Icon}
-      label={!result ? 'Building chart…' : failed ? 'Chart failed' : 'Built chart'}
-      active={!result}
-      failed={failed}
-      input={spec}
-      output={
-        result
-          ? failed
-            ? { ok: false, error: result.error ?? 'Chart failed.' }
-            : { ok: true }
-          : undefined
-      }
-    />
-  )
-  if (!drawn) return card
-  return (
-    <div className="flex flex-col gap-1.5">
-      {card}
-      <ChatChart
-        spec={spec}
-        // the one back-compat seam: parts persisted before the pivot existed
-        // carry no resolved series in their JSON, so fall back to the spec's
-        series={display.series ?? spec.series}
-        data={display.data}
-        currency={display.currency}
-        asOf={asOf}
-      />
     </div>
   )
 }

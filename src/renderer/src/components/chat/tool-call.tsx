@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
-import type { IconSvgElement } from '@hugeicons/react'
 import { ArrowRight01Icon } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ScrollArea } from '@/components/ui/scroll-area'
 
 // The one shape every tool call takes in the transcript: a one-line indicator
-// (icon, status label, chevron) that expands to the call's input and output.
-// Tools differ only in icon, label wording and the values they pass — the
-// chrome, the states (shimmer while active, destructive when failed) and the
-// IO layout live here so no tool can drift into custom transcript UI again.
+// (status label, chevron) that expands to the call's input and output. The
+// tool's icon lives on the chain's rail, not here (see ToolChain). Tools differ
+// only in label wording and the values they pass — the chrome, the states
+// (shimmer while active, destructive when failed) and the IO layout live here
+// so no tool can drift into custom transcript UI again.
 
 /** a value as display text: strings verbatim (SQL stays SQL), everything else pretty JSON */
 function ioText(value: unknown): string {
@@ -59,14 +59,12 @@ function OutputSection({ value }: { value: unknown }) {
  * undefined while a side doesn't exist yet and its section is omitted.
  */
 export function ToolCallCard({
-  icon,
   label,
   active = false,
   failed = false,
   input,
   output
 }: {
-  icon: IconSvgElement
   label: string
   /** the call is still writing or executing; the label shimmers */
   active?: boolean
@@ -84,7 +82,6 @@ export function ToolCallCard({
           failed && 'text-destructive hover:text-destructive'
         )}
       >
-        <HugeiconsIcon icon={icon} strokeWidth={2} className="size-3.5" />
         <span>{label}</span>
         <HugeiconsIcon
           icon={ArrowRight01Icon}
