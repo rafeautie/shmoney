@@ -159,7 +159,16 @@ class LlmManager {
 
   /** Delete a downloaded model file, unloading it first if it's the one loaded. */
   async deleteModel(modelId: ModelId): Promise<LlmStatus> {
-    if (this.loadedModelId === modelId) this.clearIdleTimer()
+    if (this.loadedModelId === modelId) {
+      // deleting the loaded model disposes its worker context; refuse while a
+      // turn is mid-flight rather than yanking it out from under the generation
+      if (this.inFlight > 0) {
+        throw new Error(
+          'This model is in use right now. Stop the current chat or categorize before deleting it.'
+        )
+      }
+      this.clearIdleTimer()
+    }
     await this.send({ type: 'delete', modelId })
     return this.getStatus()
   }
@@ -175,7 +184,11 @@ class LlmManager {
     this.persistSelected(modelId)
     status.selected = modelId
     status.runtimeError = null
-    if (this.loadedModelId !== null && this.loadedModelId !== modelId) {
+    // only swap eagerly when nothing is generating: disposing the loaded
+    // context under an in-flight turn would crash it. With work in flight the
+    // selection still takes effect on the next request, since withModel swaps
+    // whenever the loaded model isn't the selected one.
+    if (this.inFlight === 0 && this.loadedModelId !== null && this.loadedModelId !== modelId) {
       this.clearIdleTimer()
       // optimistic so the badge doesn't flash the old model as ready; the
       // worker's runtime event confirms and clears loadedModelId

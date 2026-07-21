@@ -76,13 +76,17 @@ export function ChatModelGate() {
                 ? `${formatBytes(progress.downloadedBytes)} / ${formatBytes(progress.totalBytes)}`
                 : 'Starting download…'}
           </p>
-          <Button
-            variant="outline"
-            disabled={actions.cancelDownload.isPending}
-            onClick={() => actions.cancelDownload.mutate(selected)}
-          >
-            Cancel
-          </Button>
+          {stage === 'downloading' && (
+            // verification can't be cancelled (the download record is already
+            // gone), so only offer Cancel while bytes are still transferring
+            <Button
+              variant="outline"
+              disabled={actions.cancelDownload.isPending}
+              onClick={() => actions.cancelDownload.mutate(selected)}
+            >
+              Cancel
+            </Button>
+          )}
         </div>
       ) : (
         <Button
