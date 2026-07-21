@@ -60,6 +60,18 @@ function formatQueryDuration(ms: number): string {
 }
 
 /**
+ * How long one step held the turn: a thought's reasoning segment, or a tool
+ * call's open-to-settle span. Summed across the run, this is the "thinking
+ * time" the collapsed summary reports — the whole section, tool calls included,
+ * not only the reasoning. Pending steps and rows persisted before the call span
+ * existed contribute nothing.
+ */
+function stepDurationMs(part: ChainPart): number {
+  if (part.type === 'reasoning') return part.durationMs ?? 0
+  return part.result === undefined ? 0 : (part.durationMs ?? 0)
+}
+
+/**
  * One tool call's view, derived straight from its part — the label wording that
  * used to live in QueryCard/ChartCard, in one place now that the chain renders
  * every tool. Returns null for a shape this build doesn't know (e.g. a row
@@ -166,14 +178,26 @@ function chartDeliverable(part: ChainPart, asOf?: number): ReactNode {
 }
 
 /**
- * A turn's chain of thought as one collapsible. Collapsed (the default) it
- * summarises the run — the current step's label, plus how many tool calls ran;
- * expanded it lays every step on a rail: thoughts as quote-bar text, tool calls
- * as an icon beside their own expandable input/output card. The user's toggle
- * always wins. Chart deliverables follow the chain, still visible when it's
- * collapsed, since a chart is the answer, not a step.
+ * A turn's chain of thought as one collapsible. While the run is live the
+ * header tracks the in-flight step — the thought or tool call happening now —
+ * so tool calls surface as they run. Once the run settles it collapses to a
+ * summary of the whole section: how long it took (thinking and tool calls
+ * alike) and how many calls ran, e.g. "Thought for 6s · 3 calls". Expanded it
+ * lays every step on a rail: thoughts as quote-bar text, tool calls as an icon
+ * beside their own expandable input/output card. The user's toggle always wins.
+ * Chart deliverables follow the chain, still visible when it's collapsed, since
+ * a chart is the answer, not a step.
  */
-export function ThoughtChain({ parts, asOf }: { parts: ChainPart[]; asOf?: number }) {
+export function ThoughtChain({
+  parts,
+  streaming = false,
+  asOf
+}: {
+  parts: ChainPart[]
+  /** true only for the live, still-growing run of a streaming turn */
+  streaming?: boolean
+  asOf?: number
+}) {
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
   const open = userOpen ?? false
 
@@ -182,14 +206,20 @@ export function ThoughtChain({ parts, asOf }: { parts: ChainPart[]; asOf?: numbe
 
   const toolCount = steps.filter((s) => s.kind === 'tool').length
   const last = steps[steps.length - 1]
-  // the summary's headline: the in-flight step while streaming, else the last
-  // tool call (the "current tool"), else the last step (a thoughts-only run)
-  const current =
-    last.active || toolCount === 0
-      ? last
-      : ([...steps].reverse().find((s) => s.kind === 'tool') ?? last)
-  const headerIcon = current.kind === 'tool' ? current.icon : BrainIcon
-  const headerFailed = current.kind === 'tool' && current.failed
+  // the run's last tool call, for the failed-at-a-glance signal on the summary
+  const lastTool = [...steps]
+    .reverse()
+    .find((s): s is Extract<StepView, { kind: 'tool' }> => s.kind === 'tool')
+
+  // Live, the header mirrors the in-flight step (the current tool call or
+  // thought); settled, it becomes the summary — one duration for the whole
+  // section, tool time included, under the chain-of-thought brain.
+  const headerLabel = streaming
+    ? last.label
+    : `Thought for ${formatThoughtDuration(parts.reduce((sum, p) => sum + stepDurationMs(p), 0))}`
+  const headerIcon = streaming && last.kind === 'tool' ? last.icon : BrainIcon
+  const headerActive = streaming && last.active
+  const headerFailed = streaming ? last.kind === 'tool' && last.failed : (lastTool?.failed ?? false)
 
   return (
     <>
@@ -197,13 +227,19 @@ export function ThoughtChain({ parts, asOf }: { parts: ChainPart[]; asOf?: numbe
         <CollapsibleTrigger
           className={cn(
             'group/cot flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground',
-            current.active && 'animate-shimmer',
+            headerActive && 'animate-shimmer',
             headerFailed && 'text-destructive hover:text-destructive'
           )}
         >
           <HugeiconsIcon icon={headerIcon} strokeWidth={2} className="size-3.5" />
-          <span className="text-left">{current.label}</span>
-          {toolCount > 1 && <span className="opacity-70">· {toolCount} calls</span>}
+          <span className="text-left">{headerLabel}</span>
+          {/* the call count belongs to the settled summary; while streaming the
+              header is tracking the in-flight step, not tallying */}
+          {!streaming && toolCount > 0 && (
+            <span className="opacity-70">
+              · {toolCount} call{toolCount === 1 ? '' : 's'}
+            </span>
+          )}
           <HugeiconsIcon
             icon={ArrowRight01Icon}
             strokeWidth={2}

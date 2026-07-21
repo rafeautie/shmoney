@@ -56,10 +56,12 @@ const stepStatusStyles = {
 
 /**
  * One step on the timeline: an icon on the rail, with the step's own content
- * (usually its own collapsible summary) beside it. The rail runs down through
- * the gap to the next step. Omit the icon for a step the header already speaks
- * for — the rail then runs the step's full height as a quote bar, and the
- * gutter keeps the content aligned with the steps that do have one.
+ * (usually its own collapsible summary) beside it. Every step keeps a rail — so
+ * an expandable tool card always has the spine beside it, the last step
+ * included — and a connector reaches up out of the first step to the header, so
+ * the summary and the steps read as one unbroken chain. An icon marks where the
+ * step begins; omit it for a step the header already speaks for (the rail is
+ * then a plain quote bar), and the gutter keeps the content aligned either way.
  */
 export function ChainOfThoughtStep({
   icon,
@@ -74,24 +76,22 @@ export function ChainOfThoughtStep({
   return (
     <div className={cn('group/step flex gap-2', stepStatusStyles[status], className)} {...props}>
       {/* w-3.5 fixes the gutter, so an icon-less step still lines up */}
-      <div className="flex w-3.5 shrink-0 flex-col items-center">
+      <div className="relative flex w-3.5 shrink-0 flex-col items-center">
+        {/* connector up into the gap above: on the first step it reaches the
+            header, joining the summary to the rail; on later steps it overlaps
+            the previous step's overhang, so the spine is one line throughout */}
+        <div className="absolute -top-1.5 left-1/2 h-1.5 w-px -translate-x-1/2 bg-border" />
         {/* h-4 matches the text-xs line box, so the icon centres on the label */}
         {icon && (
           <div className="flex h-4 items-center">
             <HugeiconsIcon icon={icon} strokeWidth={2} className="size-3.5" />
           </div>
         )}
-        {/* -mb-3 reaches into the parent's space-y-3 gap so the rail is unbroken.
-            Under an icon the rail is a connector, so the last step drops it
-            rather than dangle one into nothing; without an icon it's a quote bar
-            down the step's own text, which stands on its own — it just stops at
-            the text instead of overhanging. */}
-        <div
-          className={cn(
-            '-mb-3 w-px flex-1 bg-border group-last/step:mb-0',
-            icon && 'mt-1 group-last/step:hidden'
-          )}
-        />
+        {/* -mb-3 reaches into the parent's space-y-3 gap so the rail is unbroken;
+            the last step stops at its own bottom instead of overhanging. An icon
+            step's rail picks up below the icon; an icon-less step's runs its full
+            height as a quote bar. */}
+        <div className={cn('-mb-3 w-px flex-1 bg-border group-last/step:mb-0', icon && 'mt-1')} />
       </div>
       <div className="min-w-0 flex-1">{children}</div>
     </div>

@@ -33,8 +33,12 @@ export interface TurnLog {
   closeReasoning(durationMs: number): void
   /** the model started writing a call's params: show the pending card */
   openCall(name: string): void
-  /** the call ran: replace its pending part (or append, if none opened) */
-  settleCall(call: ChatToolCall): void
+  /**
+   * The call ran: replace its pending part (or append, if none opened).
+   * durationMs is its open-to-settle wall-clock, measured by the worker (the
+   * clock owner), so the chain of thought can total tool time alongside thinking.
+   */
+  settleCall(call: ChatToolCall, durationMs: number): void
   /**
    * Settle the turn: `fullText` is the library's complete answer text, which
    * normally already streamed chunk by chunk; if it carries a tail that never
@@ -96,15 +100,16 @@ export function createTurnLog(onPart?: (index: number, part: StreamingChatPart) 
       parts.push({ type: 'functionCall', name })
       emit(parts.length - 1)
     },
-    settleCall(call): void {
+    settleCall(call, durationMs): void {
       glue = ''
       const index = parts.length - 1
       const last = parts[index]
+      const part: StreamingChatPart = { type: 'functionCall', durationMs, ...call }
       if (last?.type === 'functionCall' && last.result === undefined) {
-        parts[index] = { type: 'functionCall', ...call }
+        parts[index] = part
         emit(index)
       } else {
-        parts.push({ type: 'functionCall', ...call })
+        parts.push(part)
         emit(parts.length - 1)
       }
     },

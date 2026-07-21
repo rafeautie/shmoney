@@ -15,16 +15,17 @@ import { ThoughtChain, type ChainPart } from '@/components/chat/thought-chain'
  * thought, preamble text, tool calls, charts and answer text exactly as they
  * were generated. Streaming and settled rows render the same parts through
  * this same mapping — a streamed part IS the persisted part (or its pending
- * form), so a landing turn cannot visibly change. The streaming flag drives
- * only the trailing text's caret; "active" states derive from the pending
- * forms themselves (a thought with no duration, a call with no result). asOf
- * is the turn's age, carried here rather than on each chart because it
- * belongs to the message.
+ * form), so a landing turn cannot visibly change. The streaming flag marks the
+ * live, still-growing run (and the trailing text's caret); within a run,
+ * "active" states derive from the pending forms themselves (a thought with no
+ * duration, a call with no result). asOf is the turn's age, carried here rather
+ * than on each chart because it belongs to the message.
  *
  * A turn's reasoning and tool calls collapse into one ThoughtChain — a single
  * chain of thought — rather than stacking as separate panels and cards. A run
  * is broken only by text (the answer), so interleaved thinking never splits the
- * tool calls into two summaries.
+ * tool calls into two summaries. Only the last run of a streaming turn is live;
+ * a run the answer already closed off shows its settled summary.
  */
 function Parts({
   parts,
@@ -40,14 +41,16 @@ function Parts({
   const nodes: ReactNode[] = []
   let run: ChainPart[] = []
   let runStart = 0
-  const flushRun = () => {
+  // a run closed off by answer text is complete (live = false); only the
+  // trailing run of a streaming turn is still growing
+  const flushRun = (live: boolean) => {
     if (run.length === 0) return
-    nodes.push(<ThoughtChain key={`chain-${runStart}`} parts={run} asOf={asOf} />)
+    nodes.push(<ThoughtChain key={`chain-${runStart}`} parts={run} streaming={live} asOf={asOf} />)
     run = []
   }
   parts.forEach((part, i) => {
     if (part.type === 'text') {
-      flushRun()
+      flushRun(false)
       nodes.push(
         <AssistantBubble key={i} text={part.text} isStreaming={streaming && i === lastIndex} />
       )
@@ -57,7 +60,7 @@ function Parts({
     if (run.length === 0) runStart = i
     run.push(part)
   })
-  flushRun()
+  flushRun(streaming)
   return nodes
 }
 

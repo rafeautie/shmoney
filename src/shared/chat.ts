@@ -167,7 +167,11 @@ export type ChatToolCall =
 export type ChatMessagePart =
   | { type: 'text'; text: string }
   | { type: 'reasoning'; text: string; durationMs: number }
-  | ({ type: 'functionCall' } & ChatToolCall)
+  // durationMs is the call's wall-clock span (the model writing its params plus
+  // the tool running), so a turn's chain of thought can report how long its tool
+  // calls took, not only its thinking. Parts persisted before the field existed
+  // lack it; the renderer treats a missing span as zero.
+  | ({ type: 'functionCall'; durationMs: number } & ChatToolCall)
 
 /**
  * A part as it crosses the wire mid-turn: either the settled shape it will

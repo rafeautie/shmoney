@@ -74,7 +74,7 @@ function row(
 }
 
 function callPart(sql: string, result: QueryToolResult = RESULT): ChatMessagePart {
-  return { type: 'functionCall', name: 'query', args: { sql }, result }
+  return { type: 'functionCall', name: 'query', args: { sql }, result, durationMs: 0 }
 }
 
 describe('buildHistory', () => {
@@ -253,7 +253,8 @@ describe('buildHistory', () => {
               name: 'chart',
               args: SPEC,
               result: { ok: true },
-              display: { data: DATA, currency: 'USD', series: ['spending'] }
+              display: { data: DATA, currency: 'USD', series: ['spending'] },
+              durationMs: 0
             },
             { type: 'text', text: 'see the chart' }
           ]
@@ -320,7 +321,8 @@ describe('buildHistory', () => {
               name: 'chart',
               args: SPEC,
               result: { ok: false, error: 'no result' },
-              display: null
+              display: null,
+              durationMs: 0
             },
             { type: 'text', text: 'sorry' }
           ]
@@ -457,7 +459,8 @@ describe('historyWindow', () => {
               name: 'chart',
               args: SPEC,
               result: { ok: true },
-              display: { data: huge, currency: null, series: ['spending'] }
+              display: { data: huge, currency: null, series: ['spending'] },
+              durationMs: 0
             },
             { type: 'text', text: 'charted' }
           ]

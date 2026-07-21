@@ -438,8 +438,10 @@ function chatFunctions(ctx: {
   state: ChatTurnState
   // the turn's local date, so resolve_dates shares one "now" with the prompt
   today: string
+  // the current call's open-to-settle wall-clock, read at settle time
+  callDurationMs: () => number
 }): ChatSessionModelFunctions {
-  const { turn, currency, state, today } = ctx
+  const { turn, currency, state, today, callDurationMs } = ctx
   const overBudget =
     'The tool budget for this reply is used up; answer with the data you already have.'
   return {
@@ -461,7 +463,7 @@ function chatFunctions(ctx: {
             ? { ok: false, error: overBudget, durationMs: 0 }
             : runQuery(sql)
         if (result.ok) state.lastQuery = result
-        turn.settleCall({ name: 'query', args: { sql }, result })
+        turn.settleCall({ name: 'query', args: { sql }, result }, callDurationMs())
         // Append chartCallNote last, where a chart call is about to be
         // written: the exact legal column names, plus the group recipe when
         // the result is unambiguously long-form. Same reasoning as the chart
@@ -501,7 +503,7 @@ function chatFunctions(ctx: {
         const display = prepared.ok
           ? { data: prepared.data, currency, series: prepared.series }
           : null
-        turn.settleCall({ name: 'chart', args: spec, result, display })
+        turn.settleCall({ name: 'chart', args: spec, result, display }, callDurationMs())
         // steer the follow-up prose from the result itself — instructions
         // this close to where the model writes next land far more reliably
         // on a small model than the same words back in the system prompt.
@@ -524,7 +526,7 @@ function chatFunctions(ctx: {
           state.handledCalls > MAX_TOOL_CALLS_PER_TURN
             ? { ok: false, error: overBudget }
             : evaluateExpression(expression)
-        turn.settleCall({ name: 'calc', args: { expression }, result })
+        turn.settleCall({ name: 'calc', args: { expression }, result }, callDurationMs())
         return result
       }
     }),
@@ -543,7 +545,7 @@ function chatFunctions(ctx: {
           state.handledCalls > MAX_TOOL_CALLS_PER_TURN
             ? { ok: false, error: overBudget }
             : resolveDateWindow(args, today)
-        turn.settleCall({ name: 'resolve_dates', args, result })
+        turn.settleCall({ name: 'resolve_dates', args, result }, callDurationMs())
         return result
       }
     })
@@ -576,7 +578,16 @@ async function handleChat(
     const state: ChatTurnState = { handledCalls: 0, lastQuery: null }
     // one local date for the whole turn, same 'YYYY-MM-DD' the prompt quotes
     const today = new Date().toLocaleDateString('en-CA')
-    const functions = chatFunctions({ turn, currency, state, today })
+    // wall-clock when the tool call being written opened; each handler reads the
+    // span up to its own settle, so the chain of thought can total tool time
+    let openedCallAt: number | null = null
+    const functions = chatFunctions({
+      turn,
+      currency,
+      state,
+      today,
+      callDurationMs: () => (openedCallAt === null ? 0 : Date.now() - openedCallAt)
+    })
 
     // the chat wrapper routes the model's chain of thought into segments, so
     // prompt() resolves with the answer alone; each segment streams into its
@@ -600,6 +611,7 @@ async function handleChat(
       onFunctionCallParamsChunk: (chunk) => {
         if (chunk.callIndex !== openedCallIndex) {
           openedCallIndex = chunk.callIndex
+          openedCallAt = Date.now()
           turn.openCall(chunk.functionName)
         }
       },
