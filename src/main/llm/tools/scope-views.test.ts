@@ -1,7 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { scopeViewsDdl } from './sql-tool'
-import { migratedDb } from './test-db'
+import { migratedDb } from '../test-db'
 
 // The scope views are the seam that hands the model its data, and their whole
 // job is to be exactly right about units. String-matching the DDL only proves

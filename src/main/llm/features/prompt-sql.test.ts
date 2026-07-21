@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { scopeViewsDdl } from '../sql-tool'
+import { scopeViewsDdl } from '../tools/sql-tool'
 import { migratedDb } from '../test-db'
 import type { PromptDbContext } from './chat'
 

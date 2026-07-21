@@ -36,10 +36,10 @@ import {
   shapeResult,
   validateQuerySql,
   type ChatToolScope
-} from './sql-tool'
-import { CHART_FUNCTION_PARAMS, chartCallNote, prepareChart } from './chart-tool'
-import { CALC_FUNCTION_PARAMS, evaluateExpression } from './calc-tool'
-import { RESOLVE_DATES_PARAMS, resolveDateWindow } from './resolve-dates-tool'
+} from './tools/sql-tool'
+import { CHART_FUNCTION_PARAMS, chartCallNote, prepareChart } from './tools/chart-tool'
+import { CALC_FUNCTION_PARAMS, evaluateExpression } from './tools/calc-tool'
+import { RESOLVE_DATES_PARAMS, resolveDateWindow } from './tools/resolve-dates-tool'
 import { registerStatFunctions } from './stat-functions'
 
 const modelsDir: string = (() => {

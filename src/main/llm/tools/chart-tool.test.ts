@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { ChartSpec } from '../../shared/chat'
+import type { ChartSpec } from '../../../shared/chat'
 import { MAX_CHART_SERIES, chartCallNote, prepareChart, resolveCurrency } from './chart-tool'
 
 const RESULT = {

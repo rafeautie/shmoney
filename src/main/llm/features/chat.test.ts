@@ -9,7 +9,7 @@ import {
   type QueryToolResult
 } from '../../../shared/chat'
 import { CHAT_CONTEXT_SIZE } from '../../../shared/llm'
-import { MAX_CHART_SERIES } from '../chart-tool'
+import { MAX_CHART_SERIES } from '../tools/chart-tool'
 import type { PromptDbContext } from './chat'
 
 // chat.ts reaches Electron through these modules (better-sqlite3 won't load

@@ -1,5 +1,5 @@
-import { MAX_CHART_SERIES } from './chart-tool'
-import { MAX_ROWS, MAX_TOOL_CALLS_PER_TURN } from './sql-tool'
+import { MAX_CHART_SERIES } from './tools/chart-tool'
+import { MAX_ROWS, MAX_TOOL_CALLS_PER_TURN } from './tools/sql-tool'
 
 /** what the turn's prompt and query tool are narrowed to; name rides along for display */
 export interface ChatPromptScope {

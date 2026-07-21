@@ -27,7 +27,7 @@ import type {
   WorkerCommand,
   WorkerMessage
 } from './protocol'
-import type { ChatToolScope } from './sql-tool'
+import type { ChatToolScope } from './tools/sql-tool'
 import type { ChatHistoryItem } from 'node-llama-cpp'
 
 const log = createLogger('llm')

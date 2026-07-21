@@ -1,6 +1,6 @@
 import type { StreamingChatPart } from '@shared/chat'
 import type { LlmDownloadProgress, ModelId, ModelStage, RuntimeStage } from '@shared/llm'
-import type { ChatToolScope } from './sql-tool'
+import type { ChatToolScope } from './tools/sql-tool'
 // type-only: erased at compile time, so the manager still never runtime-imports
 // node-llama-cpp (the worker is the only place that does)
 import type { ChatHistoryItem } from 'node-llama-cpp'

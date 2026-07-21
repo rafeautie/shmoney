@@ -11,7 +11,7 @@ import {
   type SendChatResult
 } from '@shared/chat'
 import type { ChatGenerationResult } from '../protocol'
-import { resolveCurrency } from '../chart-tool'
+import { resolveCurrency } from '../tools/chart-tool'
 import { buildSystemPrompt, type ChatPromptScope, type PromptDbContext } from '../system-prompt'
 import { db } from '../../db'
 import {
