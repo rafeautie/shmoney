@@ -80,27 +80,23 @@ const err = (error: string): PreparedChart => ({ ok: false, error })
 const groupLabel = (cell: unknown): string => (cell === null ? '(none)' : String(cell))
 
 /**
- * The numeric-series checks shared by every direct (unpivoted) draw: each
- * series column must hold numbers, and must not be NULL in every row — that
- * is SUM over no matching rows, and a stat card rendering it reads as "0"
- * when it means "nothing matched".
+ * The numeric-series checks every draw needs: each series column must hold
+ * numbers, and must not be NULL in every row — that is SUM over no matching
+ * rows, and a stat card rendering it reads as "0" when it means "nothing
+ * matched".
  */
 function seriesProblem(
   columns: string[],
   rows: unknown[][],
   series: string[],
   available: string
-): PreparedChart | null {
+): string | null {
   for (const name of series) {
     const index = columns.indexOf(name)
     if (!rows.every((row) => isPlottable(row[index])))
-      return err(
-        `Column "${name}" is not numeric; series columns must be numbers. A label column belongs in x or group, never in series. ${available}`
-      )
+      return `Column "${name}" is not numeric; series columns must be numbers. A label column belongs in x or group, never in series. ${available}`
     if (rows.every((row) => row[index] === null))
-      return err(
-        `Column "${name}" is NULL in every row, meaning no transactions matched the query. Say that instead of charting it.`
-      )
+      return `Column "${name}" is NULL in every row, meaning no transactions matched the query. Say that instead of charting it.`
   }
   return null
 }
@@ -146,8 +142,9 @@ function pivot(
  * into the exact data to draw. No guessing: a result that is already one
  * column per series passes through whole, and a long-form result (one row per
  * x per group — the shape the model's natural GROUP BY produces) is pivoted
- * on the column the model *names* in spec.group. Errors are phrased for the
- * model so it can correct the call.
+ * on the column the model *names* in spec.group. Validation is a flat run of
+ * guards — the checks every draw needs first, then the per-type ones — and
+ * every error is phrased for the model so it can correct the call.
  */
 export function prepareChart(
   spec: ChartSpec,
@@ -165,30 +162,40 @@ export function prepareChart(
 
   const group = spec.group ?? null
   const available = `The last result's columns are: ${columns.join(', ')}. Call chart again with names copied from that list.`
-  for (const name of [...spec.series, ...(group === null ? [] : [group])])
+  const asIs = (): PreparedChart => ({
+    ok: true,
+    data: { columns, rows },
+    series: [...spec.series]
+  })
+
+  // every referenced column must exist; stat has no axis, so the x the
+  // grammar forces on it is never looked up
+  const referenced =
+    spec.type === 'stat'
+      ? [...spec.series, ...(group === null ? [] : [group])]
+      : [...spec.series, ...(group === null ? [] : [group]), spec.x]
+  for (const name of referenced)
     if (!columns.includes(name))
       return err(`Column "${name}" is not in the last query result. ${available}`)
-  const passthrough = (): PreparedChart =>
-    seriesProblem(columns, rows, spec.series, available) ?? {
-      ok: true,
-      data: { columns, rows },
-      series: [...spec.series]
-    }
+
+  const problem = seriesProblem(columns, rows, spec.series, available)
+  if (problem) return err(problem)
+
+  if (group !== null && (spec.type === 'stat' || spec.type === 'pie'))
+    return err(
+      'group applies to line and bar charts only. Call chart again with group null, or chart this result as a line or bar with group.'
+    )
 
   // stat has no axis: x is ignored (the grammar forces one), rows pass whole
   if (spec.type === 'stat') {
-    if (group !== null)
-      return err('group applies to line and bar charts only. Call chart again with group null.')
     if (spec.series.length > 2)
       return err('stat takes the value column plus at most one change column.')
-    return passthrough()
+    return asIs()
   }
 
-  if (!columns.includes(spec.x))
-    return err(`Column "${spec.x}" is not in the last query result. ${available}`)
-  if (spec.series.includes(spec.x))
+  if (spec.series.includes(spec.x) || group === spec.x)
     return err(
-      `Use different columns for x ("${spec.x}") and series: x is the label axis and series the measure. Only stat repeats one column in both.`
+      `Use different columns for x ("${spec.x}"), group and series: x is the label axis, group the label that splits rows into lines, series the measure. Only stat repeats one column in x and series.`
     )
 
   const xIndex = columns.indexOf(spec.x)
@@ -196,29 +203,19 @@ export function prepareChart(
   const xRepeats = new Set(xValues).size < xValues.length
 
   if (spec.type === 'pie') {
-    if (group !== null)
-      return err(
-        'group applies to line and bar charts only. Chart this result as a line or bar with group, or query one row per slice and chart the pie with group null.'
-      )
     if (spec.series.length !== 1) return err('A pie chart takes exactly one series column.')
     if (xRepeats)
       return err(
         `Column "${spec.x}" repeats across rows, so slices would collide. Run a new query returning one row per ${spec.x}, then chart again.`
       )
-    return passthrough()
+    return asIs()
   }
 
   // line/bar with the model's GROUP BY column named: pivot on it, one series
   // per group value, the single series entry being the measure to plot
   if (group !== null) {
-    if (group === spec.x)
-      return err(
-        `Use different columns for x ("${spec.x}") and group: x is the bucket each row belongs to, group the other label that splits rows into lines.`
-      )
     if (spec.series.length !== 1)
       return err('With group, series must be exactly the one measure column to plot per group.')
-    const problem = seriesProblem(columns, rows, spec.series, available)
-    if (problem) return problem
     const groupIndex = columns.indexOf(group)
     const labels = new Set(rows.map((row) => groupLabel(row[groupIndex])))
     if (labels.size > MAX_CHART_SERIES)
@@ -233,7 +230,7 @@ export function prepareChart(
     return err(
       `Column "${spec.x}" repeats across rows. Either query one row per ${spec.x}, or pass group: the column whose values split the rows into series.`
     )
-  return passthrough()
+  return asIs()
 }
 
 /** a label column of a long-form result, with its distinct-value count */
