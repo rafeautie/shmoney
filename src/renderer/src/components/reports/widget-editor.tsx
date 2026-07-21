@@ -262,6 +262,7 @@ export function WidgetEditor({
                 <Label>Widget type</Label>
                 <Select
                   value={draft.type}
+                  items={TYPE_LABELS}
                   onValueChange={(type) => setDraft((d) => ({ ...d, type: type as WidgetType }))}
                 >
                   <SelectTrigger className="w-full">
@@ -286,6 +287,7 @@ export function WidgetEditor({
                   <Label>Visualization</Label>
                   <Select
                     value={config.display?.budgetView ?? 'list'}
+                    items={BUDGET_VIEW_LABELS}
                     onValueChange={(v) => patchDisplay({ budgetView: v as BudgetView })}
                   >
                     <SelectTrigger className="w-full">
@@ -319,6 +321,7 @@ export function WidgetEditor({
                     <Label>Measure</Label>
                     <Select
                       value={query.measure}
+                      items={MEASURE_LABELS}
                       onValueChange={(v) => patchQuery({ measure: v as typeof query.measure })}
                     >
                       <SelectTrigger className="w-full">
@@ -337,6 +340,7 @@ export function WidgetEditor({
                     <Label>Group by</Label>
                     <Select
                       value={query.groupBy}
+                      items={GROUP_LABELS}
                       onValueChange={(v) => patchQuery({ groupBy: v as typeof query.groupBy })}
                     >
                       <SelectTrigger className="w-full">
@@ -356,6 +360,12 @@ export function WidgetEditor({
                       <Label>Time grain</Label>
                       <Select
                         value={query.timeGrain}
+                        items={Object.entries(GRAIN_LABELS)
+                          .filter(
+                            ([value]) =>
+                              value !== 'none' || (draft.type !== 'line' && draft.type !== 'area')
+                          )
+                          .map(([value, label]) => ({ value, label }))}
                         onValueChange={(v) =>
                           patchQuery({ timeGrain: v as typeof query.timeGrain })
                         }
@@ -439,6 +449,10 @@ export function WidgetEditor({
               <h4 className="text-sm font-semibold">Filters</h4>
               <Select
                 value={filters.mode}
+                items={{
+                  inherit: 'Inherit report filters, with overrides',
+                  own: 'Independent of report filters'
+                }}
                 onValueChange={(mode) =>
                   setDraft((d) => ({
                     ...d,

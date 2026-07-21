@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
+import { format } from 'date-fns'
 import type { ColumnDef, RowSelectionState, SortingState } from '@tanstack/react-table'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDataTransferHorizontalIcon } from '@hugeicons/core-free-icons'
@@ -87,7 +88,7 @@ export function TransactionsTable({
         accessorKey: 'date',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
         cell: ({ row }) =>
-          row.original.date ? new Date(row.original.date * 1000).toLocaleDateString() : '—'
+          row.original.date ? format(new Date(row.original.date * 1000), 'MMM d, yyyy') : '—'
       },
       ...(showAccount
         ? [

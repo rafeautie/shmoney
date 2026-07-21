@@ -10,6 +10,7 @@ import {
 } from '@hugeicons/core-free-icons'
 import { usePrivacy, useTheme } from '@/lib/settings'
 import { Logo } from '@/components/logo'
+import { NavChat } from '@/components/nav-chat'
 import { NavMain } from '@/components/nav-main'
 import {
   Sidebar,
@@ -40,6 +41,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain />
+        <NavChat />
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>

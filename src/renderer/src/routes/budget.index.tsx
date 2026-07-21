@@ -19,6 +19,7 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatMonthLong } from '@/lib/format-date'
 
 export const Route = createFileRoute('/budget/')({
   component: BudgetPage
@@ -32,11 +33,6 @@ function currentMonth(): string {
 function shiftMonth(month: string, delta: number): string {
   const [y, m] = month.split('-').map(Number)
   return format(new Date(y, m - 1 + delta, 1), 'yyyy-MM')
-}
-
-function monthLabel(month: string): string {
-  const [y, m] = month.split('-').map(Number)
-  return format(new Date(y, m - 1, 1), 'MMMM yyyy')
 }
 
 // planning horizon: fills inherit forward, so anything past a year out is noise
@@ -82,7 +78,7 @@ function BudgetPage() {
               <HugeiconsIcon icon={ArrowLeft01Icon} size={16} />
               <span className="sr-only">Previous month</span>
             </Button>
-            <span className="w-36 text-center text-sm font-medium">{monthLabel(month)}</span>
+            <span className="w-36 text-center text-sm font-medium">{formatMonthLong(month)}</span>
             <Button
               variant="outline"
               size="icon"

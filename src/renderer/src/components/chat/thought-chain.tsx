@@ -1,0 +1,220 @@
+import { Fragment, useState, type ReactNode } from 'react'
+import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
+import {
+  Analytics01Icon,
+  ArrowRight01Icon,
+  BrainIcon,
+  DatabaseIcon
+} from '@hugeicons/core-free-icons'
+import type { StreamingChatPart } from '@shared/chat'
+import { cn } from '@/lib/utils'
+import { CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  ChainOfThought,
+  ChainOfThoughtContent,
+  ChainOfThoughtStep
+} from '@/components/ui/chain-of-thought'
+import { ToolCallCard } from '@/components/chat/tool-call'
+import { ChatChart } from '@/components/chat/chat-chart'
+
+// A turn's chain of thought: its reasoning and tool calls as one collapsible
+// timeline, so a turn that thinks, fires several queries and a chart reads as a
+// single summarised step rather than a stack of cards and separate thought
+// panels. Whatever the tools, and however the model interleaves thinking
+// between them, it all lands on one rail. Only text (the answer) and the drawn
+// charts live outside; the charts because a chart is the answer, not a step.
+
+/** the parts a chain is built from: a run of consecutive reasoning + tool calls */
+export type ChainPart = Extract<StreamingChatPart, { type: 'reasoning' } | { type: 'functionCall' }>
+/** one functionCall part, pending (still being written) or settled */
+type ToolPart = Extract<StreamingChatPart, { type: 'functionCall' }>
+
+/** the transcript view of one tool call: what the rail, the summary and the card show */
+interface ToolView {
+  icon: IconSvgElement
+  label: string
+  /** the call is still being written or is executing */
+  active: boolean
+  failed: boolean
+  input?: unknown
+  output?: unknown
+}
+
+/** one step on the rail: a thought (quote bar) or a tool call (icon + card) */
+type StepView =
+  | { kind: 'reasoning'; active: boolean; label: string; text: string }
+  | ({ kind: 'tool' } & ToolView)
+
+/** "12s" or "1m 5s"; sub-second thoughts round up so the label never says 0s */
+function formatThoughtDuration(ms: number): string {
+  const seconds = Math.max(1, Math.round(ms / 1000))
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
+/** "8ms" or "1.2s"; queries are usually far quicker than thoughts */
+function formatQueryDuration(ms: number): string {
+  return ms < 1000 ? `${Math.max(1, Math.round(ms))}ms` : `${(ms / 1000).toFixed(1)}s`
+}
+
+/**
+ * One tool call's view, derived straight from its part — the label wording that
+ * used to live in QueryCard/ChartCard, in one place now that the chain renders
+ * every tool. Returns null for a shape this build doesn't know (e.g. a row
+ * written before the formats merged); the chain drops it rather than guess.
+ */
+function describeTool(part: ToolPart): ToolView | null {
+  // pending: the model is still writing this call's params
+  if (part.result === undefined) {
+    const chart = part.name === 'chart'
+    return {
+      icon: chart ? Analytics01Icon : DatabaseIcon,
+      label: chart ? 'Building chart…' : 'Writing query…',
+      active: true,
+      failed: false
+    }
+  }
+  if (part.name === 'query') {
+    const { result } = part
+    const rows = `${result.rowCount ?? 0}${result.truncated ? '+' : ''} row${result.rowCount === 1 ? '' : 's'}`
+    return {
+      icon: DatabaseIcon,
+      label: result.ok
+        ? `Queried database · ${rows} · ${formatQueryDuration(result.durationMs)}`
+        : 'Query failed',
+      active: false,
+      failed: !result.ok,
+      input: part.args.sql,
+      output: result
+    }
+  }
+  if (part.name === 'chart') {
+    const drawn = part.result.ok === true && part.display != null
+    return {
+      icon: Analytics01Icon,
+      label: drawn ? 'Built chart' : 'Chart failed',
+      active: false,
+      failed: !drawn,
+      input: part.args,
+      // the model never saw the chart data, only this tiny ack/error
+      output: drawn ? { ok: true } : { ok: false, error: part.result.error ?? 'Chart failed.' }
+    }
+  }
+  return null
+}
+
+/** a part's step view, or null for an unknown tool shape (dropped from the rail) */
+function toStepView(part: ChainPart): StepView | null {
+  if (part.type === 'reasoning') {
+    if (part.durationMs === null)
+      return { kind: 'reasoning', active: true, label: 'Thinking…', text: part.text }
+    return {
+      kind: 'reasoning',
+      active: false,
+      label: `Thought for ${formatThoughtDuration(part.durationMs)}`,
+      text: part.text
+    }
+  }
+  const tool = describeTool(part)
+  return tool && { kind: 'tool', ...tool }
+}
+
+/** the drawn chart for a settled chart call, or null when there's nothing to draw */
+function chartDeliverable(part: ChainPart, asOf?: number): ReactNode {
+  if (part.type !== 'functionCall' || part.result === undefined || part.name !== 'chart')
+    return null
+  const { args: spec, display, result } = part
+  if (result.ok !== true || display == null) return null
+  return (
+    <ChatChart
+      spec={spec}
+      // parts persisted before the pivot existed carry no resolved series in
+      // their JSON, so fall back to the spec's
+      series={display.series ?? spec.series}
+      data={display.data}
+      currency={display.currency}
+      asOf={asOf}
+    />
+  )
+}
+
+/**
+ * A turn's chain of thought as one collapsible. Collapsed (the default) it
+ * summarises the run — the current step's label, plus how many tool calls ran;
+ * expanded it lays every step on a rail: thoughts as quote-bar text, tool calls
+ * as an icon beside their own expandable input/output card. The user's toggle
+ * always wins. Chart deliverables follow the chain, still visible when it's
+ * collapsed, since a chart is the answer, not a step.
+ */
+export function ThoughtChain({ parts, asOf }: { parts: ChainPart[]; asOf?: number }) {
+  const [userOpen, setUserOpen] = useState<boolean | null>(null)
+  const open = userOpen ?? false
+
+  const steps = parts.map(toStepView).filter((s): s is StepView => s !== null)
+  if (steps.length === 0) return null
+
+  const toolCount = steps.filter((s) => s.kind === 'tool').length
+  const last = steps[steps.length - 1]
+  // the summary's headline: the in-flight step while streaming, else the last
+  // tool call (the "current tool"), else the last step (a thoughts-only run)
+  const current =
+    last.active || toolCount === 0
+      ? last
+      : ([...steps].reverse().find((s) => s.kind === 'tool') ?? last)
+  const headerIcon = current.kind === 'tool' ? current.icon : BrainIcon
+  const headerFailed = current.kind === 'tool' && current.failed
+
+  return (
+    <>
+      <ChainOfThought open={open} onOpenChange={setUserOpen}>
+        <CollapsibleTrigger
+          className={cn(
+            'group/cot flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground',
+            current.active && 'animate-shimmer',
+            headerFailed && 'text-destructive hover:text-destructive'
+          )}
+        >
+          <HugeiconsIcon icon={headerIcon} strokeWidth={2} className="size-3.5" />
+          <span className="text-left">{current.label}</span>
+          {toolCount > 1 && <span className="opacity-70">· {toolCount} calls</span>}
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            strokeWidth={2}
+            className="-ml-0.5 size-3.5 group-data-panel-open/cot:rotate-90"
+          />
+        </CollapsibleTrigger>
+        <ChainOfThoughtContent>
+          {steps.map((step, i) =>
+            step.kind === 'reasoning' ? (
+              // no icon: the header's brain stands for the thought, and the rail
+              // runs beside its text as a quote bar (see ChainOfThoughtStep)
+              <ChainOfThoughtStep key={i} status={step.active ? 'active' : 'complete'}>
+                <div className="text-xs/relaxed whitespace-pre-wrap text-muted-foreground">
+                  {step.text}
+                </div>
+              </ChainOfThoughtStep>
+            ) : (
+              <ChainOfThoughtStep
+                key={i}
+                icon={step.icon}
+                status={step.active ? 'active' : 'complete'}
+              >
+                <ToolCallCard
+                  label={step.label}
+                  active={step.active}
+                  failed={step.failed}
+                  input={step.input}
+                  output={step.output}
+                />
+              </ChainOfThoughtStep>
+            )
+          )}
+        </ChainOfThoughtContent>
+      </ChainOfThought>
+      {parts.map((part, i) => {
+        const chart = chartDeliverable(part, asOf)
+        return chart && <Fragment key={i}>{chart}</Fragment>
+      })}
+    </>
+  )
+}

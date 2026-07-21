@@ -14,6 +14,7 @@ import {
   SidebarMenuItem
 } from '@/components/ui/sidebar'
 
+// Chat lives in its own sidebar section (NavChat), rendered below this group.
 const BASE_NAV_ITEMS = [
   { to: '/accounts', label: 'Accounts', fuzzy: true, icon: Wallet01Icon },
   { to: '/budget', label: 'Budget', fuzzy: true, icon: PiggyBankIcon },

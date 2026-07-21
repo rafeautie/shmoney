@@ -148,6 +148,27 @@
       "when": 1784184012887,
       "tag": "0020_freezing_trish_tilby",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1784199709512,
+      "tag": "0021_eager_bishop",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1784223492943,
+      "tag": "0022_broad_giant_girl",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1784297029147,
+      "tag": "0023_late_prowler",
+      "breakpoints": true
     }
   ]
 }

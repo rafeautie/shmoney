@@ -119,6 +119,12 @@ export interface Page<T> {
   total: number
 }
 
+/** Counts over the visible (non-deleted) transactions; uncategorized = category_id IS NULL. */
+export interface TransactionStats {
+  total: number
+  uncategorized: number
+}
+
 export const connectInputSchema = z.object({
   setupToken: z.string().trim().min(1)
 })
@@ -209,7 +215,26 @@ export interface BudgetActionChange {
   after: number | null
 }
 
-export type ActionChange = TransactionActionChange | BudgetActionChange
+/** A chat conversation rename or soft delete. Field names are prefixed so they
+ *  can't collide with the transaction fields. */
+export type ConversationActionChange =
+  | {
+      field: 'conversationTitle'
+      conversationId: number
+      before: string | null
+      after: string
+    }
+  | {
+      field: 'conversationDeletedAt'
+      conversationId: number
+      /** the title at delete time, for the Activity list */
+      title: string | null
+      /** unix milliseconds (conversations.deletedAt convention) */
+      before: number | null
+      after: number | null
+    }
+
+export type ActionChange = TransactionActionChange | BudgetActionChange | ConversationActionChange
 
 /** A change enriched with its current context, for the Activity list. */
 export type ActionLogChange =
@@ -227,6 +252,7 @@ export type ActionLogChange =
       /** dominant account currency, for display */
       currency: string
     })
+  | ConversationActionChange
 
 export interface ActionLogEntry {
   id: number
@@ -279,6 +305,7 @@ export const IPC = {
   accountHoldings: 'accounts:holdings',
   accountTransactions: 'accounts:transactions',
   transactionsList: 'transactions:list',
+  transactionsStats: 'transactions:stats',
   transactionsSetCategories: 'transactions:setCategories',
   transactionsBulkDelete: 'transactions:bulkDelete',
   categoriesList: 'categories:list',

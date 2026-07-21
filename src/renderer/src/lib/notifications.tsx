@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useIsMutating } from '@tanstack/react-query'
-import { LLM_MODEL, type CategorizeProgress } from '@shared/llm'
+import { LLM_MODELS, MODEL_IDS, type CategorizeProgress } from '@shared/llm'
 import { CATEGORIZE_MUTATION_KEY, useLlmDownloadProgress, useLlmStatus } from '@/lib/llm'
 import { useUpdateState } from '@/lib/updates'
 
@@ -42,29 +42,35 @@ function useCancelable(
 }
 
 function useDownloadNotification(): Notification | null {
-  const stage = useLlmStatus().data?.stage
+  const models = useLlmStatus().data?.models
+  const progressByModel = useLlmDownloadProgress()
+  // at most one model downloads at a time, so the first match is the active one
+  const activeId =
+    MODEL_IDS.find(
+      (id) => models?.[id].stage === 'downloading' || models?.[id].stage === 'verifying'
+    ) ?? null
+  const stage = activeId ? models?.[activeId].stage : undefined
   const downloading = stage === 'downloading'
-  const progress = useLlmDownloadProgress()
-  const { canceling, cancel } = useCancelable(
-    downloading,
-    () => void window.api.llm.cancelDownload()
-  )
+  const progress = activeId ? progressByModel[activeId] : null
+  const { canceling, cancel } = useCancelable(downloading, () => {
+    if (activeId) void window.api.llm.cancelDownload(activeId)
+  })
 
   // the post-download hash check: still the same job, but past cancelling
-  if (stage === 'verifying') {
+  if (stage === 'verifying' && activeId) {
     return {
       id: 'llm-download',
-      title: `Verifying ${LLM_MODEL.label}`,
+      title: `Verifying ${LLM_MODELS[activeId].label}`,
       percent: 100,
       detail: 'Checking file integrity…',
       canceling: false
     }
   }
 
-  if (!downloading) return null
+  if (!downloading || !activeId) return null
   return {
     id: 'llm-download',
-    title: `Downloading ${LLM_MODEL.label}`,
+    title: `Downloading ${LLM_MODELS[activeId].label}`,
     percent:
       progress && progress.totalBytes > 0
         ? (progress.downloadedBytes / progress.totalBytes) * 100

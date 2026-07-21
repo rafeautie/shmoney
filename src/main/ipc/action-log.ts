@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { and, desc, eq, gt, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
-import { accounts, actionLog, budgets, categories, transactions } from '../db/schema'
+import { accounts, actionLog, budgets, categories, conversations, transactions } from '../db/schema'
 import { dominantCurrency } from '../budgets/summary'
 import { transactionDate } from './transactions-page'
 import {
@@ -12,6 +12,7 @@ import {
   type ActionLogEntry,
   type ActionSource,
   type BudgetActionChange,
+  type ConversationActionChange,
   type TransactionActionChange,
   type UndoResult
 } from '@shared/ipc'
@@ -120,6 +121,32 @@ function setBudgetGuarded(
     .run().changes
 }
 
+// same guarded semantics for a conversation's title or soft-delete timestamp.
+// target/guard are computed here (not in applyEntry) so each variant's types
+// stay homogeneous: title is string, deletedAt is a number.
+function setConversationGuarded(
+  tx: Tx,
+  change: ConversationActionChange,
+  direction: 'undo' | 'redo'
+): number {
+  if (change.field === 'conversationTitle') {
+    const target = direction === 'undo' ? change.before : change.after
+    const guard = direction === 'undo' ? change.after : change.before
+    const where = and(
+      eq(conversations.id, change.conversationId),
+      guard === null ? isNull(conversations.title) : sql`${conversations.title} = ${guard}`
+    )
+    return tx.update(conversations).set({ title: target }).where(where).run().changes
+  }
+  const target = direction === 'undo' ? change.before : change.after
+  const guard = direction === 'undo' ? change.after : change.before
+  const where = and(
+    eq(conversations.id, change.conversationId),
+    guard === null ? isNull(conversations.deletedAt) : sql`${conversations.deletedAt} = ${guard}`
+  )
+  return tx.update(conversations).set({ deletedAt: target }).where(where).run().changes
+}
+
 // undo rewinds each field to `before` (guarding on `after`); redo does the
 // reverse. Either way the guard makes it a no-op on rows touched since, so an
 // old entry can never clobber newer edits. Returns rows actually changed.
@@ -130,12 +157,17 @@ function applyEntry(entryId: number, direction: 'undo' | 'redo'): UndoResult {
 
     let applied = 0
     for (const change of entry.changes) {
-      const target = direction === 'undo' ? change.before : change.after
-      const guard = direction === 'undo' ? change.after : change.before
-      applied +=
-        change.field === 'budgetAmount'
-          ? setBudgetGuarded(tx, change, target, guard)
-          : setGuarded(tx, change.field, change.transactionId, target, guard)
+      if (change.field === 'budgetAmount') {
+        const target = direction === 'undo' ? change.before : change.after
+        const guard = direction === 'undo' ? change.after : change.before
+        applied += setBudgetGuarded(tx, change, target, guard)
+      } else if (change.field === 'conversationTitle' || change.field === 'conversationDeletedAt') {
+        applied += setConversationGuarded(tx, change, direction)
+      } else {
+        const target = direction === 'undo' ? change.before : change.after
+        const guard = direction === 'undo' ? change.after : change.before
+        applied += setGuarded(tx, change.field, change.transactionId, target, guard)
+      }
     }
 
     tx.update(actionLog)
@@ -188,7 +220,9 @@ function listEntries(): ActionLogEntry[] {
   const txIds = [
     ...new Set(
       allChanges
-        .filter((c): c is TransactionActionChange => c.field !== 'budgetAmount')
+        .filter(
+          (c): c is TransactionActionChange => c.field === 'categoryId' || c.field === 'deletedAt'
+        )
         .map((c) => c.transactionId)
     )
   ]
@@ -235,6 +269,9 @@ function listEntries(): ActionLogEntry[] {
     changes: row.changes.map((change) => {
       if (change.field === 'budgetAmount') {
         return { ...change, categoryName: catById.get(change.categoryId) ?? null, currency }
+      }
+      if (change.field === 'conversationTitle' || change.field === 'conversationDeletedAt') {
+        return change
       }
       const t = byId.get(change.transactionId)
       return {

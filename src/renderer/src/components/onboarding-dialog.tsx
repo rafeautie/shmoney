@@ -6,6 +6,7 @@ import {
   Analytics01Icon,
   ArrowLeftIcon,
   ArrowRightIcon,
+  BubbleChatIcon,
   Exchange01Icon,
   MailOpen01Icon,
   PiggyBankIcon,
@@ -18,7 +19,9 @@ import {
 import { ipcErrorMessage, cn } from '@/lib/utils'
 import { useOnboarding } from '@/lib/settings'
 import { useConnectSimpleFin } from '@/hooks/use-connect-simplefin'
+import { ExperimentalBadge } from '@/components/experimental-badge'
 import { Logo } from '@/components/logo'
+import { ModelPicker } from '@/components/model-picker'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,7 +35,7 @@ import {
 
 type IconType = React.ComponentProps<typeof HugeiconsIcon>['icon']
 
-const STEP_COUNT = 5
+const STEP_COUNT = 6
 
 /** First-run onboarding. Auto-opens whenever onboarding hasn't been finished or
  * skipped — fresh installs default to not-complete. Users can replay it any time
@@ -87,15 +90,16 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
         onDone()
       }}
     >
-      <DialogContent className="flex h-108 flex-col gap-0 p-6 min-w-3xl">
+      <DialogContent className="flex min-h-120 flex-col gap-0 p-6 min-w-3xl">
         <Logo />
-        {/* fixed-height body so the footer stays put as steps change height */}
+        {/* min-height keeps short steps roomy; taller steps let the card grow */}
         <div className="mt-5 flex-1 space-y-4 overflow-y-auto">
           {step === 0 && <WelcomeStep />}
           {step === 1 && <FeaturesStep />}
-          {step === 2 && <BudgetsStep />}
-          {step === 3 && <SimpleFinStep />}
-          {step === 4 && (
+          {step === 2 && <ModelStep />}
+          {step === 3 && <BudgetsStep />}
+          {step === 4 && <SimpleFinStep />}
+          {step === 5 && (
             <PasteTokenStep
               setupToken={setupToken}
               onChange={setSetupToken}
@@ -200,7 +204,33 @@ function FeaturesStep(): React.JSX.Element {
         <FeatureItem icon={Exchange01Icon} title="Transfers handled for you">
           Movements between your own accounts stay out of your income and expense totals.
         </FeatureItem>
+        <FeatureItem
+          icon={BubbleChatIcon}
+          title="Chat with your finances"
+          badge={<ExperimentalBadge />}
+        >
+          Ask a local, on-device model about your money; it queries your data and charts the answer,
+          fully offline.
+        </FeatureItem>
       </div>
+    </>
+  )
+}
+
+function ModelStep(): React.JSX.Element {
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Choose your AI model</DialogTitle>
+        <DialogDescription>
+          Auto-categorize and chat run on a private model that lives on this device. Pick one to
+          download now, or skip and set it up later in Settings; the pick that best fits this
+          computer is recommended.
+        </DialogDescription>
+      </DialogHeader>
+      {/* the same picker used in Settings: choosing a model downloads it in the
+          background, and the notification center tracks the download from here */}
+      <ModelPicker />
     </>
   )
 }
@@ -357,10 +387,12 @@ function Spinner(): React.JSX.Element {
 function FeatureItem({
   icon,
   title,
+  badge,
   children
 }: {
   icon: IconType
   title: string
+  badge?: React.ReactNode
   children: React.ReactNode
 }): React.JSX.Element {
   return (
@@ -369,7 +401,10 @@ function FeatureItem({
         <HugeiconsIcon icon={icon} size={16} />
       </div>
       <div className="space-y-0.5">
-        <p className="font-medium text-foreground">{title}</p>
+        <p className="flex items-center gap-2 font-medium text-foreground">
+          {title}
+          {badge}
+        </p>
         <p className="text-muted-foreground">{children}</p>
       </div>
     </div>

@@ -4,7 +4,8 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 
 export default tseslint.config(
-  { ignores: ['**/node_modules', '**/out', '**/dist', '**/drizzle', '**/*.gen.ts'] },
+  // .claude holds agent skill scripts (CDP drivers etc.), not app code
+  { ignores: ['**/node_modules', '**/out', '**/dist', '**/drizzle', '**/*.gen.ts', '.claude'] },
   tseslint.configs.recommended,
   {
     rules: {
@@ -30,7 +31,9 @@ export default tseslint.config(
       'react-hooks/incompatible-library': 'off',
       'react-refresh/only-export-components': [
         'warn',
-        { allowExportNames: ['buttonVariants', 'badgeVariants', 'useTheme', 'useSidebar'] }
+        {
+          allowExportNames: ['buttonVariants', 'badgeVariants', 'useTheme', 'useSidebar']
+        }
       ]
     }
   },

@@ -56,8 +56,10 @@ Description: "${description}"`
  * generate() as usual.
  */
 export async function extractRuleTerm(description: string): Promise<string | null> {
-  const { stage } = llmManager.getStatus()
-  if (stage !== 'ready' && stage !== 'downloaded') return null
+  // best effort: only proceed when the selected model is on disk (it loads on
+  // demand); never triggers a download
+  const status = llmManager.getStatus()
+  if (status.models[status.selected].stage !== 'downloaded') return null
   try {
     const raw = await enqueueGenerate(() => llmManager.generate(buildPrompt(description), SCHEMA))
     const parsed = generatedSchema.safeParse(raw)

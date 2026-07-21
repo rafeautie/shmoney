@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CategoryPicker } from '@/components/category-picker'
-import { useAutoCategorize, useLlmReady } from '@/lib/llm'
+import { useAutoCategorize, useLlmReady, useLlmSupported } from '@/lib/llm'
 
 interface TransactionsBulkActionsProps {
   /** The selected transactions currently visible under the active filters */
@@ -26,6 +26,7 @@ export function TransactionsBulkActions({
 }: TransactionsBulkActionsProps) {
   const queryClient = useQueryClient()
   const llmReady = useLlmReady()
+  const supported = useLlmSupported()
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -114,7 +115,13 @@ export function TransactionsBulkActions({
           size="lg"
           className="text-sm"
           disabled={!llmReady || busy || autoCategorize.anyRunning}
-          title={llmReady ? 'Auto-categorize (a)' : 'Download a model in Settings to use this'}
+          title={
+            llmReady
+              ? 'Auto-categorize (a)'
+              : supported
+                ? 'Download a model in Settings to use this'
+                : "Your hardware can't run the local model"
+          }
           onClick={() => autoCategorize.start()}
         >
           Auto-categorize

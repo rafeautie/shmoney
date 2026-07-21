@@ -21,6 +21,7 @@ import {
   type Transaction,
   type TransactionIdsInput,
   type TransactionsSetCategoriesInput,
+  type TransactionStats,
   type UndoResult
 } from '@shared/ipc'
 import {
@@ -37,8 +38,11 @@ import {
   LLM_IPC,
   type CategorizeProgress,
   type CategorizeResult,
+  type HardwareInfo,
   type LlmDownloadProgress,
-  type LlmStatus
+  type LlmStatus,
+  type ModelDiskSizes,
+  type ModelId
 } from '@shared/llm'
 import {
   RULES_IPC,
@@ -79,6 +83,17 @@ import {
   type ImportPreviewInput,
   type PickFileResult
 } from '@shared/import'
+import {
+  CHAT_IPC,
+  type ChatMessageDoneEvent,
+  type ChatPartEvent,
+  type Conversation,
+  type ConversationMessages,
+  type RenameConversationInput,
+  type SendChatInput,
+  type SendChatResult,
+  type SetConversationAccountInput
+} from '@shared/chat'
 import { UPDATES_IPC, type UpdateState } from '@shared/updates'
 import { DIAGNOSTICS_IPC, LOG_IPC, type LogWriteInput } from '@shared/diagnostics'
 import {
@@ -111,6 +126,8 @@ const api = {
   transactions: {
     list: (query: FilteredTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(IPC.transactionsList, query),
+    /** Visible-row counts: total and how many are still uncategorized */
+    stats: (): Promise<TransactionStats> => ipcRenderer.invoke(IPC.transactionsStats),
     /** Per-row category values; skips pending rows, resolves to rows updated */
     setCategories: (input: TransactionsSetCategoriesInput): Promise<number> =>
       ipcRenderer.invoke(IPC.transactionsSetCategories, input),
@@ -238,12 +255,20 @@ const api = {
   },
   llm: {
     getStatus: (): Promise<LlmStatus> => ipcRenderer.invoke(LLM_IPC.getStatus),
-    /** Downloaded model file size in bytes, or null if it isn't on disk */
-    getDiskSize: (): Promise<number | null> => ipcRenderer.invoke(LLM_IPC.getDiskSize),
-    download: (): Promise<LlmStatus> => ipcRenderer.invoke(LLM_IPC.download),
-    cancelDownload: (): Promise<void> => ipcRenderer.invoke(LLM_IPC.cancelDownload),
-    /** Remove the downloaded model file to reclaim disk space */
-    deleteModel: (): Promise<LlmStatus> => ipcRenderer.invoke(LLM_IPC.deleteModel),
+    /** Downloaded file size in bytes per model; null for a model not on disk */
+    getDiskSizes: (): Promise<ModelDiskSizes> => ipcRenderer.invoke(LLM_IPC.getDiskSizes),
+    /** Total system RAM, for computing which models this machine can run */
+    getHardware: (): Promise<HardwareInfo> => ipcRenderer.invoke(LLM_IPC.getHardware),
+    download: (modelId: ModelId): Promise<LlmStatus> =>
+      ipcRenderer.invoke(LLM_IPC.download, modelId),
+    cancelDownload: (modelId: ModelId): Promise<void> =>
+      ipcRenderer.invoke(LLM_IPC.cancelDownload, modelId),
+    /** Remove a downloaded model file to reclaim disk space */
+    deleteModel: (modelId: ModelId): Promise<LlmStatus> =>
+      ipcRenderer.invoke(LLM_IPC.deleteModel, modelId),
+    /** Switch which model inference uses; loads on next generate */
+    selectModel: (modelId: ModelId): Promise<LlmStatus> =>
+      ipcRenderer.invoke(LLM_IPC.selectModel, modelId),
     /** Auto-categorize a scope — a selection, one account, or (scope omitted) everything */
     categorize: (scope?: CategorizeScopeInput): Promise<CategorizeResult> =>
       ipcRenderer.invoke(LLM_IPC.categorize, scope ?? {}),
@@ -266,6 +291,41 @@ const api = {
         callback(progress)
       ipcRenderer.on(LLM_IPC.categorizeProgress, listener)
       return () => ipcRenderer.removeListener(LLM_IPC.categorizeProgress, listener)
+    }
+  },
+  chat: {
+    listConversations: (): Promise<Conversation[]> =>
+      ipcRenderer.invoke(CHAT_IPC.listConversations),
+    /** the rows plus where the model's replay window starts (truncation marker) */
+    listMessages: (conversationId: number): Promise<ConversationMessages> =>
+      ipcRenderer.invoke(CHAT_IPC.listMessages, conversationId),
+    /**
+     * Send one turn (null conversationId creates the conversation). Resolves
+     * once accepted; the reply arrives via onPart/onMessageDone pushes.
+     */
+    send: (input: SendChatInput): Promise<SendChatResult> =>
+      ipcRenderer.invoke(CHAT_IPC.send, input),
+    /** Stop the in-flight reply; its partial text still lands via onMessageDone */
+    stop: (): Promise<void> => ipcRenderer.invoke(CHAT_IPC.stop),
+    rename: (input: RenameConversationInput): Promise<boolean> =>
+      ipcRenderer.invoke(CHAT_IPC.renameConversation, input),
+    /** Narrow (or widen, accountId null) the conversation's query scope; next turn on */
+    setAccount: (input: SetConversationAccountInput): Promise<boolean> =>
+      ipcRenderer.invoke(CHAT_IPC.setConversationAccount, input),
+    /** Soft delete; resolves to the action-log entry id (null when nothing was deleted) */
+    delete: (id: number): Promise<number | null> =>
+      ipcRenderer.invoke(CHAT_IPC.deleteConversation, id),
+    onPart: (callback: (event: ChatPartEvent) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, event: ChatPartEvent): void =>
+        callback(event)
+      ipcRenderer.on(CHAT_IPC.part, listener)
+      return () => ipcRenderer.removeListener(CHAT_IPC.part, listener)
+    },
+    onMessageDone: (callback: (event: ChatMessageDoneEvent) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, event: ChatMessageDoneEvent): void =>
+        callback(event)
+      ipcRenderer.on(CHAT_IPC.messageDone, listener)
+      return () => ipcRenderer.removeListener(CHAT_IPC.messageDone, listener)
     }
   },
   updates: {

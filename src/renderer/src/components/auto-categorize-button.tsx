@@ -1,7 +1,7 @@
 import type { CategorizeScopeInput } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useAutoCategorize, useLlmReady } from '@/lib/llm'
+import { useAutoCategorize, useLlmReady, useLlmSupported } from '@/lib/llm'
 
 /**
  * Header action that auto-categorizes a scope — a whole account when given an
@@ -12,6 +12,7 @@ import { useAutoCategorize, useLlmReady } from '@/lib/llm'
  */
 export function AutoCategorizeButton({ scope }: { scope: CategorizeScopeInput }) {
   const llmReady = useLlmReady()
+  const supported = useLlmSupported()
   const autoCategorize = useAutoCategorize(scope)
 
   const button = (
@@ -32,7 +33,11 @@ export function AutoCategorizeButton({ scope }: { scope: CategorizeScopeInput })
     return (
       <Tooltip>
         <TooltipTrigger render={<span className="inline-flex shrink-0" />}>{button}</TooltipTrigger>
-        <TooltipContent>Download a model in Settings to use this</TooltipContent>
+        <TooltipContent>
+          {supported
+            ? 'Download a model in Settings to use this'
+            : "Your hardware can't run the local model"}
+        </TooltipContent>
       </Tooltip>
     )
   }

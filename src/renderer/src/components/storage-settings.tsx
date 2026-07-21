@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 // Fixed table→bucket→color mapping so a bucket keeps its color no matter how
 // sizes shift. The bucket order is also the display order; adjacent-color
-// contrast was validated for the full sequence (blue/amber/emerald/violet,
+// contrast was validated for the full sequence (blue/amber/emerald/violet/teal,
 // then the slate "Other" and rose LLM segments appended below).
 const BUCKETS = [
   { label: 'Transactions', tables: ['transactions'], color: 'var(--chart-1)' },
@@ -14,7 +14,8 @@ const BUCKETS = [
     tables: ['category_groups', 'categories', 'rules', 'rule_suggestions'],
     color: 'var(--chart-3)'
   },
-  { label: 'Activity log', tables: ['action_log'], color: 'var(--chart-5)' }
+  { label: 'Activity log', tables: ['action_log'], color: 'var(--chart-5)' },
+  { label: 'Chat', tables: ['conversations', 'chat_messages'], color: 'var(--chart-6)' }
 ]
 // low-chroma slate so the remainder reads as background, not a series
 const OTHER_COLOR = 'var(--chart-10)'
@@ -44,10 +45,10 @@ export function StorageSettings() {
     queryKey: ['storage', 'databaseSize'],
     queryFn: () => window.api.storage.getDatabaseSize()
   })
-  // same key as the Local LLM card, so model downloads/deletes refresh this too
+  // under the shared 'llm' key, so model downloads/deletes refresh this too
   const llmSize = useQuery({
-    queryKey: ['llm', 'diskSize'],
-    queryFn: () => window.api.llm.getDiskSize()
+    queryKey: ['llm', 'diskSizes'],
+    queryFn: () => window.api.llm.getDiskSizes()
   })
 
   const barRef = useRef<HTMLDivElement>(null)
@@ -83,7 +84,10 @@ export function StorageSettings() {
   }
 
   const data = llmSize.isPending ? undefined : size.data
-  const llmBytes = llmSize.data ?? 0
+  // both models can be on disk at once; the LLM segment is their combined size
+  const llmBytes = llmSize.data
+    ? Object.values(llmSize.data).reduce((sum: number, bytes) => sum + (bytes ?? 0), 0)
+    : 0
   let segments: { label: string; bytes: number; color: string }[] = []
   if (data) {
     const byTable = new Map(data.tables.map((t) => [t.name, t.bytes]))
