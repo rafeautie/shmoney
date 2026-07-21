@@ -114,6 +114,40 @@ export function loadEnabledRules(): Rule[] {
   return db.transaction((tx) => loadApplicableRules(tx))
 }
 
+/**
+ * Delete rules whose target category no longer exists. action.categoryId is a
+ * loose JSON reference (no FK), so removing a category orphans the rule:
+ * loadApplicableRules skips it at apply time, yet the row lingers in the list
+ * still showing as enabled. Called after any category removal (single delete,
+ * group delete, reset-to-defaults). Only prunes rules whose categoryId is a
+ * valid number pointing at a now-missing category; a rule with malformed JSON is
+ * left alone (handled defensively elsewhere). Returns the number deleted.
+ */
+export function pruneOrphanedRules(): number {
+  return db.transaction((tx) => {
+    const existing = new Set(
+      tx
+        .select({ id: categories.id })
+        .from(categories)
+        .all()
+        .map((c) => c.id)
+    )
+    const orphaned = tx
+      .select({ id: rules.id, action: rules.action })
+      .from(rules)
+      .all()
+      .filter((r) => {
+        const categoryId = (r.action as { categoryId?: unknown }).categoryId
+        return typeof categoryId === 'number' && !existing.has(categoryId)
+      })
+      .map((r) => r.id)
+    if (orphaned.length === 0) return 0
+    tx.delete(rules).where(inArray(rules.id, orphaned)).run()
+    log.info('rules.pruned-orphaned', { count: orphaned.length })
+    return orphaned.length
+  })
+}
+
 // Narrows which rows a run considers: an explicit id list or a single account.
 // Omitted (or empty) means every untouched row, the sync/manual-apply default.
 export interface RuleApplyScope {

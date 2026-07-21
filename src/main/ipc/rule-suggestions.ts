@@ -210,6 +210,28 @@ function listSuggestions(): RuleSuggestion[] {
   )
 }
 
+/**
+ * Delete suggestions that no transaction backs anymore. Called after a
+ * disconnect wipes synced accounts and their transactions: a suggestion whose
+ * phrase now matches nothing can never resurface on its own (nothing left to
+ * grow the cluster), so the list's hide-don't-delete treatment would just leave
+ * a dead row behind forever, along with the "new rule suggestion" notification
+ * it produced. Suggestions still matching surviving manual-account transactions
+ * are kept — those aren't stale, they just lost their synced siblings. Runs
+ * across every status (pending/dismissed/accepted), since an orphaned dismissal
+ * or acceptance is equally dead weight. Returns the number pruned.
+ */
+export function pruneOrphanedSuggestions(): number {
+  const rows = db
+    .select({ id: ruleSuggestions.id, phrase: ruleSuggestions.phrase })
+    .from(ruleSuggestions)
+    .all()
+  const orphaned = rows.filter((r) => countMatching(r.phrase) === 0).map((r) => r.id)
+  if (orphaned.length === 0) return 0
+  db.delete(ruleSuggestions).where(inArray(ruleSuggestions.id, orphaned)).run()
+  return orphaned.length
+}
+
 function setStatus(id: number, status: 'dismissed' | 'accepted'): boolean {
   db.update(ruleSuggestions)
     .set({ status, updatedAt: Date.now() })

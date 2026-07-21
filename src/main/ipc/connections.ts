@@ -16,6 +16,7 @@ import { claimAccessUrl, fetchAccounts, parseAmount, SfinErrlistError } from '..
 import { transactionsPage, transactionDate } from './transactions-page'
 import { recordAction } from './action-log'
 import { applyRulesInTx } from './rules'
+import { pruneOrphanedSuggestions } from './rule-suggestions'
 import { detectTransferPairs, TRANSFER_WINDOW_SECONDS } from '../transfers'
 import {
   IPC,
@@ -316,12 +317,17 @@ export function registerConnectionsIpc(): void {
   })
 
   ipcMain.handle(IPC.connectionDisconnect, () => {
-    // cascades to accounts and transactions; the audit log has no FK, so clear
-    // it too rather than leave entries pointing at deleted transactions. Rule
-    // suggestions stay: manual-account clusters remain valid, and listing hides
-    // any whose transactions are now gone
+    // deleting the connection cascades to its accounts, their transactions and
+    // holdings. Manual accounts (null connectionId) and their transactions are
+    // untouched. Then clean up everything that pointed at the now-deleted data:
+    // - the audit log has no FK, so clear it rather than leave orphaned entries
+    // - rule suggestions backed only by the deleted transactions are orphaned;
+    //   prune those (keeping any still matching surviving manual-account rows)
+    //   so no stale suggestion or its notification lingers. Runs after the
+    //   cascade so the match counts reflect what's actually left.
     db.delete(connections).run()
     db.delete(actionLog).run()
+    pruneOrphanedSuggestions()
     return true
   })
 
@@ -379,6 +385,10 @@ export function registerConnectionsIpc(): void {
     // cascades to transactions and holdings; action_log entries pointing at the
     // deleted transactions are safe — undo/redo's guarded writes no-op on missing rows
     db.delete(accounts).where(eq(accounts.id, id)).run()
+    // same cleanup the disconnect path does: a suggestion whose cluster lived
+    // only on this account now backs nothing, so drop it (and its notification)
+    // rather than leave a dead row hidden in the list forever
+    pruneOrphanedSuggestions()
     return true
   })
 

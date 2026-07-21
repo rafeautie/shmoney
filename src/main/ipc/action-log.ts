@@ -1,8 +1,9 @@
 import { ipcMain } from 'electron'
-import { and, desc, eq, gt, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, actionLog, budgets, categories, conversations, transactions } from '../db/schema'
 import { dominantCurrency } from '../budgets/summary'
+import { createLogger } from '../logging'
 import { transactionDate } from './transactions-page'
 import {
   ACTION_LOG_IPC,
@@ -20,6 +21,8 @@ import {
 // the drizzle transaction handle passed to db.transaction() callbacks
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
+const log = createLogger('action-log')
+
 // the only columns undo/redo may rewrite. Keys match ActionField (and the
 // drizzle schema props), so a change can never target an arbitrary column.
 const EDITABLE_FIELDS = {
@@ -30,6 +33,13 @@ const EDITABLE_FIELDS = {
 // how many recent entries the Activity page shows (undo/redo still reach older
 // rows by id; this only bounds the list payload)
 const LIST_LIMIT = 200
+
+// applied entries (undoneAt null) are the permanent Activity history and are
+// never purged. An entry the user undid and left undone, though, is dead weight
+// once it's old: redo is session-scoped, so a months-old undone entry won't be
+// redone and only bloats the table. This window keeps recent undos redoable
+// across a restart while letting the clearly-abandoned ones go.
+const UNDONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 // newest entry id at launch. Keyboard undo/redo only reach entries created after
 // this, so a stray Ctrl+Z can't rewind a previous session's work. Set once when
@@ -286,7 +296,20 @@ function listEntries(): ActionLogEntry[] {
   }))
 }
 
+// compact the log at startup: drop entries that have sat undone longer than the
+// retention window. Applied history stays intact — only abandoned undos go.
+function purgeStaleUndoneEntries(): void {
+  const cutoff = Date.now() - UNDONE_RETENTION_MS
+  const removed = db
+    .delete(actionLog)
+    .where(and(isNotNull(actionLog.undoneAt), lt(actionLog.undoneAt, cutoff)))
+    .run().changes
+  if (removed > 0) log.info('action-log.purged-stale-undone', { count: removed })
+}
+
 export function registerActionLogIpc(): void {
+  purgeStaleUndoneEntries()
+
   // snapshot the newest entry so keyboard undo/redo can tell this session's
   // actions apart from earlier ones
   const newest = db

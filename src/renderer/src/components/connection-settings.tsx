@@ -132,7 +132,7 @@ export function ConnectionSettings() {
           </SettingAction>
           <SettingAction
             label="Disconnect"
-            description="Remove all synced accounts and transactions from this device."
+            description="Remove all synced accounts and transactions, along with their history and rule suggestions, from this device."
           >
             <Button variant="outline" onClick={() => setConfirmingDisconnect(true)}>
               Disconnect
@@ -145,7 +145,7 @@ export function ConnectionSettings() {
         open={confirmingDisconnect}
         onOpenChange={setConfirmingDisconnect}
         title="Disconnect SimpleFIN?"
-        description="Disconnecting deletes all synced accounts and transactions from this device."
+        description="This deletes all synced accounts and transactions from this device, along with their activity history and any rule suggestions they produced. Your manual accounts and saved rules are kept."
         confirmLabel="Disconnect"
         pendingLabel="Disconnecting…"
         pending={disconnect.isPending}

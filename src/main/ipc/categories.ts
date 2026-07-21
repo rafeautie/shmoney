@@ -3,6 +3,7 @@ import { asc, eq } from 'drizzle-orm'
 import { db } from '../db'
 import { categoryGroups, categories } from '../db/schema'
 import { resetCategoriesToDefaults } from '../db/defaults'
+import { pruneOrphanedRules } from './rules'
 import {
   IPC,
   idSchema,
@@ -97,6 +98,8 @@ export function registerCategoriesIpc(): void {
     const id = idSchema.parse(input)
     // cascades to the group's categories; their transactions become uncategorized
     db.delete(categoryGroups).where(eq(categoryGroups.id, id)).run()
+    // rules targeting any of those now-deleted categories are orphaned (no FK); drop them
+    pruneOrphanedRules()
     return true
   })
 
@@ -136,11 +139,17 @@ export function registerCategoriesIpc(): void {
     assertNotSystem(id)
     // FK sets assigned transactions' category to null
     db.delete(categories).where(eq(categories.id, id)).run()
+    // a rule that targeted this category is now orphaned (no FK); drop it
+    pruneOrphanedRules()
     return true
   })
 
   ipcMain.handle(IPC.categoriesResetDefaults, () => {
     resetCategoriesToDefaults()
+    // reset replaces every user category with fresh ids, so any rule that
+    // targeted an old one is now orphaned; drop those (runs outside the reset
+    // transaction so it doesn't nest)
+    pruneOrphanedRules()
     return listCategories()
   })
 }
