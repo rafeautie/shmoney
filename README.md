@@ -9,7 +9,7 @@
 
 <p align="center">
   <img alt="badge" src="https://shieldcn.dev/badge/SQLite.svg?size=xs&amp;font=geist&amp;logo=sqlite&amp;logoColor=ffffff&amp;color=1a493b&amp;gap=7">
-  <picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/Gemma%204%20E2B.svg?size=xs&amp;theme=blue&amp;font=geist&amp;logo=ri%3AFaGoogle&amp;logoColor=ffffff&amp;gap=7&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/badge/Gemma%204%20E2B.svg?size=xs&amp;theme=blue&amp;font=geist&amp;logo=ri%3AFaGoogle&amp;logoColor=ffffff&amp;gap=7&amp;mode=light"></picture>
+  <picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/Gemma%204.svg?size=xs&amp;theme=blue&amp;font=geist&amp;logo=ri%3AFaGoogle&amp;logoColor=ffffff&amp;gap=7&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/badge/Gemma%204.svg?size=xs&amp;theme=blue&amp;font=geist&amp;logo=ri%3AFaGoogle&amp;logoColor=ffffff&amp;gap=7&amp;mode=light"></picture>
   <picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/Secure%20&amp;%20Private.svg?size=xs&amp;theme=rose&amp;font=geist&amp;logo=lu%3ALock&amp;logoColor=ffffff&amp;gap=8&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/badge/Secure%20&amp;%20Private.svg?size=xs&amp;theme=rose&amp;font=geist&amp;logo=lu%3ALock&amp;logoColor=ffffff&amp;gap=8&amp;mode=light"></picture>
 </p>
 
