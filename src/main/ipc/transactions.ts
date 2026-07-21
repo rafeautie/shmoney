@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { createLogger } from '../logging'
 import { categories, transactions } from '../db/schema'
@@ -10,7 +10,8 @@ import {
   transactionIdsSchema,
   transactionsSetCategoriesSchema,
   type TransactionActionChange,
-  type TransactionsSetCategoriesInput
+  type TransactionsSetCategoriesInput,
+  type TransactionStats
 } from '@shared/ipc'
 
 // pending rows are excluded from every bulk action: sync drops and re-inserts
@@ -83,6 +84,22 @@ export function setCategories({ changes, source }: TransactionsSetCategoriesInpu
 }
 
 export function registerTransactionsIpc(): void {
+  // one pass over the visible rows: how many exist and how many are still
+  // uncategorized (category_id IS NULL — transfers/income are non-null system
+  // categories, so they don't count). Drives the chat's "too many uncategorized"
+  // warning; the categorize mutation invalidates queries, so it refetches on its own.
+  ipcMain.handle(IPC.transactionsStats, (): TransactionStats => {
+    const row = db
+      .select({
+        total: sql<number>`count(*)`,
+        uncategorized: sql<number>`count(case when ${transactions.categoryId} is null then 1 end)`
+      })
+      .from(transactions)
+      .where(isNull(transactions.deletedAt))
+      .get()
+    return { total: row?.total ?? 0, uncategorized: row?.uncategorized ?? 0 }
+  })
+
   ipcMain.handle(IPC.transactionsSetCategories, (_event, input: unknown) =>
     setCategories(transactionsSetCategoriesSchema.parse(input))
   )

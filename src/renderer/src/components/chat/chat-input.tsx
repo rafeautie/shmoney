@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/input-group'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ChatScopeSelect } from '@/components/chat/chat-scope-select'
+import { ChatWarnings } from '@/components/chat/chat-warnings'
 import { LlmStatusBadge } from '@/components/llm-status-badge'
 
 export function ChatInput({
@@ -57,8 +58,13 @@ export function ChatInput({
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl p-4 pt-2">
+    <div className="relative isolate mx-auto w-full max-w-2xl p-4 pt-2">
+      {/* warnings pin to the top of the composer, flush against the pill below;
+          the form sits above them (z-10) so a dismissed warning slides down
+          behind the input rather than in front of it */}
+      <ChatWarnings />
       <form
+        className="relative z-10"
         onSubmit={(e) => {
           e.preventDefault()
           send()

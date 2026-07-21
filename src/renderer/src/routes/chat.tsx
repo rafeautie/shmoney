@@ -90,10 +90,11 @@ function ChatPage() {
           <ChatView
             conversationId={conversationId}
             reply={reply}
-            // the openers just call send; hide them whenever the composer
-            // itself is unavailable so a click can't queue behind a running
-            // categorize or an in-flight send
-            onPickPrompt={categorizeRunning || sendChat.isPending ? undefined : send}
+            onPickPrompt={send}
+            // grey the openers out (rather than hiding them) whenever the
+            // composer itself is unavailable, so a click can't queue behind a
+            // running categorize or an in-flight send
+            openersDisabled={categorizeRunning || sendChat.isPending}
           />
           {!modelAvailable ? (
             // existing conversations stay readable without the model; only

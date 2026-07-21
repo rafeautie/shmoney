@@ -119,6 +119,12 @@ export interface Page<T> {
   total: number
 }
 
+/** Counts over the visible (non-deleted) transactions; uncategorized = category_id IS NULL. */
+export interface TransactionStats {
+  total: number
+  uncategorized: number
+}
+
 export const connectInputSchema = z.object({
   setupToken: z.string().trim().min(1)
 })
@@ -299,6 +305,7 @@ export const IPC = {
   accountHoldings: 'accounts:holdings',
   accountTransactions: 'accounts:transactions',
   transactionsList: 'transactions:list',
+  transactionsStats: 'transactions:stats',
   transactionsSetCategories: 'transactions:setCategories',
   transactionsBulkDelete: 'transactions:bulkDelete',
   categoriesList: 'categories:list',

@@ -38,15 +38,22 @@ const STARTER_PROMPTS: { icon: IconSvgElement; prompt: string }[] = [
 ]
 
 /** The starter-prompt grid shown under the blank-chat header. */
-function StarterPrompts({ onPick }: { onPick: (prompt: string) => void }) {
+function StarterPrompts({
+  onPick,
+  disabled
+}: {
+  onPick: (prompt: string) => void
+  disabled?: boolean
+}) {
   return (
     <div className="grid w-full max-w-md grid-cols-1 gap-2 sm:grid-cols-2">
       {STARTER_PROMPTS.map(({ icon, prompt }) => (
         <button
           key={prompt}
           type="button"
+          disabled={disabled}
           onClick={() => onPick(prompt)}
-          className="group flex items-center gap-2.5 rounded-lg border bg-card/50 p-3 text-left text-xs/snug text-foreground transition-colors hover:border-ring/60 hover:bg-accent focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none"
+          className="group flex items-center gap-2.5 rounded-lg border bg-card/50 p-3 text-left text-xs/snug text-foreground transition-colors hover:border-ring/60 hover:bg-accent focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
         >
           <HugeiconsIcon
             icon={icon}
@@ -96,12 +103,15 @@ function scopeMarkers(messages: ChatMessage[]): Map<number, string> {
 export function ChatView({
   conversationId,
   reply,
-  onPickPrompt
+  onPickPrompt,
+  openersDisabled
 }: {
   conversationId: number | null
   reply: ActiveReply | null
   /** send a starter prompt from the blank-chat state; omit to hide the openers */
   onPickPrompt?: (prompt: string) => void
+  /** grey the openers out (non-interactive) while the composer is unavailable */
+  openersDisabled?: boolean
 }) {
   const { messages, truncatedBeforeId } = useMessages(conversationId).data ?? {
     messages: [],
@@ -140,7 +150,7 @@ export function ChatView({
             Chat with the on-device model. Nothing you type leaves this computer.
           </EmptyDescription>
         </EmptyHeader>
-        {onPickPrompt && <StarterPrompts onPick={onPickPrompt} />}
+        {onPickPrompt && <StarterPrompts onPick={onPickPrompt} disabled={openersDisabled} />}
       </Empty>
     )
   }

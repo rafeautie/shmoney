@@ -21,6 +21,7 @@ import {
   type Transaction,
   type TransactionIdsInput,
   type TransactionsSetCategoriesInput,
+  type TransactionStats,
   type UndoResult
 } from '@shared/ipc'
 import {
@@ -125,6 +126,8 @@ const api = {
   transactions: {
     list: (query: FilteredTransactionsQuery): Promise<Page<Transaction>> =>
       ipcRenderer.invoke(IPC.transactionsList, query),
+    /** Visible-row counts: total and how many are still uncategorized */
+    stats: (): Promise<TransactionStats> => ipcRenderer.invoke(IPC.transactionsStats),
     /** Per-row category values; skips pending rows, resolves to rows updated */
     setCategories: (input: TransactionsSetCategoriesInput): Promise<number> =>
       ipcRenderer.invoke(IPC.transactionsSetCategories, input),
