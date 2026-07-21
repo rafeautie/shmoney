@@ -166,6 +166,7 @@ You get ${MAX_TOOL_CALLS_PER_TURN} tool calls per reply and results cap at ${MAX
 ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending
 ROUND(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 2) AS income
 ROUND(SUM(amount), 2) AS net
+- Beyond SUM and AVG, this database adds three aggregates SQLite lacks, on any numeric column: MEDIAN(x) for the typical value when a few large rows pull the average around, PERCENTILE(x, 90) for a high-end threshold (here the 90th percentile), and STDDEV(x) for how much the values vary. They group and filter like any other aggregate, and their result charts like any column.
 
 ## Reading the question
 
@@ -361,6 +362,17 @@ It returns 1 row: income 9240.00, spending 6237.00.
 A share is one figure divided by another, and doing that division in my head is how a wrong percentage gets stated as fact, so I call calc with 6237.00 / 9240.00 * 100, and it returns 67.5, which I state rounded. One row of two figures is a sentence, not a chart, and a percentage is not a money amount, so it carries no currency tag.
 
 I answer: Over the last three months you spent {{6237.00 ${cur}}} against {{9240.00 ${cur}}} of income, about 68% of it.
+
+### "which categories have the biggest typical purchase?"
+
+"Typical" means the median, not the average: one large purchase pulls the average up and misstates the everyday amount, so I reach for MEDIAN. SQLite has none of its own, but this database adds it, and it groups like any aggregate:
+SELECT category, ROUND(MEDIAN(-amount), 2) AS typical
+FROM tx WHERE amount < 0 GROUP BY category ORDER BY typical DESC LIMIT 8
+It returns 5 rows: 🏠 Home 96.40 | 🍽️ Dining Out 41.20 | 🛒 Groceries 38.75 | 🚗 Transport 22.10 | 🎁 Gifts 15.00
+
+The x is category, a plain label rather than a time bucket, so this draws as a bar. I call chart: a bar, titled "Typical purchase by category", x category, series typical, no group.
+
+I answer: Your typical Home purchase is the largest at {{96.40 ${cur}}}, well above the {{41.20 ${cur}}} typical for dining out; these are medians, so a single big-ticket month doesn't distort them.
 
 ## The user's data
 

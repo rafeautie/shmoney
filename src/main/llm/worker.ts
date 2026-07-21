@@ -40,6 +40,7 @@ import {
 import { CHART_FUNCTION_PARAMS, chartCallNote, prepareChart } from './chart-tool'
 import { CALC_FUNCTION_PARAMS, evaluateExpression } from './calc-tool'
 import { RESOLVE_DATES_PARAMS, resolveDateWindow } from './resolve-dates-tool'
+import { registerStatFunctions } from './stat-functions'
 
 const modelsDir: string = (() => {
   const dir = process.env.LLM_MODELS_DIR
@@ -131,9 +132,16 @@ let toolDb: Database.Database | null = null
 
 function ensureToolDb(): Database.Database {
   if (toolDb) return toolDb
-  toolDb = new Database(dbPath, { fileMustExist: true })
-  toolDb.pragma('query_only = ON')
-  return toolDb
+  const db = new Database(dbPath, { fileMustExist: true })
+  // extra aggregates (MEDIAN/PERCENTILE/STDDEV) the model queries through; the
+  // cast is because @types/better-sqlite3 types only a single-argument step and
+  // cannot describe PERCENTILE's two args (see stat-functions.ts)
+  registerStatFunctions((name, def) =>
+    db.aggregate(name, def as unknown as Database.AggregateOptions)
+  )
+  db.pragma('query_only = ON')
+  toolDb = db
+  return db
 }
 
 function closeToolDb(): void {

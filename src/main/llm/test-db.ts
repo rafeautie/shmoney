@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { registerStatFunctions } from './stat-functions'
 
 // Shared test-only harness: a real, fully migrated database in memory. Not
 // imported by any shipping code. better-sqlite3 can't load under vitest
@@ -23,5 +24,8 @@ export function migratedDb(): DatabaseSync {
     for (const statement of sql.split('--> statement-breakpoint'))
       if (statement.trim()) db.exec(statement)
   }
+  // the real chat connection registers these on its tool DB (see worker.ts), so
+  // the test connection mirrors it and recipes using MEDIAN and friends run
+  registerStatFunctions((name, def) => db.aggregate(name, def as never))
   return db
 }
