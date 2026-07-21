@@ -182,9 +182,17 @@ function TimeSeriesChart({
         grain,
         resolved.filters.dateStart,
         resolved.filters.dateEnd,
-        config.query.cumulative
+        config.query.cumulative,
+        config.query.measure !== 'avg'
       ),
-    [rows, grain, resolved.filters.dateStart, resolved.filters.dateEnd, config.query.cumulative]
+    [
+      rows,
+      grain,
+      resolved.filters.dateStart,
+      resolved.filters.dateEnd,
+      config.query.cumulative,
+      config.query.measure
+    ]
   )
 
   if (tooManyBuckets) {

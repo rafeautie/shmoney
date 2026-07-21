@@ -101,8 +101,16 @@ export function DateRangeControl({
         disabled={disabled}
         onValueChange={(key) => {
           if (key === 'custom') {
-            const now = Math.floor(Date.now() / 1000)
-            onChange({ kind: 'absolute', start: now - 30 * 86400, end: now })
+            // day-align the seeded range the same way the calendar commit does,
+            // so today's local-noon rows aren't excluded before the user edits it
+            const now = new Date()
+            const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30)
+            const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+            onChange({
+              kind: 'absolute',
+              start: Math.floor(start.getTime() / 1000),
+              end: Math.floor(end.getTime() / 1000)
+            })
           } else {
             const preset = DATE_PRESETS.find((p) => p.key === key)
             if (preset) onChange(preset.range)

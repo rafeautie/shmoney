@@ -65,16 +65,19 @@ function collectSeries(rows: QueryRow[]): SeriesInfo[] {
 
 /**
  * Pivot aggregated rows into Recharts-shaped data: one object per time bucket,
- * one numeric field per (group, currency) series. Missing buckets are
- * zero-filled so lines/bars don't skip gaps, and cumulative mode runs a
- * per-series running total over the filled data.
+ * one numeric field per (group, currency) series. When `zeroFill` is set (all
+ * additive measures) missing buckets are filled with 0 so lines/bars don't skip
+ * gaps; averages have no natural zero, so their empty buckets are left absent to
+ * render as gaps instead of dropping to $0. Cumulative mode runs a per-series
+ * running total over the filled data (additive measures only).
  */
 export function pivotTimeSeries(
   rows: QueryRow[],
   grain: Exclude<TimeGrain, 'none'>,
   dateStart: number | null,
   dateEnd: number | null,
-  cumulative: boolean
+  cumulative: boolean,
+  zeroFill: boolean
 ): TimeSeriesPivot {
   const series = collectSeries(rows)
   if (rows.length === 0) return { data: [], series, tooManyBuckets: false }
@@ -91,7 +94,9 @@ export function pivotTimeSeries(
   const byBucket = new Map<string, Record<string, string | number>>()
   for (const bucket of buckets) {
     const row: Record<string, string | number> = { bucket }
-    for (const s of series) row[s.key] = 0
+    // averages have no natural zero: leaving empty buckets absent renders them
+    // as gaps instead of fabricating a $0 average for a period with no data
+    if (zeroFill) for (const s of series) row[s.key] = 0
     byBucket.set(bucket, row)
   }
   for (const row of rows) {
@@ -101,7 +106,8 @@ export function pivotTimeSeries(
   }
 
   const data = [...byBucket.values()]
-  if (cumulative) {
+  // cumulative is a running sum; only meaningful for additive (zero-filled) measures
+  if (cumulative && zeroFill) {
     const running = new Map<string, number>()
     for (const row of data) {
       for (const s of series) {

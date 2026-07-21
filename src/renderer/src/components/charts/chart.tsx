@@ -300,7 +300,9 @@ function CartesianView({
               type="monotone"
               stroke={`var(--color-${s.key})`}
               strokeWidth={2}
-              dot={false}
+              // a single-bucket range has no segment to stroke, so the chart looks
+              // empty; show the dot in that case while keeping multi-point lines clean
+              dot={data.length <= 1}
             />
           ))}
         </LineChart>
@@ -318,6 +320,8 @@ function CartesianView({
               fill={`var(--color-${s.key})`}
               fillOpacity={0.3}
               stackId={stacked ? 'stack' : s.key}
+              // a single-bucket range has no area to draw; show the dot so it's visible
+              dot={data.length <= 1}
             />
           ))}
         </AreaChart>

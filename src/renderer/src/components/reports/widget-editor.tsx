@@ -120,6 +120,9 @@ function normalizeForType(config: WidgetConfig, type: WidgetType): WidgetConfig 
   if (GROUPED_TYPES.includes(type) && query.groupBy === 'none') {
     query.groupBy = 'category'
   }
+  // a stat card is a single aggregate; a groupBy would make it sum per-group
+  // values (e.g. per-category averages, which is wrong), so it never applies
+  if (type === 'stat') query.groupBy = 'none'
   return { ...config, query }
 }
 
