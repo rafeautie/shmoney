@@ -30,6 +30,7 @@ describe('parseMoney', () => {
     expect(parseMoney('$1,234.56')).toBe(1234560)
     expect(parseMoney('(12.34)')).toBe(-12340)
     expect(parseMoney('12.34 USD')).toBe(12340)
+    expect(parseMoney('USD 12.34')).toBe(12340)
   })
 
   it('returns null for empty or junk input', () => {
@@ -126,5 +127,23 @@ describe('normalizeCsvRows', () => {
       dcMapping
     )
     expect(rows.map((r) => r.amount)).toEqual([-4500, -4500, 100000])
+  })
+
+  it('picks the nonzero side when the unused debit/credit column is zero-filled', () => {
+    const dcMapping: CsvMapping = {
+      dateColumn: 0,
+      dateFormat: 'M/d/yyyy',
+      descriptionColumn: 1,
+      amount: { kind: 'debitCredit', debitColumn: 2, creditColumn: 3 }
+    }
+    const { rows } = normalizeCsvRows(
+      [
+        ['1/1/2024', 'OUT', '50.00', '0.00'],
+        ['1/2/2024', 'IN', '0.00', '100.00']
+      ],
+      dcMapping
+    )
+    // a zero-filled unused column must not flatten the real value to 0
+    expect(rows.map((r) => r.amount)).toEqual([-50000, 100000])
   })
 })

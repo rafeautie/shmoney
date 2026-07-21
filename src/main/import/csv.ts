@@ -24,11 +24,13 @@ export function inferDateFormat(values: string[]): string | null {
 }
 
 /**
- * "$1,234.56" / "(12.34)" / "-12.34" / "12.34 USD" -> integer milliunits.
- * null for empty or unparseable text.
+ * "$1,234.56" / "(12.34)" / "-12.34" / "12.34 USD" / "USD 12.34" -> integer
+ * milliunits. null for empty or unparseable text.
  */
 export function parseMoney(text: string): number | null {
-  let cleaned = text.trim().replace(/[$€£,\s]|[A-Za-z]{3}$/g, '')
+  // strip currency symbols, thousands separators, whitespace, and a 3-letter
+  // ISO code on either end (e.g. a leading "USD " or a trailing " USD")
+  let cleaned = text.trim().replace(/[$€£,\s]|^[A-Za-z]{3}|[A-Za-z]{3}$/g, '')
   let negative = false
   const paren = /^\((.*)\)$/.exec(cleaned)
   if (paren) {
@@ -124,8 +126,13 @@ export function normalizeCsvRows(
     } else {
       const debit = parseMoney(row[mapping.amount.debitColumn] ?? '')
       const credit = parseMoney(row[mapping.amount.creditColumn] ?? '')
-      // debit columns hold magnitudes (money out) regardless of sign convention
-      amount = credit !== null ? credit : debit !== null ? -Math.abs(debit) : null
+      // debit columns hold magnitudes (money out) regardless of sign convention.
+      // the unused side may be blank (null) or zero-filled ('0.00' -> 0), so pick
+      // whichever side carries a nonzero value: a Debit=50/Credit=0.00 row must
+      // import as -50, not 0. Both absent -> null (error); both zero -> 0.
+      if (credit) amount = credit
+      else if (debit) amount = -Math.abs(debit)
+      else amount = credit === null && debit === null ? null : 0
     }
     if (amount === null) {
       errors.push({ line, message: 'Missing or unparseable amount' })
