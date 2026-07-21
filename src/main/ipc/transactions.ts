@@ -1,12 +1,15 @@
 import { ipcMain } from 'electron'
+import { randomUUID } from 'node:crypto'
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { createLogger } from '../logging'
-import { categories, transactions } from '../db/schema'
+import { accounts, categories, transactions } from '../db/schema'
+import { dayToUnix } from '../import/parse'
 import { recordAction } from './action-log'
 import { detectRuleSuggestions } from './rule-suggestions'
 import {
   IPC,
+  transactionCreateSchema,
   transactionIdsSchema,
   transactionsSetCategoriesSchema,
   type TransactionActionChange,
@@ -129,6 +132,57 @@ export function registerTransactionsIpc(): void {
         })
       }
       return rows.map((r) => r.id)
+    })
+  })
+
+  ipcMain.handle(IPC.transactionsCreate, (_event, input: unknown) => {
+    const { accountId, amount, description, date, categoryId } =
+      transactionCreateSchema.parse(input)
+
+    const account = db
+      .select({ id: accounts.id })
+      .from(accounts)
+      .where(eq(accounts.id, accountId))
+      .get()
+    if (!account) throw new Error('Account not found')
+    if (categoryId !== null) {
+      const category = db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.id, categoryId))
+        .get()
+      if (!category) throw new Error('Category not found')
+    }
+
+    // a calendar day anchored at local noon, the same convention file import uses
+    const [year, month, day] = date.split('-').map(Number)
+    const posted = dayToUnix(year, month, day)
+    const now = Math.floor(Date.now() / 1000)
+
+    return db.transaction((tx) => {
+      // the `manual:` prefix keeps this synthetic id clear of the sync and import
+      // id spaces, so it can't collide on the (account, simplefin_id) unique index
+      const inserted = tx
+        .insert(transactions)
+        .values({
+          accountId,
+          simplefinId: `manual:${randomUUID()}`,
+          posted,
+          amount,
+          description,
+          pending: false,
+          categoryId
+        })
+        .returning({ id: transactions.id })
+        .get()
+      // record as a deletedAt change (before=now, after=null) so undo soft-deletes
+      // the row and redo restores it — the same encoding file import uses for inserts
+      recordAction(tx, {
+        source: 'user',
+        label: `Created “${description}”`,
+        changes: [{ transactionId: inserted.id, field: 'deletedAt', before: now, after: null }]
+      })
+      return inserted.id
     })
   })
 }

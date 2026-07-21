@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { AccountSettingsDialog } from '@/components/account-settings-dialog'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/auto-categorize-button'
+import { CreateTransactionDialog } from '@/components/create-transaction-dialog'
 import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
 import { HoldingsTable } from '@/components/holdings-table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -46,6 +47,7 @@ function AccountDetailPage() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {account && <CreateTransactionDialog accountId={id} currency={account.currency} />}
           <AutoCategorizeButton scope={{ accountId: id }} />
           {account && (
             <AccountSettingsDialog

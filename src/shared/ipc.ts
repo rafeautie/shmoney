@@ -182,6 +182,21 @@ export const transactionIdsSchema = z.object({
 })
 export type TransactionIdsInput = z.infer<typeof transactionIdsSchema>
 
+// manual transaction entry (the "Create transaction" dialog). The amount is
+// signed integer milliunits like everywhere else — negative is money out — and
+// `date` is the calendar day the row is anchored to at local noon.
+export const transactionCreateSchema = z.object({
+  accountId: accountIdSchema,
+  amount: z
+    .number()
+    .int()
+    .refine((n) => n !== 0, 'Amount must not be zero'),
+  description: z.string().trim().min(1).max(200),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a YYYY-MM-DD date'),
+  categoryId: idSchema.nullable()
+})
+export type TransactionCreateInput = z.infer<typeof transactionCreateSchema>
+
 // scope for a categorize run: an explicit selection, one account, or — with both
 // omitted — every eligible transaction. transactionIds wins when both are present.
 export const categorizeScopeSchema = z.object({
@@ -308,6 +323,7 @@ export const IPC = {
   transactionsStats: 'transactions:stats',
   transactionsSetCategories: 'transactions:setCategories',
   transactionsBulkDelete: 'transactions:bulkDelete',
+  transactionsCreate: 'transactions:create',
   categoriesList: 'categories:list',
   categoriesCreateGroup: 'categories:createGroup',
   categoriesRenameGroup: 'categories:renameGroup',
