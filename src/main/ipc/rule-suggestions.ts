@@ -139,7 +139,9 @@ export async function detectRuleSuggestions(
         .set({ status: 'pending', matchCount: count, source, createdAt: now, updatedAt: now })
         .where(eq(ruleSuggestions.id, byKey.id))
         .run()
-      created++
+      // only count it toward the notification if it will actually be listed:
+      // listSuggestions hides rows whose phrase now matches fewer than MIN
+      if (countMatching(byKey.phrase) >= MIN_IDENTICAL) created++
       continue
     }
 
@@ -174,7 +176,9 @@ export async function detectRuleSuggestions(
         })
         .run()
     }
-    created++
+    // only count it toward the notification if it will actually be listed:
+    // listSuggestions hides rows whose phrase matches fewer than MIN
+    if (countMatching(phrase) >= MIN_IDENTICAL) created++
   }
 
   if (created > 0) sendToRenderer(RULE_SUGGESTIONS_CREATED, { count: created })

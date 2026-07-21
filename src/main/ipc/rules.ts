@@ -329,6 +329,10 @@ export function registerRulesIpc(): void {
     if (!row) throw new Error(`Rule ${id} not found`)
     const rule = toRule(row)
     if (!rule) throw new Error(`Rule ${id} is corrupt`)
+    // disabling or editing a rule can drop the coverage that suppressed an
+    // accepted suggestion (a disabled rule isn't "in force"), so reconcile here
+    // too, the same as the delete path does
+    reopenUncoveredAcceptedSuggestions()
     return rule
   })
 

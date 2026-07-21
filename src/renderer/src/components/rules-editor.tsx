@@ -177,7 +177,20 @@ function RuleForm({
     dateBefore !== undefined ||
     domMin.trim() !== '' ||
     domMax.trim() !== ''
-  const canSave = name.trim() !== '' && hasCondition && categoryId !== null
+  // a "between" range needs a second amount that isn't below the first, and a
+  // day-of-month window must run low-to-high; both would otherwise save a rule
+  // the server rejects or that silently matches nothing
+  const amountBetweenInvalid =
+    amtValue.trim() !== '' &&
+    amtOp === 'between' &&
+    (amtValue2.trim() === '' || toMilli(amtValue2) < toMilli(amtValue))
+  const domInvalid = domMin.trim() !== '' && domMax.trim() !== '' && Number(domMin) > Number(domMax)
+  const canSave =
+    name.trim() !== '' &&
+    hasCondition &&
+    categoryId !== null &&
+    !amountBetweenInvalid &&
+    !domInvalid
 
   const save = useMutation({
     mutationFn: () => {
@@ -444,6 +457,16 @@ function RuleForm({
             </p>
           </fieldset>
 
+          {amountBetweenInvalid && (
+            <p className="text-sm text-destructive">
+              The second amount for a between range must be at least the first.
+            </p>
+          )}
+          {domInvalid && (
+            <p className="text-sm text-destructive">
+              The day-of-month start must be on or before the end.
+            </p>
+          )}
           {save.isError && (
             <p className="text-sm text-destructive">{ipcErrorMessage(save.error)}</p>
           )}
