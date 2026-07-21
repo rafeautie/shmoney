@@ -52,15 +52,26 @@ const dbPath: string = (() => {
   return p
 })()
 
-// While fitting a context into memory, node-llama-cpp probes several sizes and
-// llama.cpp logs the failed probes loudly - e.g. Gemma's "requires ctx_other to
-// be set (this warning is normal during memory fitting)". Both that line and
-// node-llama-cpp's own "falling back to estimation heuristic" notice are
-// self-declared as expected, so we drop them and forward everything else.
-function isBenignFittingLog(message: string): boolean {
+// llama.cpp prints a handful of loud-but-expected lines on every load; each is
+// self-declared noise, so we drop them and forward everything else. Two groups:
+//
+//  - Memory fitting: node-llama-cpp probes several context sizes and llama.cpp
+//    logs the failed probes (e.g. Gemma's "requires ctx_other to be set (this
+//    warning is normal during memory fitting)"), plus node-llama-cpp's own
+//    "falling back to estimation heuristic" notice.
+//  - Vocab self-correction: the Gemma GGUFs mark a few special tokens
+//    (<|tool_response>, </s>) as normal-type and leave </s> in the
+//    end-of-generation set, so llama.cpp reclassifies them to control-type and
+//    drops </s> from the EOG list. The quirk is baked into the file, so this
+//    recurs each load; the corrections are exactly what we want (control tokens
+//    stay hidden, a stray </s> can't truncate a reply), so the warnings are pure
+//    noise. Fixing them for real would mean re-converting the GGUF upstream.
+function isBenignLlamaLog(message: string): boolean {
   return (
     message.includes('normal during memory fitting') ||
-    message.includes('Falling back to estimation heuristic')
+    message.includes('Falling back to estimation heuristic') ||
+    message.includes('control-looking token') ||
+    message.includes('token from EOG list')
   )
 }
 
@@ -72,7 +83,7 @@ async function ensureLlama(): Promise<Llama> {
       // console.* is this utility process's log transport: stdio is piped, and
       // the manager forwards it into the app's scrubbed log file
       logger: (level, message) => {
-        if (isBenignFittingLog(message)) return
+        if (isBenignLlamaLog(message)) return
         if (level === LlamaLogLevel.error || level === LlamaLogLevel.fatal) console.error(message)
         else if (level === LlamaLogLevel.warn) console.warn(message)
         else console.log(message)
