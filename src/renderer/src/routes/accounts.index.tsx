@@ -46,12 +46,25 @@ function hasDistinctAvailable(account: Account): boolean {
 
 function AccountsPage() {
   const [importOpen, setImportOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  // controlled so the Create button can jump to the transactions tab
+  const [tab, setTab] = useState('accounts')
   return (
-    <Tabs defaultValue="accounts" className="flex min-h-0 flex-1 flex-col gap-0">
+    <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
       <div className="space-y-4 px-6 pt-6 pb-4">
         <div className="flex items-start justify-between gap-4">
           <NetWorth />
           <div className="flex items-center gap-2">
+            <Button
+              variant={creating ? 'secondary' : 'outline'}
+              aria-pressed={creating}
+              onClick={() => {
+                setCreating(!creating)
+                if (!creating) setTab('transactions')
+              }}
+            >
+              Create transaction
+            </Button>
             <Button variant="outline" onClick={() => setImportOpen(true)}>
               Import
             </Button>
@@ -75,7 +88,7 @@ function AccountsPage() {
           queryKey={['transactions']}
           fetchPage={(query) => window.api.transactions.list(query)}
           showAccount
-          showCreateRow
+          showCreateRow={creating}
           className="min-h-0 flex-1"
         />
       </TabsContent>

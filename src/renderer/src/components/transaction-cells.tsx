@@ -298,6 +298,8 @@ export function TransactionCreateRow({
       <TableCell className="w-full">
         <Input
           ref={descriptionRef}
+          // the row mounts when the page's Create toggle turns it on; start typing
+          autoFocus
           placeholder="Add transaction"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
