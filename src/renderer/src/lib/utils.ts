@@ -53,16 +53,6 @@ export function formatShares(value: string | number): string {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 }).format(Number(value))
 }
 
-/** Currency symbol for an ISO code, falling back to the code itself. */
-export function currencySymbol(currency: string): string {
-  try {
-    const parts = new Intl.NumberFormat(undefined, { style: 'currency', currency }).formatToParts(0)
-    return parts.find((p) => p.type === 'currency')?.value ?? currency
-  } catch {
-    return currency
-  }
-}
-
 export function formatAmount(milliunits: number, currency: string): string {
   const value = milliunits / 1000
   try {
@@ -78,4 +68,13 @@ export function parseDollars(input: string): number | null {
   const n = Number(input.replace(/[$,\s]/g, ''))
   if (!Number.isFinite(n) || n < 0) return null
   return Math.round(n * 1000)
+}
+
+/** "-12.34" / "$-12.34" / "1,234.56" → signed integer milliunits; null when not
+ * a valid non-zero amount. Sign is literal: negative = expense. */
+export function parseSignedAmount(input: string): number | null {
+  const n = Number(input.replace(/[$,\s]/g, ''))
+  if (input.trim() === '' || !Number.isFinite(n)) return null
+  const milliunits = Math.round(n * 1000)
+  return milliunits === 0 ? null : milliunits
 }

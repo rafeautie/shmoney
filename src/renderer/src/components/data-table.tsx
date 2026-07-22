@@ -75,6 +75,8 @@ interface DataTableProps<TData> {
   isLoading?: boolean
   emptyMessage?: string
   onRowClick?: (row: TData) => void
+  /** Pinned row rendered at the top of the body (e.g. an inline entry row) */
+  topRow?: React.ReactNode
   /** Extra classes per row, e.g. to dim rows matching a predicate */
   rowClassName?: (row: TData) => string | false | undefined
   /** Row selection is controlled: pass all three (plus getRowId for stable ids across refetches) */
@@ -99,6 +101,7 @@ export function DataTable<TData>({
   isLoading,
   emptyMessage = 'No results.',
   onRowClick,
+  topRow,
   rowClassName,
   enableRowSelection = false,
   rowSelection,
@@ -161,6 +164,7 @@ export function DataTable<TData>({
         {/* the ! outweighs the base last-row border-0 rule, which shares specificity;
             skip it when empty so the full-height empty state has no closing border */}
         <TableBody className={cn(!isEmpty && '[&_tr:last-child]:border-b!')}>
+          {topRow}
           {isEmpty ? (
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={columns.length} className="h-full">

@@ -8,7 +8,6 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CategoryPicker } from '@/components/category-picker'
 import { useAutoCategorize, useLlmReady, useLlmSupported } from '@/lib/llm'
-import { useTransactionEditor } from '@/lib/transaction-editor'
 
 interface TransactionsBulkActionsProps {
   /** The selected transactions currently visible under the active filters */
@@ -28,7 +27,6 @@ export function TransactionsBulkActions({
   const queryClient = useQueryClient()
   const llmReady = useLlmReady()
   const supported = useLlmSupported()
-  const { openEdit } = useTransactionEditor()
   const [categoryOpen, setCategoryOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -70,9 +68,9 @@ export function TransactionsBulkActions({
       ) {
         return
       }
-      if (!['d', 'c', 'a', 'e'].includes(event.key)) return
-      // a letter typed while a dialog is up (e.g. the transaction editor with
-      // focus on a button) must not trigger actions underneath it
+      if (!['d', 'c', 'a'].includes(event.key)) return
+      // a letter typed while a dialog is up (e.g. a confirm or the import
+      // dialog with focus on a button) must not trigger actions underneath it
       if (document.querySelector('[data-slot="dialog-content"]')) return
       // the popover focuses its search input before this key's default text
       // insertion runs, so without this the shortcut letter gets typed into it
@@ -80,12 +78,11 @@ export function TransactionsBulkActions({
       if (event.key === 'd') setConfirmDelete(true)
       if (event.key === 'c') setCategoryOpen(true)
       if (event.key === 'a' && llmReady && !autoCategorize.anyRunning) autoCategorize.start()
-      if (event.key === 'e' && transactions.length === 1) openEdit(transactions[0])
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [transactions, llmReady, busy, autoCategorize.anyRunning])
+  }, [transactions.length, llmReady, busy, autoCategorize.anyRunning])
 
   if (transactions.length === 0) return null
 
@@ -95,18 +92,6 @@ export function TransactionsBulkActions({
         <span className="px-2.5 text-sm whitespace-nowrap text-muted-foreground">
           {transactions.length} selected
         </span>
-        {transactions.length === 1 && (
-          <Button
-            variant="ghost"
-            size="lg"
-            className="text-sm"
-            title="Edit (e)"
-            disabled={busy}
-            onClick={() => openEdit(transactions[0])}
-          >
-            Edit
-          </Button>
-        )}
         <Popover open={categoryOpen} onOpenChange={setCategoryOpen}>
           <PopoverTrigger
             render={

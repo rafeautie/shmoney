@@ -9,7 +9,6 @@ import { AutoCategorizeButton } from '@/components/auto-categorize-button'
 import { ImportDialog } from '@/components/import-dialog'
 import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
 import { TABLE_BLEED, cn, plural } from '@/lib/utils'
-import { useTransactionEditor } from '@/lib/transaction-editor'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -47,16 +46,12 @@ function hasDistinctAvailable(account: Account): boolean {
 
 function AccountsPage() {
   const [importOpen, setImportOpen] = useState(false)
-  const { openCreate } = useTransactionEditor()
   return (
     <Tabs defaultValue="accounts" className="flex min-h-0 flex-1 flex-col gap-0">
       <div className="space-y-4 px-6 pt-6 pb-4">
         <div className="flex items-start justify-between gap-4">
           <NetWorth />
           <div className="flex items-center gap-2">
-            <Button variant="outline" title="Create transaction (n)" onClick={() => openCreate()}>
-              Create transaction
-            </Button>
             <Button variant="outline" onClick={() => setImportOpen(true)}>
               Import
             </Button>
@@ -80,6 +75,7 @@ function AccountsPage() {
           queryKey={['transactions']}
           fetchPage={(query) => window.api.transactions.list(query)}
           showAccount
+          showCreateRow
           className="min-h-0 flex-1"
         />
       </TabsContent>

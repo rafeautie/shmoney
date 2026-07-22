@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
-import { format } from 'date-fns'
 import type { ColumnDef, RowSelectionState, SortingState } from '@tanstack/react-table'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDataTransferHorizontalIcon } from '@hugeicons/core-free-icons'
 import type { Page, Transaction, TransactionSortBy } from '@shared/ipc'
 import { PAGE_SIZE, cn, nextPageParam, sortQuery } from '@/lib/utils'
-import { Amount } from '@/components/amount'
 import { CategoryCell } from '@/components/category-cell'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
+import {
+  EditableAmountCell,
+  EditableDateCell,
+  EditableTextCell,
+  TransactionCreateRow
+} from '@/components/transaction-cells'
 import { TransactionsBulkActions } from '@/components/transactions-bulk-actions'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useTransactionEditor } from '@/lib/transaction-editor'
 
 interface TransactionsTableProps {
   /** Base query key; the current sort is appended to it */
@@ -24,6 +25,10 @@ interface TransactionsTableProps {
   }) => Promise<Page<Transaction>>
   /** Show the account column (for views spanning multiple accounts) */
   showAccount?: boolean
+  /** Pin the inline entry row at the top (transactions pages; report widgets omit it) */
+  showCreateRow?: boolean
+  /** Fixed account for the entry row; omitted = pick from an account cell */
+  createAccountId?: number
   emptyMessage?: string
   className?: string
 }
@@ -32,10 +37,11 @@ export function TransactionsTable({
   queryKey,
   fetchPage,
   showAccount,
+  showCreateRow,
+  createAccountId,
   emptyMessage = 'No transactions yet. Try syncing.',
   className
 }: TransactionsTableProps) {
-  const { openEdit } = useTransactionEditor()
   const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }])
   const sort = sortQuery<TransactionSortBy>(sorting, { id: 'date', desc: true })
   // keyed by transaction id, so selection survives refetches and filter changes
@@ -89,8 +95,7 @@ export function TransactionsTable({
       {
         accessorKey: 'date',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
-        cell: ({ row }) =>
-          row.original.date ? format(new Date(row.original.date * 1000), 'MMM d, yyyy') : '—'
+        cell: ({ row }) => <EditableDateCell transaction={row.original} />
       },
       ...(showAccount
         ? [
@@ -105,23 +110,7 @@ export function TransactionsTable({
         header: ({ column }) => <DataTableColumnHeader column={column} title="Description" />,
         // greedy column: soaks up remaining width and truncates instead of overflowing
         meta: { className: 'w-full max-w-0' },
-        cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-1.5" title={row.original.description}>
-            {row.original.isTransfer && (
-              <span title="Transfer" className="flex shrink-0">
-                <HugeiconsIcon
-                  icon={ArrowDataTransferHorizontalIcon}
-                  size={14}
-                  className="text-muted-foreground"
-                />
-              </span>
-            )}
-            <span className="truncate">
-              {row.original.description}
-              {row.original.pending && <span className="text-muted-foreground"> (pending)</span>}
-            </span>
-          </div>
-        )
+        cell: ({ row }) => <EditableTextCell transaction={row.original} />
       },
       {
         id: 'category',
@@ -136,16 +125,7 @@ export function TransactionsTable({
             <DataTableColumnHeader column={column} title="Amount" className="-mr-2 ml-0" />
           </div>
         ),
-        cell: ({ row }) => (
-          <div className="text-right">
-            <Amount
-              value={row.original.amount}
-              currency={row.original.currency}
-              colored={!row.original.isTransfer}
-              className={cn(row.original.isTransfer && 'text-muted-foreground')}
-            />
-          </div>
-        )
+        cell: ({ row }) => <EditableAmountCell transaction={row.original} />
       }
     ],
     [showAccount]
@@ -165,8 +145,11 @@ export function TransactionsTable({
         isFetchingMore={transactionsQuery.isFetchingNextPage}
         isLoading={transactionsQuery.isLoading}
         emptyMessage={emptyMessage}
-        // click to edit; pending rows are read-only (openEdit no-ops on them)
-        onRowClick={openEdit}
+        topRow={
+          showCreateRow && (
+            <TransactionCreateRow showAccount={showAccount} accountId={createAccountId} />
+          )
+        }
         // transfers are neither income nor expense, so dim the whole row to de-emphasize them
         rowClassName={(transaction) => transaction.isTransfer && 'opacity-60'}
         // pending rows can't be selected: sync drops and re-inserts them, so bulk edits would be lost

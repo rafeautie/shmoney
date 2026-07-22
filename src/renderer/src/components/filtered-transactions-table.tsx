@@ -24,6 +24,10 @@ interface FilteredTransactionsTableProps {
    * loaded saved filters — the page's account scope always wins */
   lockedAccount?: boolean
   showAccount?: boolean
+  /** Pin the inline entry row at the top of the table */
+  showCreateRow?: boolean
+  /** Fixed account for the entry row; omitted = pick from an account cell */
+  createAccountId?: number
   className?: string
 }
 
@@ -34,6 +38,8 @@ export function FilteredTransactionsTable({
   fetchPage,
   lockedAccount,
   showAccount,
+  showCreateRow,
+  createAccountId,
   className
 }: FilteredTransactionsTableProps) {
   const [filters, setFilters] = useState<TransactionFilters>(DEFAULT_TRANSACTION_FILTERS)
@@ -62,6 +68,8 @@ export function FilteredTransactionsTable({
         queryKey={[...queryKey, resolved]}
         fetchPage={(query) => fetchPage({ ...query, filters: resolved })}
         showAccount={showAccount}
+        showCreateRow={showCreateRow}
+        createAccountId={createAccountId}
         emptyMessage={isDefault ? undefined : 'No transactions match the current filters.'}
         className="min-h-0 flex-1"
       />
