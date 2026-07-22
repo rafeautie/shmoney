@@ -23,6 +23,7 @@ import {
   type TransactionIdsInput,
   type TransactionsSetCategoriesInput,
   type TransactionStats,
+  type TransactionUpdateInput,
   type UndoResult
 } from '@shared/ipc'
 import {
@@ -137,7 +138,10 @@ const api = {
       ipcRenderer.invoke(IPC.transactionsBulkDelete, input),
     /** Manually create a transaction on an account; resolves to the new row id */
     create: (input: TransactionCreateInput): Promise<number> =>
-      ipcRenderer.invoke(IPC.transactionsCreate, input)
+      ipcRenderer.invoke(IPC.transactionsCreate, input),
+    /** Edit fields on one transaction as one undoable entry; resolves to fields changed */
+    update: (input: TransactionUpdateInput): Promise<number> =>
+      ipcRenderer.invoke(IPC.transactionsUpdate, input)
   },
   actionLog: {
     list: (): Promise<ActionLogEntry[]> => ipcRenderer.invoke(ACTION_LOG_IPC.list),

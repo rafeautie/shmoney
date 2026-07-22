@@ -8,10 +8,13 @@ import { dayToUnix } from '../import/parse'
 import { recordAction } from './action-log'
 import { detectRuleSuggestions } from './rule-suggestions'
 import {
+  buildUpdateChanges,
   IPC,
+  isSyncOwned,
   transactionCreateSchema,
   transactionIdsSchema,
   transactionsSetCategoriesSchema,
+  transactionUpdateSchema,
   type TransactionActionChange,
   type TransactionsSetCategoriesInput,
   type TransactionStats
@@ -184,5 +187,87 @@ export function registerTransactionsIpc(): void {
       })
       return inserted.id
     })
+  })
+
+  ipcMain.handle(IPC.transactionsUpdate, (_event, input: unknown) => {
+    const { id, amount, description, date, categoryId } = transactionUpdateSchema.parse(input)
+
+    const row = db
+      .select({
+        amount: transactions.amount,
+        description: transactions.description,
+        posted: transactions.posted,
+        pending: transactions.pending,
+        categoryId: transactions.categoryId,
+        deletedAt: transactions.deletedAt,
+        simplefinId: transactions.simplefinId,
+        connectionId: accounts.connectionId
+      })
+      .from(transactions)
+      .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+      .where(eq(transactions.id, id))
+      .get()
+    if (!row || row.deletedAt !== null) throw new Error('Transaction not found')
+    if (row.pending) throw new Error("Pending transactions can't be edited")
+    // the UI disables these fields on sync-owned rows; this is the backstop so a
+    // stale or hand-crafted call can't write values the next sync would clobber
+    if (
+      isSyncOwned(row.connectionId, row.simplefinId) &&
+      (amount !== undefined || description !== undefined || date !== undefined)
+    ) {
+      throw new Error('Only the category can be edited on synced transactions')
+    }
+    if (categoryId !== undefined && categoryId !== null) {
+      const category = db
+        .select({ id: categories.id })
+        .from(categories)
+        .where(eq(categories.id, categoryId))
+        .get()
+      if (!category) throw new Error('Category not found')
+    }
+
+    // same local-noon anchoring as create
+    let posted: number | undefined
+    if (date !== undefined) {
+      const [year, month, day] = date.split('-').map(Number)
+      posted = dayToUnix(year, month, day)
+    }
+
+    const changes = buildUpdateChanges(row, { amount, description, posted, categoryId }, id)
+    if (changes.length === 0) return 0
+
+    db.transaction((tx) => {
+      const set: Partial<{
+        amount: number
+        description: string
+        posted: number
+        categoryId: number | null
+      }> = {}
+      for (const change of changes) {
+        if (change.field === 'description') set.description = change.after
+        else if (change.field === 'amount') set.amount = change.after as number
+        else if (change.field === 'posted') set.posted = change.after as number
+        else if (change.field === 'categoryId') set.categoryId = change.after
+      }
+      tx.update(transactions).set(set).where(eq(transactions.id, id)).run()
+      recordAction(tx, {
+        source: 'user',
+        label: `Edited “${set.description ?? row.description}”`,
+        changes
+      })
+    })
+
+    // editor categorization feeds rule suggestions like cell categorization does
+    const newCategoryId = changes.find((c) => c.field === 'categoryId')?.after
+    if (typeof newCategoryId === 'number') {
+      setImmediate(() => {
+        detectRuleSuggestions([{ transactionId: id, categoryId: newCategoryId }], 'user').catch(
+          (e) => {
+            log.error('rule-suggestion-detection.failed', e)
+          }
+        )
+      })
+    }
+    return changes.length
   })
 }

@@ -53,6 +53,16 @@ export function formatShares(value: string | number): string {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 }).format(Number(value))
 }
 
+/** Currency symbol for an ISO code, falling back to the code itself. */
+export function currencySymbol(currency: string): string {
+  try {
+    const parts = new Intl.NumberFormat(undefined, { style: 'currency', currency }).formatToParts(0)
+    return parts.find((p) => p.type === 'currency')?.value ?? currency
+  } catch {
+    return currency
+  }
+}
+
 export function formatAmount(milliunits: number, currency: string): string {
   const value = milliunits / 1000
   try {

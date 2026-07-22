@@ -8,6 +8,7 @@ import { transactionDate } from './transactions-page'
 import {
   ACTION_LOG_IPC,
   idSchema,
+  isTransactionChange,
   type ActionChange,
   type ActionField,
   type ActionLogEntry,
@@ -23,11 +24,14 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
 const log = createLogger('action-log')
 
-// the only columns undo/redo may rewrite. Keys match ActionField (and the
-// drizzle schema props), so a change can never target an arbitrary column.
+// the only numeric columns undo/redo may rewrite. Keys match ActionField (and
+// the drizzle schema props), so a change can never target an arbitrary column.
+// description is string-valued and handled separately (setDescriptionGuarded).
 const EDITABLE_FIELDS = {
   categoryId: transactions.categoryId,
-  deletedAt: transactions.deletedAt
+  deletedAt: transactions.deletedAt,
+  amount: transactions.amount,
+  posted: transactions.posted
 } as const
 
 // how many recent entries the Activity page shows (undo/redo still reach older
@@ -90,7 +94,28 @@ function setGuarded(
       return tx.update(transactions).set({ categoryId: target }).where(where).run().changes
     case 'deletedAt':
       return tx.update(transactions).set({ deletedAt: target }).where(where).run().changes
+    // amount/posted are NOT NULL columns, so target/guard are never null here
+    case 'amount':
+      return tx.update(transactions).set({ amount: target! }).where(where).run().changes
+    case 'posted':
+      return tx.update(transactions).set({ posted: target! }).where(where).run().changes
   }
+}
+
+// guarded description rewrite — the one string-valued transaction field, so it
+// bypasses the numeric currentValueIs machinery (same shape as a conversation title)
+function setDescriptionGuarded(
+  tx: Tx,
+  change: Extract<TransactionActionChange, { field: 'description' }>,
+  direction: 'undo' | 'redo'
+): number {
+  const target = direction === 'undo' ? change.before : change.after
+  const guard = direction === 'undo' ? change.after : change.before
+  return tx
+    .update(transactions)
+    .set({ description: target })
+    .where(and(eq(transactions.id, change.transactionId), eq(transactions.description, guard)))
+    .run().changes
 }
 
 // same guarded semantics for a budget fill row, where null means "no row":
@@ -173,6 +198,8 @@ function applyEntry(entryId: number, direction: 'undo' | 'redo'): UndoResult {
         applied += setBudgetGuarded(tx, change, target, guard)
       } else if (change.field === 'conversationTitle' || change.field === 'conversationDeletedAt') {
         applied += setConversationGuarded(tx, change, direction)
+      } else if (change.field === 'description') {
+        applied += setDescriptionGuarded(tx, change, direction)
       } else {
         const target = direction === 'undo' ? change.before : change.after
         const guard = direction === 'undo' ? change.after : change.before
@@ -227,15 +254,7 @@ function redoNewest(): UndoResult | null {
 function listEntries(): ActionLogEntry[] {
   const rows = db.select().from(actionLog).orderBy(desc(actionLog.id)).limit(LIST_LIMIT).all()
   const allChanges = rows.flatMap((r) => r.changes)
-  const txIds = [
-    ...new Set(
-      allChanges
-        .filter(
-          (c): c is TransactionActionChange => c.field === 'categoryId' || c.field === 'deletedAt'
-        )
-        .map((c) => c.transactionId)
-    )
-  ]
+  const txIds = [...new Set(allChanges.filter(isTransactionChange).map((c) => c.transactionId))]
   const context = txIds.length
     ? db
         .select({

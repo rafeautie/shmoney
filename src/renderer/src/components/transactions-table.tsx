@@ -11,6 +11,7 @@ import { CategoryCell } from '@/components/category-cell'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { TransactionsBulkActions } from '@/components/transactions-bulk-actions'
 import { Checkbox } from '@/components/ui/checkbox'
+import { useTransactionEditor } from '@/lib/transaction-editor'
 
 interface TransactionsTableProps {
   /** Base query key; the current sort is appended to it */
@@ -34,6 +35,7 @@ export function TransactionsTable({
   emptyMessage = 'No transactions yet. Try syncing.',
   className
 }: TransactionsTableProps) {
+  const { openEdit } = useTransactionEditor()
   const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }])
   const sort = sortQuery<TransactionSortBy>(sorting, { id: 'date', desc: true })
   // keyed by transaction id, so selection survives refetches and filter changes
@@ -163,6 +165,8 @@ export function TransactionsTable({
         isFetchingMore={transactionsQuery.isFetchingNextPage}
         isLoading={transactionsQuery.isLoading}
         emptyMessage={emptyMessage}
+        // click to edit; pending rows are read-only (openEdit no-ops on them)
+        onRowClick={openEdit}
         // transfers are neither income nor expense, so dim the whole row to de-emphasize them
         rowClassName={(transaction) => transaction.isTransfer && 'opacity-60'}
         // pending rows can't be selected: sync drops and re-inserts them, so bulk edits would be lost

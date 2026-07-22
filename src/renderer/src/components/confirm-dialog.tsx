@@ -83,7 +83,7 @@ export function ConfirmDialog({
 
 // a small keycap that labels which key triggers a button; inherits the button's
 // text color so it reads on both the outline and destructive variants
-function KeyHint({ children }: { children: React.ReactNode }): React.JSX.Element {
+export function KeyHint({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
     <kbd className="pointer-events-none inline-flex h-4 min-w-4 items-center justify-center rounded border border-current/30 px-1 font-sans text-[0.625rem] leading-none opacity-70">
       {children}

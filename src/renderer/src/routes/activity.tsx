@@ -317,9 +317,13 @@ function EntryRow({
                       </TableCell>
                       {isCategoryEntry && (
                         <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {typeof change.after === 'number'
-                            ? (categoryName.get(change.after) ?? 'Unknown category')
-                            : 'Uncategorized'}
+                          {/* mixed edit entries carry non-category changes too; only
+                              categoryId rows show a category */}
+                          {change.field !== 'categoryId'
+                            ? null
+                            : typeof change.after === 'number'
+                              ? (categoryName.get(change.after) ?? 'Unknown category')
+                              : 'Uncategorized'}
                         </TableCell>
                       )}
                     </>

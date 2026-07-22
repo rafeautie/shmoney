@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, isNull, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, transactions } from '../db/schema'
-import type { Page, Transaction } from '@shared/ipc'
+import { isSyncOwned, type Page, type Transaction } from '@shared/ipc'
 
 // SimpleFIN sends posted = 0 for pending transactions; their real date is transacted_at
 export const transactionDate = sql<number>`coalesce(nullif(${transactions.posted}, 0), ${transactions.transactedAt}, 0)`
@@ -41,7 +41,9 @@ export function transactionsPage(
       pending: transactions.pending,
       categoryId: transactions.categoryId,
       categoryName: categories.name,
-      categorySystemKey: categories.systemKey
+      categorySystemKey: categories.systemKey,
+      connectionId: accounts.connectionId,
+      simplefinId: transactions.simplefinId
     })
     .from(transactions)
     .innerJoin(accounts, eq(transactions.accountId, accounts.id))
@@ -53,10 +55,12 @@ export function transactionsPage(
     .limit(q.pageSize)
     .offset(q.page * q.pageSize)
     .all()
-    // isTransfer is derived for display: membership in the Transfers system category
-    .map(({ categorySystemKey, ...row }) => ({
+    // isTransfer is derived for display: membership in the Transfers system category;
+    // syncOwned tells the edit dialog which fields sync would overwrite
+    .map(({ categorySystemKey, connectionId, simplefinId, ...row }) => ({
       ...row,
-      isTransfer: categorySystemKey === 'transfers'
+      isTransfer: categorySystemKey === 'transfers',
+      syncOwned: isSyncOwned(connectionId, simplefinId)
     }))
   const total =
     db

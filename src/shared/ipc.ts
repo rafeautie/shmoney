@@ -90,6 +90,19 @@ export interface Transaction {
   categoryName: string | null
   /** derived: in the Transfers system category — excluded from income/expense */
   isTransfer: boolean
+  /** sync overwrites amount/description/date on these rows; only the category is user-editable */
+  syncOwned: boolean
+}
+
+/**
+ * Whether sync owns a transaction's amount/description/date: rows on a connected
+ * account whose id came from SimpleFIN. `manual:`/`import:` prefixed ids are
+ * app-generated and can never collide with the bank's, so sync's upsert can't
+ * touch them even on a connected account.
+ */
+export function isSyncOwned(connectionId: number | null, simplefinId: string): boolean {
+  if (connectionId === null) return false
+  return !simplefinId.startsWith('manual:') && !simplefinId.startsWith('import:')
 }
 
 export interface Category {
@@ -197,6 +210,25 @@ export const transactionCreateSchema = z.object({
 })
 export type TransactionCreateInput = z.infer<typeof transactionCreateSchema>
 
+// editing one transaction from the edit dialog. Omitted fields are unchanged;
+// `categoryId: null` present means "set to Uncategorized". The server rejects
+// amount/description/date on sync-owned rows (see isSyncOwned).
+export const transactionUpdateSchema = z.object({
+  id: idSchema,
+  amount: z
+    .number()
+    .int()
+    .refine((n) => n !== 0, 'Amount must not be zero')
+    .optional(),
+  description: z.string().trim().min(1).max(200).optional(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected a YYYY-MM-DD date')
+    .optional(),
+  categoryId: idSchema.nullable().optional()
+})
+export type TransactionUpdateInput = z.infer<typeof transactionUpdateSchema>
+
 // scope for a categorize run: an explicit selection, one account, or — with both
 // omitted — every eligible transaction. transactionIds wins when both are present.
 export const categorizeScopeSchema = z.object({
@@ -209,16 +241,66 @@ export type CategorizeScopeInput = z.infer<typeof categorizeScopeSchema>
 
 export type ActionSource = 'user' | 'detector' | 'rule' | 'llm' | 'import'
 
-// the transaction columns undo/redo may rewrite. These strings double as the
-// drizzle set-keys in the main-process engine, so they must match schema props.
-export type ActionField = 'categoryId' | 'deletedAt'
+// the numeric transaction columns undo/redo may rewrite. These strings double as
+// the drizzle set-keys in the main-process engine, so they must match schema
+// props. `description` is string-valued so it gets its own change variant below.
+export type ActionField = 'categoryId' | 'deletedAt' | 'amount' | 'posted'
 
-export interface TransactionActionChange {
+export type TransactionActionChange =
+  | {
+      transactionId: number
+      field: ActionField
+      /** raw stored values (number|null) */
+      before: number | null
+      after: number | null
+    }
+  | {
+      transactionId: number
+      field: 'description'
+      before: string
+      after: string
+    }
+
+/** Narrow an ActionChange to the transaction variants (any field incl. description). */
+export function isTransactionChange(c: ActionChange): c is TransactionActionChange {
+  return 'transactionId' in c
+}
+
+/**
+ * Diff a transaction edit's provided fields against the stored row, one change
+ * per field that actually differs — the action-log entry for transactions:update.
+ * Lives here (not in the main process) so it stays free of DB imports and
+ * unit-testable; better-sqlite3 can't load under vitest.
+ */
+export function buildUpdateChanges(
+  current: { amount: number; description: string; posted: number; categoryId: number | null },
+  input: { amount?: number; description?: string; posted?: number; categoryId?: number | null },
   transactionId: number
-  field: ActionField
-  /** raw stored values (number|null for both fields) */
-  before: number | null
-  after: number | null
+): TransactionActionChange[] {
+  const changes: TransactionActionChange[] = []
+  if (input.amount !== undefined && input.amount !== current.amount) {
+    changes.push({ transactionId, field: 'amount', before: current.amount, after: input.amount })
+  }
+  if (input.description !== undefined && input.description !== current.description) {
+    changes.push({
+      transactionId,
+      field: 'description',
+      before: current.description,
+      after: input.description
+    })
+  }
+  if (input.posted !== undefined && input.posted !== current.posted) {
+    changes.push({ transactionId, field: 'posted', before: current.posted, after: input.posted })
+  }
+  if (input.categoryId !== undefined && input.categoryId !== current.categoryId) {
+    changes.push({
+      transactionId,
+      field: 'categoryId',
+      before: current.categoryId,
+      after: input.categoryId
+    })
+  }
+  return changes
 }
 
 /** A budget fill change for one (category, month); null = no fill row. */
@@ -324,6 +406,7 @@ export const IPC = {
   transactionsSetCategories: 'transactions:setCategories',
   transactionsBulkDelete: 'transactions:bulkDelete',
   transactionsCreate: 'transactions:create',
+  transactionsUpdate: 'transactions:update',
   categoriesList: 'categories:list',
   categoriesCreateGroup: 'categories:createGroup',
   categoriesRenameGroup: 'categories:renameGroup',
