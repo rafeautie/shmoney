@@ -82,15 +82,15 @@ export function TransactionsTable({
             aria-label="Select all"
           />
         ),
-        cell: ({ row }) => (
-          <Checkbox
-            checked={row.getIsSelected()}
-            disabled={!row.getCanSelect()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            onClick={(event) => event.stopPropagation()}
-            aria-label="Select row"
-          />
-        )
+        cell: ({ row }) =>
+          row.getCanSelect() && (
+            <Checkbox
+              checked={row.getIsSelected()}
+              onCheckedChange={(value) => row.toggleSelected(!!value)}
+              onClick={(event) => event.stopPropagation()}
+              aria-label="Select row"
+            />
+          )
       },
       {
         accessorKey: 'date',
