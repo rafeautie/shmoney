@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Add01Icon } from '@hugeicons/core-free-icons'
 import { AccountSettingsDialog } from '@/components/account-settings-dialog'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/auto-categorize-button'
+import { CreateTransactionButton } from '@/components/create-transaction-button'
 import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
 import { HoldingsTable } from '@/components/holdings-table'
-import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export const Route = createFileRoute('/accounts/$accountId')({
@@ -62,17 +60,13 @@ function AccountDetailPage() {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button
-            variant={creating ? 'secondary' : 'outline'}
-            aria-pressed={creating}
-            onClick={() => {
+          <CreateTransactionButton
+            creating={creating}
+            onToggle={() => {
               setCreating(!creating)
               if (!creating) setTab('transactions')
             }}
-          >
-            <HugeiconsIcon icon={Add01Icon} size={16} />
-            Create transaction
-          </Button>
+          />
           <AutoCategorizeButton scope={{ accountId: id }} />
           {account && (
             <AccountSettingsDialog

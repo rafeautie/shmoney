@@ -6,6 +6,7 @@ import { BankIcon } from '@hugeicons/core-free-icons'
 import type { Account } from '@shared/ipc'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/auto-categorize-button'
+import { CreateTransactionButton } from '@/components/create-transaction-button'
 import { ImportDialog } from '@/components/import-dialog'
 import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
 import { TABLE_BLEED, cn, plural } from '@/lib/utils'
@@ -55,16 +56,13 @@ function AccountsPage() {
         <div className="flex items-start justify-between gap-4">
           <NetWorth />
           <div className="flex items-center gap-2">
-            <Button
-              variant={creating ? 'secondary' : 'outline'}
-              aria-pressed={creating}
-              onClick={() => {
+            <CreateTransactionButton
+              creating={creating}
+              onToggle={() => {
                 setCreating(!creating)
                 if (!creating) setTab('transactions')
               }}
-            >
-              Create transaction
-            </Button>
+            />
             <Button variant="outline" onClick={() => setImportOpen(true)}>
               Import
             </Button>
