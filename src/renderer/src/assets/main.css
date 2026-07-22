@@ -182,6 +182,28 @@
   }
 }
 
+/* Type keeps the sizes the old 17px root produced, but the root itself is
+ * 16px so every 0.25rem spacing step lands on whole pixels. At a 17px root,
+ * h-7 buttons were 29.75px tall and icons 14.875px; dpr-1 paint snapped each
+ * instance differently, so identical buttons rendered their label a pixel
+ * high in one spot and a pixel low in another. Fractional font sizes are
+ * fine (glyphs are antialiased curves); fractional boxes are not. Integer
+ * line-heights keep stacked text on whole-pixel rows for the same reason. */
+@theme {
+  --text-xs: 12.75px;
+  --text-xs--line-height: 17px;
+  --text-sm: 14.875px;
+  --text-sm--line-height: 21px;
+  --text-base: 17px;
+  --text-base--line-height: 26px;
+  --text-lg: 19.125px;
+  --text-lg--line-height: 30px;
+  --text-2xl: 25.5px;
+  --text-2xl--line-height: 34px;
+  --text-3xl: 31.875px;
+  --text-3xl--line-height: 38px;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -189,11 +211,14 @@
 
   body {
     @apply bg-background text-foreground;
+    /* Unclassed text inherited 17px under the old root; keep that size. */
+    font-size: var(--text-base);
   }
 
   html {
     @apply font-sans;
-    font-size: 17px;
+    /* Integer rem base; see the @theme type block above before changing. */
+    font-size: 16px;
   }
 
   /* Provide the same gentle color fade to hover styles without an explicit
