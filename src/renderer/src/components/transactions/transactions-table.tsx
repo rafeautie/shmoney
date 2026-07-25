@@ -5,6 +5,7 @@ import type { Page, Transaction, TransactionSortBy } from '@shared/ipc'
 import { PAGE_SIZE, cn, nextPageParam, sortQuery } from '@/lib/utils'
 import { CategoryCell } from './category-cell'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
+import { selectColumn } from '@/components/data-table-select-column'
 import {
   EditableAmountCell,
   EditableDateCell,
@@ -12,7 +13,6 @@ import {
   TransactionCreateRow
 } from './transaction-cells'
 import { TransactionsBulkActions } from './transactions-bulk-actions'
-import { Checkbox } from '@/components/ui/checkbox'
 
 interface TransactionsTableProps {
   /** Base query key; the current sort is appended to it */
@@ -68,30 +68,7 @@ export function TransactionsTable({
 
   const columns = useMemo<ColumnDef<Transaction>[]>(
     () => [
-      {
-        id: 'select',
-        enableSorting: false,
-        // the base cell strips right padding next to checkboxes; restore breathing room
-        meta: { className: 'pr-4!' },
-        header: ({ table }) => (
-          <Checkbox
-            checked={
-              table.getIsAllRowsSelected() || (table.getIsSomeRowsSelected() && 'indeterminate')
-            }
-            onCheckedChange={(value) => table.toggleAllRowsSelected(!!value)}
-            aria-label="Select all"
-          />
-        ),
-        cell: ({ row }) =>
-          row.getCanSelect() && (
-            <Checkbox
-              checked={row.getIsSelected()}
-              onCheckedChange={(value) => row.toggleSelected(!!value)}
-              onClick={(event) => event.stopPropagation()}
-              aria-label="Select row"
-            />
-          )
-      },
+      selectColumn(),
       {
         accessorKey: 'date',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,

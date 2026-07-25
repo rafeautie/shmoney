@@ -30,6 +30,13 @@ declare module '@tanstack/react-table' {
     /** Extra classes for this column's th and td (e.g. 'w-full max-w-0' for a greedy truncating column) */
     className?: string
   }
+  interface TableMeta<TData extends RowData> {
+    /**
+     * Selects/deselects a row. With `shiftKey`, applies `selected` to every
+     * selectable row between the last row toggled and this one.
+     */
+    toggleRowSelected: (row: Row<TData>, selected: boolean, shiftKey?: boolean) => void
+  }
 }
 
 export function DataTableColumnHeader<TData, TValue>({
@@ -110,6 +117,32 @@ export function DataTable<TData>({
   bleed,
   className
 }: DataTableProps<TData>) {
+  // the row a shift-click extends from: the last one toggled on its own
+  const anchorRef = useRef<string | null>(null)
+
+  // hoisted so it can read `table`, which it only ever touches once called
+  function toggleRowSelected(row: Row<TData>, selected: boolean, shiftKey = false) {
+    const rows = table.getRowModel().rows
+    const from =
+      shiftKey && anchorRef.current ? rows.findIndex((r) => r.id === anchorRef.current) : -1
+    const to = rows.findIndex((r) => r.id === row.id)
+    anchorRef.current = row.id
+    if (from === -1 || to === -1) {
+      row.toggleSelected(selected)
+      return
+    }
+    const range = rows.slice(Math.min(from, to), Math.max(from, to) + 1)
+    onRowSelectionChange?.((prev) => {
+      const next = { ...prev }
+      for (const r of range) {
+        if (!r.getCanSelect()) continue
+        if (selected) next[r.id] = true
+        else delete next[r.id]
+      }
+      return next
+    })
+  }
+
   const table = useReactTable({
     data,
     columns,
@@ -119,7 +152,8 @@ export function DataTable<TData>({
     getRowId,
     state: { sorting, rowSelection: rowSelection ?? {} },
     onSortingChange,
-    onRowSelectionChange
+    onRowSelectionChange,
+    meta: { toggleRowSelected }
   })
 
   const scrollRef = useRef<HTMLDivElement>(null)
