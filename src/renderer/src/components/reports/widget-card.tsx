@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Delete02Icon } from '@hugeicons/core-free-icons'
 import type { ReportFilters, ReportWidget } from '@shared/reports'
@@ -8,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ConfirmButton } from '@/components/confirm-dialog'
 import { WidgetRenderer } from './widget-renderer'
 
 const FILTER_LABELS: Record<string, string> = {
@@ -53,7 +52,6 @@ interface WidgetCardProps {
 }
 
 export function WidgetCard({ widget, reportFilters, editing, onEdit, onDelete }: WidgetCardProps) {
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   // widgets own their edge padding, so the card only pads the header
   return (
     <Card
@@ -70,23 +68,22 @@ export function WidgetCard({ widget, reportFilters, editing, onEdit, onDelete }:
             <Button variant="ghost" size="sm" onClick={onEdit}>
               Edit
             </Button>
-            <Button variant="ghost" size="icon-sm" onClick={() => setConfirmingDelete(true)}>
+            <ConfirmButton
+              variant="ghost"
+              size="icon-sm"
+              title="Delete this widget?"
+              description="This removes the widget from the report."
+              onConfirm={(close) => {
+                onDelete()
+                close()
+              }}
+            >
               <HugeiconsIcon icon={Delete02Icon} size={14} />
               <span className="sr-only">Delete widget</span>
-            </Button>
+            </ConfirmButton>
           </div>
         )}
       </div>
-      <ConfirmDialog
-        open={confirmingDelete}
-        onOpenChange={setConfirmingDelete}
-        title="Delete this widget?"
-        description="This removes the widget from the report."
-        onConfirm={() => {
-          onDelete()
-          setConfirmingDelete(false)
-        }}
-      />
       <div className="min-h-0 flex-1">
         <WidgetRenderer widget={widget} reportFilters={reportFilters} />
       </div>

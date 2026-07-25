@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -12,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { SettingsGroup, SettingAction } from './settings-controls'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ConfirmButton } from '@/components/confirm-dialog'
 
 export function ConnectionSettings() {
   const queryClient = useQueryClient()
@@ -25,14 +24,10 @@ export function ConnectionSettings() {
 
   const { setupToken, setSetupToken, connect, syncConnection } = useConnectSimpleFin()
   const { onboardingComplete, resetOnboarding } = useOnboarding()
-  const [confirmingDisconnect, setConfirmingDisconnect] = useState(false)
 
   const disconnect = useMutation({
     mutationFn: () => window.api.connection.disconnect(),
-    onSuccess: () => {
-      setConfirmingDisconnect(false)
-      queryClient.invalidateQueries()
-    }
+    onSuccess: () => queryClient.invalidateQueries()
   })
 
   if (connectionQuery.isLoading) {
@@ -134,23 +129,20 @@ export function ConnectionSettings() {
             label="Disconnect"
             description="Remove all synced accounts and transactions, along with their history and rule suggestions, from this device."
           >
-            <Button variant="outline" onClick={() => setConfirmingDisconnect(true)}>
+            <ConfirmButton
+              variant="outline"
+              title="Disconnect SimpleFIN?"
+              description="This deletes all synced accounts and transactions from this device, along with their activity history and any rule suggestions they produced. Your manual accounts and saved rules are kept."
+              confirmLabel="Disconnect"
+              pendingLabel="Disconnecting…"
+              pending={disconnect.isPending}
+              onConfirm={(close) => disconnect.mutate(undefined, { onSuccess: close })}
+            >
               Disconnect
-            </Button>
+            </ConfirmButton>
           </SettingAction>
         </SettingsGroup>
       </CardContent>
-
-      <ConfirmDialog
-        open={confirmingDisconnect}
-        onOpenChange={setConfirmingDisconnect}
-        title="Disconnect SimpleFIN?"
-        description="This deletes all synced accounts and transactions from this device, along with their activity history and any rule suggestions they produced. Your manual accounts and saved rules are kept."
-        confirmLabel="Disconnect"
-        pendingLabel="Disconnecting…"
-        pending={disconnect.isPending}
-        onConfirm={() => disconnect.mutate()}
-      />
     </Card>
   )
 }

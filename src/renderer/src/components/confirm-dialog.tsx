@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { CornerDownLeftIcon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
@@ -11,10 +11,28 @@ import {
   DialogTitle
 } from '@/components/ui/dialog'
 
+/** What to confirm and what to do about it — shared by the dialog and the button
+ * that opens it. */
+export interface ConfirmProps {
+  title: React.ReactNode
+  description?: React.ReactNode
+  confirmLabel?: string
+  pendingLabel?: string
+  confirmVariant?: React.ComponentProps<typeof Button>['variant']
+  pending?: boolean
+  /** `close` dismisses the dialog; hand it to an async action's success callback
+   * so a failed action leaves the dialog open. */
+  onConfirm: (close: () => void) => void
+}
+
 /** The single confirmation pattern for destructive actions: a modal dialog with a
  * title, an explanation, and Cancel / confirm buttons. Controlled via open/onOpenChange.
  * The confirm button is destructive by default; pass `pendingLabel` to show progress
  * text while the action runs (the button is disabled whenever `pending` is true).
+ *
+ * Prefer <ConfirmButton> when a button opens this; reach for the dialog directly when
+ * the entry point is something else (a menu item, a keyboard shortcut, a row action
+ * whose target varies) or when it must outlive its trigger.
  *
  * Keyboard: Escape cancels (base-ui default) and Enter confirms — the body is a form
  * whose submit button is the confirm action, and it takes initial focus so a bare Enter
@@ -29,16 +47,9 @@ export function ConfirmDialog({
   confirmVariant = 'destructive',
   pending = false,
   onConfirm
-}: {
+}: ConfirmProps & {
   open: boolean
   onOpenChange: (open: boolean) => void
-  title: React.ReactNode
-  description?: React.ReactNode
-  confirmLabel?: string
-  pendingLabel?: string
-  confirmVariant?: React.ComponentProps<typeof Button>['variant']
-  pending?: boolean
-  onConfirm: () => void
 }): React.JSX.Element {
   const confirmRef = useRef<HTMLButtonElement>(null)
   return (
@@ -48,7 +59,7 @@ export function ConfirmDialog({
           className="grid gap-4"
           onSubmit={(event) => {
             event.preventDefault()
-            if (!pending) onConfirm()
+            if (!pending) onConfirm(() => onOpenChange(false))
           }}
           onKeyDown={(event) => {
             // Escape cancels. base-ui's built-in escape-to-close does not fire
@@ -78,6 +89,47 @@ export function ConfirmDialog({
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** A destructive action as one component: the button that starts it plus the
+ * confirmation it has to pass. Remaining props style the trigger, so
+ * `<ConfirmButton variant="destructive" title="Delete X?" onConfirm={…}>Delete</ConfirmButton>`
+ * replaces the usual button + open state + <ConfirmDialog> trio. An `onClick`
+ * still runs on press, before the dialog opens. */
+export function ConfirmButton({
+  title,
+  description,
+  confirmLabel,
+  pendingLabel,
+  confirmVariant,
+  pending,
+  onConfirm,
+  onClick,
+  ...buttonProps
+}: ConfirmProps & Omit<React.ComponentProps<typeof Button>, 'title'>): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button
+        {...buttonProps}
+        onClick={(event) => {
+          onClick?.(event)
+          setOpen(true)
+        }}
+      />
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title={title}
+        description={description}
+        confirmLabel={confirmLabel}
+        pendingLabel={pendingLabel}
+        confirmVariant={confirmVariant}
+        pending={pending}
+        onConfirm={onConfirm}
+      />
+    </>
   )
 }
 

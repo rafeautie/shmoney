@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { SettingsGroup, SettingAction } from './settings-controls'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ConfirmButton } from '@/components/confirm-dialog'
 
 export function CategoriesSettings() {
   const queryClient = useQueryClient()
@@ -20,7 +20,6 @@ export function CategoriesSettings() {
   })
 
   const [newGroupName, setNewGroupName] = useState('')
-  const [confirmingReset, setConfirmingReset] = useState(false)
 
   const createGroup = useMutation({
     mutationFn: () => window.api.categories.createGroup({ name: newGroupName }),
@@ -30,7 +29,6 @@ export function CategoriesSettings() {
 
   const resetDefaults = useMutation({
     mutationFn: () => window.api.categories.resetDefaults(),
-    onSuccess: () => setConfirmingReset(false),
     onSettled: () => queryClient.invalidateQueries()
   })
 
@@ -117,9 +115,17 @@ export function CategoriesSettings() {
             label="Reset to defaults"
             description="Restore the default groups and categories; transactions in them become Uncategorized. System categories and their transactions are kept."
           >
-            <Button variant="destructive" onClick={() => setConfirmingReset(true)}>
+            <ConfirmButton
+              variant="destructive"
+              title="Reset to defaults?"
+              description="This restores the default groups and categories and sets their transactions to Uncategorized. System categories (and the transactions assigned to them) are kept."
+              confirmLabel="Reset"
+              pendingLabel="Resetting…"
+              pending={resetDefaults.isPending}
+              onConfirm={(close) => resetDefaults.mutate(undefined, { onSuccess: close })}
+            >
               Reset
-            </Button>
+            </ConfirmButton>
           </SettingAction>
         </SettingsGroup>
         {resetDefaults.isError && (
@@ -127,16 +133,6 @@ export function CategoriesSettings() {
             Reset failed: {ipcErrorMessage(resetDefaults.error)}
           </p>
         )}
-        <ConfirmDialog
-          open={confirmingReset}
-          onOpenChange={setConfirmingReset}
-          title="Reset to defaults?"
-          description="This restores the default groups and categories and sets their transactions to Uncategorized. System categories (and the transactions assigned to them) are kept."
-          confirmLabel="Reset"
-          pendingLabel="Resetting…"
-          pending={resetDefaults.isPending}
-          onConfirm={() => resetDefaults.mutate()}
-        />
       </CardContent>
     </Card>
   )
@@ -145,7 +141,6 @@ export function CategoriesSettings() {
 function GroupSection({ group }: { group: CategoryGroup }) {
   const queryClient = useQueryClient()
 
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [renameDraft, setRenameDraft] = useState<string | null>(null)
 
   const renameGroup = useMutation({
@@ -156,7 +151,6 @@ function GroupSection({ group }: { group: CategoryGroup }) {
 
   const deleteGroup = useMutation({
     mutationFn: () => window.api.categories.deleteGroup(group.id),
-    onSuccess: () => setConfirmingDelete(false),
     onSettled: () => queryClient.invalidateQueries()
   })
 
@@ -198,29 +192,24 @@ function GroupSection({ group }: { group: CategoryGroup }) {
             >
               <HugeiconsIcon icon={PencilEdit02Icon} size={14} />
             </Button>
-            <Button
+            <ConfirmButton
               variant="ghost"
               size="icon-sm"
               className="ml-auto"
               aria-label={`Delete group ${group.name}`}
-              onClick={() => setConfirmingDelete(true)}
+              title={`Delete “${group.name}”?`}
+              description="Deletes the group and its categories. Their transactions become uncategorized."
+              pending={deleteGroup.isPending}
+              pendingLabel="Deleting…"
+              onConfirm={(close) => deleteGroup.mutate(undefined, { onSuccess: close })}
             >
               <HugeiconsIcon icon={Delete02Icon} size={14} />
-            </Button>
+            </ConfirmButton>
           </>
         )}
       </div>
       <CategoryList groupId={group.id} categories={group.categories} />
       {error != null && <p className="text-sm text-destructive">{ipcErrorMessage(error)}</p>}
-      <ConfirmDialog
-        open={confirmingDelete}
-        onOpenChange={setConfirmingDelete}
-        title={`Delete “${group.name}”?`}
-        description="Deletes the group and its categories. Their transactions become uncategorized."
-        pending={deleteGroup.isPending}
-        pendingLabel="Deleting…"
-        onConfirm={() => deleteGroup.mutate()}
-      />
     </div>
   )
 }
@@ -295,7 +284,6 @@ function CategoryChip({ category }: { category: Category }) {
   const queryClient = useQueryClient()
 
   const [mode, setMode] = useState<'view' | 'edit'>('view')
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [renameDraft, setRenameDraft] = useState(category.name)
 
   const rename = useMutation({
@@ -306,7 +294,6 @@ function CategoryChip({ category }: { category: Category }) {
 
   const deleteCategory = useMutation({
     mutationFn: () => window.api.categories.delete(category.id),
-    onSuccess: () => setConfirmingDelete(false),
     onSettled: () => queryClient.invalidateQueries()
   })
 
@@ -363,29 +350,24 @@ function CategoryChip({ category }: { category: Category }) {
           >
             <HugeiconsIcon icon={PencilEdit02Icon} size={10} />
           </Button>
-          <Button
+          <ConfirmButton
             variant="ghost"
             size="icon-xs"
             aria-label={`Delete category ${category.name}`}
-            onClick={() => {
-              deleteCategory.reset()
-              setConfirmingDelete(true)
-            }}
+            // clear a previous failure so the chip isn't showing a stale error
+            // while the confirmation is up
+            onClick={() => deleteCategory.reset()}
+            title={`Delete “${category.name}”?`}
+            description="Its transactions become uncategorized."
+            pending={deleteCategory.isPending}
+            pendingLabel="Deleting…"
+            onConfirm={(close) => deleteCategory.mutate(undefined, { onSuccess: close })}
           >
             <HugeiconsIcon icon={Delete02Icon} size={10} />
-          </Button>
+          </ConfirmButton>
         </span>
       </span>
       {error != null && <span className="pl-1 text-destructive">{ipcErrorMessage(error)}</span>}
-      <ConfirmDialog
-        open={confirmingDelete}
-        onOpenChange={setConfirmingDelete}
-        title={`Delete “${category.name}”?`}
-        description="Its transactions become uncategorized."
-        pending={deleteCategory.isPending}
-        pendingLabel="Deleting…"
-        onConfirm={() => deleteCategory.mutate()}
-      />
     </span>
   )
 }
