@@ -372,6 +372,16 @@ function RadarChartWidget({
 
 // ---------- radial bar ----------
 
+/**
+ * A sweep of exactly 360 makes an arc's start and end point coincide, and
+ * Recharts rounds path coordinates to 4 decimals. Solving that near-degenerate
+ * arc back to a centre amplifies the rounding into a several-pixel shift, so
+ * full rings (every `background` track, plus the largest bar) drift away from
+ * the partial ones. A hair under a full turn keeps the arc well conditioned;
+ * the gap it leaves is a fraction of a pixel.
+ */
+const FULL_TURN = 359.9
+
 function RadialChartWidget({
   config,
   rows,
@@ -405,7 +415,13 @@ function RadialChartWidget({
     <div className="relative flex h-full flex-col px-4 pb-4">
       <MixedCurrencyBadge currencies={currencies} />
       <ChartContainer config={chartConfig} className="aspect-auto min-h-0 w-full flex-1">
-        <RadialBarChart data={data} innerRadius="25%" outerRadius="100%">
+        <RadialBarChart
+          data={data}
+          startAngle={0}
+          endAngle={FULL_TURN}
+          innerRadius="25%"
+          outerRadius="100%"
+        >
           <ChartTooltip
             content={
               <ChartTooltipContent
