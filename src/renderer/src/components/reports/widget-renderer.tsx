@@ -462,20 +462,27 @@ function StatCardWidget({
   if (byCurrency.length === 0) {
     return <CenteredNote>No transactions match these filters.</CenteredNote>
   }
-  const fv = makeFormatValue(measure, currencies[0] ?? 'USD')
-  const items = byCurrency.map(({ currency, value }) => ({
-    value,
-    currency,
-    colored: measure === 'sum',
-    sensitive: measure !== 'count'
-  }))
+  const headline = 'text-3xl font-semibold tracking-tight'
   return (
-    <Chart
-      kind="stat"
-      items={items}
-      formatValue={fv}
-      className="h-full justify-center overflow-hidden p-4"
-    />
+    <div className="flex h-full flex-col items-start justify-center gap-1 overflow-hidden p-4">
+      {byCurrency.map(({ currency, value }) =>
+        // a count is not money: no currency, no sign color, and nothing to hide
+        // behind the privacy blur
+        measure === 'count' ? (
+          <span key={currency} className={cn(headline, 'tabular-nums')}>
+            {formatMeasureValue(measure, value, currency)}
+          </span>
+        ) : (
+          <Amount
+            key={currency}
+            value={value}
+            currency={currency}
+            colored={measure === 'sum'}
+            className={headline}
+          />
+        )
+      )}
+    </div>
   )
 }
 
