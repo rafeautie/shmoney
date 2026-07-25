@@ -1,13 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Page } from '@/components/page'
-import { CategoriesSettings } from '@/components/categories-settings'
-import { ConnectionSettings } from '@/components/connection-settings'
-import { PrivacySettings } from '@/components/privacy-settings'
-import { TransferSettings } from '@/components/transfer-settings'
-import { RulesSettings } from '@/components/rules-settings'
-import { LlmSettings } from '@/components/llm-settings'
-import { StorageSettings } from '@/components/storage-settings'
-import { AboutSettings } from '@/components/about-settings'
+import { CategoriesSettings } from '@/components/settings/categories-settings'
+import { ConnectionSettings } from '@/components/settings/connection-settings'
+import { PrivacySettings } from '@/components/settings/privacy-settings'
+import { TransferSettings } from '@/components/settings/transfer-settings'
+import { RulesSettings } from '@/components/settings/rules-settings'
+import { LlmSettings } from '@/components/settings/llm-settings'
+import { StorageSettings } from '@/components/settings/storage-settings'
+import { AboutSettings } from '@/components/settings/about-settings'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsPage

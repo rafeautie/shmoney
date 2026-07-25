@@ -5,7 +5,11 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Settings01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { SettingsGroup, SettingAction, SettingToggle } from '@/components/settings-controls'
+import {
+  SettingsGroup,
+  SettingAction,
+  SettingToggle
+} from '@/components/settings/settings-controls'
 import {
   Dialog,
   DialogContent,

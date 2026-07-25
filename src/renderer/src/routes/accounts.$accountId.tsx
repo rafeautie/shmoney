@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { AccountSettingsDialog } from '@/components/account-settings-dialog'
+import { AccountSettingsDialog } from '@/components/accounts/account-settings-dialog'
 import { Amount } from '@/components/amount'
-import { AutoCategorizeButton } from '@/components/auto-categorize-button'
-import { CreateTransactionButton } from '@/components/create-transaction-button'
-import { FilteredTransactionsTable } from '@/components/filtered-transactions-table'
-import { HoldingsTable } from '@/components/holdings-table'
+import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
+import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
+import { FilteredTransactionsTable } from '@/components/transactions/filtered-transactions-table'
+import { HoldingsTable } from '@/components/accounts/holdings-table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export const Route = createFileRoute('/accounts/$accountId')({

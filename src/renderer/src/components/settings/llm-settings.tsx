@@ -1,13 +1,5 @@
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
-import { LlmStatusBadge } from './llm-status-badge'
-import { ModelPicker } from './model-picker'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ModelPicker } from '@/components/llm/model-picker'
 
 /**
  * Settings card for the on-device model. The whole picker (choose which model
@@ -19,9 +11,6 @@ export function LlmSettings(): React.JSX.Element {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Local AI model</CardTitle>
-        <CardAction>
-          <LlmStatusBadge />
-        </CardAction>
         <CardDescription>
           Choose the on-device model behind Auto features like auto-categorize and chat. Models
           download once and stay on this device; the one that best fits your hardware is

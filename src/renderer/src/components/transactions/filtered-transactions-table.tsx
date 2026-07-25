@@ -7,8 +7,8 @@ import {
   type TransactionFilters
 } from '@shared/transaction-filters'
 import { cn, startOfTodayEpoch } from '@/lib/utils'
-import { FilterBar } from '@/components/filter-bar'
-import { TransactionsTable } from '@/components/transactions-table'
+import { FilterBar } from './filter-bar'
+import { TransactionsTable } from './transactions-table'
 
 interface FilteredTransactionsTableProps {
   /** Base query key; resolved filters and sort are appended to it */

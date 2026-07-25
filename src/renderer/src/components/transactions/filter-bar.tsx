@@ -15,7 +15,7 @@ import {
   DateRangeControl,
   DirectionControl
 } from '@/components/reports/filter-controls'
-import { SavedFiltersMenu } from '@/components/saved-filters-menu'
+import { SavedFiltersMenu } from './saved-filters-menu'
 
 interface FilterBarProps {
   filters: TransactionFilters

@@ -6,7 +6,7 @@ import type { Transaction } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { CategoryPicker } from '@/components/category-picker'
+import { CategoryPicker } from './category-picker'
 import { useAutoCategorize, useLlmReady, useLlmSupported } from '@/lib/llm'
 
 interface TransactionsBulkActionsProps {

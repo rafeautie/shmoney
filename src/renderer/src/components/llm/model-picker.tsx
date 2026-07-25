@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { LlmStatusBadge } from './llm-status-badge'
 
 function formatBytes(bytes: number): string {
   return `${(bytes / 1_000_000_000).toFixed(1)} GB`
@@ -156,8 +157,9 @@ function ModelOption({
               {selected && <HugeiconsIcon icon={Tick02Icon} size={11} strokeWidth={3} />}
             </span>
             <span className="font-medium text-foreground">{model.label}</span>
-            <Badge variant="secondary">{model.params}</Badge>
             {recommended && <Badge variant="default">Recommended</Badge>}
+            {/* in-memory state only means anything for the active model */}
+            {selected && isDownloaded && <LlmStatusBadge />}
           </div>
           <p className="text-xs text-muted-foreground">
             {capabilityHint({ model, runnable, comfortable, isDownloaded })}

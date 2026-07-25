@@ -4,7 +4,7 @@ import type { Transaction } from '@shared/ipc'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { CategoryPicker } from '@/components/category-picker'
+import { CategoryPicker } from './category-picker'
 
 export function CategoryCell({ transaction }: { transaction: Transaction }) {
   const queryClient = useQueryClient()

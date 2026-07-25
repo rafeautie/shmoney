@@ -26,9 +26,9 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
-import { ConfirmDialog } from './confirm-dialog'
-import { RuleEditor } from './rules-editor'
-import { RulesPreviewDialog } from './rules-preview-dialog'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { RuleEditor } from '@/components/rules/rules-editor'
+import { RulesPreviewDialog } from '@/components/rules/rules-preview-dialog'
 import { SettingsGroup, SettingToggle, SettingAction } from './settings-controls'
 
 const AMT_OP_TEXT: Record<string, string> = {

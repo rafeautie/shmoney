@@ -3,15 +3,15 @@ import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import type { ColumnDef, RowSelectionState, SortingState } from '@tanstack/react-table'
 import type { Page, Transaction, TransactionSortBy } from '@shared/ipc'
 import { PAGE_SIZE, cn, nextPageParam, sortQuery } from '@/lib/utils'
-import { CategoryCell } from '@/components/category-cell'
+import { CategoryCell } from './category-cell'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import {
   EditableAmountCell,
   EditableDateCell,
   EditableTextCell,
   TransactionCreateRow
-} from '@/components/transaction-cells'
-import { TransactionsBulkActions } from '@/components/transactions-bulk-actions'
+} from './transaction-cells'
+import { TransactionsBulkActions } from './transactions-bulk-actions'
 import { Checkbox } from '@/components/ui/checkbox'
 
 interface TransactionsTableProps {

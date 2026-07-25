@@ -3,7 +3,7 @@ import type { RuleSuggestionGroup } from '@shared/rule-suggestions'
 import { plural } from '@/lib/utils'
 import { useSuggestionsUi } from '@/lib/suggestions-ui'
 import { Button } from '@/components/ui/button'
-import { SettingAction, SettingsGroup } from './settings-controls'
+import { SettingAction, SettingsGroup } from '@/components/settings/settings-controls'
 
 // The sample description with the rule phrase highlighted in place: what the
 // rule matches on is visible in context at a glance, instead of phrase and

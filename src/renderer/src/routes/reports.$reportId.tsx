@@ -30,7 +30,7 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { ReportGrid } from '@/components/reports/report-grid'
-import { FilterBar } from '@/components/filter-bar'
+import { FilterBar } from '@/components/transactions/filter-bar'
 import { WidgetEditor } from '@/components/reports/widget-editor'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 

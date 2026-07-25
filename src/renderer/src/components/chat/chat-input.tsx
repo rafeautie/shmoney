@@ -10,7 +10,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ChatScopeSelect } from '@/components/chat/chat-scope-select'
 import { ChatWarnings } from '@/components/chat/chat-warnings'
-import { LlmStatusBadge } from '@/components/llm-status-badge'
+import { LlmStatusBadge } from '@/components/llm/llm-status-badge'
 
 export function ChatInput({
   hasConversation,
