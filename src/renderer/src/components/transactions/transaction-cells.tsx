@@ -9,6 +9,7 @@ import { cn, ipcErrorMessage, parseSignedAmount } from '@/lib/utils'
 import { AccountPicker } from '@/components/accounts/account-picker'
 import { Amount } from '@/components/amount'
 import { CategoryPicker } from './category-picker'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
@@ -45,10 +46,12 @@ export function EditableTextCell({ transaction }: { transaction: Transaction }) 
           />
         </span>
       )}
-      <span className="truncate">
-        {transaction.description}
-        {transaction.pending && <span className="text-muted-foreground"> (pending)</span>}
-      </span>
+      <span className="truncate">{transaction.description}</span>
+      {transaction.pending && (
+        <Badge variant="secondary" className="shrink-0">
+          Pending
+        </Badge>
+      )}
     </div>
   )
 
