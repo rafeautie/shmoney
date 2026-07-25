@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Settings01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ConfirmButton } from '@/components/confirm-dialog'
 import {
   SettingsGroup,
   SettingAction,
@@ -15,30 +15,34 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger
+  DialogTitle
 } from '@/components/ui/dialog'
 
+interface AccountSettingsProps {
+  accountId: number
+  accountName: string
+  isManual: boolean
+  invertBalance: boolean
+}
+
 /**
- * Header action on the account detail page: a gear button that opens a dialog of
- * per-account overrides. Holds the invert-balance toggle and, for manual accounts,
- * a delete action. Synced accounts can't be deleted here — the next sync would
- * just recreate them — so the dialog explains that instead.
+ * Per-account overrides: the invert-balance toggle and, for manual accounts, a
+ * delete action. Synced accounts can't be deleted here — the next sync would just
+ * recreate them — so the dialog explains that instead.
  */
 export function AccountSettingsDialog({
   accountId,
   accountName,
   isManual,
-  invertBalance
-}: {
-  accountId: number
-  accountName: string
-  isManual: boolean
-  invertBalance: boolean
+  invertBalance,
+  open,
+  onOpenChange
+}: AccountSettingsProps & {
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const setInvert = useMutation({
     mutationFn: (next: boolean) =>
       window.api.accounts.setInvertBalance({ accountId, invertBalance: next }),
@@ -53,19 +57,7 @@ export function AccountSettingsDialog({
   })
 
   return (
-    <Dialog>
-      <DialogTrigger
-        render={
-          <Button
-            variant="outline"
-            size="icon"
-            className="shrink-0"
-            aria-label="Account settings"
-          />
-        }
-      >
-        <HugeiconsIcon icon={Settings01Icon} />
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Account settings</DialogTitle>
@@ -87,27 +79,41 @@ export function AccountSettingsDialog({
                   : 'Synced accounts return on the next sync; disconnect SimpleFIN to remove them.'
               }
             >
-              <Button
+              <ConfirmButton
                 variant="destructive"
                 disabled={!isManual}
-                onClick={() => setConfirmingDelete(true)}
+                title={`Delete “${accountName}”?`}
+                description="This permanently deletes the account and all of its transactions and holdings. This cannot be undone."
+                confirmLabel="Delete account"
+                pendingLabel="Deleting…"
+                pending={deleteAccount.isPending}
+                onConfirm={() => deleteAccount.mutate()}
               >
                 Delete
-              </Button>
+              </ConfirmButton>
             </SettingAction>
           </SettingsGroup>
         </div>
-        <ConfirmDialog
-          open={confirmingDelete}
-          onOpenChange={setConfirmingDelete}
-          title={`Delete “${accountName}”?`}
-          description="This permanently deletes the account and all of its transactions and holdings. This cannot be undone."
-          confirmLabel="Delete account"
-          pendingLabel="Deleting…"
-          pending={deleteAccount.isPending}
-          onConfirm={() => deleteAccount.mutate()}
-        />
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** The account-settings dialog and the gear button that opens it. */
+export function AccountSettingsButton(props: AccountSettingsProps) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="icon"
+        className="shrink-0"
+        aria-label="Account settings"
+        onClick={() => setOpen(true)}
+      >
+        <HugeiconsIcon icon={Settings01Icon} />
+      </Button>
+      <AccountSettingsDialog {...props} open={open} onOpenChange={setOpen} />
+    </>
   )
 }

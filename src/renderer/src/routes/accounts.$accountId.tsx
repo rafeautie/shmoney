@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { AccountSettingsDialog } from '@/components/accounts/account-settings-dialog'
+import { AccountSettingsButton } from '@/components/accounts/account-settings-dialog'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
 import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
@@ -69,7 +69,7 @@ function AccountDetailPage() {
           />
           <AutoCategorizeButton scope={{ accountId: id }} />
           {account && (
-            <AccountSettingsDialog
+            <AccountSettingsButton
               accountId={id}
               accountName={account.name}
               isManual={account.connectionId === null}

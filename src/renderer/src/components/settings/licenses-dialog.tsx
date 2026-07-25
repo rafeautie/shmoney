@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -5,8 +6,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger
+  DialogTitle
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import licenses from '@/generated/licenses.json'
@@ -47,10 +47,15 @@ function PackageRow({ pkg }: { pkg: (typeof PACKAGES)[number] }) {
   )
 }
 
-export function LicensesDialog() {
+export function LicensesDialog({
+  open,
+  onOpenChange
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
   return (
-    <Dialog>
-      <DialogTrigger render={<Button variant="outline" />}>View licenses</DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Licenses &amp; credits</DialogTitle>
@@ -68,5 +73,18 @@ export function LicensesDialog() {
         </ScrollArea>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** The licenses list and the button that opens it. */
+export function LicensesButton() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        View licenses
+      </Button>
+      <LicensesDialog open={open} onOpenChange={setOpen} />
+    </>
   )
 }

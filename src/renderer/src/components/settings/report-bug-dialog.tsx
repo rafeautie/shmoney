@@ -8,8 +8,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger
+  DialogTitle
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { bugReportUrl } from '@/lib/github'
@@ -19,8 +18,13 @@ import { bugReportUrl } from '@/lib/github'
  * text `Copy diagnostics` puts on the clipboard, nothing is copied or sent
  * without an explicit click, and declining to copy costs nothing.
  */
-export function ReportBugDialog() {
-  const [open, setOpen] = useState(false)
+export function ReportBugDialog({
+  open,
+  onOpenChange
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
   const diagnostics = useQuery({
     queryKey: ['diagnostics'],
     queryFn: () => window.api.diagnostics.get(),
@@ -34,7 +38,7 @@ export function ReportBugDialog() {
   // browser (see main/index.ts)
   function openGitHub(): void {
     window.open(bugReportUrl())
-    setOpen(false)
+    onOpenChange(false)
   }
 
   async function copyAndOpenGitHub(): Promise<void> {
@@ -47,8 +51,7 @@ export function ReportBugDialog() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" />}>Report bug</DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Report a bug</DialogTitle>
@@ -83,5 +86,18 @@ export function ReportBugDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** The bug-report dialog and the button that opens it. */
+export function ReportBugButton() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        Report bug
+      </Button>
+      <ReportBugDialog open={open} onOpenChange={setOpen} />
+    </>
   )
 }

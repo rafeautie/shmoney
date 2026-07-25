@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { Add01Icon } from '@hugeicons/core-free-icons'
 import {
   DEFAULT_REPORT_FILTERS,
   DEFAULT_WIDGET_CONFIG,
@@ -629,6 +631,23 @@ export function WidgetEditor({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** The editor opened on a new widget, plus the button that opens it. Editing an
+ * existing widget drives <WidgetEditor> directly, since its trigger is on the card. */
+export function AddWidgetButton(
+  props: Omit<WidgetEditorProps, 'open' | 'onOpenChange' | 'widget'>
+) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        <HugeiconsIcon icon={Add01Icon} size={16} />
+        Add widget
+      </Button>
+      <WidgetEditor {...props} widget={null} open={open} onOpenChange={setOpen} />
+    </>
   )
 }
 

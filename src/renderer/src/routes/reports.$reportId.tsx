@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Layout } from 'react-grid-layout'
 
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Add01Icon, DashboardSquare01Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons'
+import { DashboardSquare01Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons'
 import {
   DEFAULT_REPORT_FILTERS,
   type ReportDetail,
@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/empty'
 import { ReportGrid } from '@/components/reports/report-grid'
 import { FilterBar } from '@/components/transactions/filter-bar'
-import { WidgetEditor } from '@/components/reports/widget-editor'
+import { AddWidgetButton, WidgetEditor } from '@/components/reports/widget-editor'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 
 export const Route = createFileRoute('/reports/$reportId')({
@@ -148,7 +148,7 @@ function ReportPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report', id] })
   })
 
-  function openEditor(widget: ReportWidget | null) {
+  function openEditor(widget: ReportWidget) {
     setEditorWidget(widget)
     setEditorOpen(true)
   }
@@ -166,6 +166,14 @@ function ReportPage() {
         <p className="text-sm text-muted-foreground">Report not found.</p>
       </Page>
     )
+  }
+
+  // where a newly created widget lands: full width, below everything else
+  const nextPosition = {
+    x: 0,
+    y: Math.max(0, ...detail.widgets.map((w) => w.y + w.h)),
+    w: 6,
+    h: 5
   }
 
   return (
@@ -189,10 +197,11 @@ function ReportPage() {
         )}
         <div className="flex shrink-0 items-center gap-2">
           {editing && (
-            <Button variant="outline" onClick={() => openEditor(null)}>
-              <HugeiconsIcon icon={Add01Icon} size={16} />
-              Add widget
-            </Button>
+            <AddWidgetButton
+              reportId={id}
+              reportFilters={detail.report.filters}
+              nextPosition={nextPosition}
+            />
           )}
           <Button variant={editing ? 'default' : 'outline'} onClick={() => setEditing(!editing)}>
             {editing ? 'Done' : 'Edit'}
@@ -227,10 +236,11 @@ function ReportPage() {
             <EmptyDescription>Add a widget to get started.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Button variant="outline" onClick={() => openEditor(null)}>
-              <HugeiconsIcon icon={Add01Icon} size={16} />
-              Add widget
-            </Button>
+            <AddWidgetButton
+              reportId={id}
+              reportFilters={detail.report.filters}
+              nextPosition={nextPosition}
+            />
           </EmptyContent>
         </Empty>
       ) : (
@@ -244,18 +254,15 @@ function ReportPage() {
         />
       )}
 
+      {/* editing an existing widget: the trigger is on the card, so the page
+          drives the editor itself */}
       <WidgetEditor
         open={editorOpen}
         onOpenChange={setEditorOpen}
         reportId={id}
         reportFilters={detail.report.filters}
         widget={editorWidget}
-        nextPosition={{
-          x: 0,
-          y: Math.max(0, ...detail.widgets.map((w) => w.y + w.h)),
-          w: 6,
-          h: 5
-        }}
+        nextPosition={nextPosition}
       />
 
       <ConfirmDialog

@@ -25,18 +25,21 @@ import { NumberInput } from '@/components/ui/number-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn, parseDollars } from '@/lib/utils'
 
+interface AddEnvelopeProps {
+  /** viewed month; the new envelope starts here */
+  month: string
+  /** categories that already have an envelope */
+  budgetedIds: number[]
+}
+
 export function AddEnvelopeDialog({
   open,
   onOpenChange,
   month,
   budgetedIds
-}: {
+}: AddEnvelopeProps & {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** viewed month; the new envelope starts here */
-  month: string
-  /** categories that already have an envelope */
-  budgetedIds: number[]
 }) {
   const queryClient = useQueryClient()
   const [category, setCategory] = useState<Category | null>(null)
@@ -187,5 +190,20 @@ export function AddEnvelopeDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** The add-envelope dialog and the button that opens it. `children` overrides the
+ * label for entry points that phrase it differently (e.g. an empty state). */
+export function AddEnvelopeButton({
+  children = 'Add envelope',
+  ...dialogProps
+}: AddEnvelopeProps & { children?: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>{children}</Button>
+      <AddEnvelopeDialog {...dialogProps} open={open} onOpenChange={setOpen} />
+    </>
   )
 }

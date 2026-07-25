@@ -7,7 +7,7 @@ import type { Account } from '@shared/ipc'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
 import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
-import { ImportDialog } from '@/components/accounts/import-dialog'
+import { ImportButton } from '@/components/accounts/import-dialog'
 import { FilteredTransactionsTable } from '@/components/transactions/filtered-transactions-table'
 import { TABLE_BLEED, cn, plural } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -46,7 +46,6 @@ function hasDistinctAvailable(account: Account): boolean {
 }
 
 function AccountsPage() {
-  const [importOpen, setImportOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   // controlled so the Create button can jump to the transactions tab
   const [tab, setTab] = useState('accounts')
@@ -63,14 +62,11 @@ function AccountsPage() {
                 if (!creating) setTab('transactions')
               }}
             />
-            <Button variant="outline" onClick={() => setImportOpen(true)}>
-              Import
-            </Button>
+            <ImportButton />
             {/* empty scope → categorize every uncategorized transaction */}
             <AutoCategorizeButton scope={{}} />
           </div>
         </div>
-        <ImportDialog open={importOpen} onOpenChange={setImportOpen} />
         <TabsList>
           <TabsTrigger value="accounts">Accounts</TabsTrigger>
           <TabsTrigger value="transactions">All transactions</TabsTrigger>

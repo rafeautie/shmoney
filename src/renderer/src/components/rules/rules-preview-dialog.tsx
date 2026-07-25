@@ -125,6 +125,20 @@ export function RulesPreviewDialog({
   )
 }
 
+/** The apply-rules preview and the button that opens it. Disable it when there are
+ * no rules to apply. */
+export function ApplyRulesButton({ disabled }: { disabled?: boolean }): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button variant="outline" disabled={disabled} onClick={() => setOpen(true)}>
+        Apply
+      </Button>
+      <RulesPreviewDialog open={open} onOpenChange={setOpen} />
+    </>
+  )
+}
+
 function PreviewGroup({ group }: { group: RulePreviewGroup }): React.JSX.Element {
   return (
     <table className={cn('w-full caption-bottom text-xs', TABLE_BLEED)}>

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { endOfDay, format, startOfDay } from 'date-fns'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { PlusSignIcon } from '@hugeicons/core-free-icons'
 import type { Rule, RuleAction, RuleConditions } from '@shared/rules'
 import { cn, ipcErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -93,6 +95,21 @@ export function RuleEditor({
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** The rule editor opened on a blank rule, plus the button that opens it. Editing an
+ * existing rule drives <RuleEditor> directly, since its trigger lives on the row. */
+export function AddRuleButton(): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button variant="outline" className="w-full" onClick={() => setOpen(true)}>
+        <HugeiconsIcon icon={PlusSignIcon} size={14} />
+        Add rule
+      </Button>
+      <RuleEditor rule={null} open={open} onOpenChange={setOpen} />
+    </>
   )
 }
 

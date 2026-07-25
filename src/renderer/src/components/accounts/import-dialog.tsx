@@ -400,6 +400,19 @@ export function ImportDialog({
   )
 }
 
+/** The import flow and the button that opens it. */
+export function ImportButton(): React.JSX.Element {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        Import
+      </Button>
+      <ImportDialog open={open} onOpenChange={setOpen} />
+    </>
+  )
+}
+
 // progress dots, same look as the onboarding flow's StepDots
 function StepDots({ count, index }: { count: number; index: number }): React.JSX.Element {
   return (

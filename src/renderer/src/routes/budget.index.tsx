@@ -6,7 +6,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowLeft01Icon, ArrowRight01Icon, PiggyBankIcon } from '@hugeicons/core-free-icons'
 import type { BudgetSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
-import { AddEnvelopeDialog } from '@/components/budget/add-envelope-dialog'
+import { AddEnvelopeButton } from '@/components/budget/add-envelope-dialog'
 import { EnvelopeList } from '@/components/budget/envelope-list'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -40,7 +40,6 @@ const MAX_MONTHS_AHEAD = 12
 
 function BudgetPage() {
   const [month, setMonth] = useState(currentMonth)
-  const [addOpen, setAddOpen] = useState(false)
 
   const summaryQuery = useQuery({
     queryKey: ['budget-summary', month],
@@ -48,6 +47,7 @@ function BudgetPage() {
     placeholderData: (prev) => prev
   })
   const summary = summaryQuery.data
+  const budgetedIds = summary?.envelopes.map((e) => e.categoryId) ?? []
 
   const today = currentMonth()
   const maxMonth = shiftMonth(today, MAX_MONTHS_AHEAD)
@@ -93,7 +93,7 @@ function BudgetPage() {
                 Today
               </Button>
             )}
-            <Button onClick={() => setAddOpen(true)}>Add envelope</Button>
+            <AddEnvelopeButton month={month} budgetedIds={budgetedIds} />
           </div>
         </div>
 
@@ -121,20 +121,15 @@ function BudgetPage() {
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button onClick={() => setAddOpen(true)}>Add your first envelope</Button>
+              <AddEnvelopeButton month={month} budgetedIds={budgetedIds}>
+                Add your first envelope
+              </AddEnvelopeButton>
             </EmptyContent>
           </Empty>
         </div>
       ) : (
         <EnvelopeList summary={summary} className="min-h-0 flex-1" />
       )}
-
-      <AddEnvelopeDialog
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        month={month}
-        budgetedIds={summary?.envelopes.map((e) => e.categoryId) ?? []}
-      />
     </div>
   )
 }

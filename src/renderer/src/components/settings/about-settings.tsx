@@ -3,8 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { useUpdateState } from '@/lib/updates'
 import { featureRequestUrl } from '@/lib/github'
-import { LicensesDialog } from './licenses-dialog'
-import { ReportBugDialog } from './report-bug-dialog'
+import { LicensesButton } from './licenses-dialog'
+import { ReportBugButton } from './report-bug-dialog'
 import { SettingsGroup, SettingAction } from './settings-controls'
 
 function updateStatusLine(state: UpdateState | undefined): string {
@@ -62,13 +62,13 @@ export function AboutSettings() {
             label="Open source licenses"
             description="The open source software shmoney is built with."
           >
-            <LicensesDialog />
+            <LicensesButton />
           </SettingAction>
           <SettingAction
             label="Report a bug"
             description="Review your diagnostics, then open a prefilled GitHub issue. Nothing is sent without your say-so."
           >
-            <ReportBugDialog />
+            <ReportBugButton />
           </SettingAction>
           {/* window.open on an https URL routes through setWindowOpenHandler to
               the OS browser (see main/index.ts) */}

@@ -6,7 +6,6 @@ import {
   ArrowUp01Icon,
   Delete02Icon,
   PencilEdit02Icon,
-  PlusSignIcon,
   Tag01Icon
 } from '@hugeicons/core-free-icons'
 import { format } from 'date-fns'
@@ -26,9 +25,9 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { RuleEditor } from '@/components/rules/rules-editor'
-import { RulesPreviewDialog } from '@/components/rules/rules-preview-dialog'
+import { ConfirmButton } from '@/components/confirm-dialog'
+import { AddRuleButton, RuleEditor } from '@/components/rules/rules-editor'
+import { ApplyRulesButton } from '@/components/rules/rules-preview-dialog'
 import { SettingsGroup, SettingToggle, SettingAction } from './settings-controls'
 
 const AMT_OP_TEXT: Record<string, string> = {
@@ -112,7 +111,6 @@ export function RulesSettings(): React.JSX.Element {
 
   const [editorOpen, setEditorOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<Rule | null>(null)
-  const [previewOpen, setPreviewOpen] = useState(false)
 
   const rules = rulesQuery.data ?? []
   const suggestions = suggestionsQuery.data ?? []
@@ -165,13 +163,7 @@ export function RulesSettings(): React.JSX.Element {
             label="Apply rules now"
             description="Run your rules against existing transactions, with a preview first."
           >
-            <Button
-              variant="outline"
-              onClick={() => setPreviewOpen(true)}
-              disabled={rules.length === 0}
-            >
-              Apply
-            </Button>
+            <ApplyRulesButton disabled={rules.length === 0} />
           </SettingAction>
         </SettingsGroup>
 
@@ -212,17 +204,7 @@ export function RulesSettings(): React.JSX.Element {
               ))}
             </div>
           )}
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => {
-              setEditingRule(null)
-              setEditorOpen(true)
-            }}
-          >
-            <HugeiconsIcon icon={PlusSignIcon} size={14} />
-            Add rule
-          </Button>
+          <AddRuleButton />
         </div>
 
         {reorder.isError && (
@@ -230,8 +212,9 @@ export function RulesSettings(): React.JSX.Element {
         )}
       </CardContent>
 
+      {/* editing an existing rule: the trigger is the row's pencil, so the page
+          drives the editor itself */}
       <RuleEditor rule={editingRule} open={editorOpen} onOpenChange={setEditorOpen} />
-      <RulesPreviewDialog open={previewOpen} onOpenChange={setPreviewOpen} />
     </Card>
   )
 }
@@ -256,15 +239,12 @@ function RuleRow({
   onEdit: () => void
 }): React.JSX.Element {
   const queryClient = useQueryClient()
-  const [confirmOpen, setConfirmOpen] = useState(false)
-
   const toggle = useMutation({
     mutationFn: (enabled: boolean) => window.api.rules.update({ id: rule.id, enabled }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['rules'] })
   })
   const remove = useMutation({
     mutationFn: () => window.api.rules.delete(rule.id),
-    onSuccess: () => setConfirmOpen(false),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['rules'] })
   })
 
@@ -305,28 +285,23 @@ function RuleRow({
         >
           <HugeiconsIcon icon={PencilEdit02Icon} size={14} />
         </Button>
-        <Button
+        <ConfirmButton
           variant="ghost"
           size="icon-sm"
           aria-label={`Delete rule ${rule.name}`}
-          onClick={() => setConfirmOpen(true)}
+          title={`Delete “${rule.name}”?`}
+          description="Removes this rule. Transactions it already categorized keep their categories."
+          pending={remove.isPending}
+          pendingLabel="Deleting…"
+          onConfirm={(close) => remove.mutate(undefined, { onSuccess: close })}
         >
           <HugeiconsIcon icon={Delete02Icon} size={14} />
-        </Button>
+        </ConfirmButton>
       </div>
       <Switch
         checked={rule.enabled}
         onCheckedChange={(on) => toggle.mutate(on)}
         aria-label={`Enable rule ${rule.name}`}
-      />
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title={`Delete “${rule.name}”?`}
-        description="Removes this rule. Transactions it already categorized keep their categories."
-        pending={remove.isPending}
-        pendingLabel="Deleting…"
-        onConfirm={() => remove.mutate()}
       />
     </div>
   )
