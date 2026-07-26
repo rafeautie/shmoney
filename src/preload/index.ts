@@ -207,7 +207,8 @@ const api = {
       ipcRenderer.invoke(SAVED_FILTERS_IPC.create, input),
     update: (input: SavedFilterUpdateInput): Promise<SavedFilter> =>
       ipcRenderer.invoke(SAVED_FILTERS_IPC.update, input),
-    delete: (id: number): Promise<boolean> => ipcRenderer.invoke(SAVED_FILTERS_IPC.delete, id)
+    /** Soft delete; resolves to the action-log entry id (null when nothing was deleted) */
+    delete: (id: number): Promise<number | null> => ipcRenderer.invoke(SAVED_FILTERS_IPC.delete, id)
   },
   rules: {
     list: (): Promise<Rule[]> => ipcRenderer.invoke(RULES_IPC.list),

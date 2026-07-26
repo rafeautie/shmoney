@@ -76,7 +76,7 @@ function ActivityPage() {
         <h2 className="text-2xl font-semibold tracking-tight">Activity</h2>
         <p className="text-muted-foreground">
           Rule suggestions to review, then a permanent history of every change to your transactions,
-          budgets, and chats, manual or automatic. Undo or redo any change.
+          budgets, chats, and saved filters, manual or automatic. Undo or redo any change.
         </p>
       </div>
 
@@ -181,6 +181,8 @@ function EntryRow({
   const isConversationEntry = entry.changes.some(
     (c) => c.field === 'conversationTitle' || c.field === 'conversationDeletedAt'
   )
+  // saved-filter deletes: likewise contextless, they just name the preset
+  const isSavedFilterEntry = entry.changes.some((c) => c.field === 'savedFilterDeletedAt')
 
   const toggle = useMutation({
     mutationFn: () =>
@@ -205,7 +207,13 @@ function EntryRow({
               {format(new Date(entry.createdAt), 'p')} ·{' '}
               {plural(
                 entry.changes.length,
-                isBudgetEntry ? 'change' : isConversationEntry ? 'conversation' : 'transaction'
+                isBudgetEntry
+                  ? 'change'
+                  : isConversationEntry
+                    ? 'conversation'
+                    : isSavedFilterEntry
+                      ? 'saved filter'
+                      : 'transaction'
               )}
             </div>
           </div>
@@ -289,6 +297,17 @@ function EntryRow({
                       ? `Renamed "${change.before ?? 'Untitled'}" to "${change.after}"`
                       : (change.title ?? 'Untitled conversation')}
                   </TableCell>
+                  <TableCell />
+                  {isCategoryEntry && <TableCell />}
+                </TableRow>
+              ) : change.field === 'savedFilterDeletedAt' ? (
+                <TableRow
+                  key={`saved-filter:${change.savedFilterId}`}
+                  className="hover:bg-transparent"
+                >
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="w-full max-w-0 truncate">{change.name}</TableCell>
                   <TableCell />
                   {isCategoryEntry && <TableCell />}
                 </TableRow>

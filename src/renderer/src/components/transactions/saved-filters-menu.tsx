@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Bookmark01Icon, Delete02Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import type { TransactionFilters } from '@shared/transaction-filters'
@@ -8,7 +9,6 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Separator } from '@/components/ui/separator'
-import { ConfirmDialog } from '@/components/confirm-dialog'
 
 /** Order-insensitive deep-equality key: saved filters round-trip through JSON,
  * so their key order can differ from freshly-built filter objects. */
@@ -36,7 +36,6 @@ interface SavedFiltersMenuProps {
 export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuProps) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
-  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null)
   const queryClient = useQueryClient()
 
   const savedQuery = useQuery({
@@ -45,7 +44,10 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
   })
   const saved = savedQuery.data ?? []
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['saved-filters'] })
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ['saved-filters'] })
+    void queryClient.invalidateQueries({ queryKey: ['actionLog'] })
+  }
   const createMutation = useMutation({
     mutationFn: (input: { name: string; filters: TransactionFilters }) =>
       window.api.savedFilters.create(input),
@@ -56,9 +58,25 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
       window.api.savedFilters.update(input),
     onSettled: invalidate
   })
+  // no confirmation: the delete is an action-log entry, so the toast's Undo
+  // replays the same entry Ctrl+Z would — one undo path, no separate restore
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => window.api.savedFilters.delete(id),
-    onSuccess: () => setDeleteTarget(null),
+    mutationFn: (filter: { id: number; name: string }) =>
+      window.api.savedFilters.delete(filter.id).then((actionId) => ({ filter, actionId })),
+    onSuccess: ({ filter, actionId }) => {
+      if (actionId === null) return
+      toast(`Deleted “${filter.name}”`, {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            window.api.actionLog
+              .undoEntry(actionId)
+              .then(invalidate)
+              .catch(() => {})
+          }
+        }
+      })
+    },
     onSettled: invalidate
   })
 
@@ -124,7 +142,7 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
                   size="sm"
                   className="text-muted-foreground opacity-0 group-hover:opacity-100"
                   aria-label={`Delete saved filter ${filter.name}`}
-                  onClick={() => setDeleteTarget({ id: filter.id, name: filter.name })}
+                  onClick={() => deleteMutation.mutate({ id: filter.id, name: filter.name })}
                 >
                   <HugeiconsIcon icon={Delete02Icon} size={14} />
                 </Button>
@@ -153,17 +171,6 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
           </Button>
         </div>
       </PopoverContent>
-      {deleteTarget && (
-        <ConfirmDialog
-          open
-          onOpenChange={(o) => !o && setDeleteTarget(null)}
-          title={`Delete “${deleteTarget.name}”?`}
-          description="Removes this saved filter. Your transactions aren’t affected."
-          pending={deleteMutation.isPending}
-          pendingLabel="Deleting…"
-          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
-        />
-      )}
     </Popover>
   )
 }

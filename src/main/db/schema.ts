@@ -159,9 +159,20 @@ export const savedFilters = sqliteTable(
     name: text('name').notNull(),
     filters: text('filters', { mode: 'json' }).$type<TransactionFilters>().notNull(),
     createdAt: integer('created_at').notNull(),
-    updatedAt: integer('updated_at').notNull()
+    updatedAt: integer('updated_at').notNull(),
+    // unix seconds when deleted; null = live. Soft delete so the action log can
+    // bring a preset back (undo toast / Ctrl+Z) instead of a confirm dialog.
+    // Rows still soft-deleted at the next app startup are purged for good.
+    deletedAt: integer('deleted_at')
   },
-  (t) => [uniqueIndex('saved_filters_name_ux').on(t.name)]
+  // partial: a deleted preset's name is freed for reuse, so saving "Groceries"
+  // again after deleting it doesn't trip the index. Restoring into a name that's
+  // been retaken is skipped by the undo engine's guard, not by an error here.
+  (t) => [
+    uniqueIndex('saved_filters_name_ux')
+      .on(t.name)
+      .where(sql`${t.deletedAt} is null`)
+  ]
 )
 
 // generic key/value store for small user preferences (theme, privacy blur, sidebar state);

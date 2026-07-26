@@ -343,7 +343,20 @@ export type ConversationActionChange =
       after: number | null
     }
 
-export type ActionChange = TransactionActionChange | BudgetActionChange | ConversationActionChange
+/** A saved filter's soft delete. Carries its own name so the Activity list can
+ *  show which preset went, without joining a row that may since be gone. */
+export interface SavedFilterActionChange {
+  field: 'savedFilterDeletedAt'
+  savedFilterId: number
+  /** the preset's name at delete time */
+  name: string
+  /** unix seconds (saved_filters timestamp convention) */
+  before: number | null
+  after: number | null
+}
+
+export type ActionChange =
+  TransactionActionChange | BudgetActionChange | ConversationActionChange | SavedFilterActionChange
 
 /** A change enriched with its current context, for the Activity list. */
 export type ActionLogChange =
@@ -362,6 +375,7 @@ export type ActionLogChange =
       currency: string
     })
   | ConversationActionChange
+  | SavedFilterActionChange
 
 export interface ActionLogEntry {
   id: number

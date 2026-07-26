@@ -197,6 +197,13 @@
       "when": 1785045802571,
       "tag": "0027_opening_balance_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1785052093203,
+      "tag": "0028_saved_filter_soft_delete",
+      "breakpoints": true
     }
   ]
 }

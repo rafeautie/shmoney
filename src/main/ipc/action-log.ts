@@ -1,7 +1,15 @@
 import { ipcMain } from 'electron'
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
-import { accounts, actionLog, budgets, categories, conversations, transactions } from '../db/schema'
+import {
+  accounts,
+  actionLog,
+  budgets,
+  categories,
+  conversations,
+  savedFilters,
+  transactions
+} from '../db/schema'
 import { dominantCurrency } from '../budgets/summary'
 import { createLogger } from '../logging'
 import { transactionDate } from '../db/expressions'
@@ -15,6 +23,7 @@ import {
   type ActionSource,
   type BudgetActionChange,
   type ConversationActionChange,
+  type SavedFilterActionChange,
   type TransactionActionChange,
   type UndoResult
 } from '@shared/ipc'
@@ -182,6 +191,32 @@ function setConversationGuarded(
   return tx.update(conversations).set({ deletedAt: target }).where(where).run().changes
 }
 
+// same guarded semantics for a saved filter's soft-delete timestamp, plus one
+// extra guard the other setters don't need: the name index is unique among live
+// presets, so restoring into a name the user has since re-saved would violate
+// it. That counts as superseded — skip it rather than fail the whole undo.
+function setSavedFilterGuarded(
+  tx: Tx,
+  change: SavedFilterActionChange,
+  direction: 'undo' | 'redo'
+): number {
+  const target = direction === 'undo' ? change.before : change.after
+  const guard = direction === 'undo' ? change.after : change.before
+  if (target === null) {
+    const live = tx
+      .select({ id: savedFilters.id })
+      .from(savedFilters)
+      .where(and(eq(savedFilters.name, change.name), isNull(savedFilters.deletedAt)))
+      .get()
+    if (live) return 0
+  }
+  const where = and(
+    eq(savedFilters.id, change.savedFilterId),
+    guard === null ? isNull(savedFilters.deletedAt) : sql`${savedFilters.deletedAt} = ${guard}`
+  )
+  return tx.update(savedFilters).set({ deletedAt: target }).where(where).run().changes
+}
+
 // undo rewinds each field to `before` (guarding on `after`); redo does the
 // reverse. Either way the guard makes it a no-op on rows touched since, so an
 // old entry can never clobber newer edits. Returns rows actually changed.
@@ -198,6 +233,8 @@ function applyEntry(entryId: number, direction: 'undo' | 'redo'): UndoResult {
         applied += setBudgetGuarded(tx, change, target, guard)
       } else if (change.field === 'conversationTitle' || change.field === 'conversationDeletedAt') {
         applied += setConversationGuarded(tx, change, direction)
+      } else if (change.field === 'savedFilterDeletedAt') {
+        applied += setSavedFilterGuarded(tx, change, direction)
       } else if (change.field === 'description') {
         applied += setDescriptionGuarded(tx, change, direction)
       } else {
@@ -299,7 +336,12 @@ function listEntries(): ActionLogEntry[] {
       if (change.field === 'budgetAmount') {
         return { ...change, categoryName: catById.get(change.categoryId) ?? null, currency }
       }
-      if (change.field === 'conversationTitle' || change.field === 'conversationDeletedAt') {
+      // these carry their own display context (title/name), so nothing to join
+      if (
+        change.field === 'conversationTitle' ||
+        change.field === 'conversationDeletedAt' ||
+        change.field === 'savedFilterDeletedAt'
+      ) {
         return change
       }
       const t = byId.get(change.transactionId)
