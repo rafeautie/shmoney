@@ -45,6 +45,52 @@ Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and 
 - ↩️ **Activity log with undo.** Every change is recorded and reversible, even across restarts.
 - 📈 **Investments and net worth.** Holdings with market value and cost basis, and per-currency net worth.
 
+## 📸 Screenshots
+
+<details>
+<summary>🏦 Accounts</summary>
+<br>
+<img src="docs/screenshots/accounts.png" alt="Accounts page showing balances and net worth" />
+</details>
+
+<details>
+<summary>🧾 Transactions</summary>
+<br>
+<img src="docs/screenshots/transactions.png" alt="Transactions table with filters and categories" />
+</details>
+
+<details>
+<summary>✉️ Budget</summary>
+<br>
+<img src="docs/screenshots/budget.png" alt="Envelope budget with monthly assignments and remaining amounts" />
+</details>
+
+<details>
+<summary>📊 Reports</summary>
+<br>
+<img src="docs/screenshots/reports.png" alt="Reports list of saved dashboards" />
+<br><br>
+<img src="docs/screenshots/report-detail.png" alt="Spending Overview report with stat, bar, pie, and line widgets" />
+</details>
+
+<details>
+<summary>💬 Chat</summary>
+<br>
+<img src="docs/screenshots/chat.png" alt="Chat with the on-device model about your finances" />
+</details>
+
+<details>
+<summary>↩️ Activity</summary>
+<br>
+<img src="docs/screenshots/activity.png" alt="Activity log of changes with undo" />
+</details>
+
+<details>
+<summary>🤖 Settings: local model</summary>
+<br>
+<img src="docs/screenshots/settings-llm.png" alt="Settings page for downloading and selecting the local LLM" />
+</details>
+
 ## 🔜 Coming soon
 
 - 🇪🇺 **European bank sync.** Connect to European banks alongside SimpleFIN.
