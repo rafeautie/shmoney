@@ -7,22 +7,24 @@ import { Input } from '@/components/ui/input'
 // A controlled multi-value chip input matching the category editor: each value is
 // a chip whose edit/delete controls reveal on hover/focus, and a trailing inline
 // row adds new values. Edit state is local — the parent owns the array via
-// onChange.
+// onChange. Shared by the rule editor and the widget filter overrides.
 //
-// This renders inside the rule editor's own <form>, so it deliberately uses NO
-// nested <form> (invalid HTML) and every button is type="button": otherwise a
-// click (or Enter) would submit the outer rule form instead of adding/editing a
-// phrase. Enter is handled explicitly on the inputs.
+// This can render inside a host <form> (the rule editor's), so it deliberately
+// uses NO nested <form> (invalid HTML) and every button is type="button":
+// otherwise a click (or Enter) would submit the outer form instead of
+// adding/editing a phrase. Enter is handled explicitly on the inputs.
 export function PhraseInput({
   value,
   onChange,
   placeholder,
-  maxLength = 200
+  maxLength = 200,
+  disabled
 }: {
   value: string[]
   onChange: (next: string[]) => void
   placeholder?: string
   maxLength?: number
+  disabled?: boolean
 }): React.JSX.Element {
   const [adding, setAdding] = useState('')
 
@@ -44,6 +46,7 @@ export function PhraseInput({
           key={index}
           phrase={phrase}
           maxLength={maxLength}
+          disabled={disabled}
           onRename={(next) => onChange(value.map((p, i) => (i === index ? next : p)))}
           onDelete={() => onChange(value.filter((_, i) => i !== index))}
           conflicts={(next) =>
@@ -55,6 +58,7 @@ export function PhraseInput({
         <Input
           value={adding}
           maxLength={maxLength}
+          disabled={disabled}
           onChange={(event) => setAdding(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
@@ -67,7 +71,7 @@ export function PhraseInput({
           placeholder={placeholder ?? 'add a phrase'}
           className="w-44"
         />
-        <Button type="button" variant="outline" disabled={!adding.trim()} onClick={add}>
+        <Button type="button" variant="outline" disabled={disabled || !adding.trim()} onClick={add}>
           <HugeiconsIcon icon={PlusSignIcon} size={14} />
           Add
         </Button>
@@ -79,17 +83,27 @@ export function PhraseInput({
 function PhraseChip({
   phrase,
   maxLength,
+  disabled,
   onRename,
   onDelete,
   conflicts
 }: {
   phrase: string
   maxLength: number
+  disabled?: boolean
   onRename: (next: string) => void
   onDelete: () => void
   conflicts: (next: string) => boolean
 }): React.JSX.Element {
   const [editing, setEditing] = useState<string | null>(null)
+
+  if (disabled) {
+    return (
+      <span className="inline-flex h-7 items-center rounded-md bg-secondary px-2.5 py-1 text-xs text-secondary-foreground opacity-50">
+        {phrase}
+      </span>
+    )
+  }
 
   if (editing !== null) {
     const draft = editing.trim()

@@ -48,3 +48,28 @@ describe('buildWhere and starting balances', () => {
     expect(withoutTransfers.params).toContain('opening')
   })
 })
+
+describe('description phrases', () => {
+  const withPhrases = (descriptionSearch: string[]): { sql: string; params: unknown[] } => {
+    const { sql, params } = dialect.sqlToQuery(buildWhere({ ...FILTERS, descriptionSearch })!)
+    return { sql: sql.toLowerCase(), params }
+  }
+
+  it('ORs the phrases, so a widget can chart several merchants at once', () => {
+    const { sql, params } = withPhrases(['costco', 'safeway'])
+    // parenthesized as its own group: bare ORs would swallow every other predicate
+    expect(sql).toContain(
+      '("transactions"."description" like ? escape \'\\\' or "transactions"."description" like ? escape \'\\\')'
+    )
+    expect(params).toContain('%costco%')
+    expect(params).toContain('%safeway%')
+  })
+
+  it('escapes each phrase, so a literal % stays literal', () => {
+    expect(withPhrases(['100% beef']).params).toContain('%100\\% beef%')
+  })
+
+  it('adds no predicate when the list is empty', () => {
+    expect(withPhrases([]).params.some((p) => String(p).startsWith('%'))).toBe(false)
+  })
+})

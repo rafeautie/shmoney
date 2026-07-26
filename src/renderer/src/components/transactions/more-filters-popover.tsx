@@ -28,7 +28,7 @@ export function MoreFiltersPopover({
   // is visible
   const count =
     (filters.amountMin !== undefined || filters.amountMax !== undefined ? 1 : 0) +
-    (filters.descriptionSearch ? 1 : 0) +
+    (filters.descriptionSearch?.length ? 1 : 0) +
     (filters.includePending ? 0 : 1) +
     // transfers default differs by context (shown in transactions, hidden in reports)
     (filters.includeTransfers !== defaultFilters.includeTransfers ? 1 : 0)

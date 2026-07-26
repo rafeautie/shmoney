@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
-import { PhraseInput } from './phrase-input'
+import { PhraseInput } from '@/components/phrase-input'
 
 // ---- dollar <-> milliunit helpers ----
 const toMilli = (dollars: string): number => Math.round(parseFloat(dollars) * 1000)

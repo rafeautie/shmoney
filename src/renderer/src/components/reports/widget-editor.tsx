@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input'
 import { NumberInput } from '@/components/ui/number-input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { PhraseInput } from '@/components/phrase-input'
 import { Switch } from '@/components/ui/switch'
 import {
   Select,
@@ -570,21 +571,19 @@ export function WidgetEditor({
                 </OverrideRow>
 
                 <OverrideRow
-                  label="Description contains"
+                  label="Description contains any of"
                   active={overrides.descriptionSearch !== undefined}
                   onToggle={(on) =>
                     patchOverrides({
-                      descriptionSearch: on ? (base.descriptionSearch ?? '') : undefined
+                      descriptionSearch: on ? (base.descriptionSearch ?? []) : undefined
                     })
                   }
                 >
-                  <Input
-                    className="h-8 w-full"
-                    placeholder="Search text"
+                  <PhraseInput
+                    value={overrides.descriptionSearch ?? base.descriptionSearch ?? []}
                     disabled={overrides.descriptionSearch === undefined}
-                    key={`search-${overrides.descriptionSearch ?? 'inherit'}`}
-                    defaultValue={overrides.descriptionSearch ?? base.descriptionSearch ?? ''}
-                    onBlur={(e) => patchOverrides({ descriptionSearch: e.target.value })}
+                    placeholder="add a phrase"
+                    onChange={(descriptionSearch) => patchOverrides({ descriptionSearch })}
                   />
                 </OverrideRow>
 

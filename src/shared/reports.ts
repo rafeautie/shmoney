@@ -59,7 +59,17 @@ const filterFieldsSchema = z.object({
   /** milliunits, compared against abs(amount) */
   amountMin: z.number().int().optional(),
   amountMax: z.number().int().optional(),
-  descriptionSearch: z.string().trim().optional(),
+  /**
+   * OR semantics, the same as rule phrases: a row matches if its description
+   * contains ANY phrase. Filters saved before multi-phrase support hold a bare
+   * string, so a string is lifted to a one-phrase list on parse.
+   */
+  descriptionSearch: z
+    .preprocess(
+      (v) => (typeof v === 'string' ? (v.trim() ? [v] : []) : v),
+      z.array(z.string().trim().min(1).max(200)).max(50)
+    )
+    .optional(),
   /**
    * Broad free-text matched against description, account name, and category
    * name. Amounts are deliberately excluded: substring-matching milliunits is

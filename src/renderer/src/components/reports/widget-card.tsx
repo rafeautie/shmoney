@@ -20,7 +20,7 @@ const FILTER_LABELS: Record<string, string> = {
   direction: 'direction',
   amountMin: 'min amount',
   amountMax: 'max amount',
-  descriptionSearch: 'search',
+  descriptionSearch: 'description',
   includePending: 'pending',
   includeTransfers: 'transfers'
 }

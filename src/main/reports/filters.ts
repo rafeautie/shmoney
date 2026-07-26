@@ -48,9 +48,16 @@ export function buildWhere(
   if (!opts.keepOpeningBalances) preds.push(notOpeningSql())
   if (f.amountMin !== undefined) preds.push(sql`abs(${transactions.amount}) >= ${f.amountMin}`)
   if (f.amountMax !== undefined) preds.push(sql`abs(${transactions.amount}) <= ${f.amountMax}`)
-  if (f.descriptionSearch) {
+  // OR across phrases, AND against the rest of the filter: the description has
+  // to contain one of them, the same semantics rule phrases carry
+  if (f.descriptionSearch?.length) {
     preds.push(
-      sql`${transactions.description} like ${'%' + escapeLike(f.descriptionSearch) + '%'} escape '\\'`
+      or(
+        ...f.descriptionSearch.map(
+          (phrase) =>
+            sql`${transactions.description} like ${'%' + escapeLike(phrase) + '%'} escape '\\'`
+        )
+      )!
     )
   }
   if (f.search) {
