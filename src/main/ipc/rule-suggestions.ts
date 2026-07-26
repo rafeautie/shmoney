@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { categories, ruleSuggestions, settings, transactions } from '../db/schema'
-import { notTransferSql } from '../db/system-categories'
+import { notOpeningSql, notTransferSql } from '../db/system-categories'
 import { compileConditions } from '../rules'
 import { loadEnabledRules } from './rules'
 import { extractRuleTerm } from '../llm/features/extract-rule-term'
@@ -42,7 +42,8 @@ function countMatching(phrase: string): number {
           matchPredicate(phrase),
           isNull(transactions.deletedAt),
           eq(transactions.pending, false),
-          notTransferSql()
+          notTransferSql(),
+          notOpeningSql()
         )
       )
       .get()?.n ?? 0

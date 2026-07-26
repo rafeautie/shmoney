@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db'
 import { accounts, transactions } from '../db/schema'
+import { systemCategoryIdSql } from '../db/system-categories'
 import { decodeBuffer, sniffFormat, parseOfx, parseQif } from '../import/parse'
 import { parseCsv, detectCsvMapping, normalizeCsvRows } from '../import/csv'
 import { assignExternalIds, annotateDuplicates } from '../import/dedupe'
@@ -130,7 +131,10 @@ export function registerImportIpc(): void {
         accountName = account.name
       } else {
         // null connectionId/simplefinId marks the account as manual: sync
-        // never touches it and disconnect's cascade leaves it alone
+        // never touches it and disconnect's cascade leaves it alone.
+        // A manual account carries no anchor — it has complete history by
+        // construction, so its balance is just the sum of its transactions and
+        // the opening balance is the first of them (see main/accounts/balance.ts)
         const account = tx
           .insert(accounts)
           .values({
@@ -139,16 +143,31 @@ export function registerImportIpc(): void {
             institutionName: null,
             name: target.newAccount.name,
             currency: target.newAccount.currency,
-            balance: target.newAccount.balance ?? 0,
-            // anchored at the epoch, so the balance above is an opening balance
-            // and every transaction this account ever holds counts toward the
-            // derived balance (see main/accounts/balance.ts)
+            balance: 0,
             balanceDate: 0
           })
           .returning({ id: accounts.id, name: accounts.name })
           .get()
         accountId = account.id
         accountName = account.name
+
+        const opening = target.newAccount.balance ?? 0
+        if (opening !== 0) {
+          // a day before the earliest imported row, so it sorts first. It's an
+          // ordinary transaction from here on: editable, deletable, undoable.
+          const earliest = Math.min(...rows.map((r) => r.posted))
+          tx.insert(transactions)
+            .values({
+              accountId,
+              simplefinId: `manual:opening:${accountId}`,
+              posted: earliest - 86400,
+              amount: opening,
+              description: 'Starting balance',
+              categoryId: systemCategoryIdSql('opening'),
+              pending: false
+            })
+            .run()
+        }
       }
 
       // never writes categoryId/deletedAt (user-owned columns), and never

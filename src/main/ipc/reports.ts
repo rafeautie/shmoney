@@ -3,7 +3,7 @@ import { and, asc, count, desc, eq } from 'drizzle-orm'
 import { db } from '../db'
 import { reports, reportWidgets, type ReportRow, type ReportWidgetRow } from '../db/schema'
 import { runQuery } from '../reports/query'
-import { buildWhere } from '../reports/query'
+import { buildWhere } from '../reports/filters'
 import { transactionsPage } from './transactions-page'
 import { idSchema } from '@shared/ipc'
 import {

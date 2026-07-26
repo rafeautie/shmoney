@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, budgets, categories, categoryGroups, transactions } from '../db/schema'
-import { notTransferSql } from '../db/system-categories'
+import { notOpeningSql, notTransferSql } from '../db/system-categories'
 import { transactionDate } from '../db/expressions'
 import { bucketSql } from '../reports/query'
 import { computeEnvelopes, type BudgetFillRow, type EnvelopeComputation } from './rollover'
@@ -32,7 +32,9 @@ export function getBudgetSummary(month: string): BudgetSummary {
 
   const currency = dominantCurrency()
   const monthBucket = bucketSql('month')
-  const basePreds = [isNull(transactions.deletedAt), sql`${transactionDate} > 0`]
+  // a starting balance is account setup, not money budgeted or spent; without
+  // this it would land in the unbudgeted bucket as a large one-off income
+  const basePreds = [isNull(transactions.deletedAt), sql`${transactionDate} > 0`, notOpeningSql()]
 
   let computed: EnvelopeComputation[] = []
   let minMonth: string | null = null

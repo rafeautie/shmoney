@@ -16,7 +16,6 @@ import {
   IPC,
   connectInputSchema,
   accountIdSchema,
-  setOpeningBalanceInputSchema,
   type Connection,
   type SyncResult
 } from '@shared/ipc'
@@ -24,7 +23,7 @@ import {
   filteredAccountTransactionsQuerySchema,
   filteredTransactionsQuerySchema
 } from '@shared/transaction-filters'
-import { buildWhere } from '../reports/query'
+import { buildWhere } from '../reports/filters'
 
 const FIRST_SYNC_WINDOW_SECONDS = 90 * 24 * 60 * 60
 const RESYNC_OVERLAP_SECONDS = 7 * 24 * 60 * 60
@@ -391,21 +390,6 @@ export function registerConnectionsIpc(): void {
     )
   })
 
-  ipcMain.handle(IPC.accountsSetOpeningBalance, (_event, input: unknown) => {
-    const { accountId, openingBalance } = setOpeningBalanceInputSchema.parse(input)
-    const row = db.select().from(accounts).where(eq(accounts.id, accountId)).get()
-    if (!row) throw new Error('Account not found')
-    // a synced account's anchor is the bridge's, and the next sync would
-    // overwrite anything set here; correcting one needs a lock sync respects
-    if (row.connectionId !== null) throw new Error('Only manual accounts have an opening balance')
-    // balanceDate stays 0 so the anchor keeps meaning "before every transaction"
-    db.update(accounts)
-      .set({ balance: openingBalance, balanceDate: 0 })
-      .where(eq(accounts.id, accountId))
-      .run()
-    return true
-  })
-
   ipcMain.handle(IPC.accountsDelete, (_event, input: unknown) => {
     const id = accountIdSchema.parse(input)
     const row = db.select().from(accounts).where(eq(accounts.id, id)).get()
@@ -438,7 +422,10 @@ export function registerConnectionsIpc(): void {
     // the page's account scope is authoritative: accountIds from a loaded
     // saved filter are ignored (the renderer strips them too)
     const filterWhere = q.filters
-      ? buildWhere({ ...q.filters, accountIds: undefined }, { keepUnknownDates: true })
+      ? buildWhere(
+          { ...q.filters, accountIds: undefined },
+          { keepUnknownDates: true, keepOpeningBalances: true }
+        )
       : undefined
     return transactionsPage(and(eq(transactions.accountId, q.accountId), filterWhere), q)
   })
@@ -446,7 +433,9 @@ export function registerConnectionsIpc(): void {
   ipcMain.handle(IPC.transactionsList, (_event, input: unknown) => {
     const q = filteredTransactionsQuerySchema.parse(input)
     return transactionsPage(
-      q.filters ? buildWhere(q.filters, { keepUnknownDates: true }) : undefined,
+      q.filters
+        ? buildWhere(q.filters, { keepUnknownDates: true, keepOpeningBalances: true })
+        : undefined,
       q
     )
   })

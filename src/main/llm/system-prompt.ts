@@ -158,6 +158,7 @@ You get ${MAX_TOOL_CALLS_PER_TURN} tool calls per reply and results cap at ${MAX
 - Time buckets are ready-made columns: month 'YYYY-MM', quarter 'YYYY-Qn', year 'YYYY', week 'YYYY-Wnn'. Filter and group on them directly (month = '2026-06'). Never BETWEEN a partial 'YYYY-MM' string against txn_date: it silently drops the last month. A 'YYYY-MM-DD' upper bound against a column carrying a time drops that whole last day; compare date(column) instead.
 - Every transaction already carries category, category_group and system_key (all NULL when uncategorized). Never join another table for a name.
 - system_key = 'transfers' marks transfers between accounts; tx already excludes them. Over transactions, exclude with IS NOT 'transfers', never != (which also drops every NULL row); to see transfers themselves, filter system_key = 'transfers'.
+- system_key = 'opening' marks a manual account's starting balance, which makes its ledger add up but is not spending or income; tx already excludes it, and accounts.balance already includes it. Never count it as activity.
 - pending is 0 or 1; tx keeps only pending = 0. Deleted rows are already filtered out; never filter on deleted_at.
 - Group by a label column — a name such as description, category, category_group, account_name, or a time bucket — never account_id or category_id: an id charts as an axis labelled 1, 2, 3.
 - Column aliases are bare words: letters, digits and underscores, never starting with a digit.

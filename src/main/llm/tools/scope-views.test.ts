@@ -29,8 +29,12 @@ function seed(db: DatabaseSync): void {
            (3, 2, 't3', ${JUNE}, -1000, 'Gone', 0, ${JUNE}, NULL),
            (4, 1, 't4', 0, -5000, 'Pending coffee', 1, ${JUNE}, NULL),
            (5, 1, 't5', 0, -2000, 'Unknown date', 0, 0, NULL),
-           (6, 1, 't6', ${recent}, -1000, 'Recent', 0, ${recent}, NULL);
+           (6, 1, 't6', ${recent}, -1000, 'Recent', 0, ${recent}, NULL),
+           (7, 2, 'manual:opening:2', ${JUNE}, 100000, 'Starting balance', 0, ${JUNE}, NULL);
     UPDATE transactions SET deleted_at = 999 WHERE id = 3;
+    -- the account's opening line: part of its balance, never part of analysis
+    UPDATE transactions SET category_id = (SELECT id FROM categories WHERE system_key = 'opening')
+    WHERE id = 7;
     -- id 6 becomes a transfer via the migration-seeded system category, looked
     -- up by system_key so the test never hardcodes a seeded id
     UPDATE transactions SET category_id = (SELECT id FROM categories WHERE system_key = 'transfers')
@@ -82,7 +86,8 @@ describe('scope views: amounts', () => {
       { amount: 500 },
       { amount: -5 },
       { amount: -2 },
-      { amount: -1 }
+      { amount: -1 },
+      { amount: 100 }
     ])
   })
 
@@ -90,7 +95,7 @@ describe('scope views: amounts', () => {
   // obvious aggregate and stating a 1000x figure
   it('makes a bare SUM(amount) correct without the model scaling anything', () => {
     expect(query(db, 'SELECT ROUND(SUM(amount), 2) AS net FROM transactions')).toEqual([
-      { net: 479.66 }
+      { net: 579.66 }
     ])
   })
 
@@ -103,8 +108,21 @@ describe('scope views: amounts', () => {
   it('derives account balances from the anchor plus later transactions', () => {
     expect(query(db, 'SELECT name, balance, available_balance FROM accounts ORDER BY id')).toEqual([
       { name: 'Checking', balance: 1721.22, available_balance: 1000 },
-      // a liability stays negative, and a NULL available_balance stays NULL
-      { name: 'Card', balance: -250, available_balance: null }
+      // a liability stays negative, and a NULL available_balance stays NULL.
+      // Card's starting balance counts toward its balance (-250 + 100) even
+      // though every analysis view drops it
+      { name: 'Card', balance: -150, available_balance: null }
+    ])
+  })
+
+  it('keeps starting balances out of tx while leaving them in the account balance', () => {
+    // the ledger has to add up, but a starting balance is account setup, not
+    // income — counted as activity it would swamp every spending report
+    expect(query(db, "SELECT description FROM transactions WHERE system_key IS 'opening'")).toEqual(
+      [{ description: 'Starting balance' }]
+    )
+    expect(query(db, "SELECT count(*) AS n FROM tx WHERE system_key IS 'opening'")).toEqual([
+      { n: 0 }
     ])
   })
 
@@ -127,7 +145,8 @@ describe('scope views: amounts', () => {
   })
 
   it('still hides soft-deleted rows', () => {
-    expect(query(db, 'SELECT COUNT(*) AS n FROM transactions')).toEqual([{ n: 5 }])
+    // 6 of the 7 seeded rows; id 3 is soft-deleted
+    expect(query(db, 'SELECT COUNT(*) AS n FROM transactions')).toEqual([{ n: 6 }])
   })
 
   it("carries the account's currency on transactions", () => {
@@ -164,7 +183,7 @@ describe('scope views: category names', () => {
     // and the base CTE's exclusion, spelled NULL-safe, keeps every other row
     expect(
       query(db, "SELECT COUNT(*) AS n FROM transactions WHERE system_key IS NOT 'transfers'")
-    ).toEqual([{ n: 4 }])
+    ).toEqual([{ n: 5 }])
   })
 
   it('carries the category name on budgets', () => {
@@ -318,7 +337,8 @@ describe('scope views: rules and action_log', () => {
 describe('scope views: narrowing', () => {
   it('narrows transactions, accounts and holdings to the scoped account', () => {
     const db = open(2)
-    expect(query(db, 'SELECT COUNT(*) AS n FROM transactions')).toEqual([{ n: 0 }])
+    // only Card's own rows survive: its starting balance, not account 1's five
+    expect(query(db, 'SELECT COUNT(*) AS n FROM transactions')).toEqual([{ n: 1 }])
     expect(query(db, 'SELECT name FROM accounts')).toEqual([{ name: 'Card' }])
     expect(query(db, 'SELECT COUNT(*) AS n FROM holdings')).toEqual([{ n: 0 }])
   })

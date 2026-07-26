@@ -1,16 +1,9 @@
-import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
+import { eq, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, categoryGroups, transactions } from '../db/schema'
-import { notTransferSql } from '../db/system-categories'
+import { buildWhere } from './filters'
 import { transactionDate } from '../db/expressions'
-import type {
-  Measure,
-  QueryRow,
-  ResolvedFilters,
-  ResolvedQuery,
-  RunQueryResult,
-  TimeGrain
-} from '@shared/reports'
+import type { Measure, QueryRow, ResolvedQuery, RunQueryResult, TimeGrain } from '@shared/reports'
 
 // bucket labels must match bucketLabelFor() in src/shared/reports.ts exactly,
 // since the renderer zero-fills gaps by enumerating the same labels
@@ -46,61 +39,6 @@ function measureSql(measure: Measure): SQL<number> {
     case 'expense':
       return sql<number>`coalesce(sum(case when ${transactions.amount} < 0 then -${transactions.amount} else 0 end), 0)`
   }
-}
-
-function escapeLike(term: string): string {
-  return term.replace(/[\\%_]/g, (c) => `\\${c}`)
-}
-
-export function buildWhere(
-  f: ResolvedFilters,
-  opts: { keepUnknownDates?: boolean } = {}
-): SQL | undefined {
-  // soft-deleted rows never count, in lists or aggregates
-  const preds: SQL[] = [isNull(transactions.deletedAt)]
-  // rows whose date resolves to 0 have an unknown date; keep them out of every
-  // report query so they can't form a phantom 1970 bucket. The transactions
-  // table shows those rows (as "—"), so it opts out unless a date bound is set
-  // (an unknown date can't satisfy a range)
-  if (!opts.keepUnknownDates || f.dateStart !== null || f.dateEnd !== null) {
-    preds.push(sql`${transactionDate} > 0`)
-  }
-  if (f.dateStart !== null) preds.push(sql`${transactionDate} >= ${f.dateStart}`)
-  if (f.dateEnd !== null) preds.push(sql`${transactionDate} <= ${f.dateEnd}`)
-  if (f.accountIds?.length) preds.push(inArray(transactions.accountId, f.accountIds))
-  if (f.categoryIds?.length || f.includeUncategorized) {
-    const parts: SQL[] = []
-    if (f.categoryIds?.length) parts.push(inArray(transactions.categoryId, f.categoryIds))
-    if (f.includeUncategorized) parts.push(isNull(transactions.categoryId))
-    preds.push(or(...parts)!)
-  }
-  if (f.categoryGroupIds?.length) preds.push(inArray(categories.groupId, f.categoryGroupIds))
-  if (f.direction === 'income') preds.push(sql`${transactions.amount} > 0`)
-  if (f.direction === 'expense') preds.push(sql`${transactions.amount} < 0`)
-  // transfers are excluded unless the filter opts in. An explicit category
-  // selection skips the exclusion: chosen categories already narrow the rows,
-  // and picking Transfers there IS opting in — the exclusion would fight it
-  if (!f.includeTransfers && !f.categoryIds?.length) preds.push(notTransferSql())
-  if (f.amountMin !== undefined) preds.push(sql`abs(${transactions.amount}) >= ${f.amountMin}`)
-  if (f.amountMax !== undefined) preds.push(sql`abs(${transactions.amount}) <= ${f.amountMax}`)
-  if (f.descriptionSearch) {
-    preds.push(
-      sql`${transactions.description} like ${'%' + escapeLike(f.descriptionSearch) + '%'} escape '\\'`
-    )
-  }
-  if (f.search) {
-    const term = '%' + escapeLike(f.search) + '%'
-    preds.push(
-      or(
-        sql`${transactions.description} like ${term} escape '\\'`,
-        sql`${accounts.name} like ${term} escape '\\'`,
-        // NULL LIKE ... is NULL, which is falsy in OR — uncategorized rows just don't match here
-        sql`${categories.name} like ${term} escape '\\'`
-      )!
-    )
-  }
-  if (!f.includePending) preds.push(eq(transactions.pending, false))
-  return and(...preds)
 }
 
 export function runQuery(q: ResolvedQuery): RunQueryResult {

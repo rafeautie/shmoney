@@ -136,7 +136,8 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     // milliunit division, and the grain columns.
     'DROP VIEW IF EXISTS temp.tx',
     'CREATE TEMP VIEW tx AS SELECT * FROM temp.transactions ' +
-      "WHERE system_key IS NOT 'transfers' AND txn_date IS NOT NULL AND pending = 0",
+      "WHERE system_key IS NOT 'transfers' AND system_key IS NOT 'opening' " +
+      'AND txn_date IS NOT NULL AND pending = 0',
     'DROP VIEW IF EXISTS temp.accounts',
     // balance is derived, mirroring balanceDeltas in main/accounts/balance.ts:
     // the stored column is only an anchor, and transactions after it are added

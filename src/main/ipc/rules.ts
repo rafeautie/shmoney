@@ -2,7 +2,7 @@ import { ipcMain } from 'electron'
 import { and, asc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, rules, transactions } from '../db/schema'
-import { notTransferSql } from '../db/system-categories'
+import { notOpeningSql, notTransferSql } from '../db/system-categories'
 import type { RuleRow } from '../db/schema'
 import { recordAction } from './action-log'
 import { reopenUncoveredAcceptedSuggestions } from './rule-suggestions'
@@ -167,10 +167,13 @@ function baseFilter(scope?: RuleApplyScope): SQL {
 }
 
 // which matched rows a rule may claim: only blank categories unless overriding,
-// and even an override never touches a row filed under Transfers — silently
-// turning a transfer into income/expense would corrupt reports
+// and even an override never touches a row filed under Transfers or Starting
+// balance — silently turning either into income/expense would corrupt reports.
+// (the non-override branch is already safe: both carry a category)
 function eligibility(overrideCategories: boolean): SQL {
-  return overrideCategories ? notTransferSql() : isNull(transactions.categoryId)
+  return overrideCategories
+    ? and(notTransferSql(), notOpeningSql())!
+    : isNull(transactions.categoryId)
 }
 
 /**

@@ -31,15 +31,17 @@ export const DEFAULT_CATEGORY_GROUPS: { name: string; categories: string[] }[] =
   }
 ]
 
-export type SystemCategoryKey = 'income' | 'transfers'
+export type SystemCategoryKey = 'income' | 'transfers' | 'opening'
 
 // System categories back built-in behavior (Transfers replaces the old
-// is_transfer flag) and can't be renamed or deleted; reset preserves them.
-// Must stay in sync with the one-time seeds in drizzle/0005_seed_income.sql and
-// drizzle/0016_seed_system_categories.sql.
+// is_transfer flag; Starting balance marks a manual account's opening line) and
+// can't be renamed or deleted; reset preserves them. Must stay in sync with the
+// one-time seeds in drizzle/0005_seed_income.sql, 0016_seed_system_categories.sql
+// and 0027_opening_balance_transactions.sql.
 export const SYSTEM_CATEGORIES: { key: SystemCategoryKey; name: string }[] = [
   { key: 'income', name: '💵 Income' },
-  { key: 'transfers', name: '🔄 Transfers' }
+  { key: 'transfers', name: '🔄 Transfers' },
+  { key: 'opening', name: '🏦 Starting balance' }
 ]
 
 /**

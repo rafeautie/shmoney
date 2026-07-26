@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { and, eq, inArray, isNull, ne, or } from 'drizzle-orm'
+import { and, eq, inArray, isNull, notInArray, or } from 'drizzle-orm'
 import { db } from '../../db'
 import { accounts, categories, transactions } from '../../db/schema'
 import { setCategories } from '../../ipc/transactions'
@@ -87,11 +87,14 @@ export async function categorizeTransactions(
 
   // Transfers is excluded from the offered list: the detector pairs transfers
   // structurally, and a small model guessing them from descriptions alone
-  // would corrupt reports. Income (also a system category) stays offered.
+  // would corrupt reports. Starting balance is excluded for the same reason —
+  // it's created with the account, never inferred. Income stays offered.
   const allCategories = db
     .select({ id: categories.id, name: categories.name })
     .from(categories)
-    .where(or(isNull(categories.systemKey), ne(categories.systemKey, 'transfers')))
+    .where(
+      or(isNull(categories.systemKey), notInArray(categories.systemKey, ['transfers', 'opening']))
+    )
     .all()
   if (allCategories.length === 0) return { categorized: 0, cancelled: false }
   const categoryIds = new Set(allCategories.map((c) => c.id))

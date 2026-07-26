@@ -153,13 +153,6 @@ export type ConnectInput = z.infer<typeof connectInputSchema>
 
 export const accountIdSchema = z.number().int().positive()
 
-export const setOpeningBalanceInputSchema = z.object({
-  accountId: accountIdSchema,
-  /** integer milliunits; the balance before any of the account's transactions */
-  openingBalance: z.number().int()
-})
-export type SetOpeningBalanceInput = z.infer<typeof setOpeningBalanceInputSchema>
-
 export const idSchema = z.number().int().positive()
 
 const categoryNameSchema = z.string().trim().min(1).max(60)
@@ -406,7 +399,6 @@ export const IPC = {
   connectionDisconnect: 'connection:disconnect',
   accountsList: 'accounts:list',
   accountsGet: 'accounts:get',
-  accountsSetOpeningBalance: 'accounts:setOpeningBalance',
   accountsDelete: 'accounts:delete',
   accountHoldings: 'accounts:holdings',
   accountTransactions: 'accounts:transactions',
