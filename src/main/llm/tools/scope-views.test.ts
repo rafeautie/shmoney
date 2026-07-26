@@ -19,9 +19,9 @@ function seed(db: DatabaseSync): void {
   db.exec(`
     INSERT INTO connections (id, access_url_encrypted, last_synced_at, created_at)
     VALUES (1, 'enc', ${JUNE}, '2026-06-11 12:00:00');
-    INSERT INTO accounts (id, name, currency, balance, available_balance, balance_date, invert_balance)
-    VALUES (1, 'Checking', 'USD', 1234560, 1000000, 0, 0),
-           (2, 'Card', 'EUR', 250000, NULL, 0, 1);
+    INSERT INTO accounts (id, name, currency, balance, available_balance, balance_date)
+    VALUES (1, 'Checking', 'USD', 1234560, 1000000, 0),
+           (2, 'Card', 'EUR', -250000, NULL, 0);
     INSERT INTO transactions (id, account_id, simplefin_id, posted, amount, description, pending,
                               transacted_at, category_id)
     VALUES (1, 1, 't1', ${JUNE}, -12340, 'Coffee', 0, ${JUNE}, NULL),
@@ -94,17 +94,12 @@ describe('scope views: amounts', () => {
     ])
   })
 
-  it('divides account balances and applies invert_balance', () => {
+  it('divides account balances, keeping signs and NULLs intact', () => {
     expect(query(db, 'SELECT name, balance, available_balance FROM accounts ORDER BY id')).toEqual([
       { name: 'Checking', balance: 1234.56, available_balance: 1000 },
-      // invert_balance = 1, and a NULL available_balance survives the flip
+      // a liability stays negative, and a NULL available_balance stays NULL
       { name: 'Card', balance: -250, available_balance: null }
     ])
-  })
-
-  it('does not expose invert_balance for the model to apply a second time', () => {
-    const columns = query(db, 'PRAGMA table_info(accounts)').map((c) => c.name)
-    expect(columns).not.toContain('invert_balance')
   })
 
   it('divides holdings money while leaving the shares string exact', () => {

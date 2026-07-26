@@ -138,15 +138,11 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     'CREATE TEMP VIEW tx AS SELECT * FROM temp.transactions ' +
       "WHERE system_key IS NOT 'transfers' AND txn_date IS NOT NULL AND pending = 0",
     'DROP VIEW IF EXISTS temp.accounts',
-    // invert_balance is applied here and the column left out, matching
-    // applyInvert in ipc/connections.ts: the flip is a read-time display rule
-    // everywhere else in the app, so the model should no more re-derive it
-    // than it should re-derive txn_date
     'CREATE TEMP VIEW accounts AS ' +
       'SELECT id, name, institution_name, currency, ' +
-      'CASE WHEN invert_balance = 1 THEN -balance ELSE balance END / 1000.0 AS balance, ' +
-      'CASE WHEN invert_balance = 1 THEN -available_balance ELSE available_balance END / 1000.0 ' +
-      "AS available_balance, datetime(NULLIF(balance_date, 0), 'unixepoch', 'localtime') AS balance_date " +
+      'balance / 1000.0 AS balance, ' +
+      'available_balance / 1000.0 AS available_balance, ' +
+      "datetime(NULLIF(balance_date, 0), 'unixepoch', 'localtime') AS balance_date " +
       `FROM main.accounts${where(`id = ${accountId}`)}`,
     'DROP VIEW IF EXISTS temp.holdings',
     'CREATE TEMP VIEW holdings AS ' +

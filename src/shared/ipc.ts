@@ -49,8 +49,6 @@ export interface Account {
   balance: number
   availableBalance: number | null
   balanceDate: number
-  /** user override: when true, `balance`/`availableBalance` above are already sign-flipped */
-  invertBalance: boolean
   /** number of investment positions on this account; 0 = not an investment account */
   holdingsCount: number
 }
@@ -144,12 +142,6 @@ export const connectInputSchema = z.object({
 export type ConnectInput = z.infer<typeof connectInputSchema>
 
 export const accountIdSchema = z.number().int().positive()
-
-export const setInvertBalanceInputSchema = z.object({
-  accountId: accountIdSchema,
-  invertBalance: z.boolean()
-})
-export type SetInvertBalanceInput = z.infer<typeof setInvertBalanceInputSchema>
 
 export const idSchema = z.number().int().positive()
 
@@ -397,7 +389,6 @@ export const IPC = {
   connectionDisconnect: 'connection:disconnect',
   accountsList: 'accounts:list',
   accountsGet: 'accounts:get',
-  accountsSetInvertBalance: 'accounts:setInvertBalance',
   accountsDelete: 'accounts:delete',
   accountHoldings: 'accounts:holdings',
   accountTransactions: 'accounts:transactions',

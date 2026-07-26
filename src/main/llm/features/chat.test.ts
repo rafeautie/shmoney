@@ -546,11 +546,6 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain("txn_date is 'YYYY-MM-DD'")
   })
 
-  it('does not mention invert_balance, which the accounts view applies', () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).not.toMatch(/invert/i)
-  })
-
   it('clips a pathologically long category list', () => {
     const names = Array.from({ length: 200 }, (_, i) => `Category number ${i}`)
     const prompt = buildSystemPrompt(

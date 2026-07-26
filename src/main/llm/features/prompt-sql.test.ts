@@ -83,9 +83,9 @@ function seed(db: DatabaseSync): void {
   const day = (month: number, dayOfMonth: number): number =>
     Math.floor(Date.UTC(2026, month - 1, dayOfMonth, 12) / 1000)
   db.exec(`
-    INSERT INTO accounts (id, name, currency, balance, available_balance, balance_date, invert_balance)
-    VALUES (1, 'Chase Checking', 'USD', 1234560, 1000000, 0, 0),
-           (2, 'Amex 💳 Card', 'EUR', 250000, NULL, 0, 0);
+    INSERT INTO accounts (id, name, currency, balance, available_balance, balance_date)
+    VALUES (1, 'Chase Checking', 'USD', 1234560, 1000000, 0),
+           (2, 'Amex 💳 Card', 'EUR', 250000, NULL, 0);
     INSERT INTO transactions (id, account_id, simplefin_id, posted, amount, description, pending,
                               transacted_at, category_id)
     VALUES (1, 1, 't1', ${day(6, 3)}, -12340, 'Coffee', 0, ${day(6, 3)}, ${DINING}),

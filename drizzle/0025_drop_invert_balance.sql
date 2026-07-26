@@ -1,0 +1,1 @@
+ALTER TABLE `accounts` DROP COLUMN `invert_balance`;

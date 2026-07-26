@@ -5,11 +5,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Settings01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import { ConfirmButton } from '@/components/confirm-dialog'
-import {
-  SettingsGroup,
-  SettingAction,
-  SettingToggle
-} from '@/components/settings/settings-controls'
+import { SettingsGroup, SettingAction } from '@/components/settings/settings-controls'
 import {
   Dialog,
   DialogContent,
@@ -22,19 +18,16 @@ interface AccountSettingsProps {
   accountId: number
   accountName: string
   isManual: boolean
-  invertBalance: boolean
 }
 
 /**
- * Per-account overrides: the invert-balance toggle and, for manual accounts, a
- * delete action. Synced accounts can't be deleted here — the next sync would just
- * recreate them — so the dialog explains that instead.
+ * Per-account settings and actions. Synced accounts can't be deleted here — the
+ * next sync would just recreate them — so the dialog explains that instead.
  */
 export function AccountSettingsDialog({
   accountId,
   accountName,
   isManual,
-  invertBalance,
   open,
   onOpenChange
 }: AccountSettingsProps & {
@@ -43,11 +36,6 @@ export function AccountSettingsDialog({
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const setInvert = useMutation({
-    mutationFn: (next: boolean) =>
-      window.api.accounts.setInvertBalance({ accountId, invertBalance: next }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accounts'] })
-  })
   const deleteAccount = useMutation({
     mutationFn: () => window.api.accounts.delete(accountId),
     onSuccess: async () => {
@@ -65,12 +53,6 @@ export function AccountSettingsDialog({
         </DialogHeader>
         <div>
           <SettingsGroup>
-            <SettingToggle
-              label="Invert balance sign"
-              description="Flips the displayed balance when the institution reports it with the wrong sign; transactions are unchanged."
-              checked={invertBalance}
-              onCheckedChange={(on) => setInvert.mutate(on)}
-            />
             <SettingAction
               label="Delete account"
               description={

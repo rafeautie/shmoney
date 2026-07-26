@@ -73,7 +73,6 @@ function AccountDetailPage() {
               accountId={id}
               accountName={account.name}
               isManual={account.connectionId === null}
-              invertBalance={account.invertBalance}
             />
           )}
         </div>
