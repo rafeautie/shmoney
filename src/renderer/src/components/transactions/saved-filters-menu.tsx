@@ -87,7 +87,7 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
         <HugeiconsIcon icon={Bookmark01Icon} size={14} className="text-muted-foreground" />
         Saved
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-2" align="start">
+      <PopoverContent className="w-72 p-0 gap-0" align="start">
         {saved.length === 0 ? (
           <Empty className="gap-2 px-2 py-4">
             <EmptyHeader>
@@ -102,7 +102,7 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
         ) : (
           // pb-px: buttons shift down 1px while pressed (active:translate-y-px),
           // which would otherwise overflow the container and flash a scrollbar
-          <div className="max-h-64 overflow-y-auto pb-px">
+          <div className="max-h-64 overflow-y-auto p-2">
             {saved.map((filter) => (
               <div key={filter.id} className="group flex items-center gap-1">
                 <Button
@@ -132,8 +132,8 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
             ))}
           </div>
         )}
-        <Separator className="my-2" />
-        <div className="flex items-center gap-1">
+        <Separator />
+        <div className="flex items-center gap-2 p-2">
           <Input
             className="h-8"
             placeholder="Save current filter as..."
