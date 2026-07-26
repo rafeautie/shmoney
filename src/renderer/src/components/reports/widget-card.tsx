@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Delete02Icon } from '@hugeicons/core-free-icons'
 import type { ReportFilters, ReportWidget } from '@shared/reports'
@@ -47,11 +48,24 @@ interface WidgetCardProps {
   widget: ReportWidget
   reportFilters: ReportFilters
   editing: boolean
-  onEdit: () => void
-  onDelete: () => void
+  /** takes the widget rather than closing over it, so the grid can pass one stable
+   * function to every card and keep the memo below effective */
+  onEdit: (widget: ReportWidget) => void
+  onDelete: (widget: ReportWidget) => void
 }
 
-export function WidgetCard({ widget, reportFilters, editing, onEdit, onDelete }: WidgetCardProps) {
+// Memoized because the grid re-renders on every frame of a resize (it follows the
+// container width live). None of these props change while that happens, so the card
+// and everything under it (tables, budget rows, the chart wrappers and their pivots)
+// can sit the resize out. Recharts still redraws each chart from its own
+// ResponsiveContainer, which is the only part that actually depends on the size.
+export const WidgetCard = memo(function WidgetCard({
+  widget,
+  reportFilters,
+  editing,
+  onEdit,
+  onDelete
+}: WidgetCardProps) {
   // widgets own their edge padding, so the card only pads the header
   return (
     <Card
@@ -65,7 +79,7 @@ export function WidgetCard({ widget, reportFilters, editing, onEdit, onDelete }:
         <OverrideBadge widget={widget} />
         {editing && (
           <div className="ml-auto flex shrink-0 items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={onEdit}>
+            <Button variant="ghost" size="sm" onClick={() => onEdit(widget)}>
               Edit
             </Button>
             <ConfirmButton
@@ -74,7 +88,7 @@ export function WidgetCard({ widget, reportFilters, editing, onEdit, onDelete }:
               title="Delete this widget?"
               description="This removes the widget from the report."
               onConfirm={(close) => {
-                onDelete()
+                onDelete(widget)
                 close()
               }}
             >
@@ -89,4 +103,4 @@ export function WidgetCard({ widget, reportFilters, editing, onEdit, onDelete }:
       </div>
     </Card>
   )
-}
+})

@@ -4,11 +4,9 @@ import type { ReportFilters, ReportWidget, WidgetType } from '@shared/reports'
 import { createReportCompactor, type ActiveGridOperation } from './grid-compactor'
 import { WidgetCard } from './widget-card'
 
-/** Container width that only updates once resizing settles. Unlike react-grid-layout's
- * useContainerWidth (which fires every frame), this keeps the grid and its charts from
- * chasing the sidebar's collapse animation frame by frame; instead the grid re-lays-out
- * once at the end, animated by the grid items' own CSS transition. */
-function useSettledContainerWidth(delayMs: number) {
+/** Container width, tracked live so the grid re-lays out with the window (and with
+ * the sidebar's collapse) as it moves, rather than snapping once the drag ends. */
+function useContainerWidth() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(0)
 
@@ -16,17 +14,10 @@ function useSettledContainerWidth(delayMs: number) {
     const node = containerRef.current
     if (!node) return
     setWidth(node.offsetWidth)
-    let timer: number | undefined
-    const observer = new ResizeObserver(([entry]) => {
-      window.clearTimeout(timer)
-      timer = window.setTimeout(() => setWidth(entry.contentRect.width), delayMs)
-    })
+    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width))
     observer.observe(node)
-    return () => {
-      window.clearTimeout(timer)
-      observer.disconnect()
-    }
-  }, [delayMs])
+    return () => observer.disconnect()
+  }, [])
 
   return { width, containerRef, mounted: width > 0 }
 }
@@ -64,7 +55,7 @@ export function ReportGrid({
   onEditWidget,
   onDeleteWidget
 }: ReportGridProps) {
-  const { width, containerRef, mounted } = useSettledContainerWidth(150)
+  const { width, containerRef, mounted } = useContainerWidth()
 
   const activeOpRef = useRef<ActiveGridOperation | null>(null)
   // eslint-disable-next-line react-hooks/refs -- the compactor only dereferences the ref inside react-grid-layout callbacks (drag/resize), never during render
@@ -124,7 +115,10 @@ export function ReportGrid({
             containerPadding: [0, 0]
           }}
           dragConfig={{ enabled: editing, cancel: 'button, a, input, select, textarea' }}
-          resizeConfig={{ enabled: editing, handles: ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] }}
+          resizeConfig={{
+            enabled: editing,
+            handles: ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw']
+          }}
           onLayoutChange={onLayoutChange}
         >
           {widgets.map((widget) => (
@@ -133,8 +127,8 @@ export function ReportGrid({
                 widget={widget}
                 reportFilters={reportFilters}
                 editing={editing}
-                onEdit={() => onEditWidget(widget)}
-                onDelete={() => onDeleteWidget(widget)}
+                onEdit={onEditWidget}
+                onDelete={onDeleteWidget}
               />
             </div>
           ))}

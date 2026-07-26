@@ -36,6 +36,11 @@ import { BLUR_Y_TICK_LABELS, paletteColor } from './chart-style'
 // leaking into here. `currency` rides through `formatValue`'s options so a
 // multi-currency report chart formats each series/slice in its own currency;
 // single-currency callers just ignore it.
+//
+// Every series passes isAnimationActive={false}. Recharts starts a new animation
+// whenever the geometry it computes changes by reference, which during a resize is
+// every frame, so an animated chart crawls along behind the pointer instead of
+// tracking it. Charts draw at their final geometry, like any other DOM element.
 
 type ChartRow = Record<string, string | number | null>
 
@@ -303,6 +308,7 @@ function CartesianView({
               // a single-bucket range has no segment to stroke, so the chart looks
               // empty; show the dot in that case while keeping multi-point lines clean
               dot={data.length <= 1}
+              isAnimationActive={false}
             />
           ))}
         </LineChart>
@@ -322,6 +328,7 @@ function CartesianView({
               stackId={stacked ? 'stack' : s.key}
               // a single-bucket range has no area to draw; show the dot so it's visible
               dot={data.length <= 1}
+              isAnimationActive={false}
             />
           ))}
         </AreaChart>
@@ -332,7 +339,11 @@ function CartesianView({
           {legendEl}
           {colorByPoint && singleSeries ? (
             // a single-series breakdown colors per bar, like the report's categorical bar
-            <Bar dataKey={series[0].key} radius={stacked ? 0 : [2, 2, 0, 0]}>
+            <Bar
+              dataKey={series[0].key}
+              radius={stacked ? 0 : [2, 2, 0, 0]}
+              isAnimationActive={false}
+            >
               {data.map((_row, i) => (
                 <Cell key={i} fill={paletteColor(i)} />
               ))}
@@ -345,6 +356,7 @@ function CartesianView({
                 fill={`var(--color-${s.key})`}
                 stackId={stacked ? 'stack' : undefined}
                 radius={stacked ? 0 : [2, 2, 0, 0]}
+                isAnimationActive={false}
               />
             ))
           )}
@@ -400,6 +412,7 @@ function PieView({
           nameKey={labelKey}
           innerRadius={donut ? '55%' : 0}
           strokeWidth={2}
+          isAnimationActive={false}
         />
       </PieChart>
     </ChartContainer>

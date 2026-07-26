@@ -52,6 +52,10 @@ import { BLUR_Y_TICK_LABELS, paletteColor } from '@/components/charts/chart-styl
 import { groupTotals, pivotTimeSeries } from './data'
 import { useResolvedQuery, useWidgetData } from './use-widget-data'
 
+// The report-only charts here (radar, radial, gauge, budget) pass
+// isAnimationActive={false} for the same reason the shared Chart does; see the note
+// at the top of components/charts/chart.tsx.
+
 function formatMeasureValue(measure: Measure, value: number, currency: string): string {
   if (measure === 'count') return Math.round(value).toLocaleString()
   return formatAmount(value, currency)
@@ -363,7 +367,12 @@ function RadarChartWidget({
           />
           <PolarAngleAxis dataKey="label" />
           <PolarGrid />
-          <Radar dataKey="value" fill="var(--color-value)" fillOpacity={0.6} />
+          <Radar
+            dataKey="value"
+            fill="var(--color-value)"
+            fillOpacity={0.6}
+            isAnimationActive={false}
+          />
         </RadarChart>
       </ChartContainer>
     </div>
@@ -437,7 +446,7 @@ function RadialChartWidget({
               />
             }
           />
-          <RadialBar dataKey="value" background />
+          <RadialBar dataKey="value" background isAnimationActive={false} />
         </RadialBarChart>
       </ChartContainer>
       {/* rendered outside the chart: Recharts overlays its legend on polar plots */}
@@ -725,8 +734,18 @@ function BudgetBarsChart({
             }
           />
           <ChartLegend content={<ChartLegendContent />} />
-          <Bar dataKey="budgeted" fill="var(--color-budgeted)" radius={[2, 2, 0, 0]} />
-          <Bar dataKey="spent" fill="var(--color-spent)" radius={[2, 2, 0, 0]} />
+          <Bar
+            dataKey="budgeted"
+            fill="var(--color-budgeted)"
+            radius={[2, 2, 0, 0]}
+            isAnimationActive={false}
+          />
+          <Bar
+            dataKey="spent"
+            fill="var(--color-spent)"
+            radius={[2, 2, 0, 0]}
+            isAnimationActive={false}
+          />
         </BarChart>
       </ChartContainer>
     </div>
@@ -774,7 +793,7 @@ function BudgetBalancesChart({
               />
             }
           />
-          <Bar dataKey="balance" radius={[2, 2, 0, 0]}>
+          <Bar dataKey="balance" radius={[2, 2, 0, 0]} isAnimationActive={false}>
             {data.map((d, i) => (
               <Cell key={d.label} fill={d.balance < 0 ? 'var(--destructive)' : paletteColor(i)} />
             ))}
@@ -827,7 +846,14 @@ function BudgetDonutChart({
             }
           />
           {showLegend ? <ChartLegend content={<ChartLegendContent nameKey="label" />} /> : null}
-          <Pie data={data} dataKey="value" nameKey="label" innerRadius="55%" strokeWidth={2} />
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="label"
+            innerRadius="55%"
+            strokeWidth={2}
+            isAnimationActive={false}
+          />
         </PieChart>
       </ChartContainer>
     </div>
@@ -856,7 +882,7 @@ function BudgetGaugeChart({
           outerRadius="100%"
         >
           <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-          <RadialBar dataKey="value" background cornerRadius={4} />
+          <RadialBar dataKey="value" background cornerRadius={4} isAnimationActive={false} />
         </RadialBarChart>
       </ChartContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 pb-4">

@@ -246,6 +246,18 @@ html.suppress-transitions *::after {
   border-radius: var(--radius-lg);
 }
 
+/* Report-grid geometry is never animated: widgets and the charts inside them move
+ * and resize like any other DOM element, landing at their new position and size in
+ * the same frame the layout changes. The library eases transform/width/height over
+ * 200ms (and the container's height with them), which leaves every widget gliding
+ * along behind the pointer. Selector repeats .react-grid-item to outrank the
+ * library's own .react-grid-item.cssTransforms; the placeholder carries
+ * .react-grid-item too, so it stops easing as well. */
+.react-grid-layout,
+.react-grid-item.react-grid-item {
+  transition: none;
+}
+
 /* Report-grid resize handles: replace react-grid-layout's default corner arrows
  * with edge pills and corner dots that fade in while hovering a widget in edit
  * mode. The library positions and rotates each handle for its arrow glyph, so
