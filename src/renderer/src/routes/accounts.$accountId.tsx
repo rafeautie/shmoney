@@ -5,7 +5,9 @@ import { AccountSettingsButton } from '@/components/accounts/account-settings-di
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
 import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
+import { FilteredTotal } from '@/components/transactions/filtered-total'
 import { FilteredTransactionsTable } from '@/components/transactions/filtered-transactions-table'
+import { useTransactionFilters } from '@/lib/transaction-filters'
 import { HoldingsTable } from '@/components/accounts/holdings-table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -33,9 +35,13 @@ function AccountDetailPage() {
   })
   const account = accountQuery.data
   const hasHoldings = (account?.holdingsCount ?? 0) > 0
+  // on holdings accounts the table (and so its filter bar) lives behind a tab
+  const showingTransactions = !hasHoldings || tab === 'transactions'
 
+  const filterState = useTransactionFilters({ lockedAccount: true })
   const transactionsTable = (
     <FilteredTransactionsTable
+      filterState={filterState}
       queryKey={['accounts', id, 'transactions']}
       fetchPage={(query) => window.api.accounts.transactions({ accountId: id, ...query })}
       lockedAccount
@@ -48,16 +54,23 @@ function AccountDetailPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex items-start justify-between gap-4 px-6 pt-6">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">{account?.name ?? 'Account'}</h2>
-          <p className="text-muted-foreground">
-            {account && (
-              <>
-                {account.institutionName ? `${account.institutionName} · ` : ''}
-                <Amount value={account.balance} currency={account.currency} />
-              </>
-            )}
-          </p>
+        {/* bottom-aligned: the title block leads with 2xl text and the total
+            with its label, so aligning tops would leave the amount floating
+            between the two lines on the left. Bottom edges put its baseline on
+            the balance's. */}
+        <div className="flex items-end gap-8">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight">{account?.name ?? 'Account'}</h2>
+            <p className="text-muted-foreground">
+              {account && (
+                <>
+                  {account.institutionName ? `${account.institutionName} · ` : ''}
+                  <Amount value={account.balance} currency={account.currency} />
+                </>
+              )}
+            </p>
+          </div>
+          {showingTransactions && <FilteredTotal filterState={filterState} accountId={id} />}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <CreateTransactionButton

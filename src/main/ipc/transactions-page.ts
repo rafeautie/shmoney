@@ -1,8 +1,8 @@
-import { and, asc, count, desc, eq, isNull, type SQL, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, transactions } from '../db/schema'
 import { transactionDate } from '../db/expressions'
-import { isSyncOwned, type Page, type Transaction } from '@shared/ipc'
+import { isSyncOwned, type CurrencyTotal, type Page, type Transaction } from '@shared/ipc'
 
 export const transactionSortColumns = {
   date: transactionDate,
@@ -70,4 +70,27 @@ export function transactionsPage(
       .where(visible)
       .get()?.value ?? 0
   return { rows, total }
+}
+
+/**
+ * Net total of the rows {@link transactionsPage} would list, across every page,
+ * grouped by the account's currency. Amounts are signed, so the sum nets
+ * income against spending the same way balances net debt against cash.
+ */
+export function transactionSums(where: SQL | undefined): CurrencyTotal[] {
+  return (
+    db
+      .select({
+        currency: accounts.currency,
+        total: sql<number>`sum(${transactions.amount})`
+      })
+      .from(transactions)
+      .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+      // filters can reference category columns, so keep joins in sync with the rows query
+      .leftJoin(categories, eq(transactions.categoryId, categories.id))
+      .where(and(where, isNull(transactions.deletedAt)))
+      .groupBy(accounts.currency)
+      .orderBy(asc(accounts.currency))
+      .all()
+  )
 }

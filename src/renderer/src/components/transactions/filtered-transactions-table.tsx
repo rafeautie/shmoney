@@ -1,16 +1,16 @@
-import { useMemo, useState } from 'react'
 import type { Page, Transaction, TransactionSortBy } from '@shared/ipc'
 import {
   DEFAULT_TRANSACTION_FILTERS,
-  resolveTransactionFilters,
-  type ResolvedTransactionFilters,
-  type TransactionFilters
+  type ResolvedTransactionFilters
 } from '@shared/transaction-filters'
-import { cn, startOfTodayEpoch } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+import type { TransactionFilterState } from '@/lib/transaction-filters'
 import { FilterBar } from './filter-bar'
 import { TransactionsTable } from './transactions-table'
 
 interface FilteredTransactionsTableProps {
+  /** From {@link useTransactionFilters} in the page that owns this view */
+  filterState: TransactionFilterState
   /** Base query key; resolved filters and sort are appended to it */
   queryKey: readonly unknown[]
   fetchPage: (query: {
@@ -20,8 +20,7 @@ interface FilteredTransactionsTableProps {
     sortDir: 'asc' | 'desc'
     filters: ResolvedTransactionFilters
   }) => Promise<Page<Transaction>>
-  /** per-account pages: hides the accounts control and strips accountIds from
-   * loaded saved filters — the page's account scope always wins */
+  /** per-account pages: hides the accounts control (the page's account scope always wins) */
   lockedAccount?: boolean
   showAccount?: boolean
   /** Pin the inline entry row at the top of the table */
@@ -31,9 +30,9 @@ interface FilteredTransactionsTableProps {
   className?: string
 }
 
-/** TransactionsTable with a filter bar. Filter state is per-mount (resets on
- * navigation, like sorting); saved filters are the cross-view reuse mechanism. */
+/** TransactionsTable with a filter bar over it. */
 export function FilteredTransactionsTable({
+  filterState,
   queryKey,
   fetchPage,
   lockedAccount,
@@ -42,24 +41,14 @@ export function FilteredTransactionsTable({
   createAccountId,
   className
 }: FilteredTransactionsTableProps) {
-  const [filters, setFilters] = useState<TransactionFilters>(DEFAULT_TRANSACTION_FILTERS)
-
-  function handleChange(next: TransactionFilters) {
-    // the main-process handler also drops accountIds for account-scoped
-    // queries; stripping here too keeps the accounts chip from going stale
-    setFilters(lockedAccount ? { ...next, accountIds: undefined } : next)
-  }
-
-  const today = startOfTodayEpoch()
-  const resolved = useMemo(() => resolveTransactionFilters(filters, today), [filters, today])
-  const isDefault = JSON.stringify(filters) === JSON.stringify(DEFAULT_TRANSACTION_FILTERS)
+  const { filters, setFilters, resolved, isDefault } = filterState
 
   return (
     <div className={cn('flex min-h-0 flex-col gap-3', className)}>
       <div className="px-6">
         <FilterBar
           filters={filters}
-          onChange={handleChange}
+          onChange={setFilters}
           defaultFilters={DEFAULT_TRANSACTION_FILTERS}
           hideAccounts={lockedAccount}
         />

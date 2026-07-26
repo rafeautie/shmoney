@@ -7,7 +7,7 @@ import type { ConnectionRow } from '../db/schema'
 import { claimAccessUrl, fetchAccounts, parseAmount, SfinErrlistError } from '../simplefin'
 import { balanceDeltaWhere, withDerivedBalance } from '../accounts/balance'
 import { transactionDate } from '../db/expressions'
-import { transactionsPage } from './transactions-page'
+import { transactionsPage, transactionSums } from './transactions-page'
 import { recordAction } from './action-log'
 import { applyRulesInTx } from './rules'
 import { pruneOrphanedSuggestions } from './rule-suggestions'
@@ -21,7 +21,8 @@ import {
 } from '@shared/ipc'
 import {
   filteredAccountTransactionsQuerySchema,
-  filteredTransactionsQuerySchema
+  filteredTransactionsQuerySchema,
+  transactionSumsQuerySchema
 } from '@shared/transaction-filters'
 import { buildWhere } from '../reports/filters'
 
@@ -437,6 +438,20 @@ export function registerConnectionsIpc(): void {
         ? buildWhere(q.filters, { keepUnknownDates: true, keepOpeningBalances: true })
         : undefined,
       q
+    )
+  })
+
+  // the header's filtered total: same predicate as the two list handlers above,
+  // so it always totals exactly the rows the table is showing
+  ipcMain.handle(IPC.transactionsSums, (_event, input: unknown) => {
+    const { filters, accountId } = transactionSumsQuerySchema.parse(input)
+    const scoped = accountId !== undefined
+    const filterWhere = buildWhere(scoped ? { ...filters, accountIds: undefined } : filters, {
+      keepUnknownDates: true,
+      keepOpeningBalances: true
+    })
+    return transactionSums(
+      scoped ? and(eq(transactions.accountId, accountId), filterWhere) : filterWhere
     )
   })
 }

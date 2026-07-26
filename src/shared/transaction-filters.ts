@@ -52,6 +52,14 @@ export type FilteredAccountTransactionsQuery = z.infer<
   typeof filteredAccountTransactionsQuerySchema
 >
 
+// The header total: the same rows the list query matches, summed instead of
+// paged. accountId omitted = every account (the all-transactions view).
+export const transactionSumsQuerySchema = z.object({
+  filters: resolvedTransactionFiltersSchema,
+  accountId: accountIdSchema.optional()
+})
+export type TransactionSumsQuery = z.infer<typeof transactionSumsQuerySchema>
+
 // ---------- saved filters ----------
 
 export interface SavedFilter {

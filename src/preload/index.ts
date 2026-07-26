@@ -14,6 +14,7 @@ import {
   type CategoryRenameInput,
   type ConnectInput,
   type Connection,
+  type CurrencyTotal,
   type Holding,
   type Page,
   type SyncResult,
@@ -31,7 +32,8 @@ import {
   type FilteredTransactionsQuery,
   type SavedFilter,
   type SavedFilterCreateInput,
-  type SavedFilterUpdateInput
+  type SavedFilterUpdateInput,
+  type TransactionSumsQuery
 } from '@shared/transaction-filters'
 import { SETTINGS_IPC, type SettingKey, type Settings } from '@shared/settings'
 import { STORAGE_IPC, type DatabaseSize } from '@shared/storage'
@@ -127,6 +129,9 @@ const api = {
       ipcRenderer.invoke(IPC.transactionsList, query),
     /** Visible-row counts: total and how many are still uncategorized */
     stats: (): Promise<TransactionStats> => ipcRenderer.invoke(IPC.transactionsStats),
+    /** Net total of every row the filters match (all pages), one entry per currency */
+    sums: (query: TransactionSumsQuery): Promise<CurrencyTotal[]> =>
+      ipcRenderer.invoke(IPC.transactionsSums, query),
     /** Per-row category values; skips pending rows, resolves to rows updated */
     setCategories: (input: TransactionsSetCategoriesInput): Promise<number> =>
       ipcRenderer.invoke(IPC.transactionsSetCategories, input),

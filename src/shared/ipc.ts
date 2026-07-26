@@ -146,6 +146,16 @@ export interface TransactionStats {
   uncategorized: number
 }
 
+/**
+ * Signed net total of a set of transactions, one entry per currency involved —
+ * cross-currency sums would be meaningless without exchange rates, the same
+ * reason net worth is kept per currency.
+ */
+export interface CurrencyTotal {
+  currency: string
+  total: number
+}
+
 export const connectInputSchema = z.object({
   setupToken: z.string().trim().min(1)
 })
@@ -404,6 +414,7 @@ export const IPC = {
   accountTransactions: 'accounts:transactions',
   transactionsList: 'transactions:list',
   transactionsStats: 'transactions:stats',
+  transactionsSums: 'transactions:sums',
   transactionsSetCategories: 'transactions:setCategories',
   transactionsBulkDelete: 'transactions:bulkDelete',
   transactionsCreate: 'transactions:create',

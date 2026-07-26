@@ -8,7 +8,9 @@ import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
 import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
 import { ImportButton } from '@/components/accounts/import-dialog'
+import { FilteredTotal } from '@/components/transactions/filtered-total'
 import { FilteredTransactionsTable } from '@/components/transactions/filtered-transactions-table'
+import { useTransactionFilters } from '@/lib/transaction-filters'
 import { TABLE_BLEED, cn, plural } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -52,11 +54,16 @@ function AccountsPage() {
   const [creating, setCreating] = useState(false)
   // controlled so the Create button can jump to the transactions tab
   const [tab, setTab] = useState('accounts')
+  const filterState = useTransactionFilters()
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
       <div className="space-y-4 px-6 pt-6 pb-4">
         <div className="flex items-start justify-between gap-4">
-          <NetWorth />
+          <div className="flex items-start gap-8">
+            <NetWorth />
+            {/* the filter bar only exists on the transactions tab */}
+            {tab === 'transactions' && <FilteredTotal filterState={filterState} />}
+          </div>
           <div className="flex items-center gap-2">
             <CreateTransactionButton
               creating={creating}
@@ -82,6 +89,7 @@ function AccountsPage() {
 
       <TabsContent value="transactions" className="flex min-h-0 flex-1 flex-col">
         <FilteredTransactionsTable
+          filterState={filterState}
           queryKey={['transactions']}
           fetchPage={(query) => window.api.transactions.list(query)}
           showAccount
