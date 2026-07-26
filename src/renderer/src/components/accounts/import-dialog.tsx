@@ -12,7 +12,7 @@ import {
 import { HugeiconsIcon } from '@hugeicons/react'
 import { FileImportIcon, Tick02Icon, UnfoldMoreIcon } from '@hugeicons/core-free-icons'
 import { data as currencyData } from 'currency-codes'
-import { cn, ipcErrorMessage, plural, TABLE_BLEED } from '@/lib/utils'
+import { cn, currencySymbol, ipcErrorMessage, plural, TABLE_BLEED } from '@/lib/utils'
 import { Amount } from '@/components/amount'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -26,6 +26,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { NumberInput } from '@/components/ui/number-input'
 import { Label } from '@/components/ui/label'
 import {
   Dialog,
@@ -326,10 +327,12 @@ export function ImportDialog({
                   </div>
                   <div className="grid gap-1.5">
                     <Label htmlFor="import-account-balance">Opening balance (optional)</Label>
-                    <Input
+                    <NumberInput
                       id="import-account-balance"
+                      // no min: a card's opening balance is negative
+                      prefix={currencySymbol(newCurrency) || undefined}
                       value={newBalance}
-                      onChange={(e) => setNewBalance(e.target.value)}
+                      onValueChange={setNewBalance}
                       placeholder="0.00"
                       aria-invalid={balanceInvalid}
                     />

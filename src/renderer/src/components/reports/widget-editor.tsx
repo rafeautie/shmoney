@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { NumberInput } from '@/components/ui/number-input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
@@ -396,15 +397,13 @@ export function WidgetEditor({
                   {GROUPED_TYPES.includes(draft.type) && (
                     <div className="space-y-2">
                       <Label>Top N groups</Label>
-                      <Input
-                        type="number"
-                        min={1}
-                        max={50}
-                        placeholder={draft.type === 'summaryTable' ? 'All' : '8'}
+                      <LimitField
+                        // remounts when the committed limit changes elsewhere
                         key={`limit-${query.limit ?? 'none'}`}
-                        defaultValue={query.limit ?? ''}
-                        onBlur={(e) => {
-                          const parsed = Number(e.target.value)
+                        initial={query.limit === undefined ? '' : String(query.limit)}
+                        placeholder={draft.type === 'summaryTable' ? 'All' : '8'}
+                        onCommit={(raw) => {
+                          const parsed = Number(raw)
                           patchQuery({
                             limit:
                               Number.isInteger(parsed) && parsed >= 1 && parsed <= 50
@@ -648,6 +647,29 @@ export function AddWidgetButton(
       </Button>
       <WidgetEditor {...props} widget={null} open={open} onOpenChange={setOpen} />
     </>
+  )
+}
+
+/** Top N groups: edits a local draft, commits it on blur like the other fields. */
+function LimitField({
+  initial,
+  placeholder,
+  onCommit
+}: {
+  initial: string
+  placeholder: string
+  onCommit: (raw: string) => void
+}) {
+  const [draft, setDraft] = useState(initial)
+  return (
+    <NumberInput
+      min={1}
+      max={50}
+      placeholder={placeholder}
+      value={draft}
+      onValueChange={setDraft}
+      onBlur={() => onCommit(draft)}
+    />
   )
 }
 

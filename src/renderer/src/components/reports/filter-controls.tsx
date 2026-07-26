@@ -5,15 +5,11 @@ import type { DateRange as DayRange } from 'react-day-picker'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDown01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import type { DateRange } from '@shared/reports'
-import { cn } from '@/lib/utils'
+import { cn, currencySymbol } from '@/lib/utils'
+import { useAccountCurrency } from '@/lib/currency'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-  InputGroupText
-} from '@/components/ui/input-group'
+import { NumberInput } from '@/components/ui/number-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Command,
@@ -474,43 +470,56 @@ export function AmountRangeControl({
   }
   return (
     <div className="flex items-center gap-1">
-      <InputGroup className="h-8 w-24" data-disabled={disabled || undefined}>
-        <InputGroupAddon>
-          <InputGroupText>$</InputGroupText>
-        </InputGroupAddon>
-        <InputGroupInput
-          type="number"
-          min={0}
-          step="0.01"
-          placeholder="Min"
-          disabled={disabled}
-          defaultValue={toDisplay(min)}
-          key={`min-${min ?? 'none'}`}
-          onBlur={(e) => onChange(fromDisplay(e.target.value), max)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-          }}
-        />
-      </InputGroup>
+      {/* keyed on the committed value: an outside change (saved filter, reset)
+          remounts the field so its draft restarts from the new bound */}
+      <AmountField
+        key={`min-${min ?? 'none'}`}
+        initial={toDisplay(min)}
+        placeholder="Min"
+        disabled={disabled}
+        onCommit={(raw) => onChange(fromDisplay(raw), max)}
+      />
       <span className="text-muted-foreground">–</span>
-      <InputGroup className="h-8 w-24" data-disabled={disabled || undefined}>
-        <InputGroupAddon>
-          <InputGroupText>$</InputGroupText>
-        </InputGroupAddon>
-        <InputGroupInput
-          type="number"
-          min={0}
-          step="0.01"
-          placeholder="Max"
-          disabled={disabled}
-          defaultValue={toDisplay(max)}
-          key={`max-${max ?? 'none'}`}
-          onBlur={(e) => onChange(min, fromDisplay(e.target.value))}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-          }}
-        />
-      </InputGroup>
+      <AmountField
+        key={`max-${max ?? 'none'}`}
+        initial={toDisplay(max)}
+        placeholder="Max"
+        disabled={disabled}
+        onCommit={(raw) => onChange(min, fromDisplay(raw))}
+      />
     </div>
+  )
+}
+
+/** One end of the range: edits a local draft, commits it on blur or Enter. */
+function AmountField({
+  initial,
+  placeholder,
+  disabled,
+  onCommit
+}: {
+  initial: string
+  placeholder: string
+  disabled?: boolean
+  onCommit: (raw: string) => void
+}) {
+  const [draft, setDraft] = useState(initial)
+  // the range is matched against every account, so it carries no single
+  // currency; the dominant one labels it
+  const currency = useAccountCurrency()
+  return (
+    <NumberInput
+      className="h-8 w-24"
+      prefix={currencySymbol(currency)}
+      min={0}
+      placeholder={placeholder}
+      disabled={disabled}
+      value={draft}
+      onValueChange={setDraft}
+      onBlur={() => onCommit(draft)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+      }}
+    />
   )
 }

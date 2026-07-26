@@ -23,7 +23,8 @@ import {
 import { Label } from '@/components/ui/label'
 import { NumberInput } from '@/components/ui/number-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { cn, parseDollars } from '@/lib/utils'
+import { cn, currencySymbol, parseDollars } from '@/lib/utils'
+import { useAccountCurrency } from '@/lib/currency'
 
 interface AddEnvelopeProps {
   /** viewed month; the new envelope starts here */
@@ -60,6 +61,8 @@ export function AddEnvelopeDialog({
     queryKey: ['categories'],
     queryFn: () => window.api.categories.list()
   })
+  // envelopes span every account, so the fill is labelled with the dominant one
+  const currency = useAccountCurrency()
 
   const create = useMutation({
     mutationFn: (input: { categoryId: number; month: string; amount: number }) =>
@@ -162,7 +165,8 @@ export function AddEnvelopeDialog({
             <NumberInput
               id="envelope-amount"
               placeholder="0.00"
-              prefix="$"
+              prefix={currencySymbol(currency)}
+              min={0}
               value={amount}
               onValueChange={setAmount}
               onKeyDown={(e) => {

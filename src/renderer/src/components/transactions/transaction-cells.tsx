@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDataTransferHorizontalIcon } from '@hugeicons/core-free-icons'
 import type { Transaction } from '@shared/ipc'
-import { cn, ipcErrorMessage, parseSignedAmount } from '@/lib/utils'
+import { cn, currencySymbol, ipcErrorMessage, parseSignedAmount } from '@/lib/utils'
+import { useAccountCurrency } from '@/lib/currency'
 import { AccountPicker } from '@/components/accounts/account-picker'
 import { Amount } from '@/components/amount'
 import { CategoryPicker } from './category-picker'
@@ -13,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
+import { NumberInput } from '@/components/ui/number-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { TableCell, TableRow } from '@/components/ui/table'
 
@@ -125,12 +127,13 @@ export function EditableAmountCell({ transaction }: { transaction: Transaction }
       setDraft(null)
     }
     return (
-      <Input
+      <NumberInput
         autoFocus
-        inputMode="decimal"
-        className="text-right"
+        // no min: amounts are signed, money out is negative
+        prefix={currencySymbol(transaction.currency)}
+        inputClassName="text-right"
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onValueChange={setDraft}
         onFocus={(e) => e.target.select()}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -218,6 +221,8 @@ export function TransactionCreateRow({
     enabled: showAccount
   })
   const effectiveAccountId = accountId ?? pickedAccountId ?? accountsQuery.data?.[0]?.id ?? null
+  // the row's amount is entered in whichever account it lands on
+  const currency = useAccountCurrency(effectiveAccountId)
 
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
@@ -333,12 +338,13 @@ export function TransactionCreateRow({
         </Popover>
       </TableCell>
       <TableCell className="text-right">
-        <Input
-          inputMode="decimal"
-          className="w-24 text-right"
+        <NumberInput
+          className="w-28"
+          prefix={currencySymbol(currency)}
+          inputClassName="text-right"
           placeholder="-0.00"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onValueChange={setAmount}
         />
       </TableCell>
     </TableRow>

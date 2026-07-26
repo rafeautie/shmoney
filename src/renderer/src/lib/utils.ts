@@ -53,6 +53,24 @@ export function formatShares(value: string | number): string {
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 }).format(Number(value))
 }
 
+/**
+ * The symbol Intl prints for a currency ("$", "€", "CA$"), for labelling amount
+ * inputs. Falls back to the code itself, which is also what an unknown currency
+ * shows in {@link formatAmount}.
+ */
+export function currencySymbol(currency: string): string {
+  if (currency.trim() === '') return ''
+  try {
+    return (
+      new Intl.NumberFormat(undefined, { style: 'currency', currency })
+        .formatToParts(0)
+        .find((part) => part.type === 'currency')?.value ?? currency
+    )
+  } catch {
+    return currency
+  }
+}
+
 export function formatAmount(milliunits: number, currency: string): string {
   const value = milliunits / 1000
   try {
@@ -63,17 +81,21 @@ export function formatAmount(milliunits: number, currency: string): string {
   }
 }
 
+/** Any currency symbol ($, €, £, ¥ …) plus thousands separators and spaces:
+ * what a pasted amount carries and a number never does. */
+export const AMOUNT_NOISE = /[\p{Sc},\s]/gu
+
 /** "$12.34" (or plain "12.34") → integer milliunits; null when not a valid amount */
 export function parseDollars(input: string): number | null {
-  const n = Number(input.replace(/[$,\s]/g, ''))
+  const n = Number(input.replace(AMOUNT_NOISE, ''))
   if (!Number.isFinite(n) || n < 0) return null
   return Math.round(n * 1000)
 }
 
-/** "-12.34" / "$-12.34" / "1,234.56" → signed integer milliunits; null when not
+/** "-12.34" / "€-12.34" / "1,234.56" → signed integer milliunits; null when not
  * a valid non-zero amount. Sign is literal: negative = expense. */
 export function parseSignedAmount(input: string): number | null {
-  const n = Number(input.replace(/[$,\s]/g, ''))
+  const n = Number(input.replace(AMOUNT_NOISE, ''))
   if (input.trim() === '' || !Number.isFinite(n)) return null
   const milliunits = Math.round(n * 1000)
   return milliunits === 0 ? null : milliunits

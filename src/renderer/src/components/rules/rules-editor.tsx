@@ -4,11 +4,13 @@ import { endOfDay, format, startOfDay } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { PlusSignIcon } from '@hugeicons/core-free-icons'
 import type { Rule, RuleAction, RuleConditions } from '@shared/rules'
-import { cn, ipcErrorMessage } from '@/lib/utils'
+import { cn, currencySymbol, ipcErrorMessage } from '@/lib/utils'
+import { useAccountCurrency } from '@/lib/currency'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { NumberInput } from '@/components/ui/number-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Dialog,
@@ -149,6 +151,9 @@ function RuleForm({
   const [direction, setDirection] = useState<Direction>(c?.amount?.direction ?? 'any')
 
   const [accountId, setAccountId] = useState<number | null>(c?.accountId ?? null)
+  // a rule scoped to one account is read in that account's currency; an
+  // any-account rule falls back to the dominant one
+  const currency = useAccountCurrency(accountId)
 
   const [dateAfter, setDateAfter] = useState<Date | undefined>(
     c?.date?.after !== undefined ? new Date(c.date.after * 1000) : undefined
@@ -319,26 +324,22 @@ function RuleForm({
                     ))}
                   </SelectContent>
                 </Select>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  min="0"
+                <NumberInput
+                  min={0}
+                  prefix={currencySymbol(currency)}
                   value={amtValue}
-                  onChange={(event) => setAmtValue(event.target.value)}
+                  onValueChange={setAmtValue}
                   placeholder="amount"
                   className="w-28"
                 />
                 {amtOp === 'between' && (
                   <>
                     <span className="self-center text-sm text-muted-foreground">and</span>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      step="0.01"
-                      min="0"
+                    <NumberInput
+                      min={0}
+                      prefix={currencySymbol(currency)}
                       value={amtValue2}
-                      onChange={(event) => setAmtValue2(event.target.value)}
+                      onValueChange={setAmtValue2}
                       placeholder="amount"
                       className="w-28"
                     />
@@ -346,8 +347,7 @@ function RuleForm({
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Compares the dollar amount regardless of sign; use direction to match only money in
-                or out.
+                Compares the amount regardless of sign; use direction to match only money in or out.
               </p>
             </div>
 
@@ -398,22 +398,20 @@ function RuleForm({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-muted-foreground">day of month</span>
-                <Input
-                  type="number"
-                  min="1"
-                  max="31"
+                <NumberInput
+                  min={1}
+                  max={31}
                   value={domMin}
-                  onChange={(event) => setDomMin(event.target.value)}
+                  onValueChange={setDomMin}
                   placeholder="1"
                   className="w-20"
                 />
                 <span className="text-sm text-muted-foreground">to</span>
-                <Input
-                  type="number"
-                  min="1"
-                  max="31"
+                <NumberInput
+                  min={1}
+                  max={31}
                   value={domMax}
-                  onChange={(event) => setDomMax(event.target.value)}
+                  onValueChange={setDomMax}
                   placeholder="31"
                   className="w-20"
                 />

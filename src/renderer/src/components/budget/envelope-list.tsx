@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { NumberInput } from '@/components/ui/number-input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { cn, parseDollars, TABLE_BLEED } from '@/lib/utils'
+import { cn, currencySymbol, parseDollars, TABLE_BLEED } from '@/lib/utils'
 
 export function EnvelopeList({
   summary,
@@ -181,7 +181,8 @@ function FillCell({
   return (
     <NumberInput
       autoFocus
-      prefix="$"
+      prefix={currencySymbol(currency)}
+      min={0}
       value={draft}
       onValueChange={setDraft}
       onBlur={commit}
