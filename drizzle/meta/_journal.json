@@ -183,6 +183,13 @@
       "when": 1785043119685,
       "tag": "0025_drop_invert_balance",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1785043283965,
+      "tag": "0026_manual_opening_balance",
+      "breakpoints": true
     }
   ]
 }

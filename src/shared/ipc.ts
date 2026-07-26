@@ -45,9 +45,19 @@ export interface Account {
   institutionName: string | null
   name: string
   currency: string
-  /** Integer milliunits (value * 1000) */
+  /**
+   * Derived: `reportedBalance` plus every non-pending transaction dated after
+   * `balanceDate`. Integer milliunits (value * 1000).
+   */
   balance: number
+  /**
+   * The stored anchor `balance` is derived from — bridge-reported for synced
+   * accounts, a user-set opening balance for manual ones. Compare
+   * `availableBalance` against this, not `balance`.
+   */
+  reportedBalance: number
   availableBalance: number | null
+  /** When `reportedBalance` was taken; 0 means it is an opening balance. */
   balanceDate: number
   /** number of investment positions on this account; 0 = not an investment account */
   holdingsCount: number
@@ -142,6 +152,13 @@ export const connectInputSchema = z.object({
 export type ConnectInput = z.infer<typeof connectInputSchema>
 
 export const accountIdSchema = z.number().int().positive()
+
+export const setOpeningBalanceInputSchema = z.object({
+  accountId: accountIdSchema,
+  /** integer milliunits; the balance before any of the account's transactions */
+  openingBalance: z.number().int()
+})
+export type SetOpeningBalanceInput = z.infer<typeof setOpeningBalanceInputSchema>
 
 export const idSchema = z.number().int().positive()
 
@@ -389,6 +406,7 @@ export const IPC = {
   connectionDisconnect: 'connection:disconnect',
   accountsList: 'accounts:list',
   accountsGet: 'accounts:get',
+  accountsSetOpeningBalance: 'accounts:setOpeningBalance',
   accountsDelete: 'accounts:delete',
   accountHoldings: 'accounts:holdings',
   accountTransactions: 'accounts:transactions',

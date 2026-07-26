@@ -325,7 +325,7 @@ export function ImportDialog({
                     <CurrencySelect value={newCurrency} onChange={setNewCurrency} />
                   </div>
                   <div className="grid gap-1.5">
-                    <Label htmlFor="import-account-balance">Current balance (optional)</Label>
+                    <Label htmlFor="import-account-balance">Opening balance (optional)</Label>
                     <Input
                       id="import-account-balance"
                       value={newBalance}
@@ -335,6 +335,10 @@ export function ImportDialog({
                     />
                   </div>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  The balance before any of these transactions. The account&rsquo;s current balance
+                  is this plus everything you import; leave it blank to start from zero.
+                </p>
               </div>
             )}
           </div>

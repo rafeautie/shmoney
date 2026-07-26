@@ -6,7 +6,7 @@ import { notTransferSql } from '../db/system-categories'
 import type { RuleRow } from '../db/schema'
 import { recordAction } from './action-log'
 import { reopenUncoveredAcceptedSuggestions } from './rule-suggestions'
-import { transactionDate } from './transactions-page'
+import { transactionDate } from '../db/expressions'
 import { compileConditions } from '../rules'
 import { idSchema, type ActionChange } from '@shared/ipc'
 import {

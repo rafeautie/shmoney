@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, categoryGroups, transactions } from '../db/schema'
 import { notTransferSql } from '../db/system-categories'
-import { transactionDate } from '../ipc/transactions-page'
+import { transactionDate } from '../db/expressions'
 import type {
   Measure,
   QueryRow,

@@ -140,7 +140,10 @@ export function registerImportIpc(): void {
             name: target.newAccount.name,
             currency: target.newAccount.currency,
             balance: target.newAccount.balance ?? 0,
-            balanceDate: now
+            // anchored at the epoch, so the balance above is an opening balance
+            // and every transaction this account ever holds counts toward the
+            // derived balance (see main/accounts/balance.ts)
+            balanceDate: 0
           })
           .returning({ id: accounts.id, name: accounts.name })
           .get()

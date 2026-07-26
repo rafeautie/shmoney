@@ -49,8 +49,10 @@ describe('scopeViewsDdl', () => {
   it('always hides soft-deleted rows, without narrowing when unscoped', () => {
     const ddl = scopeViewsDdl({ accountId: null }).join('\n')
     expect(ddl).toContain('WHERE t.deleted_at IS NULL')
-    expect(ddl).not.toContain('account_id =')
-    expect(ddl).not.toContain('WHERE id =')
+    // a literal id is what scoping looks like; the balance view's
+    // `t.account_id = main.accounts.id` is a correlation, not a filter
+    expect(ddl).not.toMatch(/account_id = \d/)
+    expect(ddl).not.toMatch(/WHERE id = \d/)
   })
 
   it('narrows transactions, accounts and holdings to the scoped account', () => {

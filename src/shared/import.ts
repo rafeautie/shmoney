@@ -107,7 +107,7 @@ export const importApplyInputSchema = z.object({
       newAccount: z.object({
         name: z.string().trim().min(1),
         currency: z.string().trim().min(1),
-        /** integer milliunits; defaults to 0 */
+        /** opening balance, before the imported rows; integer milliunits, defaults to 0 */
         balance: z.number().int().optional()
       })
     })

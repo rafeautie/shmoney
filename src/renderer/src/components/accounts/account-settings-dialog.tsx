@@ -4,6 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Settings01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ConfirmButton } from '@/components/confirm-dialog'
 import { SettingsGroup, SettingAction } from '@/components/settings/settings-controls'
 import {
@@ -18,6 +19,62 @@ interface AccountSettingsProps {
   accountId: number
   accountName: string
   isManual: boolean
+  /** the stored anchor, not the derived balance — this is what's being edited */
+  reportedBalance: number
+  currency: string
+}
+
+/** Signed milliunits, zero allowed: parseDollars rejects negatives (a card's
+ * opening balance is one) and parseSignedAmount rejects zero (a valid start). */
+function parseOpeningBalance(input: string): number | null {
+  const n = Number(input.replace(/[$,\s]/g, ''))
+  if (input.trim() === '' || !Number.isFinite(n)) return null
+  return Math.round(n * 1000)
+}
+
+/**
+ * The balance every transaction on a manual account builds on. Synced accounts
+ * get their anchor from the bridge on each sync, so there is nothing to edit.
+ */
+function OpeningBalanceRow({
+  accountId,
+  reportedBalance,
+  currency
+}: {
+  accountId: number
+  reportedBalance: number
+  currency: string
+}) {
+  const queryClient = useQueryClient()
+  const [value, setValue] = useState(() => (reportedBalance / 1000).toFixed(2))
+  const parsed = parseOpeningBalance(value)
+  const save = useMutation({
+    mutationFn: (openingBalance: number) =>
+      window.api.accounts.setOpeningBalance({ accountId, openingBalance }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['accounts'] })
+  })
+
+  return (
+    <SettingAction
+      label="Opening balance"
+      description={`The balance before this account's first transaction, in ${currency}. The balance shown everywhere is this plus every transaction.`}
+    >
+      <Input
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        aria-label="Opening balance"
+        aria-invalid={parsed === null}
+        className="w-32"
+      />
+      <Button
+        variant="outline"
+        disabled={parsed === null || parsed === reportedBalance || save.isPending}
+        onClick={() => parsed !== null && save.mutate(parsed)}
+      >
+        {save.isPending ? 'Saving…' : 'Save'}
+      </Button>
+    </SettingAction>
+  )
 }
 
 /**
@@ -28,6 +85,8 @@ export function AccountSettingsDialog({
   accountId,
   accountName,
   isManual,
+  reportedBalance,
+  currency,
   open,
   onOpenChange
 }: AccountSettingsProps & {
@@ -53,6 +112,16 @@ export function AccountSettingsDialog({
         </DialogHeader>
         <div>
           <SettingsGroup>
+            {isManual && (
+              // remount on save (and on reopen) reseeds the input from the
+              // saved value rather than leaving edited text behind
+              <OpeningBalanceRow
+                key={`${accountId}-${reportedBalance}-${open}`}
+                accountId={accountId}
+                reportedBalance={reportedBalance}
+                currency={currency}
+              />
+            )}
             <SettingAction
               label="Delete account"
               description={

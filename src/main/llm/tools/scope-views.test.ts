@@ -94,11 +94,25 @@ describe('scope views: amounts', () => {
     ])
   })
 
-  it('divides account balances, keeping signs and NULLs intact', () => {
+  // The one place the balance derivation runs as real SQL. Both accounts are
+  // anchored at 0, so every transaction after the epoch counts:
+  //   Checking 1234.56 + (-12.34 + 500 - 1) = 1721.22
+  // The pending row and the unknown-date row are excluded, the transfer is not
+  // (a transfer still moves the account it left), and Card's only transaction
+  // is soft-deleted so its anchor stands alone.
+  it('derives account balances from the anchor plus later transactions', () => {
     expect(query(db, 'SELECT name, balance, available_balance FROM accounts ORDER BY id')).toEqual([
-      { name: 'Checking', balance: 1234.56, available_balance: 1000 },
+      { name: 'Checking', balance: 1721.22, available_balance: 1000 },
       // a liability stays negative, and a NULL available_balance stays NULL
       { name: 'Card', balance: -250, available_balance: null }
+    ])
+  })
+
+  it('leaves available_balance as the bridge reported it, with no delta', () => {
+    // it answers a different question than balance and has no fixed meaning
+    // across account types, so it is surfaced verbatim
+    expect(query(db, 'SELECT available_balance FROM accounts WHERE id = 1')).toEqual([
+      { available_balance: 1000 }
     ])
   })
 

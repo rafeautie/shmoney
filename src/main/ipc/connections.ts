@@ -1,11 +1,13 @@
 import { ipcMain, safeStorage } from 'electron'
-import { and, asc, count, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, lte, sum } from 'drizzle-orm'
 import { db } from '../db'
 import { createLogger } from '../logging'
 import { connections, accounts, categories, holdings, transactions, settings } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
 import { claimAccessUrl, fetchAccounts, parseAmount, SfinErrlistError } from '../simplefin'
-import { transactionsPage, transactionDate } from './transactions-page'
+import { balanceDeltaWhere, withDerivedBalance } from '../accounts/balance'
+import { transactionDate } from '../db/expressions'
+import { transactionsPage } from './transactions-page'
 import { recordAction } from './action-log'
 import { applyRulesInTx } from './rules'
 import { pruneOrphanedSuggestions } from './rule-suggestions'
@@ -14,6 +16,7 @@ import {
   IPC,
   connectInputSchema,
   accountIdSchema,
+  setOpeningBalanceInputSchema,
   type Connection,
   type SyncResult
 } from '@shared/ipc'
@@ -162,26 +165,39 @@ async function syncConnection(): Promise<SyncResult> {
 
   const result = db.transaction((tx) => {
     for (const account of payload.accounts) {
-      const values = {
+      const identity = {
         connectionId: row.id,
         simplefinId: account.id,
         institutionName: account.conn_id
           ? (institutionByConnId.get(account.conn_id) ?? null)
           : null,
         name: account.name,
-        currency: account.currency,
-        balance: parseAmount(account.balance),
-        availableBalance: account['available-balance']
-          ? parseAmount(account['available-balance'])
-          : null,
-        balanceDate: account['balance-date']
+        currency: account.currency
       }
+      // A bridge that reports no balance leaves the anchor alone rather than
+      // zeroing it, so an existing account keeps the last real figure and only
+      // its delta moves. A brand-new one starts at 0 anchored at the epoch,
+      // where the derived balance is just the sum of everything we hold — the
+      // best available guess — and self-corrects on the first sync that does
+      // report a balance.
+      const anchor =
+        account.balance === undefined
+          ? null
+          : {
+              balance: parseAmount(account.balance),
+              availableBalance: account['available-balance']
+                ? parseAmount(account['available-balance'])
+                : null,
+              balanceDate: account['balance-date']
+            }
+      if (!anchor) log.warn('accounts.noBalance', { simplefinId: account.id })
       const [accountRow] = tx
         .insert(accounts)
-        .values(values)
+        .values({ ...identity, ...(anchor ?? { balance: 0, balanceDate: 0 }) })
         .onConflictDoUpdate({
           target: [accounts.connectionId, accounts.simplefinId],
-          set: values
+          // omitting the balance columns is what preserves the existing anchor
+          set: { ...identity, ...anchor }
         })
         .returning()
         .all()
@@ -331,6 +347,19 @@ export function registerConnectionsIpc(): void {
     return true
   })
 
+  /** accountId -> summed delta in milliunits; absent means 0 */
+  function balanceDeltas(ids?: number[]): Map<number, number> {
+    const rows = db
+      .select({ accountId: transactions.accountId, delta: sum(transactions.amount) })
+      .from(transactions)
+      .innerJoin(accounts, eq(accounts.id, transactions.accountId))
+      .where(balanceDeltaWhere(ids))
+      .groupBy(transactions.accountId)
+      .all()
+    // drizzle types SQLite's sum() as string | null
+    return new Map(rows.map((r) => [r.accountId, Number(r.delta ?? 0)]))
+  }
+
   ipcMain.handle(IPC.accountsList, () => {
     const counts = new Map(
       db
@@ -340,12 +369,15 @@ export function registerConnectionsIpc(): void {
         .all()
         .map((r) => [r.accountId, r.n])
     )
+    const deltas = balanceDeltas()
     return db
       .select()
       .from(accounts)
       .orderBy(asc(accounts.institutionName), asc(accounts.name))
       .all()
-      .map((a) => ({ ...a, holdingsCount: counts.get(a.id) ?? 0 }))
+      .map((a) =>
+        withDerivedBalance({ ...a, holdingsCount: counts.get(a.id) ?? 0 }, deltas.get(a.id) ?? 0)
+      )
   })
 
   ipcMain.handle(IPC.accountsGet, (_event, input: unknown) => {
@@ -353,7 +385,25 @@ export function registerConnectionsIpc(): void {
     const row = db.select().from(accounts).where(eq(accounts.id, id)).get()
     if (!row) return null
     const c = db.select({ n: count() }).from(holdings).where(eq(holdings.accountId, id)).get()
-    return { ...row, holdingsCount: c?.n ?? 0 }
+    return withDerivedBalance(
+      { ...row, holdingsCount: c?.n ?? 0 },
+      balanceDeltas([id]).get(id) ?? 0
+    )
+  })
+
+  ipcMain.handle(IPC.accountsSetOpeningBalance, (_event, input: unknown) => {
+    const { accountId, openingBalance } = setOpeningBalanceInputSchema.parse(input)
+    const row = db.select().from(accounts).where(eq(accounts.id, accountId)).get()
+    if (!row) throw new Error('Account not found')
+    // a synced account's anchor is the bridge's, and the next sync would
+    // overwrite anything set here; correcting one needs a lock sync respects
+    if (row.connectionId !== null) throw new Error('Only manual accounts have an opening balance')
+    // balanceDate stays 0 so the anchor keeps meaning "before every transaction"
+    db.update(accounts)
+      .set({ balance: openingBalance, balanceDate: 0 })
+      .where(eq(accounts.id, accountId))
+      .run()
+    return true
   })
 
   ipcMain.handle(IPC.accountsDelete, (_event, input: unknown) => {

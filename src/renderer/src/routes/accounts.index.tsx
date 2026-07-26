@@ -41,8 +41,11 @@ export const Route = createFileRoute('/accounts/')({
 // balance for others) and the protocol carries no account type to disambiguate
 // it. So we surface it verbatim, only when it adds signal, and never reinterpret
 // its sign — see the tooltip on the Available line below.
+// Compared against reportedBalance, not the derived balance: both come from the
+// bridge, so comparing to a derived figure would make them look distinct on
+// every account that has moved since its last sync.
 function hasDistinctAvailable(account: Account): boolean {
-  return account.availableBalance !== null && account.availableBalance !== account.balance
+  return account.availableBalance !== null && account.availableBalance !== account.reportedBalance
 }
 
 function AccountsPage() {

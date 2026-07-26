@@ -1,10 +1,8 @@
-import { and, asc, count, desc, eq, isNull, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, transactions } from '../db/schema'
+import { transactionDate } from '../db/expressions'
 import { isSyncOwned, type Page, type Transaction } from '@shared/ipc'
-
-// SimpleFIN sends posted = 0 for pending transactions; their real date is transacted_at
-export const transactionDate = sql<number>`coalesce(nullif(${transactions.posted}, 0), ${transactions.transactedAt}, 0)`
 
 export const transactionSortColumns = {
   date: transactionDate,

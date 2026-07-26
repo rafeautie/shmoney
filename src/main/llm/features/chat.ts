@@ -23,7 +23,7 @@ import {
   transactions,
   type ConversationRow
 } from '../../db/schema'
-import { transactionDate } from '../../ipc/transactions-page'
+import { transactionDate } from '../../db/expressions'
 import { createLogger } from '../../logging'
 import { llmManager, sendToRenderer } from '../manager'
 import { enqueueGenerate } from '../queue'

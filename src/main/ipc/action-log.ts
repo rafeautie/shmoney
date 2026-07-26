@@ -4,7 +4,7 @@ import { db } from '../db'
 import { accounts, actionLog, budgets, categories, conversations, transactions } from '../db/schema'
 import { dominantCurrency } from '../budgets/summary'
 import { createLogger } from '../logging'
-import { transactionDate } from './transactions-page'
+import { transactionDate } from '../db/expressions'
 import {
   ACTION_LOG_IPC,
   idSchema,

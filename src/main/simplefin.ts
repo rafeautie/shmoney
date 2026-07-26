@@ -47,7 +47,9 @@ const sfinAccountSchema = z.looseObject({
   name: z.string(),
   conn_id: z.string().optional(),
   currency: z.string(),
-  balance: z.string(),
+  // optional so one balance-less account degrades on its own rather than
+  // failing the parse — and with it the sync — for every account on the bridge
+  balance: z.string().optional(),
   'available-balance': z.string().optional(),
   'balance-date': z.number(),
   transactions: z.array(sfinTransactionSchema).default([]),

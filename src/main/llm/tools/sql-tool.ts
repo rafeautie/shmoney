@@ -138,9 +138,18 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     'CREATE TEMP VIEW tx AS SELECT * FROM temp.transactions ' +
       "WHERE system_key IS NOT 'transfers' AND txn_date IS NOT NULL AND pending = 0",
     'DROP VIEW IF EXISTS temp.accounts',
+    // balance is derived, mirroring balanceDeltas in main/accounts/balance.ts:
+    // the stored column is only an anchor, and transactions after it are added
+    // on. The model should no more re-derive this than it should re-derive
+    // txn_date, so what it sees is the finished number. available_balance stays
+    // the bridge's own figure and gets no delta — it answers a different
+    // question and has no fixed meaning across account types.
     'CREATE TEMP VIEW accounts AS ' +
       'SELECT id, name, institution_name, currency, ' +
-      'balance / 1000.0 AS balance, ' +
+      '(balance + coalesce((SELECT sum(t.amount) FROM main.transactions t ' +
+      'WHERE t.account_id = main.accounts.id AND t.deleted_at IS NULL AND t.pending = 0 ' +
+      `AND coalesce(nullif(t.posted, 0), t.transacted_at, 0) > main.accounts.balance_date), 0)) ` +
+      '/ 1000.0 AS balance, ' +
       'available_balance / 1000.0 AS available_balance, ' +
       "datetime(NULLIF(balance_date, 0), 'unixepoch', 'localtime') AS balance_date " +
       `FROM main.accounts${where(`id = ${accountId}`)}`,
