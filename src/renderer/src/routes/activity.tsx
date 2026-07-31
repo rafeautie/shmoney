@@ -7,6 +7,7 @@ import { ArrowDown01Icon, Clock01Icon } from '@hugeicons/core-free-icons'
 import type { ActionLogEntry } from '@shared/ipc'
 import { groupSuggestions, type RuleSuggestion } from '@shared/rule-suggestions'
 import { cn, plural } from '@/lib/utils'
+import { actionLogOptions } from '@/lib/queries'
 import { formatBucketLabel } from '@/lib/format-date'
 import { Page } from '@/components/page'
 import { EntrySourceIcon } from '@/components/transactions/entry-source-icon'
@@ -27,6 +28,7 @@ import {
 } from '@/components/ui/table'
 
 export const Route = createFileRoute('/activity')({
+  loader: ({ context }) => context.queryClient.ensureQueryData(actionLogOptions),
   component: ActivityPage
 })
 
@@ -38,7 +40,7 @@ function dayLabel(ms: number): string {
 }
 
 function ActivityPage() {
-  const query = useQuery({ queryKey: ['actionLog'], queryFn: () => window.api.actionLog.list() })
+  const query = useQuery(actionLogOptions)
   const entries = query.data ?? []
 
   const suggestionsQuery = useQuery({

@@ -2,6 +2,7 @@ import type { ComponentProps } from 'react'
 import { Link, useMatchRoute } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
+  ComputerIcon,
   Moon02Icon,
   Settings01Icon,
   Sun02Icon,
@@ -9,6 +10,7 @@ import {
   ViewOffIcon
 } from '@hugeicons/core-free-icons'
 import { usePrivacy, useTheme } from '@/lib/settings'
+import { isMac } from '@/lib/platform'
 import { Logo } from '@/components/logo'
 import { NavChat } from './nav-chat'
 import { NavMain } from './nav-main'
@@ -26,7 +28,8 @@ import {
 export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
+      {/* on macOS the traffic lights are drawn over this corner; push past them */}
+      <SidebarHeader className={isMac ? 'pt-9' : undefined}>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<div />}>
@@ -90,17 +93,22 @@ function PrivacyToggle() {
   )
 }
 
+// the button names what clicking it does, so each entry is keyed by the theme
+// it moves away from: light → dark → system → light
+const NEXT_THEME = {
+  light: { theme: 'dark', label: 'Dark mode', icon: Moon02Icon },
+  dark: { theme: 'system', label: 'System theme', icon: ComputerIcon },
+  system: { theme: 'light', label: 'Light mode', icon: Sun02Icon }
+} as const
+
 function ThemeToggle() {
   const { theme, setTheme } = useTheme()
-  const isDark = theme === 'dark'
+  const next = NEXT_THEME[theme]
 
   return (
-    <SidebarMenuButton
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      tooltip={isDark ? 'Light mode' : 'Dark mode'}
-    >
-      <HugeiconsIcon icon={isDark ? Sun02Icon : Moon02Icon} size={16} />
-      <span>{isDark ? 'Light mode' : 'Dark mode'}</span>
+    <SidebarMenuButton onClick={() => setTheme(next.theme)} tooltip={next.label}>
+      <HugeiconsIcon icon={next.icon} size={16} />
+      <span>{next.label}</span>
     </SidebarMenuButton>
   )
 }

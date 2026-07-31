@@ -14,7 +14,17 @@ import { TooltipProvider } from './components/ui/tooltip'
 // location.pathname is the on-disk path rather than "/". Hash-based
 // history keeps routing independent of that, matching how Electron
 // (and Tauri) apps are expected to use TanStack Router.
-const router = createRouter({ routeTree, history: createHashHistory() })
+const router = createRouter({
+  routeTree,
+  history: createHashHistory(),
+  context: { queryClient },
+  // warm a page's data while the pointer is still on its nav item, so the click
+  // lands on a populated view instead of a loading state
+  defaultPreload: 'intent',
+  // let the query cache's own staleTime decide whether a preload refetches,
+  // rather than the router keeping a second, separate freshness window
+  defaultPreloadStaleTime: 0
+})
 
 declare module '@tanstack/react-router' {
   interface Register {

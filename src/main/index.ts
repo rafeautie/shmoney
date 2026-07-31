@@ -18,14 +18,19 @@ import { registerRuleSuggestionsIpc } from './ipc/rule-suggestions'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerStorageIpc } from './ipc/storage'
 import { registerImportIpc } from './ipc/import'
-import { registerWindowIpc } from './ipc/window'
 import { registerLlmIpc } from './ipc/llm'
 import { registerChatIpc } from './ipc/chat'
 import { registerUpdatesIpc, startUpdateChecks } from './ipc/updates'
 import { registerLogIpc } from './ipc/log'
 import { registerDiagnosticsIpc } from './ipc/diagnostics'
 import { registerDebugIpc } from './ipc/debug'
-import { IPC } from '@shared/ipc'
+import { registerAppIpc } from './ipc/app'
+import { initChromeTheme, resolvedChrome, USES_TITLE_BAR_OVERLAY } from './chrome-theme'
+import { sendImportFile, statementPathFrom } from './file-open'
+import { installApplicationMenu } from './menu'
+import { readSettings } from './settings-store'
+import { loadWindowState, trackWindowState } from './window-state'
+import { TITLE_BAR_OVERLAY_HEIGHT } from '@shared/theme'
 import icon from '../../build/icon.png?asset'
 
 // before anything else can log or crash: dev-paths (hoisted above) has already
@@ -33,15 +38,38 @@ import icon from '../../build/icon.png?asset'
 initLogging()
 const log = createLogger('app')
 
+// macOS delivers open-file before the window exists, so park the path until
+// createWindow can attach it
+let pendingImportFile: string | null = null
+
 function createWindow(): void {
+  const state = loadWindowState()
+  const chrome = resolvedChrome()
+
   const mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 750,
-    minWidth: 1200,
-    minHeight: 800,
+    x: state.x,
+    y: state.y,
+    width: state.width,
+    height: state.height,
+    minWidth: 940,
+    minHeight: 640,
     show: false,
     autoHideMenuBar: true,
+    // painted before the renderer's first frame; without it the window is born
+    // Chromium white and flashes until React mounts and applies the theme
+    backgroundColor: chrome.background,
     titleBarStyle: 'hidden',
+    // Windows/Linux draw real caption buttons here, which is what gives Windows
+    // 11 its Snap Layouts flyout; macOS positions its traffic lights instead
+    ...(USES_TITLE_BAR_OVERLAY
+      ? {
+          titleBarOverlay: {
+            color: chrome.background,
+            symbolColor: chrome.symbol,
+            height: TITLE_BAR_OVERLAY_HEIGHT
+          }
+        }
+      : { trafficLightPosition: { x: 16, y: 16 } }),
     // packaged Windows/macOS builds take the icon from the executable;
     // this covers dev mode and Linux
     icon,
@@ -54,15 +82,11 @@ function createWindow(): void {
     }
   })
 
+  if (state.maximized) mainWindow.maximize()
+  trackWindowState(mainWindow)
+
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
-  })
-
-  mainWindow.on('maximize', () => {
-    mainWindow.webContents.send(IPC.windowMaximizedChanged, true)
-  })
-  mainWindow.on('unmaximize', () => {
-    mainWindow.webContents.send(IPC.windowMaximizedChanged, false)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -84,6 +108,14 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  // launched by double-clicking an associated statement file: the renderer has
+  // to exist before it can be handed anything, hence did-finish-load
+  const launchFile = pendingImportFile ?? statementPathFrom(process.argv)
+  pendingImportFile = null
+  if (launchFile) {
+    mainWindow.webContents.once('did-finish-load', () => sendImportFile(mainWindow, launchFile))
+  }
 }
 
 // single instance: a second launch exits immediately and hands focus to the
@@ -92,11 +124,27 @@ function createWindow(): void {
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on('second-instance', () => {
+  // opening an associated file while the app runs arrives here as a second
+  // launch, with the path on that launch's command line
+  app.on('second-instance', (_event, argv) => {
     const win = BrowserWindow.getAllWindows()[0]
     if (win) {
       if (win.isMinimized()) win.restore()
       win.focus()
+      const filePath = statementPathFrom(argv)
+      if (filePath) sendImportFile(win, filePath)
+    }
+  })
+
+  // macOS route for the same thing; can fire before the window is ready
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault()
+    const win = BrowserWindow.getAllWindows()[0]
+    if (win) {
+      win.focus()
+      sendImportFile(win, filePath)
+    } else {
+      pendingImportFile = filePath
     }
   })
 
@@ -136,7 +184,7 @@ if (!app.requestSingleInstanceLock()) {
     registerSettingsIpc()
     registerStorageIpc()
     registerImportIpc()
-    registerWindowIpc()
+    registerAppIpc()
     registerLlmIpc()
     registerChatIpc()
     registerUpdatesIpc()
@@ -144,6 +192,10 @@ if (!app.requestSingleInstanceLock()) {
     registerDiagnosticsIpc()
     // dev-only diagnostics for the Debug page; never registered in production builds
     if (is.dev) registerDebugIpc()
+
+    // both read settings, so they have to follow runMigrations
+    initChromeTheme(readSettings().theme)
+    installApplicationMenu()
 
     createWindow()
     startUpdateChecks()

@@ -33,8 +33,11 @@ import { ReportGrid } from '@/components/reports/report-grid'
 import { FilterBar } from '@/components/transactions/filter-bar'
 import { AddWidgetButton, WidgetEditor } from '@/components/reports/widget-editor'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { reportOptions } from '@/lib/queries'
 
 export const Route = createFileRoute('/reports/$reportId')({
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(reportOptions(Number(params.reportId))),
   component: ReportPage
 })
 
@@ -48,10 +51,7 @@ function ReportPage() {
   const [editorWidget, setEditorWidget] = useState<ReportWidget | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const detailQuery = useQuery({
-    queryKey: ['report', id],
-    queryFn: () => window.api.reports.get(id)
-  })
+  const detailQuery = useQuery(reportOptions(id))
   const detail = detailQuery.data
 
   // a fresh report has nothing to look at; drop straight into edit mode

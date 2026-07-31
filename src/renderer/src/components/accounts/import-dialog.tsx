@@ -64,10 +64,15 @@ const MAPPING_SAMPLE_ROWS = 3
 
 export function ImportDialog({
   open,
-  onOpenChange
+  onOpenChange,
+  initialFile
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** A file that arrived from outside the dialog (dropped on the window, or
+   * opened from the OS); skips the file-picking step. Must be referentially
+   * stable while the dialog is open. */
+  initialFile?: { fileName: string; bytes: Uint8Array }
 }): React.JSX.Element {
   const queryClient = useQueryClient()
 
@@ -104,7 +109,7 @@ export function ImportDialog({
   })
   const accounts = accountsQuery.data ?? []
 
-  const pick = useMutation({
+  const { mutate: pickFile, ...pick } = useMutation({
     mutationFn: (dropped?: { fileName: string; bytes: Uint8Array }) =>
       window.api.import.pickFile(dropped ? { dropped } : undefined),
     onSuccess: (result) => {
@@ -115,10 +120,17 @@ export function ImportDialog({
     }
   })
 
+  // a file that arrived from outside the dialog goes straight through the same
+  // path a drop on the empty state takes, landing the user on the account step
+  useEffect(() => {
+    if (!open || !initialFile) return
+    pickFile(initialFile)
+  }, [open, initialFile, pickFile])
+
   const [dragging, setDragging] = useState(false)
   const dropFile = async (dropped: File): Promise<void> => {
     const bytes = new Uint8Array(await dropped.arrayBuffer())
-    pick.mutate({ fileName: dropped.name, bytes })
+    pickFile({ fileName: dropped.name, bytes })
   }
 
   const previewInput: ImportPreviewInput | null = useMemo(() => {
@@ -263,7 +275,7 @@ export function ImportDialog({
               <EmptyContent>
                 <Button
                   variant="outline"
-                  onClick={() => pick.mutate(undefined)}
+                  onClick={() => pickFile(undefined)}
                   disabled={pick.isPending}
                 >
                   {pick.isPending ? 'Reading file…' : 'Choose file…'}

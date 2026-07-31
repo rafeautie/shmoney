@@ -6,6 +6,7 @@ import { Analytics01Icon, ArrowDown01Icon, MoreVerticalIcon } from '@hugeicons/c
 import { format } from 'date-fns'
 import type { ReportCreateInput, ReportSummary } from '@shared/reports'
 import { SPENDING_OVERVIEW_TEMPLATE } from '@/lib/report-templates'
+import { reportsOptions } from '@/lib/queries'
 import { Page } from '@/components/page'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -26,16 +27,14 @@ import {
 import { ConfirmDialog } from '@/components/confirm-dialog'
 
 export const Route = createFileRoute('/reports/')({
+  loader: ({ context }) => context.queryClient.ensureQueryData(reportsOptions),
   component: ReportsPage
 })
 
 function ReportsPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const reportsQuery = useQuery({
-    queryKey: ['reports'],
-    queryFn: () => window.api.reports.list()
-  })
+  const reportsQuery = useQuery(reportsOptions)
 
   const createMutation = useMutation({
     mutationFn: (input: ReportCreateInput) => window.api.reports.create(input),

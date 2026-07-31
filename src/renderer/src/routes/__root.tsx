@@ -1,18 +1,22 @@
-import { Outlet, createRootRoute } from '@tanstack/react-router'
+import { Outlet, createRootRouteWithContext } from '@tanstack/react-router'
+import type { QueryClient } from '@tanstack/react-query'
+import { AppChromeHost } from '@/components/layout/app-chrome-host'
+import { AppHeader } from '@/components/layout/app-header'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { AutoSyncHost } from '@/components/layout/auto-sync-host'
-import { NotificationCenter } from '@/components/layout/notification-center'
+import { ImportFileHost } from '@/components/layout/import-file-host'
 import { Onboarding } from '@/components/layout/onboarding-dialog'
 import { RuleSuggestionsHost } from '@/components/rules/rule-suggestions-host'
 import { UndoShortcuts } from '@/components/layout/undo-shortcuts'
-import { WindowControls } from '@/components/layout/window-controls'
-import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
+import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import { NotificationsProvider } from '@/lib/notify-store'
 import { SuggestionsUiProvider } from '@/lib/suggestions-ui'
 import { useSettings } from '@/lib/settings'
 
-export const Route = createRootRoute({
+// route loaders warm the query cache before their page mounts, so they need the
+// same client the components read from
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: RootComponent
 })
 
@@ -28,15 +32,7 @@ function RootComponent() {
         >
           <AppSidebar />
           <SidebarInset className="h-svh overflow-hidden">
-            <header className="relative flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4 [-webkit-app-region:drag]">
-              <SidebarTrigger size="icon" className="-ml-1 [-webkit-app-region:no-drag]" />
-              <div className="flex [-webkit-app-region:no-drag]">
-                <NotificationCenter />
-              </div>
-              <div className="ml-auto flex items-center gap-1">
-                <WindowControls />
-              </div>
-            </header>
+            <AppHeader />
             <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <Outlet />
             </main>
@@ -44,6 +40,8 @@ function RootComponent() {
           <UndoShortcuts />
           <AutoSyncHost />
           <RuleSuggestionsHost />
+          <ImportFileHost />
+          <AppChromeHost />
           <Onboarding />
           <Toaster position="bottom-right" />
         </SidebarProvider>

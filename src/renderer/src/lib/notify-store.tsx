@@ -52,6 +52,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const push = useCallback((input: Omit<Message, 'id' | 'seenAt'>) => {
     const message: Message = { ...input, id: nextId++, seenAt: null }
     setMessages((prev) => [message, ...prev].slice(0, MAX_MESSAGES))
+    // one seam for every completed-work message in the app: main shows an OS
+    // toast only when the window isn't focused, so a message the user is
+    // already looking at stays in the center and nowhere else
+    window.api.app.notify(message.title, message.description ?? '')
   }, [])
 
   const markAllSeen = useCallback(() => {

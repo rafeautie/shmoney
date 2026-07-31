@@ -14,6 +14,11 @@
   --default-transition-duration: 250ms;
   --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   --radius: 0.45rem;
+  /* tells the engine which way native widgets go: scrollbars in the few raw
+   * overflow containers, date pickers, autofill. Paired with the .dark rule
+   * below rather than prefers-color-scheme, since the theme is a stored
+   * setting. Background hexes are mirrored in shared/theme.ts for the frame. */
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -64,6 +69,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

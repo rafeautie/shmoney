@@ -14,6 +14,19 @@ asarUnpack:
 extraResources:
   - from: drizzle
     to: drizzle
+# double-clicking a statement file opens it straight into the import flow.
+# csv/tsv are deliberately absent: claiming them would take the extension away
+# from the user's spreadsheet app, which is not shmoney's to take.
+fileAssociations:
+  - ext: ofx
+    name: Open Financial Exchange statement
+    role: Editor
+  - ext: qfx
+    name: Quicken Financial Exchange statement
+    role: Editor
+  - ext: qif
+    name: Quicken Interchange Format statement
+    role: Editor
 win:
   target: nsis
   executableName: shmoney

@@ -22,7 +22,11 @@ import { TABLE_BLEED, cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyMedia } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+
+// enough placeholder rows to fill the visible area of a typical table
+const SKELETON_ROWS = 8
 
 declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- params must match the library declaration
@@ -199,19 +203,27 @@ export function DataTable<TData>({
             skip it when empty so the full-height empty state has no closing border */}
         <TableBody className={cn(!isEmpty && '[&_tr:last-child]:border-b!')}>
           {topRow}
-          {isEmpty ? (
+          {isEmpty && isLoading ? (
+            // placeholder rows rather than a centred word, so the table keeps
+            // its shape and the real rows drop straight in
+            Array.from({ length: SKELETON_ROWS }, (_, row) => (
+              <TableRow key={`skeleton-${row}`} className="hover:bg-transparent">
+                {columns.map((_column, column) => (
+                  <TableCell key={column}>
+                    <Skeleton className="h-4 w-full" />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))
+          ) : isEmpty ? (
             <TableRow className="hover:bg-transparent">
               <TableCell colSpan={columns.length} className="h-full">
-                {isLoading ? (
-                  <div className="text-center text-muted-foreground">Loading…</div>
-                ) : (
-                  <Empty className="gap-2 py-2">
-                    <EmptyMedia variant="icon">
-                      <HugeiconsIcon icon={InboxIcon} />
-                    </EmptyMedia>
-                    <EmptyDescription>{emptyMessage}</EmptyDescription>
-                  </Empty>
-                )}
+                <Empty className="gap-2 py-2">
+                  <EmptyMedia variant="icon">
+                    <HugeiconsIcon icon={InboxIcon} />
+                  </EmptyMedia>
+                  <EmptyDescription>{emptyMessage}</EmptyDescription>
+                </Empty>
               </TableCell>
             </TableRow>
           ) : (
@@ -231,13 +243,12 @@ export function DataTable<TData>({
             ))
           )}
           {isFetchingMore && (
-            <TableRow>
-              <TableCell
-                colSpan={columns.length}
-                className="h-12 text-center text-muted-foreground"
-              >
-                Loading more…
-              </TableCell>
+            <TableRow className="hover:bg-transparent">
+              {columns.map((_column, column) => (
+                <TableCell key={column}>
+                  <Skeleton className="h-4 w-full" />
+                </TableCell>
+              ))}
             </TableRow>
           )}
         </TableBody>

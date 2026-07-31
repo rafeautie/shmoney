@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { Page } from '@/components/page'
 import { CategoriesSettings } from '@/components/settings/categories-settings'
 import { ConnectionSettings } from '@/components/settings/connection-settings'
+import { NotificationSettings } from '@/components/settings/notification-settings'
 import { PrivacySettings } from '@/components/settings/privacy-settings'
 import { TransferSettings } from '@/components/settings/transfer-settings'
 import { RulesSettings } from '@/components/settings/rules-settings'
@@ -28,6 +29,8 @@ function SettingsPage() {
       <TransferSettings />
 
       <PrivacySettings />
+
+      <NotificationSettings />
 
       <LlmSettings />
 

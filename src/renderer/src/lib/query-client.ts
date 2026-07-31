@@ -18,5 +18,16 @@ export const queryClient = new QueryClient({
   }),
   mutationCache: new MutationCache({
     onError: (error, _vars, _ctx, mutation) => notifyError(error, mutation.meta)
-  })
+  }),
+  defaultOptions: {
+    queries: {
+      // Reads are local SQLite over IPC and every mutation already invalidates
+      // what it touched, so the web defaults (staleTime 0, refetch on focus)
+      // buy nothing and cost a loading state on every mount. Holding data
+      // briefly is what makes navigating between pages land populated.
+      staleTime: 30_000,
+      // alt-tabbing back into a desktop app should not re-flash the UI
+      refetchOnWindowFocus: false
+    }
+  }
 })

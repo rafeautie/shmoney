@@ -6,6 +6,7 @@ import { setCategories } from '../../ipc/transactions'
 import { applyRulesInTx } from '../../ipc/rules'
 import { llmManager, sendToRenderer } from '../manager'
 import { enqueueGenerate } from '../queue'
+import { setTaskbarProgress } from '../../os-shell'
 import { createLogger } from '../../logging'
 import { LLM_IPC, type CategorizeResult } from '@shared/llm'
 import type { CategorizeScopeInput } from '@shared/ipc'
@@ -59,6 +60,7 @@ Amount: ${amount} (${direction})`
 
 function reportProgress(processed: number, total: number): void {
   sendToRenderer(LLM_IPC.categorizeProgress, { processed, total })
+  setTaskbarProgress(total > 0 ? processed / total : null)
 }
 
 // The controller for the categorize run currently in flight, so Cancel can abort
@@ -189,5 +191,6 @@ export async function categorizeTransactions(
     return { categorized: ruleResult.categorized + llmCategorized, cancelled: signal.aborted }
   } finally {
     if (activeRun === abortController) activeRun = null
+    setTaskbarProgress(null)
   }
 }

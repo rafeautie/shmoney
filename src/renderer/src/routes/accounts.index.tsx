@@ -11,6 +11,7 @@ import { ImportButton } from '@/components/accounts/import-dialog'
 import { FilteredTotal } from '@/components/transactions/filtered-total'
 import { FilteredTransactionsTable } from '@/components/transactions/filtered-transactions-table'
 import { useTransactionFilters } from '@/lib/transaction-filters'
+import { accountsOptions } from '@/lib/queries'
 import { TABLE_BLEED, cn, plural } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,6 +24,7 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
@@ -35,6 +37,7 @@ import {
 } from '@/components/ui/table'
 
 export const Route = createFileRoute('/accounts/')({
+  loader: ({ context }) => context.queryClient.ensureQueryData(accountsOptions),
   component: AccountsPage
 })
 
@@ -105,10 +108,7 @@ function AccountsPage() {
 // subtracts naturally). Totals are kept per currency — cross-currency sums
 // would be meaningless without exchange rates.
 function NetWorth() {
-  const accountsQuery = useQuery({
-    queryKey: ['accounts'],
-    queryFn: () => window.api.accounts.list()
-  })
+  const accountsQuery = useQuery(accountsOptions)
 
   const totals = useMemo(() => {
     const byCurrency = new Map<string, number>()
@@ -137,10 +137,7 @@ function NetWorth() {
 
 function AccountsList() {
   const navigate = useNavigate()
-  const accountsQuery = useQuery({
-    queryKey: ['accounts'],
-    queryFn: () => window.api.accounts.list()
-  })
+  const accountsQuery = useQuery(accountsOptions)
 
   // rows arrive ordered by institution then name, so insertion order is stable
   const institutions = useMemo(() => {
@@ -162,7 +159,16 @@ function AccountsList() {
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-6 px-6 pb-6 py-1">
           {accountsQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <Card className="overflow-hidden">
+              <CardHeader>
+                <Skeleton className="h-5 w-40" />
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+              </CardContent>
+            </Card>
           ) : institutions.length === 0 ? (
             <Empty className="border">
               <EmptyHeader>

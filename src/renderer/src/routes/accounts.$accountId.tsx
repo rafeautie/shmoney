@@ -8,10 +8,13 @@ import { CreateTransactionButton } from '@/components/transactions/create-transa
 import { FilteredTotal } from '@/components/transactions/filtered-total'
 import { FilteredTransactionsTable } from '@/components/transactions/filtered-transactions-table'
 import { useTransactionFilters } from '@/lib/transaction-filters'
+import { accountOptions } from '@/lib/queries'
 import { HoldingsTable } from '@/components/accounts/holdings-table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export const Route = createFileRoute('/accounts/$accountId')({
+  loader: ({ context, params }) =>
+    context.queryClient.ensureQueryData(accountOptions(Number(params.accountId))),
   component: AccountDetailPage
 })
 
@@ -29,10 +32,7 @@ function AccountDetailPage() {
     setTab('holdings')
   }, [id])
 
-  const accountQuery = useQuery({
-    queryKey: ['accounts', 'detail', id],
-    queryFn: () => window.api.accounts.get(id)
-  })
+  const accountQuery = useQuery(accountOptions(id))
   const account = accountQuery.data
   const hasHoldings = (account?.holdingsCount ?? 0) > 0
   // on holdings accounts the table (and so its filter bar) lives behind a tab

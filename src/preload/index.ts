@@ -363,17 +363,30 @@ const api = {
     copy: (text: string): Promise<void> => ipcRenderer.invoke(DIAGNOSTICS_IPC.copy, text),
     openLogsFolder: (): Promise<void> => ipcRenderer.invoke(DIAGNOSTICS_IPC.openLogsFolder)
   },
-  window: {
-    minimize: (): void => ipcRenderer.send(IPC.windowMinimize),
-    maximizeToggle: (): void => ipcRenderer.send(IPC.windowMaximizeToggle),
-    close: (): void => ipcRenderer.send(IPC.windowClose),
-    isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IPC.windowIsMaximized),
-    onMaximizedChange: (callback: (maximized: boolean) => void): (() => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, maximized: boolean): void =>
-        callback(maximized)
-      ipcRenderer.on(IPC.windowMaximizedChanged, listener)
-      return () => ipcRenderer.removeListener(IPC.windowMaximizedChanged, listener)
-    }
+  app: {
+    // the renderer lays out chrome differently per platform (traffic lights on
+    // the left on macOS, caption buttons on the right everywhere else)
+    platform: process.platform,
+    /** Main asking the renderer to route somewhere (macOS app menu). */
+    onNavigate: (callback: (to: string) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, to: string): void => callback(to)
+      ipcRenderer.on(IPC.appNavigate, listener)
+      return () => ipcRenderer.removeListener(IPC.appNavigate, listener)
+    },
+    /** A statement file opened from outside the window (file association). */
+    onOpenImportFile: (
+      callback: (file: { fileName: string; bytes: Uint8Array }) => void
+    ): (() => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        file: { fileName: string; bytes: Uint8Array }
+      ): void => callback(file)
+      ipcRenderer.on(IPC.appOpenImportFile, listener)
+      return () => ipcRenderer.removeListener(IPC.appOpenImportFile, listener)
+    },
+    /** Mirror a notification-center message to an OS toast; a no-op when the
+     * window is focused or the user turned native notifications off. */
+    notify: (title: string, body: string): void => ipcRenderer.send(IPC.appNotify, { title, body })
   },
   debug: {
     // dev-only: the raw SimpleFIN /accounts payload. Rejects in production, where

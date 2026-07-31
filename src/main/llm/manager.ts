@@ -20,6 +20,7 @@ import {
 import { db, dbPath } from '../db'
 import { settings } from '../db/schema'
 import { createLogger } from '../logging'
+import { setTaskbarProgress } from '../os-shell'
 import { getHardwareInfo } from './hardware'
 import type {
   ChatGenerationResult,
@@ -332,6 +333,9 @@ class LlmManager {
         case 'modelStage': {
           const status = this.getStatus()
           status.models[msg.modelId] = { stage: msg.stage, error: msg.error }
+          // downloading is the only stage with a fraction to show; every other
+          // stage means the download is over, one way or another
+          if (msg.stage !== 'downloading') setTaskbarProgress(null)
           this.pushStatus()
           break
         }
@@ -347,6 +351,7 @@ class LlmManager {
         }
         case 'downloadProgress':
           sendToRenderer(LLM_IPC.downloadProgress, msg.progress)
+          setTaskbarProgress(msg.progress.downloadedBytes / msg.progress.totalBytes)
           break
         case 'chatPart':
           this.chatHandlers.get(msg.id)?.(msg.index, msg.part)

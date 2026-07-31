@@ -441,11 +441,12 @@ export const IPC = {
   categoriesRename: 'categories:rename',
   categoriesDelete: 'categories:delete',
   categoriesResetDefaults: 'categories:resetDefaults',
-  windowMinimize: 'window:minimize',
-  windowMaximizeToggle: 'window:maximizeToggle',
-  windowClose: 'window:close',
-  windowIsMaximized: 'window:isMaximized',
-  windowMaximizedChanged: 'window:maximizedChanged',
+  // main asks the renderer to route somewhere (macOS app menu, OS file open)
+  appNavigate: 'app:navigate',
+  // a statement file arrived from outside the window (file association, drop)
+  appOpenImportFile: 'app:openImportFile',
+  // mirror a notification-center message to an OS toast while unfocused
+  appNotify: 'app:notify',
   // dev-only: raw SimpleFIN /accounts passthrough for the Debug page (handler
   // registered only when is.dev, so it isn't present in production builds)
   debugRawAccounts: 'debug:rawAccounts'

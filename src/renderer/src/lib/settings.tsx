@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SettingKey, Settings } from '@shared/settings'
 
@@ -32,6 +32,21 @@ export function useSettings() {
 // rendered once at the root; keeps the dark class in sync with the theme setting
 export function ThemeSync() {
   const { settings } = useSettings()
+  // main mirrors the theme setting onto nativeTheme.themeSource, so this query
+  // already answers for the explicit choices too; subscribing only matters for
+  // 'system', where the OS can flip while the app is running
+  const [systemDark, setSystemDark] = useState(
+    () => window.matchMedia('(prefers-color-scheme: dark)').matches
+  )
+
+  useEffect(() => {
+    const query = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = (e: MediaQueryListEvent): void => setSystemDark(e.matches)
+    query.addEventListener('change', onChange)
+    return () => query.removeEventListener('change', onChange)
+  }, [])
+
+  const dark = settings.theme === 'system' ? systemDark : settings.theme === 'dark'
 
   useLayoutEffect(() => {
     const root = document.documentElement
@@ -41,13 +56,13 @@ export function ThemeSync() {
     // are already committed to the DOM by the time this layout effect runs, so
     // adding the class here still catches them (see .suppress-transitions).
     root.classList.add('suppress-transitions')
-    root.classList.toggle('dark', settings.theme === 'dark')
+    root.classList.toggle('dark', dark)
     // Force a synchronous reflow so the new styles commit with transitions off,
     // then restore transitions on the next frame.
     void root.offsetHeight
     const id = requestAnimationFrame(() => root.classList.remove('suppress-transitions'))
     return () => cancelAnimationFrame(id)
-  }, [settings.theme, settings.blurAmounts])
+  }, [dark, settings.blurAmounts])
 
   return null
 }
@@ -65,6 +80,17 @@ export function usePrivacy() {
   return {
     blurAmounts: settings.blurAmounts,
     setBlurAmounts: useCallback((blur: boolean) => setSetting('blurAmounts', blur), [setSetting])
+  }
+}
+
+export function useNativeNotifications() {
+  const { settings, setSetting } = useSettings()
+  return {
+    nativeNotifications: settings.nativeNotifications,
+    setNativeNotifications: useCallback(
+      (on: boolean) => setSetting('nativeNotifications', on),
+      [setSetting]
+    )
   }
 }
 
