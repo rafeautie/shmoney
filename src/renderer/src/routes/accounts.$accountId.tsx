@@ -60,8 +60,11 @@ function AccountDetailPage() {
             the balance's. */}
         <div className="flex items-end gap-8">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight">{account?.name ?? 'Account'}</h2>
-            <p className="text-muted-foreground">
+            {/* the account's own name and institution, not page furniture */}
+            <h2 className="text-2xl font-semibold tracking-tight select-text">
+              {account?.name ?? 'Account'}
+            </h2>
+            <p className="text-muted-foreground select-text">
               {account && (
                 <>
                   {account.institutionName ? `${account.institutionName} · ` : ''}

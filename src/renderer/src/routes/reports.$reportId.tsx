@@ -193,7 +193,9 @@ function ReportPage() {
             }}
           />
         ) : (
-          <h2 className="truncate text-2xl font-semibold tracking-tight">{detail.report.name}</h2>
+          <h2 className="truncate text-2xl font-semibold tracking-tight select-text">
+            {detail.report.name}
+          </h2>
         )}
         <div className="flex shrink-0 items-center gap-2">
           {editing && (

@@ -183,7 +183,7 @@ function GroupSection({ group }: { group: CategoryGroup }) {
           </form>
         ) : (
           <>
-            <h3 className="text-sm font-medium">{group.name}</h3>
+            <h3 className="text-sm font-medium select-text">{group.name}</h3>
             <Button
               variant="ghost"
               size="icon-sm"

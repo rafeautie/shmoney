@@ -188,7 +188,8 @@ function AccountsList() {
             institutions.map(([institution, accounts]) => (
               <Card key={institution} className="overflow-hidden pb-0">
                 <CardHeader>
-                  <CardTitle className="text-base">{institution}</CardTitle>
+                  {/* the institution's name is the user's data, unlike the card labels */}
+                  <CardTitle className="text-base select-text">{institution}</CardTitle>
                 </CardHeader>
                 <CardContent className="px-0">
                   <Table className={cn(TABLE_BLEED, 'table-fixed')}>

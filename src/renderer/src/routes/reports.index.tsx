@@ -150,7 +150,9 @@ function ReportCard({
   return (
     <Card className="cursor-pointer gap-2 transition-colors hover:bg-accent/50" onClick={onOpen}>
       <CardHeader className="flex flex-row items-center gap-2">
-        <CardTitle className="min-w-0 flex-1 truncate text-base">{report.name}</CardTitle>
+        <CardTitle className="min-w-0 flex-1 truncate text-base select-text">
+          {report.name}
+        </CardTitle>
         <DropdownMenu>
           <DropdownMenuTrigger
             render={

@@ -77,7 +77,9 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
     <td
       data-slot="table-cell"
       className={cn(
-        'h-10 p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0',
+        // body cells carry the user's own data, so they stay selectable while
+        // the rest of the chrome (including the th labels above) does not
+        'h-10 p-2 align-middle whitespace-nowrap select-text [&:has([role=checkbox])]:pr-0',
         className
       )}
       {...props}

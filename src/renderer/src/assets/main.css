@@ -219,6 +219,21 @@
     @apply bg-background text-foreground;
     /* Unclassed text inherited 17px under the old root; keep that size. */
     font-size: var(--text-base);
+    /* Selection follows the native-app convention: the interface itself —
+     * headings, labels, buttons, nav, badges — is inert, so a drag across it
+     * never leaves a smear of highlighted chrome. Anything holding the user's
+     * own data opts back in: fields and preformatted blocks below, table cells,
+     * chat bubbles and amounts via select-text on their components. */
+    @apply select-none;
+  }
+
+  /* Typed text, and the raw payloads meant to be copied out (tool call IO,
+   * diagnostics, code blocks in answers). */
+  input,
+  textarea,
+  pre,
+  code {
+    @apply select-text;
   }
 
   html {

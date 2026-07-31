@@ -23,7 +23,9 @@ export function Amount({ value, currency, colored = true, className, blurClassNa
         colored && value > 0 && blurAmounts && 'bg-green-500/20 dark:bg-green-400/20',
         colored && value < 0 && 'text-red-600 dark:text-red-500',
         colored && value < 0 && blurAmounts && 'bg-red-600/20 dark:bg-red-500/20',
-        blurAmounts && 'bg-foreground/20 blur-sm select-none',
+        // figures are the user's data wherever they appear (cards, headers,
+        // tooltips), so they select; a blurred one is hidden, not readable
+        blurAmounts ? 'bg-foreground/20 blur-sm select-none' : 'select-text',
         className,
         blurAmounts && blurClassName
       )}
@@ -44,7 +46,9 @@ export function Shares({ value, className }: SharesProps) {
   const { blurAmounts } = usePrivacy()
 
   return (
-    <span className={cn('tabular-nums', blurAmounts && 'blur-sm select-none', className)}>
+    <span
+      className={cn('tabular-nums', blurAmounts ? 'blur-sm select-none' : 'select-text', className)}
+    >
       {formatShares(value)}
     </span>
   )

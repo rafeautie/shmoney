@@ -82,7 +82,9 @@ export function ChatTableViewport({ children }: { children: React.ReactNode }) {
         'max-h-56',
         '[&_table]:w-full [&_table]:border-separate [&_table]:border-spacing-0 [&_table]:text-xs',
         '[&_th]:sticky [&_th]:top-0 [&_th]:z-[1] [&_th]:border-y [&_th]:bg-muted [&_th]:px-2 [&_th]:py-2 [&_th]:text-left [&_th]:font-medium [&_th]:whitespace-nowrap',
-        '[&_td]:border-b [&_td]:px-2 [&_td]:py-1 [&_td]:whitespace-nowrap [&_td]:text-muted-foreground',
+        // plain <td>s here rather than the TableCell component, so they opt into
+        // selection the same way it does; the th labels stay inert
+        '[&_td]:border-b [&_td]:px-2 [&_td]:py-1 [&_td]:whitespace-nowrap [&_td]:text-muted-foreground [&_td]:select-text',
         '[&_tbody>tr:last-child>td]:border-b-0'
       )}
     >
