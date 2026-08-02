@@ -35,6 +35,8 @@ export interface SyncResult extends Connection {
   detectedTransfers: number
   /** transactions categorized by rules during this sync */
   rulesApplied: number
+  /** manually-imported rows this sync adopted instead of duplicating */
+  matchedImports: number
 }
 
 export interface Account {

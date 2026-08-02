@@ -20,6 +20,12 @@ export function useConnectSimpleFin(options?: { onConnected?: () => void }) {
     // sync applies transfer detection and rules automatically; report what it
     // touched so those silent mutations stay visible and reviewable
     onSuccess: (result) => {
+      if (result.matchedImports > 0) {
+        notify(`Matched ${plural(result.matchedImports, 'imported transaction')}`, {
+          description:
+            'Your bank now reports these, so sync updated your transactions instead of adding copies.'
+        })
+      }
       if (result.detectedTransfers > 0) {
         notify(`Detected ${plural(result.detectedTransfers, 'transfer')}`, {
           description: 'Filed under the Transfers category; reports exclude them by default.',

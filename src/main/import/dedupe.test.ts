@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { assignExternalIds, annotateDuplicates, type ExistingTransaction } from './dedupe'
+import {
+  assignExternalIds,
+  annotateDuplicates,
+  matchImportedRows,
+  type ExistingTransaction,
+  type ImportedCandidate,
+  type IncomingTransaction
+} from './dedupe'
 import type { ParsedRow } from './parse'
 
 // imported rows anchor calendar dates at local noon (month is 0-based here)
@@ -84,5 +91,44 @@ describe('annotateDuplicates', () => {
   it('different day or amount is new', () => {
     const [r] = annotateDuplicates([imported], [existing({ amount: -9900 })])
     expect(r.status).toBe('new')
+  })
+})
+
+describe('matchImportedRows', () => {
+  // a bank posts at a real time of day, not the local noon imports anchor to
+  const morning = new Date(2024, 0, 15, 9, 12).getTime() / 1000
+
+  function candidate(overrides: Partial<ImportedCandidate> = {}): ImportedCandidate {
+    return { id: 1, posted: DAY, amount: -4500, ...overrides }
+  }
+
+  function incoming(overrides: Partial<IncomingTransaction> = {}): IncomingTransaction {
+    return { simplefinId: 'sfin-1', posted: morning, amount: -4500, ...overrides }
+  }
+
+  it('claims an imported row on the same local day and amount', () => {
+    const claims = matchImportedRows([incoming()], [candidate({ id: 7 })])
+    expect(claims.get('sfin-1')).toBe(7)
+  })
+
+  it('leaves a different day or amount unclaimed', () => {
+    expect(matchImportedRows([incoming()], [candidate({ amount: -9900 })]).size).toBe(0)
+    expect(matchImportedRows([incoming()], [candidate({ posted: DAY + 86400 })]).size).toBe(0)
+  })
+
+  it('claims each imported row at most once, oldest first', () => {
+    const claims = matchImportedRows(
+      [incoming(), incoming({ simplefinId: 'sfin-2' }), incoming({ simplefinId: 'sfin-3' })],
+      [candidate({ id: 9 }), candidate({ id: 4 })]
+    )
+    // two candidates absorb two of the three; the third inserts normally
+    expect([...claims]).toEqual([
+      ['sfin-1', 4],
+      ['sfin-2', 9]
+    ])
+  })
+
+  it('claims nothing when the account holds no imported rows', () => {
+    expect(matchImportedRows([incoming()], []).size).toBe(0)
   })
 })

@@ -1,10 +1,17 @@
 import { ipcMain, safeStorage } from 'electron'
-import { and, asc, count, desc, eq, gte, inArray, isNull, lte, sum } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, like, lte, sum } from 'drizzle-orm'
 import { db } from '../db'
 import { createLogger } from '../logging'
 import { connections, accounts, categories, holdings, transactions, settings } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
-import { claimAccessUrl, fetchAccounts, parseAmount, SfinErrlistError } from '../simplefin'
+import {
+  claimAccessUrl,
+  fetchAccounts,
+  parseAmount,
+  SfinErrlistError,
+  type SfinAccountSet
+} from '../simplefin'
+import { IMPORT_ID_PREFIX, matchImportedRows } from '../import/dedupe'
 import { balanceDeltaWhere, withDerivedBalance } from '../accounts/balance'
 import { transactionDate } from '../db/expressions'
 import { transactionsPage, transactionSums } from './transactions-page'
@@ -147,6 +154,55 @@ export function detectAndMarkTransfersInTx(tx: Tx): number {
   return pairs.length
 }
 
+/**
+ * Which of this account's incoming transactions the user already imported by
+ * hand, mapped to the transaction holding it. Unconditional: an unrecognised
+ * duplicate of something you already have isn't a preference, it's a bug.
+ * See matchImportedRows for the pairing rule; everything account-shaped lives here.
+ */
+function claimImportedRows(
+  tx: Tx,
+  accountId: number,
+  incoming: SfinAccountSet['accounts'][number]['transactions']
+): Map<string, number> {
+  const candidates = tx
+    .select({ id: transactions.id, posted: transactions.posted, amount: transactions.amount })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.accountId, accountId),
+        // a soft-deleted import is an undone import or a row the user deleted;
+        // reviving it as a synced transaction would undo that, so let the bank's
+        // copy insert fresh instead (same call annotateDuplicates makes)
+        isNull(transactions.deletedAt),
+        like(transactions.simplefinId, `${IMPORT_ID_PREFIX}%`)
+      )
+    )
+    .all()
+  if (candidates.length === 0) return new Map()
+
+  // every id already on this account, soft-deleted rows included: the unique
+  // index spans them, so a transaction we've stored before must upsert onto its
+  // own row rather than rewrite an imported one into a collision
+  const stored = new Set(
+    tx
+      .select({ simplefinId: transactions.simplefinId })
+      .from(transactions)
+      .where(eq(transactions.accountId, accountId))
+      .all()
+      .map((r) => r.simplefinId)
+  )
+
+  return matchImportedRows(
+    incoming
+      // pending rows are dropped and re-added by id on every sync, which would
+      // take the claimed row's category with them; let the charge post first
+      .filter((t) => !(t.pending ?? false) && !stored.has(t.id))
+      .map((t) => ({ simplefinId: t.id, posted: t.posted, amount: parseAmount(t.amount) })),
+    candidates
+  )
+}
+
 async function syncConnection(): Promise<SyncResult> {
   const row = connectionRow()
   if (!row) throw new Error('Not connected to SimpleFIN')
@@ -164,6 +220,7 @@ async function syncConnection(): Promise<SyncResult> {
   const rulesEnabled = applyRulesOnSyncEnabled()
 
   const result = db.transaction((tx) => {
+    let matchedImports = 0
     for (const account of payload.accounts) {
       const identity = {
         connectionId: row.id,
@@ -207,6 +264,13 @@ async function syncConnection(): Promise<SyncResult> {
         .where(and(eq(transactions.accountId, accountRow.id), eq(transactions.pending, true)))
         .run()
 
+      // Adopt rows the user imported by hand before the bank reported them.
+      // Imported ids are namespaced, so the upsert below can't recognise those
+      // rows and would leave a second copy of every one. Runs after the pending
+      // sweep so its deletes can't strand a claim on a row that no longer exists.
+      const claims = claimImportedRows(tx, accountRow.id, account.transactions)
+      matchedImports += claims.size
+
       for (const txn of account.transactions) {
         // txnValues must never include categoryId or deletedAt: the upsert below
         // reuses it as the conflict `set`, and user edits/deletes live in those
@@ -220,6 +284,16 @@ async function syncConnection(): Promise<SyncResult> {
           pending: txn.pending ?? false,
           transactedAt: txn.transacted_at ?? null
         }
+        // a claimed row becomes this transaction in place, by id: it keeps the
+        // category, the edits and the action-log history already pointing at it,
+        // and takes the bank's id so every later sync updates it through the
+        // ordinary upsert. txnValues writes no user-owned column, as above.
+        const claimed = claims.get(txn.id)
+        if (claimed !== undefined) {
+          tx.update(transactions).set(txnValues).where(eq(transactions.id, claimed)).run()
+          continue
+        }
+
         tx.insert(transactions)
           .values(txnValues)
           .onConflictDoUpdate({
@@ -270,7 +344,7 @@ async function syncConnection(): Promise<SyncResult> {
       .where(eq(connections.id, row.id))
       .returning()
       .all()
-    return { updated, detectedTransfers, rulesApplied }
+    return { updated, detectedTransfers, rulesApplied, matchedImports }
   })
 
   // counts and codes only; the payload itself never gets logged
@@ -279,13 +353,15 @@ async function syncConnection(): Promise<SyncResult> {
     transactions: payload.accounts.reduce((n, a) => n + a.transactions.length, 0),
     detectedTransfers: result.detectedTransfers,
     rulesApplied: result.rulesApplied,
+    matchedImports: result.matchedImports,
     errlist: payload.errlist.length
   })
 
   return {
     ...toConnection(result.updated),
     detectedTransfers: result.detectedTransfers,
-    rulesApplied: result.rulesApplied
+    rulesApplied: result.rulesApplied,
+    matchedImports: result.matchedImports
   }
 }
 

@@ -17,6 +17,13 @@ function localDay(posted: number): string {
 }
 
 /**
+ * Namespace for ids this module mints. Bank-issued ids never carry it, so the
+ * two id spaces can't collide — which is exactly why sync has to reconcile them
+ * by content instead (see `matchImportedRows`).
+ */
+export const IMPORT_ID_PREFIX = 'import:'
+
+/**
  * Assign the dedupe id stored in transactions.simplefinId. OFX FITIDs are
  * unique per account, so they map directly; formats without ids get a content
  * hash with an occurrence counter, so a file re-imports to the same ids (rows
@@ -31,7 +38,7 @@ export function assignExternalIds(rows: ParsedRow[]): NormalizedImportRow[] {
         posted: row.posted,
         amount: row.amount,
         description: row.description,
-        externalId: `import:fitid:${row.fitid}`
+        externalId: `${IMPORT_ID_PREFIX}fitid:${row.fitid}`
       }
     }
     const key = `${localDay(row.posted)}|${row.amount}|${normalizeDescription(row.description)}`
@@ -42,7 +49,7 @@ export function assignExternalIds(rows: ParsedRow[]): NormalizedImportRow[] {
       posted: row.posted,
       amount: row.amount,
       description: row.description,
-      externalId: `import:h1:${hash}:${n}`
+      externalId: `${IMPORT_ID_PREFIX}h1:${hash}:${n}`
     }
   })
 }
@@ -85,4 +92,55 @@ export function annotateDuplicates(
     }
     return { ...row, status: 'new' as const }
   })
+}
+
+/** a live manually-imported row a synced transaction may claim */
+export interface ImportedCandidate {
+  id: number
+  posted: number
+  amount: number
+}
+
+export interface IncomingTransaction {
+  simplefinId: string
+  posted: number
+  amount: number
+}
+
+/**
+ * The mirror of `annotateDuplicates`, for the other direction: an import that
+ * ran ahead of the bank's own sync. Because imported ids live in their own
+ * namespace, the sync upsert can never recognise those rows and would insert a
+ * second copy of every one. So pair them by content first and let sync adopt
+ * the existing row.
+ *
+ * Same local day + amount, the `probable` heuristic — a bank description rarely
+ * survives a CSV export intact, and the incoming ids are by construction ones
+ * we have never stored. Each candidate is claimed at most once (oldest row
+ * first, so repeated claims are stable across syncs), which bounds the damage
+ * when the heuristic is wrong: N imported rows absorb at most N incoming ones
+ * and everything else inserts normally.
+ *
+ * Callers must exclude incoming transactions whose id is already stored — those
+ * upsert onto their own row, and claiming as well would collide on the unique
+ * index. Returns simplefinId -> claimed transaction id.
+ */
+export function matchImportedRows(
+  incoming: IncomingTransaction[],
+  candidates: ImportedCandidate[]
+): Map<string, number> {
+  const byDayAmount = new Map<string, number[]>()
+  for (const c of [...candidates].sort((a, b) => a.id - b.id)) {
+    const key = `${localDay(c.posted)}|${c.amount}`
+    const bucket = byDayAmount.get(key)
+    if (bucket) bucket.push(c.id)
+    else byDayAmount.set(key, [c.id])
+  }
+
+  const claims = new Map<string, number>()
+  for (const txn of incoming) {
+    const claimed = byDayAmount.get(`${localDay(txn.posted)}|${txn.amount}`)?.shift()
+    if (claimed !== undefined) claims.set(txn.simplefinId, claimed)
+  }
+  return claims
 }
