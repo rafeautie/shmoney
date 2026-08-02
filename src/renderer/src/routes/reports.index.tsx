@@ -67,7 +67,9 @@ function ReportsPage() {
             New report
             <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          {/* the menu defaults to the trigger's width, which wraps the template
+              item's label; let it size to its content instead */}
+          <DropdownMenuContent align="end" className="w-auto">
             <DropdownMenuItem onClick={() => createMutation.mutate({ name: 'Untitled report' })}>
               Blank report
             </DropdownMenuItem>
