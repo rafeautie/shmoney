@@ -12,6 +12,7 @@ import {
 import { HugeiconsIcon } from '@hugeicons/react'
 import { FileImportIcon, Tick02Icon, UnfoldMoreIcon } from '@hugeicons/core-free-icons'
 import { data as currencyData } from 'currency-codes'
+import { useImportUi } from '@/lib/import-ui'
 import { cn, currencySymbol, ipcErrorMessage, plural, TABLE_BLEED } from '@/lib/utils'
 import { Amount } from '@/components/amount'
 import { Badge } from '@/components/ui/badge'
@@ -108,6 +109,8 @@ export function ImportDialog({
     enabled: open
   })
   const accounts = accountsQuery.data ?? []
+  const accountLabel = (account: (typeof accounts)[number]) =>
+    `${account.institutionName ? `${account.institutionName} · ` : ''}${account.name}`
 
   const { mutate: pickFile, ...pick } = useMutation({
     mutationFn: (dropped?: { fileName: string; bytes: Uint8Array }) =>
@@ -258,6 +261,9 @@ export function ImportDialog({
               onDragLeave={() => setDragging(false)}
               onDrop={(e) => {
                 e.preventDefault()
+                // ImportFileHost listens for drops on the document as the
+                // window-wide fallback; this zone has handled it already
+                e.stopPropagation()
                 setDragging(false)
                 const dropped = e.dataTransfer.files[0]
                 if (dropped) void dropFile(dropped)
@@ -308,6 +314,11 @@ export function ImportDialog({
               <Select
                 value={accountId === null ? undefined : String(accountId)}
                 onValueChange={(v) => setAccountId(Number(v))}
+                // without an items map, base-ui's Value renders the raw value —
+                // the account id — instead of the label
+                items={Object.fromEntries(
+                  accounts.map((account) => [String(account.id), accountLabel(account)])
+                )}
               >
                 <SelectTrigger className="w-80">
                   <SelectValue placeholder="Select an account" />
@@ -315,8 +326,7 @@ export function ImportDialog({
                 <SelectContent>
                   {accounts.map((account) => (
                     <SelectItem key={account.id} value={String(account.id)}>
-                      {account.institutionName ? `${account.institutionName} · ` : ''}
-                      {account.name}
+                      {accountLabel(account)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -419,16 +429,13 @@ export function ImportDialog({
   )
 }
 
-/** The import flow and the button that opens it. */
+/** Opens the import flow. The dialog itself is mounted once by ImportFileHost. */
 export function ImportButton(): React.JSX.Element {
-  const [open, setOpen] = useState(false)
+  const { setOpen } = useImportUi()
   return (
-    <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
-        Import
-      </Button>
-      <ImportDialog open={open} onOpenChange={setOpen} />
-    </>
+    <Button variant="outline" onClick={() => setOpen(true)}>
+      Import
+    </Button>
   )
 }
 
@@ -536,6 +543,9 @@ function ColumnSelect({
         if (extraOption && v === extraOption.value) extraOption.onSelect()
         else onChange(Number(v))
       }}
+      // without an items map, base-ui's Value renders the raw value — the
+      // column index — instead of the header name
+      items={Object.fromEntries(headers.map((_, i) => [String(i), columnLabel(headers, i)]))}
     >
       <SelectTrigger className="w-56">
         <SelectValue placeholder="Select a column" />

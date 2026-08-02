@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { FileImportIcon } from '@hugeicons/core-free-icons'
 import { ImportDialog } from '@/components/accounts/import-dialog'
+import { useImportUi } from '@/lib/import-ui'
 
 type DroppedFile = { fileName: string; bytes: Uint8Array }
 
@@ -10,13 +11,15 @@ const STATEMENT_EXTENSIONS = /\.(csv|tsv|ofx|qfx|qif)$/i
 /**
  * Mounted once at the root. Makes the whole window a drop target for statement
  * files and receives files the OS opened through a file association, then hands
- * either to the import dialog.
+ * either to the import dialog. Owns the one import dialog in the app, so a
+ * trigger anywhere (ImportButton) opens this one rather than a second copy.
  *
  * Without this the only drop target is the import dialog's own empty state, so
  * a file dropped anywhere else lands in a dead zone that shows a copy cursor
  * and does nothing.
  */
 export function ImportFileHost(): React.JSX.Element {
+  const { open, setOpen } = useImportUi()
   const [file, setFile] = useState<DroppedFile | null>(null)
   const [dragging, setDragging] = useState(false)
 
@@ -74,14 +77,21 @@ export function ImportFileHost(): React.JSX.Element {
   return (
     <>
       {dragging && (
-        <div className="pointer-events-none fixed inset-2 z-50 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary bg-background/80 backdrop-blur-xs">
+        // starts below the title bar: the OS draws its caption buttons over that
+        // strip, so an overlay running under them comes out with holes punched
+        // in it
+        <div className="pointer-events-none fixed top-14 right-2 bottom-2 left-2 z-50 flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary bg-background/80 backdrop-blur-xs">
           <HugeiconsIcon icon={FileImportIcon} size={32} className="text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Drop a statement file to import</p>
         </div>
       )}
       <ImportDialog
-        open={file !== null}
-        onOpenChange={(open) => !open && setFile(null)}
+        open={open || file !== null}
+        onOpenChange={(next) => {
+          if (next) return
+          setOpen(false)
+          setFile(null)
+        }}
         initialFile={file ?? undefined}
       />
     </>
