@@ -1,6 +1,6 @@
 import Papa from 'papaparse'
 import { parse as parseDate, isValid } from 'date-fns'
-import { CSV_DATE_FORMATS, type AmountSign, type CsvMapping } from '@shared/import'
+import { CSV_DATE_FORMATS, type CsvMapping } from '@shared/import'
 import { dayToUnix, type ParsedRow } from './parse'
 
 // Pure CSV normalization: raw table + user-confirmed column mapping -> ParsedRows.
@@ -42,13 +42,6 @@ export function parseMoney(text: string): number | null {
   if (!Number.isFinite(value)) return null
   const milliunits = Math.round(value * 1000)
   return negative ? -milliunits : milliunits
-}
-
-/** force the direction the user declared for the file; 'asIs' trusts the column */
-function applySign(amount: number, sign: AmountSign): number {
-  if (sign === 'expense') return -Math.abs(amount)
-  if (sign === 'income') return Math.abs(amount)
-  return amount
 }
 
 function findColumn(headers: string[], candidates: string[]): number {
@@ -96,7 +89,7 @@ export function detectCsvMapping(headers: string[], rows: string[][]): CsvMappin
       dateColumn,
       dateFormat,
       descriptionColumn,
-      amount: { kind: 'single', column: amountColumn, sign: 'asIs' }
+      amount: { kind: 'single', column: amountColumn, invert: false }
     }
   }
   if (debitColumn !== -1 && creditColumn !== -1) {
@@ -130,7 +123,8 @@ export function normalizeCsvRows(
     let amount: number | null
     if (mapping.amount.kind === 'single') {
       const value = parseMoney(row[mapping.amount.column] ?? '')
-      amount = value === null ? null : applySign(value, mapping.amount.sign)
+      // -0 is a real JS value and would store as 0 anyway, but || 0 keeps it out
+      amount = value === null ? null : mapping.amount.invert ? -value || 0 : value
     } else {
       const debit = parseMoney(row[mapping.amount.debitColumn] ?? '')
       const credit = parseMoney(row[mapping.amount.creditColumn] ?? '')

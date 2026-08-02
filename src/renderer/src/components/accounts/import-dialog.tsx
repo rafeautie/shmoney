@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import {
-  AMOUNT_SIGNS,
   CSV_DATE_FORMATS,
-  type AmountSign,
   type CsvMapping,
   type ImportPreview,
   type ImportPreviewInput,
@@ -56,6 +54,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
@@ -522,12 +521,6 @@ function CurrencySelect({
   )
 }
 
-const AMOUNT_SIGN_LABELS: Record<AmountSign, string> = {
-  asIs: 'As written in the file',
-  expense: 'All expenses (money out)',
-  income: 'All income (money in)'
-}
-
 function columnLabel(headers: string[], index: number): string {
   return headers[index]?.trim() || `Column ${index + 1}`
 }
@@ -580,13 +573,14 @@ function CsvMappingFields({
   mapping: CsvMapping | null
   onChange: (mapping: CsvMapping) => void
 }): React.JSX.Element {
+  const invertId = useId()
   // partial edits need somewhere to live before every role is filled; fall back
   // to sentinel -1 indexes and only emit complete mappings upward
   const base: CsvMapping = mapping ?? {
     dateColumn: -1,
     dateFormat: CSV_DATE_FORMATS[0],
     descriptionColumn: -1,
-    amount: { kind: 'single', column: -1, sign: 'asIs' }
+    amount: { kind: 'single', column: -1, invert: false }
   }
   const set = (patch: Partial<CsvMapping>): void => onChange({ ...base, ...patch })
   const single = base.amount.kind === 'single' ? base.amount : null
@@ -634,7 +628,7 @@ function CsvMappingFields({
             headers={headers}
             value={single && single.column !== -1 ? single.column : null}
             onChange={(column) =>
-              set({ amount: { kind: 'single', column, sign: single?.sign ?? 'asIs' } })
+              set({ amount: { kind: 'single', column, invert: single?.invert ?? false } })
             }
             extraOption={{
               value: 'debitCredit',
@@ -646,25 +640,21 @@ function CsvMappingFields({
         </div>
         {single && (
           // debit/credit columns state the direction themselves; one column may
-          // not, so this is where a file of all-positive amounts gets its sign
+          // follow the opposite convention from this app, which turns the whole
+          // file backwards. Flipping keeps each row's direction relative to the
+          // others, so a file that does carry both signs stays coherent.
           <div className="flex items-center justify-between gap-3">
-            <Label>Amounts are</Label>
-            <Select
-              value={single.sign}
-              items={AMOUNT_SIGN_LABELS}
-              onValueChange={(sign) => set({ amount: { ...single, sign: sign as AmountSign } })}
-            >
-              <SelectTrigger className="w-56">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AMOUNT_SIGNS.map((sign) => (
-                  <SelectItem key={sign} value={sign}>
-                    {AMOUNT_SIGN_LABELS[sign]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-0.5">
+              <Label htmlFor={invertId}>Flip the sign of every amount</Label>
+              <p className="text-xs text-muted-foreground">
+                For files where money out is written as positive
+              </p>
+            </div>
+            <Switch
+              id={invertId}
+              checked={single.invert}
+              onCheckedChange={(invert) => set({ amount: { ...single, invert } })}
+            />
           </div>
         )}
         {base.amount.kind === 'debitCredit' && (

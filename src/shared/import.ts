@@ -40,18 +40,6 @@ export const CSV_DATE_FORMATS = [
   'MMMM d, yyyy'
 ] as const
 
-/**
- * What the sign of a single amount column means. Plenty of banks export every
- * amount as a positive number and leave the direction to a column the importer
- * doesn't read, so the user states it once for the file.
- *
- * asIs — keep the sign the column carries
- * expense — every row is money out (force negative)
- * income — every row is money in (force positive)
- */
-export const AMOUNT_SIGNS = ['asIs', 'expense', 'income'] as const
-export type AmountSign = (typeof AMOUNT_SIGNS)[number]
-
 // CSV column roles, by column index (headers can repeat; indexes can't).
 // Amounts are either one signed column or separate debit/credit columns.
 export const csvMappingSchema = z.object({
@@ -63,7 +51,13 @@ export const csvMappingSchema = z.object({
     z.object({
       kind: z.literal('single'),
       column: z.number().int().nonnegative(),
-      sign: z.enum(AMOUNT_SIGNS).default('asIs')
+      /**
+       * Flip the sign of every amount. Some banks use the opposite convention
+       * from this app (money out positive), which makes the whole file read
+       * backwards; inverting fixes it without touching the relative direction
+       * of any row, so a file with both signs stays coherent.
+       */
+      invert: z.boolean().default(false)
     }),
     z.object({
       kind: z.literal('debitCredit'),

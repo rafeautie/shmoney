@@ -64,7 +64,7 @@ describe('detectCsvMapping', () => {
       dateColumn: 0,
       dateFormat: 'M/d/yyyy',
       descriptionColumn: 1,
-      amount: { kind: 'single', column: 2, sign: 'asIs' }
+      amount: { kind: 'single', column: 2, invert: false }
     })
   })
 
@@ -86,7 +86,7 @@ describe('normalizeCsvRows', () => {
     dateColumn: 0,
     dateFormat: 'M/d/yyyy',
     descriptionColumn: 1,
-    amount: { kind: 'single', column: 2, sign: 'asIs' }
+    amount: { kind: 'single', column: 2, invert: false }
   }
 
   it('normalizes rows to unix seconds and milliunits', () => {
@@ -95,19 +95,20 @@ describe('normalizeCsvRows', () => {
     expect(rows).toEqual([{ posted: noon(2024, 0, 15), amount: -4500, description: 'COFFEE' }])
   })
 
-  it('forces the declared sign on a single amount column', () => {
-    const signed = (sign: 'asIs' | 'expense' | 'income'): number[] =>
+  it('inverts every amount on a single amount column, keeping relative direction', () => {
+    const amounts = (invert: boolean): number[] =>
       normalizeCsvRows(
         [
           ['1/1/2024', 'OUT', '4.50'],
-          ['1/2/2024', 'IN', '-100.00']
+          ['1/2/2024', 'IN', '-100.00'],
+          ['1/3/2024', 'ZERO', '0.00']
         ],
-        { ...mapping, amount: { kind: 'single', column: 2, sign } }
+        { ...mapping, amount: { kind: 'single', column: 2, invert } }
       ).rows.map((r) => r.amount)
 
-    expect(signed('asIs')).toEqual([4500, -100000])
-    expect(signed('expense')).toEqual([-4500, -100000])
-    expect(signed('income')).toEqual([4500, 100000])
+    expect(amounts(false)).toEqual([4500, -100000, 0])
+    // 0 flips to 0, not -0: Object.is distinguishes them and toEqual follows it
+    expect(amounts(true)).toEqual([-4500, 100000, 0])
   })
 
   it('reports unparseable rows with 1-based line numbers and keeps going', () => {
