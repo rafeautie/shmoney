@@ -55,8 +55,9 @@ export interface ExistingTransaction {
 }
 
 /**
- * duplicate — externalId already present in the account. Soft-deleted rows
- * count too: the unique index still holds them, so the insert would skip.
+ * duplicate — externalId already present and live in the account. A soft-deleted
+ * row holding the id does not count: it is a transaction the user deleted or an
+ * import they undid, and applying restores it (see the import apply handler).
  * probable — a live existing row has the same posted day + amount (each
  * existing row explains at most one import row).
  */
@@ -64,7 +65,9 @@ export function annotateDuplicates(
   rows: NormalizedImportRow[],
   existing: ExistingTransaction[]
 ): (NormalizedImportRow & { status: ImportRowStatus })[] {
-  const existingIds = new Set(existing.map((t) => t.simplefinId).filter((id) => id !== null))
+  const existingIds = new Set(
+    existing.filter((t) => t.deletedAt === null && t.simplefinId !== null).map((t) => t.simplefinId)
+  )
   const dayAmountCounts = new Map<string, number>()
   for (const t of existing) {
     if (t.deletedAt !== null) continue

@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tan
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import {
+  AMOUNT_SIGNS,
   CSV_DATE_FORMATS,
+  type AmountSign,
   type CsvMapping,
   type ImportPreview,
   type ImportPreviewInput,
@@ -521,6 +523,12 @@ function CurrencySelect({
   )
 }
 
+const AMOUNT_SIGN_LABELS: Record<AmountSign, string> = {
+  asIs: 'As written in the file',
+  expense: 'All expenses (money out)',
+  income: 'All income (money in)'
+}
+
 function columnLabel(headers: string[], index: number): string {
   return headers[index]?.trim() || `Column ${index + 1}`
 }
@@ -579,9 +587,10 @@ function CsvMappingFields({
     dateColumn: -1,
     dateFormat: CSV_DATE_FORMATS[0],
     descriptionColumn: -1,
-    amount: { kind: 'single', column: -1 }
+    amount: { kind: 'single', column: -1, sign: 'asIs' }
   }
   const set = (patch: Partial<CsvMapping>): void => onChange({ ...base, ...patch })
+  const single = base.amount.kind === 'single' ? base.amount : null
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -624,10 +633,10 @@ function CsvMappingFields({
           <Label>Amount</Label>
           <ColumnSelect
             headers={headers}
-            value={
-              base.amount.kind === 'single' && base.amount.column !== -1 ? base.amount.column : null
+            value={single && single.column !== -1 ? single.column : null}
+            onChange={(column) =>
+              set({ amount: { kind: 'single', column, sign: single?.sign ?? 'asIs' } })
             }
-            onChange={(column) => set({ amount: { kind: 'single', column } })}
             extraOption={{
               value: 'debitCredit',
               label: 'Separate debit / credit columns',
@@ -636,6 +645,29 @@ function CsvMappingFields({
             }}
           />
         </div>
+        {single && (
+          // debit/credit columns state the direction themselves; one column may
+          // not, so this is where a file of all-positive amounts gets its sign
+          <div className="flex items-center justify-between gap-3">
+            <Label>Amounts are</Label>
+            <Select
+              value={single.sign}
+              items={AMOUNT_SIGN_LABELS}
+              onValueChange={(sign) => set({ amount: { ...single, sign: sign as AmountSign } })}
+            >
+              <SelectTrigger className="w-56">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AMOUNT_SIGNS.map((sign) => (
+                  <SelectItem key={sign} value={sign}>
+                    {AMOUNT_SIGN_LABELS[sign]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         {base.amount.kind === 'debitCredit' && (
           <>
             <div className="flex items-center justify-between gap-3">

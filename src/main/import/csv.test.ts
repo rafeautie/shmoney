@@ -64,7 +64,7 @@ describe('detectCsvMapping', () => {
       dateColumn: 0,
       dateFormat: 'M/d/yyyy',
       descriptionColumn: 1,
-      amount: { kind: 'single', column: 2 }
+      amount: { kind: 'single', column: 2, sign: 'asIs' }
     })
   })
 
@@ -86,13 +86,28 @@ describe('normalizeCsvRows', () => {
     dateColumn: 0,
     dateFormat: 'M/d/yyyy',
     descriptionColumn: 1,
-    amount: { kind: 'single', column: 2 }
+    amount: { kind: 'single', column: 2, sign: 'asIs' }
   }
 
   it('normalizes rows to unix seconds and milliunits', () => {
     const { rows, errors } = normalizeCsvRows([['1/15/2024', ' COFFEE ', '-4.50']], mapping)
     expect(errors).toEqual([])
     expect(rows).toEqual([{ posted: noon(2024, 0, 15), amount: -4500, description: 'COFFEE' }])
+  })
+
+  it('forces the declared sign on a single amount column', () => {
+    const signed = (sign: 'asIs' | 'expense' | 'income'): number[] =>
+      normalizeCsvRows(
+        [
+          ['1/1/2024', 'OUT', '4.50'],
+          ['1/2/2024', 'IN', '-100.00']
+        ],
+        { ...mapping, amount: { kind: 'single', column: 2, sign } }
+      ).rows.map((r) => r.amount)
+
+    expect(signed('asIs')).toEqual([4500, -100000])
+    expect(signed('expense')).toEqual([-4500, -100000])
+    expect(signed('income')).toEqual([4500, 100000])
   })
 
   it('reports unparseable rows with 1-based line numbers and keeps going', () => {

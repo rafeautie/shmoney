@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { is } from '@electron-toolkit/utils'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNotNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db'
 import { accounts, transactions } from '../db/schema'
@@ -96,8 +96,8 @@ export function registerImportIpc(): void {
       // a brand-new account has nothing to be a duplicate of
       return { rows: rows.map((r) => ({ ...r, status: 'new' as const })), errors }
     }
-    // soft-deleted rows included: the unique index still holds them, so an
-    // insert against their id would skip
+    // soft-deleted rows included: they hold the unique key, so applying restores
+    // them instead of inserting (annotateDuplicates decides what that means)
     const existing = db
       .select({
         simplefinId: transactions.simplefinId,
@@ -170,9 +170,11 @@ export function registerImportIpc(): void {
         }
       }
 
-      // never writes categoryId/deletedAt (user-owned columns), and never
-      // updates on conflict: an import must not clobber existing rows or
-      // resurrect soft-deleted ones
+      // never writes categoryId, and never updates a live row: an import must
+      // not clobber one. A soft-deleted row holding the key is different — it is
+      // an undone import or a deleted transaction, and the unique index would
+      // otherwise make it unimportable forever — so un-delete it in place,
+      // leaving its own columns (a since-edited amount, a category) alone
       const insertedIds: number[] = []
       for (const row of rows) {
         const inserted = tx
@@ -188,7 +190,23 @@ export function registerImportIpc(): void {
           .onConflictDoNothing({ target: [transactions.accountId, transactions.simplefinId] })
           .returning({ id: transactions.id })
           .get()
-        if (inserted) insertedIds.push(inserted.id)
+        if (inserted) {
+          insertedIds.push(inserted.id)
+          continue
+        }
+        const restored = tx
+          .update(transactions)
+          .set({ deletedAt: null })
+          .where(
+            and(
+              eq(transactions.accountId, accountId),
+              eq(transactions.simplefinId, row.externalId),
+              isNotNull(transactions.deletedAt)
+            )
+          )
+          .returning({ id: transactions.id })
+          .get()
+        if (restored) insertedIds.push(restored.id)
       }
 
       if (insertedIds.length > 0) {

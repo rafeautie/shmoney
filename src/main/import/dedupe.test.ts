@@ -52,14 +52,17 @@ describe('assignExternalIds', () => {
 describe('annotateDuplicates', () => {
   const [imported] = assignExternalIds([row()])
 
-  it('marks exact external-id matches as duplicate, including soft-deleted ones', () => {
+  it('marks exact external-id matches against a live row as duplicate', () => {
     const live = annotateDuplicates([imported], [existing({ simplefinId: imported.externalId })])
     expect(live[0].status).toBe('duplicate')
+  })
+
+  it('leaves a soft-deleted id match importable, so an undone import can be redone', () => {
     const deleted = annotateDuplicates(
       [imported],
       [existing({ simplefinId: imported.externalId, deletedAt: 123, posted: 0, amount: 0 })]
     )
-    expect(deleted[0].status).toBe('duplicate')
+    expect(deleted[0].status).toBe('new')
   })
 
   it('marks same-day same-amount rows as probable', () => {

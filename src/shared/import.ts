@@ -40,6 +40,18 @@ export const CSV_DATE_FORMATS = [
   'MMMM d, yyyy'
 ] as const
 
+/**
+ * What the sign of a single amount column means. Plenty of banks export every
+ * amount as a positive number and leave the direction to a column the importer
+ * doesn't read, so the user states it once for the file.
+ *
+ * asIs — keep the sign the column carries
+ * expense — every row is money out (force negative)
+ * income — every row is money in (force positive)
+ */
+export const AMOUNT_SIGNS = ['asIs', 'expense', 'income'] as const
+export type AmountSign = (typeof AMOUNT_SIGNS)[number]
+
 // CSV column roles, by column index (headers can repeat; indexes can't).
 // Amounts are either one signed column or separate debit/credit columns.
 export const csvMappingSchema = z.object({
@@ -48,7 +60,11 @@ export const csvMappingSchema = z.object({
   dateFormat: z.string().min(1),
   descriptionColumn: z.number().int().nonnegative(),
   amount: z.discriminatedUnion('kind', [
-    z.object({ kind: z.literal('single'), column: z.number().int().nonnegative() }),
+    z.object({
+      kind: z.literal('single'),
+      column: z.number().int().nonnegative(),
+      sign: z.enum(AMOUNT_SIGNS).default('asIs')
+    }),
     z.object({
       kind: z.literal('debitCredit'),
       debitColumn: z.number().int().nonnegative(),
@@ -88,7 +104,9 @@ export const importPreviewInputSchema = z.object({
 export type ImportPreviewInput = z.infer<typeof importPreviewInputSchema>
 
 /**
- * duplicate — externalId already exists in the target account (never importable)
+ * duplicate — externalId already exists live in the target account (never
+ *             importable). A soft-deleted match is importable: applying restores
+ *             that row rather than inserting a second one.
  * probable  — an existing row has the same posted day + amount (opt-in)
  */
 export type ImportRowStatus = 'new' | 'duplicate' | 'probable'
