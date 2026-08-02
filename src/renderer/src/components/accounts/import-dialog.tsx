@@ -72,8 +72,8 @@ export function ImportDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** A file that arrived from outside the dialog (dropped on the window, or
-   * opened from the OS); skips the file-picking step. Must be referentially
+  /** A file that arrived from outside the dialog (opened from the OS through a
+   * file association); skips the file-picking step. Must be referentially
    * stable while the dialog is open. */
   initialFile?: { fileName: string; bytes: Uint8Array }
 }): React.JSX.Element {
@@ -262,10 +262,9 @@ export function ImportDialog({
               }}
               onDragLeave={() => setDragging(false)}
               onDrop={(e) => {
+                // without this the browser handles the drop itself, which in
+                // Electron means trying to open the file in the window
                 e.preventDefault()
-                // ImportFileHost listens for drops on the document as the
-                // window-wide fallback; this zone has handled it already
-                e.stopPropagation()
                 setDragging(false)
                 const dropped = e.dataTransfer.files[0]
                 if (dropped) void dropFile(dropped)
