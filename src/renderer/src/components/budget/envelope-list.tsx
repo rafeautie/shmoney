@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -14,10 +14,13 @@ import { cn, currencySymbol, parseDollars, TABLE_BLEED } from '@/lib/utils'
 
 export function EnvelopeList({
   summary,
-  className
+  className,
+  children
 }: {
   summary: BudgetSummary
   className?: string
+  /** trails the table inside the same scroll region (the savings goals section) */
+  children?: ReactNode
 }) {
   const queryClient = useQueryClient()
   const invalidate = () => {
@@ -138,6 +141,7 @@ export function EnvelopeList({
           )}
         </TableBody>
       </table>
+      {children}
     </ScrollArea>
   )
 }

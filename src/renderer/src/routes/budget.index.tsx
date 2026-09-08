@@ -1,12 +1,14 @@
 import { useState } from 'react'
+import type { BudgetSummary } from '@shared/budgets'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowLeft01Icon, ArrowRight01Icon, PiggyBankIcon } from '@hugeicons/core-free-icons'
 import { AddEnvelopeButton } from '@/components/budget/add-envelope-dialog'
 import { EnvelopeList } from '@/components/budget/envelope-list'
-import { StatCards } from '@/components/stat-cards'
+import { SavingsGoalsSection } from '@/components/budget/savings-goals-section'
+import { Amount } from '@/components/amount'
+import { StatCards, type Stat } from '@/components/stat-cards'
 import { Button } from '@/components/ui/button'
 import {
   Empty,
@@ -17,21 +19,12 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatMonthLong } from '@/lib/format-date'
+import { useSavingsGoals, type SavingsGoals } from '@/hooks/use-savings-goals'
+import { currentMonth, formatMonthLong, shiftMonth } from '@/lib/format-date'
 
 export const Route = createFileRoute('/budget/')({
   component: BudgetPage
 })
-
-// months are 'YYYY-MM' strings throughout, matching the budget engine's buckets
-function currentMonth(): string {
-  return format(new Date(), 'yyyy-MM')
-}
-
-function shiftMonth(month: string, delta: number): string {
-  const [y, m] = month.split('-').map(Number)
-  return format(new Date(y, m - 1 + delta, 1), 'yyyy-MM')
-}
 
 // planning horizon: fills inherit forward, so anything past a year out is noise
 const MAX_MONTHS_AHEAD = 12
@@ -46,6 +39,7 @@ function BudgetPage() {
   })
   const summary = summaryQuery.data
   const budgetedIds = summary?.envelopes.map((e) => e.categoryId) ?? []
+  const goals = useSavingsGoals(month, summary?.currency ?? '')
 
   const today = currentMonth()
   const maxMonth = shiftMonth(today, MAX_MONTHS_AHEAD)
@@ -95,16 +89,8 @@ function BudgetPage() {
           </div>
         </div>
 
-        {summary !== undefined && summary.envelopes.length > 0 && (
-          <StatCards
-            stats={[
-              { label: 'Budgeted', value: summary.totals.fill, colored: false },
-              { label: 'Spent', value: summary.totals.spent, colored: false },
-              // the one number where sign is the story: total rolled-forward balance
-              { label: 'Available', value: summary.totals.balance, colored: true }
-            ]}
-            currency={summary.currency}
-          />
+        {summary !== undefined && (summary.envelopes.length > 0 || goals.rows.length > 0) && (
+          <StatCards stats={statCards(summary, goals)} currency={summary.currency} />
         )}
       </div>
 
@@ -114,7 +100,7 @@ function BudgetPage() {
           <Skeleton className="h-64 w-full" />
         </div>
       ) : summary.envelopes.length === 0 ? (
-        <div className="px-6 pb-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
           <Empty className="border">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -132,10 +118,53 @@ function BudgetPage() {
               </AddEnvelopeButton>
             </EmptyContent>
           </Empty>
+          <SavingsGoalsSection
+            goals={goals}
+            currency={summary.currency}
+            hasEnvelopes={false}
+            className="-mx-6"
+          />
         </div>
       ) : (
-        <EnvelopeList summary={summary} className="min-h-0 flex-1" />
+        <EnvelopeList summary={summary} className="min-h-0 flex-1">
+          <SavingsGoalsSection goals={goals} currency={summary.currency} hasEnvelopes />
+        </EnvelopeList>
       )}
     </div>
   )
+}
+
+/**
+ * The three envelope figures, plus a fourth for savings when goals exist.
+ *
+ * Planned savings deliberately does not reduce `Available`. `Available` is the
+ * accumulated rollover balance across every month an envelope has existed, and
+ * subtracting one month's plan from a cumulative multi-month figure would
+ * drift further from meaning anything with every month that passed. The
+ * comparison the user came for lives in the Saved card's subcaption instead,
+ * where neither number moves the other.
+ */
+function statCards(summary: BudgetSummary, goals: SavingsGoals): Stat[] {
+  const stats: Stat[] = [
+    { label: 'Budgeted', value: summary.totals.fill, colored: false },
+    { label: 'Spent', value: summary.totals.spent, colored: false },
+    // the one number where sign is the story: total rolled-forward balance
+    { label: 'Available', value: summary.totals.balance, colored: true }
+  ]
+  // saved is a fact about a month that has happened; planned is a fact about
+  // today. Only the current month can honestly show both.
+  if (goals.rows.length > 0 && goals.showSaved) {
+    stats.push({
+      label: 'Saved',
+      value: goals.totals.saved,
+      colored: false,
+      sub: goals.showPlanned ? (
+        <>
+          of <Amount value={goals.totals.planned} currency={summary.currency} colored={false} />{' '}
+          planned
+        </>
+      ) : undefined
+    })
+  }
+  return stats
 }
