@@ -20,18 +20,28 @@ import { accounts, transactions } from '../db/schema'
 import { transactionDate } from '../db/expressions'
 
 /**
- * Which transactions count toward an account's delta. Requires `accounts` to be
- * joined, since the cutoff is per-account.
+ * Rows that represent money which has actually moved: not soft-deleted, not
+ * pending.
  *
  * Pending rows are excluded to match what a bank calls the "current" balance,
  * which also keeps the derived value equal to the reported one right after a
  * sync. Their impact stays visible through available-balance and the Pending
  * badge in the transactions table.
+ *
+ * Shared with goals/flow.ts, which applies the same rule with a different
+ * cutoff, so the two spell these clauses once.
+ */
+export function settledRowsWhere(): SQL | undefined {
+  return and(isNull(transactions.deletedAt), eq(transactions.pending, false))
+}
+
+/**
+ * Which transactions count toward an account's delta. Requires `accounts` to be
+ * joined, since the cutoff is per-account.
  */
 export function balanceDeltaWhere(ids?: number[]): SQL | undefined {
   return and(
-    isNull(transactions.deletedAt),
-    eq(transactions.pending, false),
+    settledRowsWhere(),
     // strictly after: a transaction dated at the anchor is already baked into
     // it. Note this also drops unknown-date rows (txn_date 0) on a manual
     // account anchored at 0 — theoretical, since sync, import, and manual
