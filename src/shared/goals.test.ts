@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { goalCreateSchema, goalUpdateSchema, startInstantForDay } from './goals'
+import {
+  goalCreateSchema,
+  goalSeriesQuerySchema,
+  goalUpdateSchema,
+  resolveGoalQuery,
+  startInstantForDay
+} from './goals'
+import { DEFAULT_WIDGET_CONFIG, type ResolvedQuery, type WidgetConfig } from './reports'
 
 describe('startInstantForDay', () => {
   it('is the last second before the day begins, in local time', () => {
@@ -54,5 +61,53 @@ describe('goal input schemas', () => {
   it('has no mode on update: it cannot change after creation', () => {
     const parsed = goalUpdateSchema.parse({ id: 1, mode: 'balance' })
     expect(parsed).not.toHaveProperty('mode')
+  })
+})
+
+describe('resolveGoalQuery', () => {
+  const config: WidgetConfig = {
+    ...DEFAULT_WIDGET_CONFIG,
+    query: { ...DEFAULT_WIDGET_CONFIG.query, source: 'goals', goalIds: [3, 7] }
+  }
+  const resolved: ResolvedQuery = {
+    measure: 'expense',
+    groupBy: 'category',
+    timeGrain: 'month',
+    filters: {
+      dateStart: 1_700_000_000,
+      dateEnd: 1_800_000_000,
+      direction: 'income',
+      includePending: false,
+      includeTransfers: true,
+      accountIds: [1],
+      categoryIds: [2]
+    }
+  }
+
+  it('carries the goal selection, the grain and the resolved range', () => {
+    expect(resolveGoalQuery(config, resolved)).toEqual({
+      goalIds: [3, 7],
+      timeGrain: 'month',
+      dateStart: 1_700_000_000,
+      dateEnd: 1_800_000_000
+    })
+  })
+
+  it('carries nothing else: a goal defines its own accounts and start instant', () => {
+    expect(Object.keys(resolveGoalQuery(config, resolved)).sort()).toEqual([
+      'dateEnd',
+      'dateStart',
+      'goalIds',
+      'timeGrain'
+    ])
+  })
+
+  it('leaves goalIds undefined when the widget picks every active goal', () => {
+    const all = { ...config, query: { ...config.query, goalIds: undefined } }
+    expect(resolveGoalQuery(all, resolved).goalIds).toBeUndefined()
+  })
+
+  it('parses into the series query schema', () => {
+    expect(goalSeriesQuerySchema.safeParse(resolveGoalQuery(config, resolved)).success).toBe(true)
   })
 })

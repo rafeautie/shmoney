@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { idSchema } from './ipc'
-import { timeGrainSchema } from './reports'
+import { timeGrainSchema, type ResolvedQuery, type WidgetConfig } from './reports'
 
 // Savings goals: a target amount backed by the user's own accounts. Progress is
 // derived from transactions, never typed in, so a goal can't drift from the
@@ -126,6 +126,21 @@ export type GoalSeriesQuery = z.infer<typeof goalSeriesQuerySchema>
 export function startInstantForDay(day: string): number {
   const [y, m, d] = day.split('-').map(Number)
   return Math.floor(new Date(y, m - 1, d).getTime() / 1000) - 1
+}
+
+/**
+ * The goal-series query behind a report widget. Only the resolved date range
+ * carries over from the filter bar: a goal defines its own accounts and its own
+ * start instant, so narrowing it by categories or direction would produce a
+ * number that isn't the goal's progress.
+ */
+export function resolveGoalQuery(config: WidgetConfig, resolved: ResolvedQuery): GoalSeriesQuery {
+  return {
+    goalIds: config.query.goalIds,
+    timeGrain: resolved.timeGrain,
+    dateStart: resolved.filters.dateStart,
+    dateEnd: resolved.filters.dateEnd
+  }
 }
 
 export const GOALS_IPC = {

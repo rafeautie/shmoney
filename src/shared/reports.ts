@@ -141,11 +141,24 @@ export const widgetTypeSchema = z.enum([
   'stat',
   'summaryTable',
   'transactions',
-  'budget'
+  'budget',
+  'goals'
 ])
 export type WidgetType = z.infer<typeof widgetTypeSchema>
 
+/**
+ * Where a widget's rows come from. `goals` reads goals:series, which speaks the
+ * same QueryRow shape, so every chart type plots goals with no new drawing code.
+ * Defaulted because widgetConfigSchema failing to parse degrades a stored widget
+ * to a "reconfigure" card: only a defaulted field can be added safely.
+ */
+export const widgetSourceSchema = z.enum(['transactions', 'goals'])
+export type WidgetSource = z.infer<typeof widgetSourceSchema>
+
 export const widgetQuerySchema = z.object({
+  source: widgetSourceSchema.default('transactions'),
+  /** goal sources only; undefined = every active goal */
+  goalIds: z.array(idSchema).optional(),
   measure: measureSchema,
   groupBy: groupBySchema,
   timeGrain: timeGrainSchema,
@@ -156,6 +169,10 @@ export const widgetQuerySchema = z.object({
   limit: z.number().int().min(1).max(50).optional()
 })
 export type WidgetQuery = z.infer<typeof widgetQuerySchema>
+
+/** goals widgets: which visualization of the goal list to render */
+export const goalViewSchema = z.enum(['list', 'bars'])
+export type GoalView = z.infer<typeof goalViewSchema>
 
 /** budget widgets: which visualization of the envelope summary to render */
 export const budgetViewSchema = z.enum(['list', 'bars', 'balances', 'donut', 'radial'])
@@ -169,14 +186,21 @@ export const widgetConfigSchema = z.object({
       stacked: z.boolean().optional(),
       donut: z.boolean().optional(),
       showLegend: z.boolean().optional(),
-      budgetView: budgetViewSchema.optional()
+      budgetView: budgetViewSchema.optional(),
+      goalView: goalViewSchema.optional()
     })
     .optional()
 })
 export type WidgetConfig = z.infer<typeof widgetConfigSchema>
 
 export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
-  query: { measure: 'expense', groupBy: 'none', timeGrain: 'month', cumulative: false },
+  query: {
+    source: 'transactions',
+    measure: 'expense',
+    groupBy: 'none',
+    timeGrain: 'month',
+    cumulative: false
+  },
   filters: { mode: 'inherit', overrides: {} }
 }
 
