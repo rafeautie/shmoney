@@ -28,7 +28,7 @@ import type {
   WorkerCommand,
   WorkerMessage
 } from './protocol'
-import type { ChatToolScope } from './tools/sql-tool'
+import type { ChatToolScope, GoalTableRows } from './tools/sql-tool'
 import type { ChatHistoryItem } from 'node-llama-cpp'
 
 const log = createLogger('llm')
@@ -259,10 +259,12 @@ class LlmManager {
       toolScope: ChatToolScope
       /** the scope's display currency; the worker stamps it into chart payloads */
       currency: string | null
+      /** rows for the turn's goal tables, computed by the goals spine in main */
+      goalRows: GoalTableRows
       onPart: (index: number, part: StreamingChatPart) => void
     }
   ): Promise<ChatGenerationResult> {
-    const { signal, toolScope, currency, onPart } = opts
+    const { signal, toolScope, currency, goalRows, onPart } = opts
 
     // register the handler before the command is posted so no early patch can
     // slip past. Each patch carries the full part, so coalescing is just
@@ -286,7 +288,7 @@ class LlmManager {
 
     try {
       const result = await this.withModel(signal, () =>
-        this.sendWithId(id, { type: 'chat', history, prompt, toolScope, currency })
+        this.sendWithId(id, { type: 'chat', history, prompt, toolScope, currency, goalRows })
       )
       return result as ChatGenerationResult
     } finally {
