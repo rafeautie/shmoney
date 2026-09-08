@@ -13,6 +13,7 @@ import { registerActionLogIpc } from './ipc/action-log'
 import { registerReportsIpc } from './ipc/reports'
 import { registerBudgetsIpc } from './ipc/budgets'
 import { registerSavedFiltersIpc } from './ipc/saved-filters'
+import { registerGoalsIpc } from './ipc/goals'
 import { registerRulesIpc } from './ipc/rules'
 import { registerRuleSuggestionsIpc } from './ipc/rule-suggestions'
 import { registerSettingsIpc } from './ipc/settings'
@@ -179,6 +180,7 @@ if (!app.requestSingleInstanceLock()) {
     registerReportsIpc()
     registerBudgetsIpc()
     registerSavedFiltersIpc()
+    registerGoalsIpc()
     registerRulesIpc()
     registerRuleSuggestionsIpc()
     registerSettingsIpc()

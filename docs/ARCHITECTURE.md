@@ -27,7 +27,7 @@ flowchart TB
     subgraph main["Main process"]
         direction TB
         ipc["IPC handlers (src/main/ipc/*)<br/>zod-validated inputs"]
-        domain["Domain modules<br/>simplefin · import · rules<br/>transfers · reports · budgets · action-log"]
+        domain["Domain modules<br/>simplefin · import · rules<br/>transfers · reports · budgets · goals · action-log"]
         drizzle[("SQLite (better-sqlite3 + drizzle)<br/>userData/shmoney.db<br/>amounts as integer milliunits")]
         ipc --> domain --> drizzle
         ipc --> drizzle
@@ -241,7 +241,7 @@ flowchart TB
 SQLite via drizzle. Money is stored as integer milliunits (`value * 1000`) so
 SQL aggregates stay exact; timestamps are unix seconds except `action_log`,
 `conversations`, and `chat_messages`, which use milliseconds. Deletes on
-`transactions`, `saved_filters`, and `conversations` are soft.
+`transactions`, `saved_filters`, `savings_goals`, and `conversations` are soft.
 
 ```mermaid
 erDiagram
@@ -253,6 +253,8 @@ erDiagram
     categories |o--o{ transactions : "set null"
     categories ||--o{ budgets : cascade
     categories ||--o{ rule_suggestions : cascade
+    savings_goals ||--o{ savings_goal_accounts : cascade
+    accounts ||--o{ savings_goal_accounts : cascade
     reports ||--o{ report_widgets : cascade
     conversations ||--o{ chat_messages : cascade
 
@@ -351,6 +353,26 @@ erDiagram
         integer created_at
         integer updated_at
         integer deleted_at "soft delete; purged at startup"
+    }
+
+    savings_goals {
+        integer id PK
+        text name
+        text mode "balance | contributions"
+        integer target_amount "milliunits"
+        text target_date "YYYY-MM-DD; compared in JS, never in SQL"
+        integer started_at "rows count strictly after it"
+        integer baseline_amount "pace line origin; never progress"
+        text currency
+        integer created_at
+        integer updated_at
+        integer archived_at
+        integer deleted_at "soft delete; purged at startup"
+    }
+
+    savings_goal_accounts {
+        integer goal_id PK "FK cascade"
+        integer account_id PK "FK cascade"
     }
 
     rules {

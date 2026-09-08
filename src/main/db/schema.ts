@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
-import { sqliteTable, integer, text, uniqueIndex, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, integer, text, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core'
 // type-only imports: erased at compile time, so drizzle-kit never resolves them at runtime
+import type { GoalMode } from '../../shared/goals'
 import type { ReportFilters, WidgetConfig, WidgetType } from '../../shared/reports'
 import type { TransactionFilters } from '../../shared/transaction-filters'
 import type { ActionChange, SfinError } from '../../shared/ipc'
@@ -265,6 +266,44 @@ export const budgets = sqliteTable(
   (t) => [uniqueIndex('budgets_category_month_ux').on(t.categoryId, t.month)]
 )
 
+// a target amount backed by accounts; progress is derived (main/goals/saved.ts),
+// never stored, so a goal can't drift from the accounts it tracks
+export const savingsGoals = sqliteTable('savings_goals', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  // fixed for the goal's life
+  mode: text('mode').$type<GoalMode>().notNull(),
+  // integer milliunits, > 0 (enforced in zod)
+  targetAmount: integer('target_amount').notNull(),
+  // 'YYYY-MM-DD' local date, compared in JS only; never used in SQL
+  targetDate: text('target_date'),
+  // unix seconds, like accounts.balance_date: rows count strictly after it
+  startedAt: integer('started_at').notNull(),
+  // where the pace line starts; never part of progress
+  baselineAmount: integer('baseline_amount').notNull().default(0),
+  // copied at creation, so the goal keeps one after its last account is deleted
+  currency: text('currency').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  archivedAt: integer('archived_at'),
+  // soft delete, same convention as saved_filters; purged at next startup
+  deletedAt: integer('deleted_at')
+})
+
+// deleting an account cascades the link away but leaves the goal
+export const savingsGoalAccounts = sqliteTable(
+  'savings_goal_accounts',
+  {
+    goalId: integer('goal_id')
+      .notNull()
+      .references(() => savingsGoals.id, { onDelete: 'cascade' }),
+    accountId: integer('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' })
+  },
+  (t) => [primaryKey({ columns: [t.goalId, t.accountId] })]
+)
+
 // chat conversations with the local model. Deleting is a soft delete (undo
 // toast, same convention as transactions.deletedAt); messages stay attached
 // and come back with an undo. Soft-deleted rows still around at the next
@@ -324,5 +363,6 @@ export type ActionLogRow = typeof actionLog.$inferSelect
 export type RuleRow = typeof rules.$inferSelect
 export type RuleSuggestionRow = typeof ruleSuggestions.$inferSelect
 export type BudgetRow = typeof budgets.$inferSelect
+export type SavingsGoalRow = typeof savingsGoals.$inferSelect
 export type ConversationRow = typeof conversations.$inferSelect
 export type ChatMessageRow = typeof chatMessages.$inferSelect

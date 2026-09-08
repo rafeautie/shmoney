@@ -107,6 +107,15 @@ import {
   type BudgetSummary,
   type BudgetSummaryQuery
 } from '@shared/budgets'
+import {
+  GOALS_IPC,
+  type GoalCreateInput,
+  type GoalRemoveInput,
+  type GoalRemoveResult,
+  type GoalSeriesQuery,
+  type GoalSummary,
+  type GoalUpdateInput
+} from '@shared/goals'
 
 const api = {
   connection: {
@@ -200,6 +209,20 @@ const api = {
     /** Deletes all of a category's fill rows; undo via actionLog.undoEntry(actionId) */
     remove: (input: BudgetRemoveInput): Promise<BudgetRemoveResult> =>
       ipcRenderer.invoke(BUDGETS_IPC.remove, input)
+  },
+  goals: {
+    /** Archived goals included, sorted last */
+    list: (): Promise<GoalSummary[]> => ipcRenderer.invoke(GOALS_IPC.list),
+    create: (input: GoalCreateInput): Promise<GoalSummary> =>
+      ipcRenderer.invoke(GOALS_IPC.create, input),
+    update: (input: GoalUpdateInput): Promise<GoalSummary> =>
+      ipcRenderer.invoke(GOALS_IPC.update, input),
+    /** Soft delete; undo via actionLog.undoEntry(actionId) */
+    remove: (input: GoalRemoveInput): Promise<GoalRemoveResult> =>
+      ipcRenderer.invoke(GOALS_IPC.remove, input),
+    /** In the report system's row shape */
+    series: (query: GoalSeriesQuery): Promise<RunQueryResult> =>
+      ipcRenderer.invoke(GOALS_IPC.series, query)
   },
   savedFilters: {
     list: (): Promise<SavedFilter[]> => ipcRenderer.invoke(SAVED_FILTERS_IPC.list),

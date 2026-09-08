@@ -204,6 +204,13 @@
       "when": 1785052093203,
       "tag": "0028_saved_filter_soft_delete",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "6",
+      "when": 1788842593789,
+      "tag": "0029_savings_goals",
+      "breakpoints": true
     }
   ]
 }

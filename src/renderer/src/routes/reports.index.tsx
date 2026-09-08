@@ -5,7 +5,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Analytics01Icon, ArrowDown01Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons'
 import { format } from 'date-fns'
 import type { ReportCreateInput, ReportSummary } from '@shared/reports'
-import { SPENDING_OVERVIEW_TEMPLATE } from '@/lib/report-templates'
+import { SAVINGS_GOALS_TEMPLATE, SPENDING_OVERVIEW_TEMPLATE } from '@/lib/report-templates'
 import { reportsOptions } from '@/lib/queries'
 import { Page } from '@/components/page'
 import { Button } from '@/components/ui/button'
@@ -76,6 +76,9 @@ function ReportsPage() {
             <DropdownMenuItem onClick={() => createMutation.mutate(SPENDING_OVERVIEW_TEMPLATE)}>
               Spending Overview template
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => createMutation.mutate(SAVINGS_GOALS_TEMPLATE)}>
+              Savings Goals template
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -100,6 +103,13 @@ function ReportsPage() {
               disabled={createMutation.isPending}
             >
               Start with Spending Overview
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => createMutation.mutate(SAVINGS_GOALS_TEMPLATE)}
+              disabled={createMutation.isPending}
+            >
+              Start with Savings Goals
             </Button>
             <Button
               variant="outline"

@@ -8,7 +8,13 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       title: 'Income',
       type: 'stat',
       config: {
-        query: { measure: 'income', groupBy: 'none', timeGrain: 'none', cumulative: false },
+        query: {
+          source: 'transactions',
+          measure: 'income',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 0,
@@ -20,7 +26,13 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       title: 'Expenses',
       type: 'stat',
       config: {
-        query: { measure: 'expense', groupBy: 'none', timeGrain: 'none', cumulative: false },
+        query: {
+          source: 'transactions',
+          measure: 'expense',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 4,
@@ -32,7 +44,13 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       title: 'Net',
       type: 'stat',
       config: {
-        query: { measure: 'sum', groupBy: 'none', timeGrain: 'none', cumulative: false },
+        query: {
+          source: 'transactions',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 8,
@@ -45,6 +63,7 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       type: 'bar',
       config: {
         query: {
+          source: 'transactions',
           measure: 'expense',
           groupBy: 'categoryGroup',
           timeGrain: 'month',
@@ -63,6 +82,7 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       type: 'radial',
       config: {
         query: {
+          source: 'transactions',
           measure: 'expense',
           groupBy: 'category',
           timeGrain: 'none',
@@ -81,7 +101,13 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       title: 'Cumulative net',
       type: 'line',
       config: {
-        query: { measure: 'sum', groupBy: 'none', timeGrain: 'month', cumulative: true },
+        query: {
+          source: 'transactions',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'month',
+          cumulative: true
+        },
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 0,
@@ -94,6 +120,7 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       type: 'radar',
       config: {
         query: {
+          source: 'transactions',
           measure: 'expense',
           groupBy: 'categoryGroup',
           timeGrain: 'none',
@@ -111,13 +138,106 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       title: 'Transactions',
       type: 'transactions',
       config: {
-        query: { measure: 'sum', groupBy: 'none', timeGrain: 'none', cumulative: false },
+        query: {
+          source: 'transactions',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 0,
       y: 11,
       w: 12,
       h: 6
+    }
+  ]
+}
+
+/** Starter report for savings goals, offered alongside Spending Overview. */
+export const SAVINGS_GOALS_TEMPLATE: ReportCreateInput = {
+  name: 'Savings Goals',
+  widgets: [
+    {
+      title: 'Progress',
+      type: 'goals',
+      config: {
+        query: {
+          source: 'transactions',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
+        filters: { mode: 'inherit', overrides: {} },
+        display: { goalView: 'bars' }
+      },
+      x: 0,
+      y: 0,
+      w: 8,
+      h: 5
+    },
+    {
+      title: 'Saved per goal',
+      type: 'stat',
+      config: {
+        query: {
+          source: 'goals',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
+        filters: { mode: 'inherit', overrides: {} }
+      },
+      x: 8,
+      y: 0,
+      w: 4,
+      h: 5
+    },
+    {
+      title: 'Saved over time',
+      type: 'line',
+      config: {
+        query: {
+          source: 'goals',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'month',
+          cumulative: false
+        },
+        filters: {
+          mode: 'inherit',
+          overrides: {
+            dateRange: { kind: 'relative', unit: 'month', count: 12, includeCurrent: true }
+          }
+        },
+        display: { showLegend: true }
+      },
+      x: 0,
+      y: 5,
+      w: 8,
+      h: 5
+    },
+    {
+      title: 'Goals',
+      type: 'goals',
+      config: {
+        query: {
+          source: 'transactions',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
+        filters: { mode: 'inherit', overrides: {} },
+        display: { goalView: 'list' }
+      },
+      x: 8,
+      y: 5,
+      w: 4,
+      h: 5
     }
   ]
 }

@@ -40,6 +40,7 @@ Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and 
 - 💬 **Chat with your finances (experimental).** Ask the same on-device model questions about your finances; it runs read-only SQL queries and can chart the results, scoped to one account if you like, fully offline with history stored locally.
 - ⚡ **Rules engine.** Prioritized rules run on every sync; the app suggests new ones from how you categorize.
 - ✉️ **Envelope budgeting.** Assign monthly amounts to category envelopes and track what remains.
+- 🎯 **Savings goals.** Point a goal at the accounts your savings land in; progress and pace are derived from your transactions, never typed in.
 - 📊 **Custom reports.** Drag-and-drop dashboards with chart, table, and stat widgets, plus saved filters.
 - 🔁 **Transfer detection.** Money moved between your own accounts is excluded from income and spending.
 - ↩️ **Activity log with undo.** Every change is recorded and reversible, even across restarts.

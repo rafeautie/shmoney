@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { scopeViewsDdl } from './sql-tool'
+import { goalTableDdl, scopeViewsDdl } from './sql-tool'
 import { migratedDb } from '../test-db'
 
 // The scope views are the seam that hands the model its data, and their whole
@@ -345,5 +345,60 @@ describe('scope views: narrowing', () => {
 
   it('leaves budgets whole, since they are per-category rather than per-account', () => {
     expect(query(open(2), 'SELECT amount FROM budgets')).toEqual([{ amount: 30 }])
+  })
+})
+
+describe('goal tables', () => {
+  it('matches its snapshot', () => {
+    expect(goalTableDdl()).toMatchInlineSnapshot(`
+      [
+        "DROP TABLE IF EXISTS temp.goals",
+        "CREATE TEMP TABLE goals (id INTEGER, name TEXT, mode TEXT, accounts TEXT, currency TEXT, target REAL, saved REAL, remaining REAL, percent_complete REAL, status TEXT, target_date TEXT, started_at TEXT, needed_per_month REAL, average_per_month REAL, projected_date TEXT)",
+        "DROP TABLE IF EXISTS temp.goal_history",
+        "CREATE TEMP TABLE goal_history (goal_id INTEGER, goal TEXT, month TEXT, saved REAL)",
+      ]
+    `)
+  })
+
+  // DDL takes no bound parameters, and a goal name is user text
+  it('interpolates no goal value: the DDL is a constant', () => {
+    expect(goalTableDdl()).toEqual(goalTableDdl())
+    expect(goalTableDdl().join(' ')).not.toMatch(/'|\d/)
+  })
+
+  it('creates both tables with the columns the prompt names', () => {
+    const db = migratedDb()
+    for (const ddl of goalTableDdl()) db.exec(ddl)
+    expect(query(db, 'PRAGMA table_info(goals)').map((c) => c.name)).toEqual([
+      'id',
+      'name',
+      'mode',
+      'accounts',
+      'currency',
+      'target',
+      'saved',
+      'remaining',
+      'percent_complete',
+      'status',
+      'target_date',
+      'started_at',
+      'needed_per_month',
+      'average_per_month',
+      'projected_date'
+    ])
+    expect(query(db, 'PRAGMA table_info(goal_history)').map((c) => c.name)).toEqual([
+      'goal_id',
+      'goal',
+      'month',
+      'saved'
+    ])
+  })
+
+  it('re-runs cleanly, so a second turn refills rather than fails', () => {
+    const db = migratedDb()
+    for (const ddl of goalTableDdl()) db.exec(ddl)
+    expect(() => {
+      for (const ddl of goalTableDdl()) db.exec(ddl)
+    }).not.toThrow()
   })
 })

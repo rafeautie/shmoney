@@ -1,6 +1,6 @@
 import type { StreamingChatPart } from '@shared/chat'
 import type { LlmDownloadProgress, ModelId, ModelStage, RuntimeStage } from '@shared/llm'
-import type { ChatToolScope } from './tools/sql-tool'
+import type { ChatToolScope, GoalTableRows } from './tools/sql-tool'
 // type-only: erased at compile time, so the manager still never runtime-imports
 // node-llama-cpp (the worker is the only place that does)
 import type { ChatHistoryItem } from 'node-llama-cpp'
@@ -43,6 +43,9 @@ export type WorkerCommand =
       // parts carry it from the source. Kept beside toolScope rather than in
       // it: ChatToolScope belongs to the query tool's view scoping.
       currency: string | null
+      // the turn's goal tables, worked out by main/goals: the worker has no
+      // route to the main database, and pace has only one implementation
+      goalRows: GoalTableRows
     }
 
 /** reply payload of a 'chat' command: the assistant row's parts in their
