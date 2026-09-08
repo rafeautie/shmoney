@@ -1,8 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { widgetConfigSchema } from './reports'
 
-// A config that fails to parse degrades a stored widget to a "reconfigure"
-// card, so the goal source could only be added as a defaulted field.
 describe('widgetConfigSchema with the goal source added', () => {
   const stored = {
     query: { measure: 'expense', groupBy: 'category', timeGrain: 'month', cumulative: false },

@@ -261,10 +261,7 @@ export function AccountsControl({
 
 // ---------- goals multiselect ----------
 
-/**
- * Which goals a goal-sourced widget plots. Archived goals are left out: the
- * widget is a status board, not an archive.
- */
+/** Archived goals are left out: the widget is a status board, not an archive. */
 export function GoalsControl({
   value,
   onChange

@@ -122,11 +122,8 @@ function TooltipRow({
   )
 }
 
-/**
- * Goal values are money levels: never a count, and never sign-coloured, because
- * the Goals page shows saved uncoloured too. 'income' is the formatting token
- * for exactly that, so every formatter below needs no goal case of its own.
- */
+/** 'income' is the formatting token for money with no sign colour, which is how
+ * the Goals page shows saved; it spares every formatter below a goal case. */
 function displayMeasure(config: WidgetConfig): Measure {
   return config.query.source === 'goals' ? 'income' : config.query.measure
 }
@@ -190,10 +187,8 @@ function TimeSeriesChart({
   resolved: ResolvedQuery
 }) {
   const grain = config.query.timeGrain as Exclude<TimeGrain, 'none'>
-  // a goal series is a level, not a flow: a running total of a running total is
-  // nonsense, and zero-filling would draw a drop to $0 in a quiet bucket. The
-  // series is already dense (goals/series.ts back-projects every bucket), so the
-  // only holes left are the buckets before the goal existed, which are gaps.
+  // a level, not a flow: a running total of one is nonsense, and zero-filling
+  // would draw a drop to $0 in a bucket that is merely quiet
   const isGoals = config.query.source === 'goals'
   const { data, series, tooManyBuckets } = useMemo(
     () =>
@@ -496,8 +491,7 @@ function StatCardWidget({
   currencies: string[]
 }) {
   const measure = displayMeasure(config)
-  // the group is always the goal, so one card per goal: summing them would
-  // answer a question nobody asked
+  // the group is always the goal, so summing them would answer nobody's question
   if (config.query.source === 'goals') {
     return (
       <ScrollArea className="h-full">
@@ -938,11 +932,8 @@ function BudgetGaugeChart({
 
 // ---------- goals ----------
 
-/**
- * The status board: every active goal, from the same ['goals'] query key the
- * Goals page uses, so a card and a widget open side by side can never disagree.
- * Archived goals are excluded; this is a board, not an archive.
- */
+/** Shares the Goals page's ['goals'] key, so a card and a widget open side by
+ * side can never disagree. */
 function GoalsWidget({ config }: { config: WidgetConfig }) {
   const query = useQuery({
     queryKey: ['goals'],
@@ -973,11 +964,8 @@ function GoalsWidget({ config }: { config: WidgetConfig }) {
   )
 }
 
-/**
- * Saved against target, one horizontal bar per goal, with the target as the
- * track behind it. Tone comes from GOAL_STATUS_TONE, so a behind goal is red
- * here and red on the page.
- */
+/** Saved against target, one bar per goal, toned by GOAL_STATUS_TONE so a behind
+ * goal is red here and red on the page. */
 function GoalBarsChart({ goals }: { goals: GoalSummary[] }) {
   const data = goals.map((goal, i) => ({
     label: goal.name,
@@ -1034,7 +1022,6 @@ function GoalBarsChart({ goals }: { goals: GoalSummary[] }) {
   )
 }
 
-/** Shared by the goals widget and the goal-sourced charts. */
 function NoGoalsNote() {
   return (
     <Empty className="h-full p-4">
@@ -1061,8 +1048,7 @@ function AggregateWidget({
 }) {
   const { resolved, query } = useWidgetData(widget.id, config, reportFilters)
   const isGoals = config.query.source === 'goals'
-  // the goal list answers "which of the empty states is this?"; it shares the
-  // Goals page's key, so it is already in cache whenever the page has been open
+  // the goal list is what tells the empty states apart
   const goalsQuery = useQuery({
     queryKey: ['goals'],
     queryFn: () => window.api.goals.list(),
@@ -1095,8 +1081,7 @@ function AggregateWidget({
     return <CenteredNote>No goals selected. Edit this widget to pick some.</CenteredNote>
   }
 
-  // a goal with no linked account has nothing to derive from, so its line would
-  // be a flat zero: drop it and name it instead
+  // an unlinked goal has nothing to derive from: its line would be a flat zero
   const unlinked = chosen.filter((goal) => goal.accounts.length === 0)
   const note = unlinked.map((goal) => `${goal.name} has no linked account.`).join(' ')
   const linked = new Set(chosen.filter((goal) => goal.accounts.length > 0).map((goal) => goal.id))

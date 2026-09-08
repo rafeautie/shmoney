@@ -76,8 +76,6 @@ export const WidgetCard = memo(function WidgetCard({
       )}
     >
       <div className="flex h-6 shrink-0 items-center gap-2 px-4">
-        {/* one condition covers every chart type sourced from goals: a goal on
-            screen should be one click from the page where it can be edited */}
         {widget.config?.query.source === 'goals' ? (
           <Link
             to="/goals"

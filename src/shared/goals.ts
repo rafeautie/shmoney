@@ -129,10 +129,9 @@ export function startInstantForDay(day: string): number {
 }
 
 /**
- * The goal-series query behind a report widget. Only the resolved date range
- * carries over from the filter bar: a goal defines its own accounts and its own
- * start instant, so narrowing it by categories or direction would produce a
- * number that isn't the goal's progress.
+ * Only the resolved date range carries over from the filter bar: a goal defines
+ * its own accounts and start instant, so narrowing it by categories or direction
+ * would produce a number that isn't its progress.
  */
 export function resolveGoalQuery(config: WidgetConfig, resolved: ResolvedQuery): GoalSeriesQuery {
   return {
