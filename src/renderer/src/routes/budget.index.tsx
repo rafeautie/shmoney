@@ -4,12 +4,10 @@ import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowLeft01Icon, ArrowRight01Icon, PiggyBankIcon } from '@hugeicons/core-free-icons'
-import type { BudgetSummary } from '@shared/budgets'
-import { Amount } from '@/components/amount'
 import { AddEnvelopeButton } from '@/components/budget/add-envelope-dialog'
 import { EnvelopeList } from '@/components/budget/envelope-list'
+import { StatCards } from '@/components/stat-cards'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Empty,
   EmptyContent,
@@ -98,7 +96,15 @@ function BudgetPage() {
         </div>
 
         {summary !== undefined && summary.envelopes.length > 0 && (
-          <SummaryCards summary={summary} />
+          <StatCards
+            stats={[
+              { label: 'Budgeted', value: summary.totals.fill, colored: false },
+              { label: 'Spent', value: summary.totals.spent, colored: false },
+              // the one number where sign is the story: total rolled-forward balance
+              { label: 'Available', value: summary.totals.balance, colored: true }
+            ]}
+            currency={summary.currency}
+          />
         )}
       </div>
 
@@ -130,29 +136,6 @@ function BudgetPage() {
       ) : (
         <EnvelopeList summary={summary} className="min-h-0 flex-1" />
       )}
-    </div>
-  )
-}
-
-function SummaryCards({ summary }: { summary: BudgetSummary }) {
-  const stats = [
-    { label: 'Budgeted', value: summary.totals.fill, colored: false },
-    { label: 'Spent', value: summary.totals.spent, colored: false },
-    // the one number where sign is the story: total rolled-forward balance
-    { label: 'Available', value: summary.totals.balance, colored: true }
-  ]
-  return (
-    <div className="grid grid-cols-3 gap-4">
-      {stats.map((stat) => (
-        <Card key={stat.label} className="py-4">
-          <CardContent className="px-4">
-            <p className="text-sm text-muted-foreground">{stat.label}</p>
-            <p className="text-2xl font-semibold tracking-tight">
-              <Amount value={stat.value} currency={summary.currency} colored={stat.colored} />
-            </p>
-          </CardContent>
-        </Card>
-      ))}
     </div>
   )
 }
