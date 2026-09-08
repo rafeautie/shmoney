@@ -348,8 +348,6 @@ describe('scope views: narrowing', () => {
   })
 })
 
-// The goal tables are the one piece of the chat seam that is filled by INSERT
-// rather than derived by a view, so the DDL is pure and every value is bound.
 describe('goal tables', () => {
   it('matches its snapshot', () => {
     expect(goalTableDdl()).toMatchInlineSnapshot(`
@@ -362,9 +360,7 @@ describe('goal tables', () => {
     `)
   })
 
-  // the guard scopeViewsDdl's accountId check exists for, spelled as a test:
-  // a goal name and its account names are user text, and DDL takes no bound
-  // parameters, so nothing about a goal may reach this string
+  // DDL takes no bound parameters, and a goal name is user text
   it('interpolates no goal value: the DDL is a constant', () => {
     expect(goalTableDdl()).toEqual(goalTableDdl())
     expect(goalTableDdl().join(' ')).not.toMatch(/'|\d/)

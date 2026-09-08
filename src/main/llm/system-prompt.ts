@@ -127,9 +127,8 @@ export function scopeSection(scope: ChatPromptScope): string {
  * fine. The tag's currency code is interpolated from the user's accounts
  * (see cur below), never hardcoded.
  */
-// the goals table's status column, quoted from the one vocabulary every
-// surface reads (shared/goals.ts): the model both filters on the string and
-// says it back, so a word invented here would be a word that matches nothing
+// the model filters on these strings and says them back, so they come from the
+// one vocabulary every surface reads
 const STATUS_VALUES = Object.values(GOAL_STATUS_LABELS)
   .map((label) => `'${label}'`)
   .join(', ')

@@ -66,11 +66,8 @@ function Parts({
   return nodes
 }
 
-// A turn that read the goal tables gets one click back to where a goal can be
-// edited. The renderer decides this on its own, off the SQL the turn actually
-// ran: no protocol field, no model cooperation, nothing new to keep in step.
-// A loose match costs a spare link, never a wrong number, which is what makes a
-// regex proportionate here.
+// decided off the SQL the turn ran, so nothing new has to be kept in step; a
+// loose match costs a spare link, never a wrong number
 const GOAL_QUERY = /\bgoals\b|\bgoal_history\b/i
 
 function queriedGoals(parts: StreamingChatPart[]): boolean {

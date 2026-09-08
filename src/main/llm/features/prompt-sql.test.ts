@@ -108,8 +108,6 @@ function open(): DatabaseSync {
   const db = migratedDb()
   seed(db)
   for (const ddl of scopeViewsDdl({ accountId: null })) db.exec(ddl)
-  // the goals surface is temp tables the worker fills, not views, so the
-  // harness fills them the same way before running the prompt's goal recipes
   seedGoalTables(db)
   return db
 }
@@ -161,12 +159,10 @@ describe('system prompt SQL', () => {
     expect(june).toMatchObject({ income: 500, spending: 20.34, net: 479.66 })
   })
 
-  // the goal recipes read finished columns: a figure the model recomputes from
-  // transactions is a figure that disagrees with the goal card
+  // a figure recomputed from transactions is one that disagrees with the card
   it('reads a goal status readout straight off the row', () => {
     const recipe = RECIPES.find((r) => r.includes('FROM goals'))
     expect(recipe).toBeDefined()
-    // matched on the distinctive word, like every other name in the prompt
     expect(recipe).toContain('LIKE')
     expect(recipe).not.toMatch(/name\s*=/)
     expect(db.prepare(recipe as string).all()).toEqual([
@@ -183,8 +179,6 @@ describe('system prompt SQL', () => {
     ])
   })
 
-  // and the status word is the app's own vocabulary, so a filter or a quoted
-  // label in an answer matches what the tables actually hold
   it('quotes only status words the goals table can hold', () => {
     for (const label of Object.values(GOAL_STATUS_LABELS)) expect(PROMPT).toContain(`'${label}'`)
   })
@@ -195,8 +189,6 @@ describe('system prompt SQL', () => {
     const rows = db.prepare(recipe as string).all() as Record<string, unknown>[]
     expect(rows.length).toBeGreaterThan(2)
     expect(Object.keys(rows[0])).toEqual(['month', 'saved'])
-    // a level, drawn as a line: it only ever climbs here, and the last point is
-    // the goal's saved figure
     expect(rows.at(-1)).toEqual({ month: '2026-07', saved: 3120 })
   })
 

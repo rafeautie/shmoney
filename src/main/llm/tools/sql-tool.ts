@@ -222,18 +222,10 @@ export function shapeResult(
 }
 
 /**
- * The two goal tables the model reads, created before each turn beside the
- * scope views. Tables rather than views: a goal's saved amount, status and
- * pace come from `main/goals`, and re-deriving them in SQL would be a second,
- * slightly wrong definition (pace is calendar-month arithmetic, which SQL can
- * only approximate as 30.44 days). The model reads finished numbers that are
- * character-identical to the ones on the goal card.
- *
- * Pure and value-free on purpose: every row is inserted with bound parameters
- * (see GOAL_INSERT_SQL), because a goal name is user text and inlining
- * untrusted values into DDL is exactly what the accountId guard in
- * scopeViewsDdl exists to prevent. Amounts are divided out of milliunits at
- * insert time, matching every other money column the model sees.
+ * Tables rather than views: pace is calendar-month arithmetic that SQL can only
+ * approximate, so main/goals works it out and the model reads finished numbers.
+ * Value-free on purpose - rows are bound (GOAL_INSERT_SQL), because a goal name
+ * is user text.
  */
 export function goalTableDdl(): string[] {
   return [
@@ -255,8 +247,7 @@ export function goalTableDdl(): string[] {
       'average_per_month REAL, ' +
       'projected_date TEXT)',
     'DROP TABLE IF EXISTS temp.goal_history',
-    // goal rides along as the name so the model never joins for a label, the
-    // same reason transactions carries category and account_name
+    // goal is the name, so the model never joins for a label
     'CREATE TEMP TABLE goal_history (goal_id INTEGER, goal TEXT, month TEXT, saved REAL)'
   ]
 }

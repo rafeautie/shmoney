@@ -33,11 +33,8 @@ export function migratedDb(): DatabaseSync {
 }
 
 /**
- * The goal the system prompt's worked turn asks about, in the same two temp
- * tables the worker fills before a real turn (goalTableDdl plus bound inserts).
- * The figures are the ones the prompt quotes, so a recipe that names a column
- * the tables don't have — or a status word this app doesn't use — fails here
- * rather than in a chat reply.
+ * The goal the prompt's worked turn asks about, in the tables the worker fills
+ * before a real turn, holding the figures the prompt quotes.
  */
 export function seedGoalTables(db: DatabaseSync): void {
   for (const ddl of goalTableDdl()) db.exec(ddl)

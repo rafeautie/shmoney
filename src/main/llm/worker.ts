@@ -155,12 +155,9 @@ function closeToolDb(): void {
 
 /**
  * (Re)build the temp views the model queries through, narrowed to the turn's
- * scope, and refill the goal tables from the rows main sent with the command.
- * query_only lifts only around our own DDL; a failure here must fail the turn
- * (never prompt against a stale scope), so no try/catch beyond restoring the
- * pragma.
- *
- * Goal rows are bound, never interpolated: a goal name is user text.
+ * scope, and refill the goal tables from the rows main sent. query_only lifts
+ * only around our own DDL; a failure here must fail the turn (never prompt
+ * against a stale scope), so no try/catch beyond restoring the pragma.
  */
 function refreshScopeViews(scope: ChatToolScope, goalRows: GoalTableRows): void {
   const db = ensureToolDb()

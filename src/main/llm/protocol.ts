@@ -43,10 +43,8 @@ export type WorkerCommand =
       // parts carry it from the source. Kept beside toolScope rather than in
       // it: ChatToolScope belongs to the query tool's view scoping.
       currency: string | null
-      // rows for the turn's goal tables, already scoped and already worked out
-      // by main/goals. They travel with the command because the worker cannot
-      // reach the main database (it would have to import electron's app), and
-      // because re-deriving pace in SQL would be a second, wrong definition.
+      // the turn's goal tables, worked out by main/goals: the worker has no
+      // route to the main database, and pace has only one implementation
       goalRows: GoalTableRows
     }
 

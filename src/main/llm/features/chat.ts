@@ -430,22 +430,15 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
 const money = (milliunits: number | null): number | null =>
   milliunits === null ? null : milliunits / 1000
 
-/** how many months of goal history chat gets; see GOAL_HISTORY_MONTHS below */
+// monthly, so a goal series and a spending series group on identically
+// formatted labels
 const GOAL_HISTORY_MONTHS = 24
 
 /**
- * The rows behind temp.goals and temp.goal_history, read from the same spine
- * the Goals page and the report widgets read (getGoalSummaries / getGoalSeries),
- * so a figure quoted in chat is the figure on the card by construction rather
- * than by agreement. Built here because the worker is a utilityProcess and
- * cannot reach the main database; it inserts these with bound parameters.
- *
- * A scoped conversation sees only the goals its account backs, and archived
- * goals are left out on both tables, the same way the report widgets leave them
- * out: chat answers "how am I doing", which is a status board. Twenty-four
- * months at monthly grain is the whole history surface: the month bucket is the
- * one the tx view already exposes, so a goal series and a spending series group
- * on identically formatted labels.
+ * The rows behind temp.goals and temp.goal_history, off the same spine the
+ * Goals page reads, so a figure quoted in chat is the figure on the card by
+ * construction. A scoped conversation sees only the goals its account backs;
+ * archived goals are left out, as they are in the report widgets.
  */
 function goalTableRows(accountId: number | null): GoalTableRows {
   const summaries = getGoalSummaries().filter(
@@ -464,7 +457,6 @@ function goalTableRows(accountId: number | null): GoalTableRows {
     money(goal.targetAmount),
     money(goal.progress),
     money(goal.remaining),
-    // a percentage, not money: the data rules keep it outside the amount tags
     goal.targetAmount === 0 ? null : Math.round((goal.progress / goal.targetAmount) * 1000) / 10,
     GOAL_STATUS_LABELS[goal.status],
     goal.targetDate,
