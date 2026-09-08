@@ -259,6 +259,80 @@ export function AccountsControl({
   )
 }
 
+// ---------- goals multiselect ----------
+
+/**
+ * Which goals a goal-sourced widget plots. Archived goals are left out: the
+ * widget is a status board, not an archive.
+ */
+export function GoalsControl({
+  value,
+  onChange
+}: {
+  /** undefined = every active goal */
+  value: number[] | undefined
+  onChange: (ids: number[] | undefined) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const goalsQuery = useQuery({ queryKey: ['goals'], queryFn: () => window.api.goals.list() })
+  const goals = (goalsQuery.data ?? []).filter((goal) => goal.archivedAt === null)
+  const selected = new Set(value ?? [])
+  const label =
+    value === undefined
+      ? 'All active goals'
+      : value.length === 1
+        ? (goals.find((g) => g.id === value[0])?.name ?? '1 goal')
+        : `${value.length} goals`
+
+  function toggle(id: number) {
+    const next = new Set(selected)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onChange(next.size === 0 ? undefined : [...next])
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button variant="outline" size="lg" className="border-input bg-input/20 font-normal" />
+        }
+      >
+        {label}
+        <HugeiconsIcon icon={ArrowDown01Icon} size={14} className="text-muted-foreground" />
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search goals..." />
+          <CommandList>
+            <CommandEmpty>No goals found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem value="all-goals" onSelect={() => onChange(undefined)}>
+                <span className={cn(value !== undefined && 'text-muted-foreground')}>
+                  All active goals
+                </span>
+                {value === undefined && (
+                  <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
+                )}
+              </CommandItem>
+            </CommandGroup>
+            <CommandGroup>
+              {goals.map((goal) => (
+                <CommandItem key={goal.id} value={goal.name} onSelect={() => toggle(goal.id)}>
+                  <span className="truncate">{goal.name}</span>
+                  {selected.has(goal.id) && (
+                    <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 // ---------- categories multiselect ----------
 
 export interface CategoryFilterValue {

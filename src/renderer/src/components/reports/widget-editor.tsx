@@ -6,11 +6,14 @@ import {
   DEFAULT_REPORT_FILTERS,
   DEFAULT_WIDGET_CONFIG,
   type BudgetView,
+  type GoalView,
   type ReportFilters,
   type ReportWidget,
   type WidgetConfig,
+  type WidgetSource,
   type WidgetType
 } from '@shared/reports'
+import { GoalsControl } from './filter-controls'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -53,7 +56,18 @@ const TYPE_LABELS: Record<WidgetType, string> = {
   stat: 'Stat card',
   summaryTable: 'Summary table',
   transactions: 'Transactions table',
-  budget: 'Budget'
+  budget: 'Budget',
+  goals: 'Savings goals'
+}
+
+const SOURCE_LABELS: Record<WidgetSource, string> = {
+  transactions: 'Transactions',
+  goals: 'Savings goals'
+}
+
+const GOAL_VIEW_LABELS: Record<GoalView, string> = {
+  list: 'Goal list',
+  bars: 'Progress bars'
 }
 
 const BUDGET_VIEW_LABELS: Record<BudgetView, string> = {
@@ -105,6 +119,13 @@ function draftFor(widget: ReportWidget | null): Draft {
   return { title: 'New widget', type: 'bar', config: DEFAULT_WIDGET_CONFIG }
 }
 
+/**
+ * Types that can read goals:series. The rest have no goal reading at all, so
+ * normalization forces their source back to transactions rather than leaving a
+ * stored value that nothing would honour.
+ */
+const GOAL_SOURCE_TYPES: WidgetType[] = ['line', 'area', 'bar', 'pie', 'stat', 'summaryTable']
+
 /** Types with a fixed (absent) time axis */
 const NO_TIME_TYPES: WidgetType[] = ['pie', 'radar', 'radial', 'stat', 'summaryTable']
 
@@ -115,10 +136,11 @@ function normalizeForType(config: WidgetConfig, type: WidgetType): WidgetConfig 
   const query = { ...config.query }
   // budget widgets fetch envelope summaries, not aggregates; only the filter
   // date range matters (it picks the viewed month), so pin the query fields
-  if (type === 'budget') {
+  if (type === 'budget' || type === 'goals') {
     query.timeGrain = 'none'
     query.groupBy = 'none'
   }
+  if (!GOAL_SOURCE_TYPES.includes(type)) query.source = 'transactions'
   if (NO_TIME_TYPES.includes(type)) query.timeGrain = 'none'
   if ((type === 'line' || type === 'area') && query.timeGrain === 'none') query.timeGrain = 'month'
   if (GROUPED_TYPES.includes(type) && query.groupBy === 'none') {
@@ -191,6 +213,11 @@ export function WidgetEditor({
   const filters = config.filters
   const isTransactions = draft.type === 'transactions'
   const isBudget = draft.type === 'budget'
+  const isGoalsType = draft.type === 'goals'
+  // measure, group by, cumulative and top-N can't affect a goal series (the
+  // measure is always saved and the group is always the goal), so they're hidden
+  // rather than disabled: a control that does nothing is noise
+  const isGoalSource = query.source === 'goals'
   const isChart = draft.type === 'line' || draft.type === 'bar' || draft.type === 'area'
   const hasTimeAxis = !NO_TIME_TYPES.includes(draft.type) && query.timeGrain !== 'none'
 
@@ -319,49 +346,110 @@ export function WidgetEditor({
               </div>
             )}
 
-            {/* data */}
-            {!isTransactions && !isBudget && (
+            {/* goals widgets read the goal list, not an aggregate query; their
+                one knob is the visualization */}
+            {isGoalsType && (
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold">Data</h4>
+                <div className="space-y-2">
+                  <Label>Goal view</Label>
+                  <Select
+                    value={config.display?.goalView ?? 'list'}
+                    items={GOAL_VIEW_LABELS}
+                    onValueChange={(v) => patchDisplay({ goalView: v as GoalView })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(GOAL_VIEW_LABELS) as GoalView[]).map((view) => (
+                        <SelectItem key={view} value={view}>
+                          {GOAL_VIEW_LABELS[view]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* data */}
+            {!isTransactions && !isBudget && !isGoalsType && (
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold">Data</h4>
+                {GOAL_SOURCE_TYPES.includes(draft.type) && (
+                  <div className="space-y-2">
+                    <Label>Source</Label>
+                    <Select
+                      value={query.source}
+                      items={SOURCE_LABELS}
+                      onValueChange={(v) => patchQuery({ source: v as WidgetSource })}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(SOURCE_LABELS) as WidgetSource[]).map((source) => (
+                          <SelectItem key={source} value={source}>
+                            {SOURCE_LABELS[source]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Measure</Label>
-                    <Select
-                      value={query.measure}
-                      items={MEASURE_LABELS}
-                      onValueChange={(v) => patchQuery({ measure: v as typeof query.measure })}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(MEASURE_LABELS).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Group by</Label>
-                    <Select
-                      value={query.groupBy}
-                      items={GROUP_LABELS}
-                      onValueChange={(v) => patchQuery({ groupBy: v as typeof query.groupBy })}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.entries(GROUP_LABELS).map(([value, label]) => (
-                          <SelectItem key={value} value={value}>
-                            {label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {isGoalSource && (
+                    <div className="space-y-2">
+                      <Label>Goals</Label>
+                      <GoalsControl
+                        value={query.goalIds}
+                        onChange={(goalIds) => patchQuery({ goalIds })}
+                      />
+                    </div>
+                  )}
+                  {!isGoalSource && (
+                    <div className="space-y-2">
+                      <Label>Measure</Label>
+                      <Select
+                        value={query.measure}
+                        items={MEASURE_LABELS}
+                        onValueChange={(v) => patchQuery({ measure: v as typeof query.measure })}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(MEASURE_LABELS).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {!isGoalSource && (
+                    <div className="space-y-2">
+                      <Label>Group by</Label>
+                      <Select
+                        value={query.groupBy}
+                        items={GROUP_LABELS}
+                        onValueChange={(v) => patchQuery({ groupBy: v as typeof query.groupBy })}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(GROUP_LABELS).map(([value, label]) => (
+                            <SelectItem key={value} value={value}>
+                              {label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   {!NO_TIME_TYPES.includes(draft.type) && (
                     <div className="space-y-2">
                       <Label>Time grain</Label>
@@ -395,7 +483,7 @@ export function WidgetEditor({
                       </Select>
                     </div>
                   )}
-                  {GROUPED_TYPES.includes(draft.type) && (
+                  {GROUPED_TYPES.includes(draft.type) && !isGoalSource && (
                     <div className="space-y-2">
                       <Label>Top N groups</Label>
                       <LimitField
@@ -417,7 +505,7 @@ export function WidgetEditor({
                   )}
                 </div>
                 <div className="flex flex-wrap gap-x-6 gap-y-3">
-                  {hasTimeAxis && (
+                  {hasTimeAxis && !isGoalSource && (
                     <SwitchRow
                       label="Cumulative"
                       checked={query.cumulative}
@@ -450,172 +538,199 @@ export function WidgetEditor({
             )}
 
             {/* filters */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-semibold">Filters</h4>
-              <Select
-                value={filters.mode}
-                items={{
-                  inherit: 'Inherit report filters, with overrides',
-                  own: 'Independent of report filters'
-                }}
-                onValueChange={(mode) =>
-                  setDraft((d) => ({
-                    ...d,
-                    config: {
-                      ...d.config,
-                      filters: { ...d.config.filters, mode: mode as 'inherit' | 'own' }
-                    }
-                  }))
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="inherit">Inherit report filters, with overrides</SelectItem>
-                  <SelectItem value="own">Independent of report filters</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <div className="space-y-3">
-                <OverrideRow
-                  label="Date range"
-                  active={overrides.dateRange !== undefined}
-                  onToggle={(on) => patchOverrides({ dateRange: on ? base.dateRange : undefined })}
-                >
-                  <DateRangeControl
-                    value={overrides.dateRange ?? base.dateRange}
-                    disabled={overrides.dateRange === undefined}
-                    onChange={(dateRange) => patchOverrides({ dateRange })}
-                  />
-                </OverrideRow>
-
-                <OverrideRow
-                  label="Accounts"
-                  active={overrides.accountIds !== undefined}
-                  onToggle={(on) =>
-                    patchOverrides({ accountIds: on ? (base.accountIds ?? []) : undefined })
-                  }
-                >
-                  <AccountsControl
-                    value={overrides.accountIds ?? base.accountIds}
-                    disabled={overrides.accountIds === undefined}
-                    onChange={(accountIds) => patchOverrides({ accountIds: accountIds ?? [] })}
-                  />
-                </OverrideRow>
-
-                <OverrideRow
-                  label="Categories"
-                  active={
-                    overrides.categoryIds !== undefined ||
-                    overrides.includeUncategorized !== undefined
-                  }
-                  onToggle={(on) =>
-                    patchOverrides({
-                      categoryIds: on ? (base.categoryIds ?? []) : undefined,
-                      includeUncategorized: on ? base.includeUncategorized : undefined
-                    })
-                  }
-                >
-                  <CategoriesControl
-                    value={{
-                      categoryIds: overrides.categoryIds ?? base.categoryIds,
-                      includeUncategorized:
-                        overrides.includeUncategorized ?? base.includeUncategorized
-                    }}
-                    disabled={
-                      overrides.categoryIds === undefined &&
-                      overrides.includeUncategorized === undefined
-                    }
-                    onChange={({ categoryIds, includeUncategorized }) =>
-                      patchOverrides({
-                        categoryIds: categoryIds ?? [],
-                        includeUncategorized: includeUncategorized ?? false
-                      })
-                    }
-                  />
-                </OverrideRow>
-
-                <OverrideRow
-                  label="Direction"
-                  active={overrides.direction !== undefined}
-                  onToggle={(on) => patchOverrides({ direction: on ? base.direction : undefined })}
-                >
-                  <DirectionControl
-                    value={overrides.direction ?? base.direction}
-                    disabled={overrides.direction === undefined}
-                    onChange={(direction) => patchOverrides({ direction })}
-                  />
-                </OverrideRow>
-
-                <OverrideRow
-                  label="Amount range"
-                  active={overrides.amountMin !== undefined || overrides.amountMax !== undefined}
-                  onToggle={(on) =>
-                    patchOverrides({
-                      amountMin: on ? (base.amountMin ?? 0) : undefined,
-                      amountMax: on ? base.amountMax : undefined
-                    })
-                  }
-                >
-                  <AmountRangeControl
-                    min={overrides.amountMin ?? base.amountMin}
-                    max={overrides.amountMax ?? base.amountMax}
-                    disabled={
-                      overrides.amountMin === undefined && overrides.amountMax === undefined
-                    }
-                    onChange={(amountMin, amountMax) =>
-                      patchOverrides({ amountMin: amountMin ?? 0, amountMax })
-                    }
-                  />
-                </OverrideRow>
-
-                <OverrideRow
-                  label="Description contains any of"
-                  active={overrides.descriptionSearch !== undefined}
-                  onToggle={(on) =>
-                    patchOverrides({
-                      descriptionSearch: on ? (base.descriptionSearch ?? []) : undefined
-                    })
-                  }
-                >
-                  <PhraseInput
-                    value={overrides.descriptionSearch ?? base.descriptionSearch ?? []}
-                    disabled={overrides.descriptionSearch === undefined}
-                    placeholder="add a phrase"
-                    onChange={(descriptionSearch) => patchOverrides({ descriptionSearch })}
-                  />
-                </OverrideRow>
-
-                <OverrideRow
-                  label="Include pending"
-                  active={overrides.includePending !== undefined}
-                  onToggle={(on) =>
-                    patchOverrides({ includePending: on ? base.includePending : undefined })
-                  }
-                >
-                  <Switch
-                    checked={overrides.includePending ?? base.includePending}
-                    disabled={overrides.includePending === undefined}
-                    onCheckedChange={(includePending) => patchOverrides({ includePending })}
-                  />
-                </OverrideRow>
-
-                <OverrideRow
-                  label="Include transfers"
-                  active={overrides.includeTransfers !== undefined}
-                  onToggle={(on) =>
-                    patchOverrides({ includeTransfers: on ? base.includeTransfers : undefined })
-                  }
-                >
-                  <Switch
-                    checked={overrides.includeTransfers ?? base.includeTransfers}
-                    disabled={overrides.includeTransfers === undefined}
-                    onCheckedChange={(includeTransfers) => patchOverrides({ includeTransfers })}
-                  />
-                </OverrideRow>
+            {isGoalsType ? (
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold">Filters</h4>
+                <p className="text-sm text-muted-foreground">
+                  The report filter bar doesn&apos;t apply here. Each goal defines its own accounts
+                  and its own start date, so narrowing one by a report&apos;s range would produce a
+                  number that isn&apos;t its progress.
+                </p>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold">Filters</h4>
+                <Select
+                  value={filters.mode}
+                  items={{
+                    inherit: 'Inherit report filters, with overrides',
+                    own: 'Independent of report filters'
+                  }}
+                  onValueChange={(mode) =>
+                    setDraft((d) => ({
+                      ...d,
+                      config: {
+                        ...d.config,
+                        filters: { ...d.config.filters, mode: mode as 'inherit' | 'own' }
+                      }
+                    }))
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inherit">Inherit report filters, with overrides</SelectItem>
+                    <SelectItem value="own">Independent of report filters</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="space-y-3">
+                  <OverrideRow
+                    label="Date range"
+                    active={overrides.dateRange !== undefined}
+                    onToggle={(on) =>
+                      patchOverrides({ dateRange: on ? base.dateRange : undefined })
+                    }
+                  >
+                    <DateRangeControl
+                      value={overrides.dateRange ?? base.dateRange}
+                      disabled={overrides.dateRange === undefined}
+                      onChange={(dateRange) => patchOverrides({ dateRange })}
+                    />
+                  </OverrideRow>
+
+                  {!isGoalSource && (
+                    <>
+                      <OverrideRow
+                        label="Accounts"
+                        active={overrides.accountIds !== undefined}
+                        onToggle={(on) =>
+                          patchOverrides({ accountIds: on ? (base.accountIds ?? []) : undefined })
+                        }
+                      >
+                        <AccountsControl
+                          value={overrides.accountIds ?? base.accountIds}
+                          disabled={overrides.accountIds === undefined}
+                          onChange={(accountIds) =>
+                            patchOverrides({ accountIds: accountIds ?? [] })
+                          }
+                        />
+                      </OverrideRow>
+
+                      <OverrideRow
+                        label="Categories"
+                        active={
+                          overrides.categoryIds !== undefined ||
+                          overrides.includeUncategorized !== undefined
+                        }
+                        onToggle={(on) =>
+                          patchOverrides({
+                            categoryIds: on ? (base.categoryIds ?? []) : undefined,
+                            includeUncategorized: on ? base.includeUncategorized : undefined
+                          })
+                        }
+                      >
+                        <CategoriesControl
+                          value={{
+                            categoryIds: overrides.categoryIds ?? base.categoryIds,
+                            includeUncategorized:
+                              overrides.includeUncategorized ?? base.includeUncategorized
+                          }}
+                          disabled={
+                            overrides.categoryIds === undefined &&
+                            overrides.includeUncategorized === undefined
+                          }
+                          onChange={({ categoryIds, includeUncategorized }) =>
+                            patchOverrides({
+                              categoryIds: categoryIds ?? [],
+                              includeUncategorized: includeUncategorized ?? false
+                            })
+                          }
+                        />
+                      </OverrideRow>
+
+                      <OverrideRow
+                        label="Direction"
+                        active={overrides.direction !== undefined}
+                        onToggle={(on) =>
+                          patchOverrides({ direction: on ? base.direction : undefined })
+                        }
+                      >
+                        <DirectionControl
+                          value={overrides.direction ?? base.direction}
+                          disabled={overrides.direction === undefined}
+                          onChange={(direction) => patchOverrides({ direction })}
+                        />
+                      </OverrideRow>
+
+                      <OverrideRow
+                        label="Amount range"
+                        active={
+                          overrides.amountMin !== undefined || overrides.amountMax !== undefined
+                        }
+                        onToggle={(on) =>
+                          patchOverrides({
+                            amountMin: on ? (base.amountMin ?? 0) : undefined,
+                            amountMax: on ? base.amountMax : undefined
+                          })
+                        }
+                      >
+                        <AmountRangeControl
+                          min={overrides.amountMin ?? base.amountMin}
+                          max={overrides.amountMax ?? base.amountMax}
+                          disabled={
+                            overrides.amountMin === undefined && overrides.amountMax === undefined
+                          }
+                          onChange={(amountMin, amountMax) =>
+                            patchOverrides({ amountMin: amountMin ?? 0, amountMax })
+                          }
+                        />
+                      </OverrideRow>
+
+                      <OverrideRow
+                        label="Description contains any of"
+                        active={overrides.descriptionSearch !== undefined}
+                        onToggle={(on) =>
+                          patchOverrides({
+                            descriptionSearch: on ? (base.descriptionSearch ?? []) : undefined
+                          })
+                        }
+                      >
+                        <PhraseInput
+                          value={overrides.descriptionSearch ?? base.descriptionSearch ?? []}
+                          disabled={overrides.descriptionSearch === undefined}
+                          placeholder="add a phrase"
+                          onChange={(descriptionSearch) => patchOverrides({ descriptionSearch })}
+                        />
+                      </OverrideRow>
+
+                      <OverrideRow
+                        label="Include pending"
+                        active={overrides.includePending !== undefined}
+                        onToggle={(on) =>
+                          patchOverrides({ includePending: on ? base.includePending : undefined })
+                        }
+                      >
+                        <Switch
+                          checked={overrides.includePending ?? base.includePending}
+                          disabled={overrides.includePending === undefined}
+                          onCheckedChange={(includePending) => patchOverrides({ includePending })}
+                        />
+                      </OverrideRow>
+
+                      <OverrideRow
+                        label="Include transfers"
+                        active={overrides.includeTransfers !== undefined}
+                        onToggle={(on) =>
+                          patchOverrides({
+                            includeTransfers: on ? base.includeTransfers : undefined
+                          })
+                        }
+                      >
+                        <Switch
+                          checked={overrides.includeTransfers ?? base.includeTransfers}
+                          disabled={overrides.includeTransfers === undefined}
+                          onCheckedChange={(includeTransfers) =>
+                            patchOverrides({ includeTransfers })
+                          }
+                        />
+                      </OverrideRow>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </ScrollArea>
 
