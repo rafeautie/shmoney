@@ -1,3 +1,4 @@
+import { GOAL_STATUS_LABELS } from '@shared/goals'
 import { MAX_CHART_SERIES } from './tools/chart-tool'
 import { MAX_ROWS, MAX_TOOL_CALLS_PER_TURN } from './tools/sql-tool'
 
@@ -126,6 +127,12 @@ export function scopeSection(scope: ChatPromptScope): string {
  * fine. The tag's currency code is interpolated from the user's accounts
  * (see cur below), never hardcoded.
  */
+// the model filters on these strings and says them back, so they come from the
+// one vocabulary every surface reads
+const STATUS_VALUES = Object.values(GOAL_STATUS_LABELS)
+  .map((label) => `'${label}'`)
+  .join(', ')
+
 export function buildSystemPrompt(scope: ChatPromptScope, context: PromptDbContext): string {
   // The amount-tag exemplars carry the user's own dominant currency code, not a
   // hardcoded USD: this model copies exemplar literals verbatim, so a EUR user
@@ -145,6 +152,8 @@ You get ${MAX_TOOL_CALLS_PER_TURN} tool calls per reply and results cap at ${MAX
 - transactions(id, account_id, account_name, posted, amount, description, pending, transacted_at, category_id, category, category_group, system_key, txn_date, month, quarter, year, week, currency) — query directly only when asked about transfers or pending rows themselves.
 - accounts(id, name, institution_name, currency, balance, available_balance, balance_date)
 - budgets(id, category_id, category, month, amount) — month is 'YYYY-MM'
+- goals(id, name, mode, accounts, currency, target, saved, remaining, percent_complete, status, target_date, started_at, needed_per_month, average_per_month, projected_date) — the user's savings goals, already worked out. status is one of ${STATUS_VALUES}.
+- goal_history(goal_id, goal, month, saved) — how much each goal had saved at the end of each month, for the last 24 months. Chart goal progress from here.
 - holdings(id, account_id, symbol, description, currency, shares, market_value, cost_basis, purchase_price, created_at) — shares is text; CAST(shares AS REAL) for math
 - connections(id, last_synced_at, created_at) — the bank link; last_synced_at NULL means never synced
 - rules(id, name, enabled, priority, conditions, action, created_at, updated_at) — auto-categorization rules; conditions and action are JSON
@@ -160,6 +169,9 @@ You get ${MAX_TOOL_CALLS_PER_TURN} tool calls per reply and results cap at ${MAX
 - system_key = 'transfers' marks transfers between accounts; tx already excludes them. Over transactions, exclude with IS NOT 'transfers', never != (which also drops every NULL row); to see transfers themselves, filter system_key = 'transfers'.
 - system_key = 'opening' marks a manual account's starting balance, which makes its ledger add up but is not spending or income; tx already excludes it, and accounts.balance already includes it. Never count it as activity.
 - pending is 0 or 1; tx keeps only pending = 0. Deleted rows are already filtered out; never filter on deleted_at.
+- Goal figures are finished numbers. Never rebuild saved, remaining, status, needed_per_month or a completion date out of transactions; read the column. A goal's saved amount is not the same as its accounts' balances, and working it out yourself gets it wrong.
+- percent_complete is a percentage and target_date, started_at and projected_date are dates. Write them plainly; only money goes inside an amount tag.
+- A row from goals is a status readout, not a measure: answer it in a sentence and draw no chart. Chart a goal's progress from goal_history instead.
 - Group by a label column — a name such as description, category, category_group, account_name, or a time bucket — never account_id or category_id: an id charts as an axis labelled 1, 2, 3.
 - Column aliases are bare words: letters, digits and underscores, never starting with a digit.
 - The outer query of a WITH clause sees ONLY the columns in the CTE's own SELECT list.
@@ -238,6 +250,22 @@ It returns 6 rows: 2026-02 3120.00 1842.19 1277.81 | … | 2026-06 3120.00 2088.
 Each measure column named in series draws its own line, so I call chart: a line, x month, series income and spending, no group. net stays out of series; it is the gap the two lines already show, and the number I quote.
 
 I answer: Yes — income has cleared spending every month, by {{1031.83 ${cur}}} in June and a thinner {{179.44 ${cur}}} in July, where income dropped to {{1560.00 ${cur}}}.
+
+### "am I on track for the Japan trip?"
+
+Goal names are matched the same way as categories, on the distinctive word, and every figure I need is already a column:
+SELECT name, saved, target, remaining, percent_complete, status,
+       needed_per_month, target_date
+FROM goals WHERE name LIKE '%Japan%'
+It returns 1 row: Japan trip 3120.00 6000.00 2880.00 52.0 Behind 720.00 2027-03-31
+
+A goals row is a status readout rather than a measure, so I draw no chart, and I quote 52 and Behind as they came back instead of working them out again.
+
+I answer: Not quite. The Japan trip is at {{3120.00 ${cur}}} of {{6000.00 ${cur}}}, 52% of the way there, and it's marked Behind. Saving {{720.00 ${cur}}} a month gets you there by March 2027.
+
+A goal's TREND is the spending-by-month shape with two names changed, so it needs no turn of its own:
+SELECT month, saved FROM goal_history WHERE goal LIKE '%Japan%' ORDER BY month
+charted as a line, x month, series saved.
 
 ### "what did I spend the most on in June, and how has that moved?"
 

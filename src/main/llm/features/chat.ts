@@ -1,6 +1,8 @@
+import { format, startOfMonth, subMonths } from 'date-fns'
 import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { ChatHistoryItem, ChatModelResponse } from 'node-llama-cpp'
 import { CHAT_CONTEXT_SIZE, LLM_MODELS } from '@shared/llm'
+import { GOAL_STATUS_LABELS } from '@shared/goals'
 import {
   CHAT_IPC,
   type ChatMessage,
@@ -12,6 +14,9 @@ import {
 } from '@shared/chat'
 import type { ChatGenerationResult } from '../protocol'
 import { resolveCurrency } from '../tools/chart-tool'
+import type { GoalTableRows } from '../tools/sql-tool'
+import { getGoalSummaries } from '../../goals/summary'
+import { getGoalSeries } from '../../goals/series'
 import { buildSystemPrompt, type ChatPromptScope, type PromptDbContext } from '../system-prompt'
 import { db } from '../../db'
 import {
@@ -408,6 +413,9 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     // the currency chart values format as, fixed per turn alongside the
     // prompt context it derives from; the worker stamps it at the source
     currency: resolveCurrency(context.accounts),
+    // the goal tables are a snapshot taken as the turn starts, like the prompt
+    // context beside it; chat is a point-in-time surface either way
+    goalRows: goalTableRows(scope.accountId),
     controller
   })
 
@@ -416,6 +424,61 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     userMessage: userRow,
     assistantMessage: assistantRow
   }
+}
+
+/** milliunits to the real amounts every money column the model sees carries */
+const money = (milliunits: number | null): number | null =>
+  milliunits === null ? null : milliunits / 1000
+
+// monthly, so a goal series and a spending series group on identically
+// formatted labels
+const GOAL_HISTORY_MONTHS = 24
+
+/**
+ * The rows behind temp.goals and temp.goal_history, off the same spine the
+ * Goals page reads, so a figure quoted in chat is the figure on the card by
+ * construction. A scoped conversation sees only the goals its account backs;
+ * archived goals are left out, as they are in the report widgets.
+ */
+function goalTableRows(accountId: number | null): GoalTableRows {
+  const summaries = getGoalSummaries().filter(
+    (goal) =>
+      goal.archivedAt === null &&
+      (accountId === null || goal.accounts.some((a) => a.id === accountId))
+  )
+  if (summaries.length === 0) return { goals: [], history: [] }
+
+  const goals = summaries.map((goal) => [
+    goal.id,
+    goal.name,
+    goal.mode,
+    goal.accounts.map((a) => a.name).join(', '),
+    goal.currency,
+    money(goal.targetAmount),
+    money(goal.progress),
+    money(goal.remaining),
+    goal.targetAmount === 0 ? null : Math.round((goal.progress / goal.targetAmount) * 1000) / 10,
+    GOAL_STATUS_LABELS[goal.status],
+    goal.targetDate,
+    format(new Date(goal.startedAt * 1000), 'yyyy-MM-dd HH:mm:ss'),
+    money(goal.neededPerMonth),
+    money(goal.averagePerMonth),
+    goal.projectedDate
+  ])
+
+  const names = new Map(summaries.map((goal) => [goal.id, goal.name]))
+  const start = startOfMonth(subMonths(new Date(), GOAL_HISTORY_MONTHS - 1))
+  const series = getGoalSeries({
+    goalIds: summaries.map((goal) => goal.id),
+    timeGrain: 'month',
+    dateStart: Math.floor(start.getTime() / 1000),
+    dateEnd: Math.floor(Date.now() / 1000)
+  })
+  const history = series.rows
+    .filter((row) => row.bucket !== null && row.groupId !== null && names.has(row.groupId))
+    .map((row) => [row.groupId, names.get(row.groupId!), row.bucket, money(row.value)])
+
+  return { goals, history }
 }
 
 /**
@@ -431,6 +494,7 @@ function launchGeneration(turn: {
   prompt: string
   scope: ChatPromptScope
   currency: string | null
+  goalRows: GoalTableRows
   controller: AbortController
 }): void {
   const { conversationId, assistantMessageId, controller } = turn
@@ -439,6 +503,7 @@ function launchGeneration(turn: {
       signal: controller.signal,
       toolScope: { accountId: turn.scope.accountId },
       currency: turn.currency,
+      goalRows: turn.goalRows,
       onPart: (index, part) => sendToRenderer(CHAT_IPC.part, { conversationId, index, part })
     })
   )
