@@ -154,3 +154,90 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
     }
   ]
 }
+
+/** Starter report for savings goals, offered alongside Spending Overview. */
+export const SAVINGS_GOALS_TEMPLATE: ReportCreateInput = {
+  name: 'Savings Goals',
+  widgets: [
+    {
+      title: 'Progress',
+      type: 'goals',
+      config: {
+        query: {
+          source: 'transactions',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
+        filters: { mode: 'inherit', overrides: {} },
+        display: { goalView: 'bars' }
+      },
+      x: 0,
+      y: 0,
+      w: 8,
+      h: 5
+    },
+    {
+      title: 'Saved per goal',
+      type: 'stat',
+      config: {
+        query: {
+          source: 'goals',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
+        filters: { mode: 'inherit', overrides: {} }
+      },
+      x: 8,
+      y: 0,
+      w: 4,
+      h: 5
+    },
+    {
+      title: 'Saved over time',
+      type: 'line',
+      config: {
+        query: {
+          source: 'goals',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'month',
+          cumulative: false
+        },
+        filters: {
+          mode: 'inherit',
+          overrides: {
+            dateRange: { kind: 'relative', unit: 'month', count: 12, includeCurrent: true }
+          }
+        },
+        display: { showLegend: true }
+      },
+      x: 0,
+      y: 5,
+      w: 8,
+      h: 5
+    },
+    {
+      title: 'Goals',
+      type: 'goals',
+      config: {
+        query: {
+          source: 'transactions',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
+        filters: { mode: 'inherit', overrides: {} },
+        display: { goalView: 'list' }
+      },
+      x: 8,
+      y: 5,
+      w: 4,
+      h: 5
+    }
+  ]
+}
