@@ -8,7 +8,13 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       title: 'Income',
       type: 'stat',
       config: {
-        query: { measure: 'income', groupBy: 'none', timeGrain: 'none', cumulative: false },
+        query: {
+          source: 'transactions',
+          measure: 'income',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 0,
@@ -20,7 +26,13 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       title: 'Expenses',
       type: 'stat',
       config: {
-        query: { measure: 'expense', groupBy: 'none', timeGrain: 'none', cumulative: false },
+        query: {
+          source: 'transactions',
+          measure: 'expense',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 4,
@@ -32,7 +44,13 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       title: 'Net',
       type: 'stat',
       config: {
-        query: { measure: 'sum', groupBy: 'none', timeGrain: 'none', cumulative: false },
+        query: {
+          source: 'transactions',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 8,
@@ -45,6 +63,7 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       type: 'bar',
       config: {
         query: {
+          source: 'transactions',
           measure: 'expense',
           groupBy: 'categoryGroup',
           timeGrain: 'month',
@@ -63,6 +82,7 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       type: 'radial',
       config: {
         query: {
+          source: 'transactions',
           measure: 'expense',
           groupBy: 'category',
           timeGrain: 'none',
@@ -81,7 +101,13 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       title: 'Cumulative net',
       type: 'line',
       config: {
-        query: { measure: 'sum', groupBy: 'none', timeGrain: 'month', cumulative: true },
+        query: {
+          source: 'transactions',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'month',
+          cumulative: true
+        },
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 0,
@@ -94,6 +120,7 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       type: 'radar',
       config: {
         query: {
+          source: 'transactions',
           measure: 'expense',
           groupBy: 'categoryGroup',
           timeGrain: 'none',
@@ -111,7 +138,13 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       title: 'Transactions',
       type: 'transactions',
       config: {
-        query: { measure: 'sum', groupBy: 'none', timeGrain: 'none', cumulative: false },
+        query: {
+          source: 'transactions',
+          measure: 'sum',
+          groupBy: 'none',
+          timeGrain: 'none',
+          cumulative: false
+        },
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 0,
