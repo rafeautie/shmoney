@@ -1,7 +1,8 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { GOAL_STATUS_LABELS } from '@shared/goals'
 import { scopeViewsDdl } from '../tools/sql-tool'
-import { migratedDb } from '../test-db'
+import { migratedDb, seedGoalTables } from '../test-db'
 import type { PromptDbContext } from './chat'
 
 // chat.ts reaches Electron through these modules; stub them so the prompt
@@ -107,6 +108,9 @@ function open(): DatabaseSync {
   const db = migratedDb()
   seed(db)
   for (const ddl of scopeViewsDdl({ accountId: null })) db.exec(ddl)
+  // the goals surface is temp tables the worker fills, not views, so the
+  // harness fills them the same way before running the prompt's goal recipes
+  seedGoalTables(db)
   return db
 }
 
@@ -126,7 +130,7 @@ describe('system prompt SQL', () => {
   it('extracts every recipe from the prompt', () => {
     // bump deliberately when adding a recipe, and add its assertions below;
     // this is what stops a new recipe from shipping unexecuted
-    expect(RECIPES).toHaveLength(13)
+    expect(RECIPES).toHaveLength(15)
   })
 
   // the merchant recipe answers "where / which store do I spend" by grouping on
@@ -155,6 +159,45 @@ describe('system prompt SQL', () => {
     expect(rows).toHaveLength(3)
     const june = rows.find((r) => r.month === '2026-06')
     expect(june).toMatchObject({ income: 500, spending: 20.34, net: 479.66 })
+  })
+
+  // the goal recipes read finished columns: a figure the model recomputes from
+  // transactions is a figure that disagrees with the goal card
+  it('reads a goal status readout straight off the row', () => {
+    const recipe = RECIPES.find((r) => r.includes('FROM goals'))
+    expect(recipe).toBeDefined()
+    // matched on the distinctive word, like every other name in the prompt
+    expect(recipe).toContain('LIKE')
+    expect(recipe).not.toMatch(/name\s*=/)
+    expect(db.prepare(recipe as string).all()).toEqual([
+      {
+        name: 'Japan trip',
+        saved: 3120,
+        target: 6000,
+        remaining: 2880,
+        percent_complete: 52,
+        status: 'Behind',
+        needed_per_month: 720,
+        target_date: '2027-03-31'
+      }
+    ])
+  })
+
+  // and the status word is the app's own vocabulary, so a filter or a quoted
+  // label in an answer matches what the tables actually hold
+  it('quotes only status words the goals table can hold', () => {
+    for (const label of Object.values(GOAL_STATUS_LABELS)) expect(PROMPT).toContain(`'${label}'`)
+  })
+
+  it('charts a goal trend from goal_history, the x-plus-measure shape', () => {
+    const recipe = RECIPES.find((r) => r.includes('FROM goal_history'))
+    expect(recipe).toBeDefined()
+    const rows = db.prepare(recipe as string).all() as Record<string, unknown>[]
+    expect(rows.length).toBeGreaterThan(2)
+    expect(Object.keys(rows[0])).toEqual(['month', 'saved'])
+    // a level, drawn as a line: it only ever climbs here, and the last point is
+    // the goal's saved figure
+    expect(rows.at(-1)).toEqual({ month: '2026-07', saved: 3120 })
   })
 
   it('tx drops transfers, pending and undated rows', () => {
