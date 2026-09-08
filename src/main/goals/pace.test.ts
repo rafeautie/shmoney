@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { backProjectSeries, computePace, suffixFlows, type PaceInput } from './pace'
+import { backProjectSeries, bucketsUpToNow, computePace, suffixFlows, type PaceInput } from './pace'
 
 const sec = (y: number, m: number, d: number): number =>
   Math.floor(new Date(y, m - 1, d, 12).getTime() / 1000)
@@ -158,5 +158,33 @@ describe('suffixFlows and backProjectSeries', () => {
     const after = suffixFlows(buckets, new Map())
     const points = backProjectSeries(5_000, buckets, after, null)
     expect(points).toHaveLength(3)
+  })
+})
+
+describe('bucketsUpToNow', () => {
+  const now = new Date(2026, 8, 7, 12)
+
+  it('runs ascending and ends on the bucket containing now', () => {
+    const buckets = bucketsUpToNow('month', sec(2026, 6, 1), now)
+    expect(buckets.map((b) => b.label)).toEqual(['2026-06', '2026-07', '2026-08', '2026-09'])
+  })
+
+  it('drops the oldest buckets when capped, never the newest', () => {
+    // day grain over ~8 years is well past MAX_BUCKETS
+    const buckets = bucketsUpToNow('day', sec(2018, 1, 1), now)
+    expect(buckets).toHaveLength(1000)
+    // the newest bucket has to survive: back-projection reports savedNow there
+    expect(buckets.at(-1)?.label).toBe('2026-09-07')
+    expect(buckets[0].label > '2018-01-01').toBe(true)
+  })
+
+  it('gives one bucket when the start is inside the current one', () => {
+    expect(bucketsUpToNow('month', sec(2026, 9, 3), now).map((b) => b.label)).toEqual(['2026-09'])
+  })
+
+  it('ends each bucket at its own last instant', () => {
+    const [june] = bucketsUpToNow('month', sec(2026, 6, 1), now)
+    expect(new Date(june.endSec * 1000).getMonth()).toBe(5)
+    expect(new Date(june.endSec * 1000).getDate()).toBe(30)
   })
 })

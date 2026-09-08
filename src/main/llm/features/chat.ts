@@ -437,8 +437,13 @@ const GOAL_HISTORY_MONTHS = 24
 /**
  * The rows behind temp.goals and temp.goal_history, off the same spine the
  * Goals page reads, so a figure quoted in chat is the figure on the card by
- * construction. A scoped conversation sees only the goals its account backs;
- * archived goals are left out, as they are in the report widgets.
+ * construction. Archived goals are left out, as they are in the report widgets.
+ *
+ * A scoped conversation narrows which goals appear, not the figures on them: a
+ * goal is only meaningful whole, and a per-account share of it would be a number
+ * that appears on no other surface. So a goal spanning accounts outside the
+ * scope still reports its full saved amount and names its other accounts, which
+ * is the one place these tables reach past what scopeViewsDdl shows.
  */
 function goalTableRows(accountId: number | null): GoalTableRows {
   const summaries = getGoalSummaries().filter(

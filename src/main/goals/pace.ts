@@ -1,6 +1,25 @@
 // Pure pace math, free of db imports so vitest can load it (the split
 // budgets/rollover.ts uses).
-import { addMonths, differenceInCalendarMonths, endOfDay, format } from 'date-fns'
+import {
+  addDays,
+  addMonths,
+  addQuarters,
+  addWeeks,
+  addYears,
+  differenceInCalendarMonths,
+  endOfDay,
+  endOfMonth,
+  endOfQuarter,
+  endOfWeek,
+  endOfYear,
+  format,
+  startOfDay,
+  startOfMonth,
+  startOfQuarter,
+  startOfWeek,
+  startOfYear
+} from 'date-fns'
+import { bucketLabelFor, MAX_BUCKETS, type TimeGrain } from '@shared/reports'
 import type { GoalPace, GoalStatus } from '@shared/goals'
 
 export interface PaceInput {
@@ -85,6 +104,50 @@ export interface SeriesBucket {
   label: string
   /** unix seconds of the bucket's last instant */
   endSec: number
+}
+
+export type SeriesGrain = Exclude<TimeGrain, 'none'>
+
+export const STEPPERS: Record<
+  SeriesGrain,
+  { start: (d: Date) => Date; end: (d: Date) => Date; add: (d: Date, n: number) => Date }
+> = {
+  day: { start: startOfDay, end: endOfDay, add: addDays },
+  week: {
+    start: (d: Date) => startOfWeek(d, { weekStartsOn: 1 }),
+    end: (d: Date) => endOfWeek(d, { weekStartsOn: 1 }),
+    add: addWeeks
+  },
+  month: { start: startOfMonth, end: endOfMonth, add: addMonths },
+  quarter: { start: startOfQuarter, end: endOfQuarter, add: addQuarters },
+  year: { start: startOfYear, end: endOfYear, add: addYears }
+}
+
+/**
+ * Buckets from `startSec` up to now, ascending. Labels match bucketLabelFor,
+ * which is what bucketSql emits, so flows join back by label.
+ *
+ * Walked backwards from now, because the cap has to drop the OLDEST buckets:
+ * back-projection reports savedNow at the newest one, so truncating that end
+ * would date the goal's current balance years in the past.
+ */
+export function bucketsUpToNow(
+  grain: SeriesGrain,
+  startSec: number,
+  now: Date = new Date()
+): SeriesBucket[] {
+  const step = STEPPERS[grain]
+  const from = step.start(new Date(startSec * 1000)).getTime()
+  const buckets: SeriesBucket[] = []
+  let cursor = step.start(now)
+  while (cursor.getTime() >= from && buckets.length < MAX_BUCKETS) {
+    buckets.push({
+      label: bucketLabelFor(grain, cursor),
+      endSec: Math.floor(step.end(cursor).getTime() / 1000)
+    })
+    cursor = step.add(cursor, -1)
+  }
+  return buckets.reverse()
 }
 
 /**
