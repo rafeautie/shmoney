@@ -147,10 +147,9 @@ export const widgetTypeSchema = z.enum([
 export type WidgetType = z.infer<typeof widgetTypeSchema>
 
 /**
- * Where a widget's rows come from. `goals` reads goals:series, which speaks the
- * same QueryRow shape, so every chart type plots goals with no new drawing code.
- * Defaulted because widgetConfigSchema failing to parse degrades a stored widget
- * to a "reconfigure" card: only a defaulted field can be added safely.
+ * Where a widget's rows come from; goals:series speaks the same QueryRow shape.
+ * Defaulted because a config that fails to parse degrades a stored widget to a
+ * "reconfigure" card, so only a defaulted field can be added safely.
  */
 export const widgetSourceSchema = z.enum(['transactions', 'goals'])
 export type WidgetSource = z.infer<typeof widgetSourceSchema>
@@ -170,7 +169,6 @@ export const widgetQuerySchema = z.object({
 })
 export type WidgetQuery = z.infer<typeof widgetQuerySchema>
 
-/** goals widgets: which visualization of the goal list to render */
 export const goalViewSchema = z.enum(['list', 'bars'])
 export type GoalView = z.infer<typeof goalViewSchema>
 

@@ -119,11 +119,7 @@ function draftFor(widget: ReportWidget | null): Draft {
   return { title: 'New widget', type: 'bar', config: DEFAULT_WIDGET_CONFIG }
 }
 
-/**
- * Types that can read goals:series. The rest have no goal reading at all, so
- * normalization forces their source back to transactions rather than leaving a
- * stored value that nothing would honour.
- */
+/** Types that can read goals:series; normalization pins the rest to transactions. */
 const GOAL_SOURCE_TYPES: WidgetType[] = ['line', 'area', 'bar', 'pie', 'stat', 'summaryTable']
 
 /** Types with a fixed (absent) time axis */
@@ -214,9 +210,8 @@ export function WidgetEditor({
   const isTransactions = draft.type === 'transactions'
   const isBudget = draft.type === 'budget'
   const isGoalsType = draft.type === 'goals'
-  // measure, group by, cumulative and top-N can't affect a goal series (the
-  // measure is always saved and the group is always the goal), so they're hidden
-  // rather than disabled: a control that does nothing is noise
+  // a control that can't affect the widget is noise, so goal sources hide rather
+  // than disable measure, group by, cumulative and top-N
   const isGoalSource = query.source === 'goals'
   const isChart = draft.type === 'line' || draft.type === 'bar' || draft.type === 'area'
   const hasTimeAxis = !NO_TIME_TYPES.includes(draft.type) && query.timeGrain !== 'none'
@@ -346,8 +341,6 @@ export function WidgetEditor({
               </div>
             )}
 
-            {/* goals widgets read the goal list, not an aggregate query; their
-                one knob is the visualization */}
             {isGoalsType && (
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold">Data</h4>

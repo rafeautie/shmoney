@@ -19,10 +19,8 @@ export function useResolvedQuery(
 }
 
 /** Fetch aggregated rows for a widget. The resolved query object is part of the
- * key: filter-bar changes refetch only widgets that inherit them.
- *
- * Goal sources call goals:series instead, which returns the same RunQueryResult
- * shape — that is the whole of the branch, and nothing downstream changes. */
+ * key: filter-bar changes refetch only widgets that inherit them. Goal sources
+ * call goals:series, which returns the same shape, so nothing downstream changes. */
 export function useWidgetData(
   widgetId: number,
   config: WidgetConfig,
