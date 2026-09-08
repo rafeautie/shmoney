@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { AccountSettingsButton } from '@/components/accounts/account-settings-dialog'
 import { Amount } from '@/components/amount'
+import { AccountGoalsStrip } from '@/components/goals/account-goals-strip'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
 import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
 import { FilteredTotal } from '@/components/transactions/filtered-total'
@@ -72,6 +73,7 @@ function AccountDetailPage() {
                 </>
               )}
             </p>
+            <AccountGoalsStrip accountId={id} />
           </div>
           {showingTransactions && <FilteredTotal filterState={filterState} accountId={id} />}
         </div>
