@@ -440,7 +440,9 @@ const GOAL_HISTORY_MONTHS = 24
  * than by agreement. Built here because the worker is a utilityProcess and
  * cannot reach the main database; it inserts these with bound parameters.
  *
- * A scoped conversation sees only the goals its account backs. Twenty-four
+ * A scoped conversation sees only the goals its account backs, and archived
+ * goals are left out on both tables, the same way the report widgets leave them
+ * out: chat answers "how am I doing", which is a status board. Twenty-four
  * months at monthly grain is the whole history surface: the month bucket is the
  * one the tx view already exposes, so a goal series and a spending series group
  * on identically formatted labels.
