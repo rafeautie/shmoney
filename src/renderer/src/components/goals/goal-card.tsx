@@ -21,10 +21,7 @@ import { NumberInput } from '@/components/ui/number-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { currencySymbol, formatAmount, parseDollars } from '@/lib/utils'
 
-/**
- * One goal, editing in place. There is no edit dialog: every field commits on
- * Enter or blur, the way the budget page's fill cells do.
- */
+/** One goal, editing in place; every field commits on Enter or blur. */
 export function GoalCard({ goal }: { goal: GoalSummary }) {
   const update = useUpdateGoal()
   const remove = useRemoveGoal()
@@ -88,7 +85,7 @@ export function GoalCard({ goal }: { goal: GoalSummary }) {
   )
 }
 
-/** Says which number the card is showing, so the reader knows what they are looking at. */
+/** Which number the card is showing. */
 function modeLabel(goal: GoalSummary): string {
   const accounts = goal.accounts.map((a) => a.name).join(', ')
   if (goal.accounts.length === 0) return 'No linked account yet'
@@ -108,7 +105,7 @@ function paceLine(goal: GoalSummary): string {
   return 'No pace yet: nothing saved toward it'
 }
 
-/** 'YYYY-MM-DD' read as a local day, never as UTC, then written the way people say it */
+/** Read as a local day, never as UTC. */
 function longDay(day: string): string {
   const [y, m, d] = day.split('-').map(Number)
   return format(new Date(y, m - 1, d), 'd MMM yyyy')

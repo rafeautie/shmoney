@@ -211,7 +211,7 @@ const api = {
       ipcRenderer.invoke(BUDGETS_IPC.remove, input)
   },
   goals: {
-    /** Every non-deleted goal, archived ones included and sorted last */
+    /** Archived goals included, sorted last */
     list: (): Promise<GoalSummary[]> => ipcRenderer.invoke(GOALS_IPC.list),
     create: (input: GoalCreateInput): Promise<GoalSummary> =>
       ipcRenderer.invoke(GOALS_IPC.create, input),
@@ -220,7 +220,7 @@ const api = {
     /** Soft delete; undo via actionLog.undoEntry(actionId) */
     remove: (input: GoalRemoveInput): Promise<GoalRemoveResult> =>
       ipcRenderer.invoke(GOALS_IPC.remove, input),
-    /** Saved per goal per time bucket, in the report system's row shape */
+    /** In the report system's row shape */
     series: (query: GoalSeriesQuery): Promise<RunQueryResult> =>
       ipcRenderer.invoke(GOALS_IPC.series, query)
   },

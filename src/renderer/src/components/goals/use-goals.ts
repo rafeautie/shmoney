@@ -3,7 +3,6 @@ import { toast } from 'sonner'
 import type { GoalCreateInput, GoalSummary, GoalUpdateInput } from '@shared/goals'
 import { ipcErrorMessage } from '@/lib/utils'
 
-/** Goal figures derive from transactions and the action log, so a write moves both. */
 function useInvalidateGoals(): () => void {
   const queryClient = useQueryClient()
   return () => {
@@ -36,8 +35,7 @@ export function useRemoveGoal(): UseMutationResult<void, Error, GoalSummary> {
     mutationFn: async (goal: GoalSummary) => {
       const { actionId } = await window.api.goals.remove({ id: goal.id })
       if (actionId === null) return
-      // the removal is an action-log entry, so the toast's Undo replays the same
-      // entry Ctrl+Z would — one undo path, and no confirm dialog on the way out
+      // the toast's Undo replays the same entry Ctrl+Z would
       toast(`Deleted ${goal.name}`, {
         action: {
           label: 'Undo',

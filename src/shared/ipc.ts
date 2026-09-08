@@ -357,14 +357,12 @@ export interface SavedFilterActionChange {
   after: number | null
 }
 
-/** A savings goal's soft delete. Carries its own name so the Activity list can
- *  show which goal went, without joining a row that may since be gone. */
+/** Carries its own name so Activity can show which goal went without a join. */
 export interface SavingsGoalActionChange {
   field: 'savingsGoalDeletedAt'
   goalId: number
-  /** the goal's name at delete time */
   name: string
-  /** unix seconds (savings_goals timestamp convention) */
+  /** unix seconds */
   before: number | null
   after: number | null
 }

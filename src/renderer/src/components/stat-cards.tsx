@@ -5,11 +5,10 @@ export interface Stat {
   label: string
   /** milliunits */
   value: number
-  /** green/red by sign; only for the one number where the sign is the story */
   colored: boolean
 }
 
-/** A row of headline figures above a page's detail. Shared by Budget and Goals. */
+/** Headline figures above a page's detail. Shared by Budget and Goals. */
 export function StatCards({ stats, currency }: { stats: Stat[]; currency: string }) {
   return (
     <div className="grid grid-cols-3 gap-4">

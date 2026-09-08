@@ -1,19 +1,11 @@
-// Pure savings-goal pace math, kept free of db imports so vitest can load it
-// (better-sqlite3 is built for Electron's ABI and won't load under vitest).
-// The same split as budgets/rollover.ts.
-//
-// This is the only implementation of a goal's pace in the app. Every surface
-// that shows "on track" or "save X a month" reads these outputs rather than
-// deriving its own, which is why they cross IPC on GoalSummary.
+// Pure pace math, free of db imports so vitest can load it (the split
+// budgets/rollover.ts uses).
 import { addMonths, differenceInCalendarMonths, endOfDay, format } from 'date-fns'
 import type { GoalPace, GoalStatus } from '@shared/goals'
 
 export interface PaceInput {
-  /** milliunits, > 0 */
   targetAmount: number
-  /** milliunits; where the pace line starts. Pace only, never progress. */
   baselineAmount: number
-  /** milliunits saved so far */
   progress: number
   /** unix seconds */
   startedAt: number
@@ -23,7 +15,7 @@ export interface PaceInput {
   now: number
 }
 
-/** Parse 'YYYY-MM-DD' as a local day. `new Date(string)` would read it as UTC. */
+/** `new Date(string)` would read a bare 'YYYY-MM-DD' as UTC. */
 export function parseLocalDay(day: string): Date {
   const [y, m, d] = day.split('-').map(Number)
   return new Date(y, m - 1, d)
@@ -33,11 +25,9 @@ export function computePace(input: PaceInput): GoalPace {
   const { targetAmount, baselineAmount, progress, startedAt, targetDate, now } = input
   const remaining = Math.max(0, targetAmount - progress)
   const nowDate = new Date(now * 1000)
-  const startDate = new Date(startedAt * 1000)
 
-  // months are calendar months, never a 30.44-day approximation: the whole
-  // point of a monthly figure is that it lines up with the user's month
-  const monthsElapsed = Math.max(1, differenceInCalendarMonths(nowDate, startDate))
+  // calendar months, so a monthly figure lines up with the user's month
+  const monthsElapsed = Math.max(1, differenceInCalendarMonths(nowDate, new Date(startedAt * 1000)))
   const averagePerMonth = (progress - baselineAmount) / monthsElapsed
 
   if (targetDate === null) {
@@ -51,8 +41,7 @@ export function computePace(input: PaceInput): GoalPace {
     }
   }
 
-  // the goal has all of the target day to be met, so "overdue" starts the
-  // instant after it ends
+  // the goal has all of the target day, so overdue starts once the day ends
   const deadline = endOfDay(parseLocalDay(targetDate))
   const deadlineSec = Math.floor(deadline.getTime() / 1000)
   const span = deadlineSec - startedAt
@@ -73,7 +62,6 @@ export function computePace(input: PaceInput): GoalPace {
     remaining,
     status,
     expectedByNow,
-    // a figure the user can act on only exists while the goal is still live
     neededPerMonth:
       status === 'reached' || status === 'overdue' ? null : remaining / monthsRemaining,
     averagePerMonth,
@@ -81,10 +69,6 @@ export function computePace(input: PaceInput): GoalPace {
   }
 }
 
-/**
- * When the current rate would get there. Null when there is no rate to project
- * from, or nothing left to project.
- */
 function projectDate(
   now: Date,
   remaining: number,
@@ -98,24 +82,15 @@ function projectDate(
 }
 
 export interface SeriesBucket {
-  /** the bucket label the SQL layer produces for this grain */
   label: string
   /** unix seconds of the bucket's last instant */
   endSec: number
 }
 
 /**
- * Saved at the end of each bucket, back-projected from what the goal has saved
- * right now: saved(b) = savedNow − (flows after the end of b). True in both
- * modes, because saved only ever moves by transactions on the linked accounts.
- *
- * Anchoring on savedNow rather than replaying forward from the baseline is what
- * keeps one formula: savedNow is the number the goal card shows, so the last
- * point of any series is the headline by construction.
- *
- * `floorSec` drops buckets that ended before the goal existed (contributions
- * mode, where earlier buckets are not the goal's history); pass null in balance
- * mode, where the account's earlier balance is real history worth drawing.
+ * saved(b) = savedNow − (flows after b), which makes the last point equal the
+ * goal's headline. `floorSec` drops buckets from before a contributions goal
+ * existed; null in balance mode, where earlier balances are real history.
  */
 export function backProjectSeries(
   savedNow: number,
@@ -131,10 +106,7 @@ export function backProjectSeries(
     }))
 }
 
-/**
- * Per-bucket flows turned into "everything after this bucket", which is what
- * back-projection subtracts. Buckets must be in ascending label order.
- */
+/** Per-bucket flows as running totals of everything after each bucket. Ascending order. */
 export function suffixFlows(
   buckets: SeriesBucket[],
   flowIn: Map<string, number>

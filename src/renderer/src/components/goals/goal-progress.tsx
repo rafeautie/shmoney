@@ -4,15 +4,9 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 
-// Read-only goal display, exported from the start so the Goals page and the
-// report widget draw the same bar rather than each growing its own — the way
-// envelope-progress.tsx already serves the Budget page and the budget widget.
+// Exported so the Goals page and the report widget draw the same bar.
 
-/**
- * Saved against target, with the pace line drawn as a thin tick at
- * `expectedByNow`. Colour comes from the shared status tone, never from a local
- * comparison, so a goal that is red here is red everywhere.
- */
+/** Saved against target, with the pace line as a tick at `expectedByNow`. */
 export function GoalBar({ goal, className }: { goal: GoalSummary; className?: string }) {
   const pct = goal.targetAmount > 0 ? (goal.progress / goal.targetAmount) * 100 : 0
   const behind = GOAL_STATUS_TONE[goal.status] === 'destructive'
@@ -54,7 +48,7 @@ export function GoalStatusBadge({ status }: { status: GoalSummary['status'] }) {
   )
 }
 
-/** Compact read-only row: name, bar, status. The shape a report widget lists. */
+/** Compact read-only row, the shape a report widget lists. */
 export function GoalProgressRow({ goal }: { goal: GoalSummary }) {
   return (
     <div className="flex items-center gap-3">

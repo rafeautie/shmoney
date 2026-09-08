@@ -1,11 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 
-/**
- * "Backing: Emergency fund (62%)" under an account's balance, when a goal
- * tracks it. Read-only and one line: the account page says what this money is
- * for, and Goals is where it changes.
- */
+/** "Backing: Emergency fund (62%)" under an account's balance. */
 export function AccountGoalsStrip({ accountId }: { accountId: number }) {
   const { data: goals } = useQuery({
     queryKey: ['goals'],

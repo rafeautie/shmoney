@@ -9,7 +9,6 @@ function nowSec(): number {
   return Math.floor(Date.now() / 1000)
 }
 
-/** goalId -> its linked accounts, in name order */
 export function goalAccounts(goalIds: number[]): Map<number, { id: number; name: string }[]> {
   const byGoal = new Map<number, { id: number; name: string }[]>()
   if (goalIds.length === 0) return byGoal
@@ -42,16 +41,11 @@ export function loadGoalRows(ids?: number[]): SavingsGoalRow[] {
     .all()
 }
 
-/** A row plus its accounts, in the shape saved.ts and series.ts work from. */
 export function toGoalRef(row: SavingsGoalRow, accountIds: number[]): GoalRef {
   return { id: row.id, mode: row.mode, accountIds }
 }
 
-/**
- * Everything the Goals page renders, in one call: the row, its accounts, what
- * it has saved, and every pace output. Archived goals sort last so the history
- * stays visible without crowding active goals.
- */
+/** Everything the Goals page renders, in one call. Archived goals sort last. */
 export function getGoalSummaries(ids?: number[]): GoalSummary[] {
   const rows = loadGoalRows(ids)
   if (rows.length === 0) return []

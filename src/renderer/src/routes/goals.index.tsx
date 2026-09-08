@@ -110,12 +110,7 @@ function GoalsPage() {
   )
 }
 
-/**
- * Saved, target and what the dated goals still need each month. Grouped by
- * currency, the same per-currency treatment net worth gets on Accounts: goals
- * are scalar amounts and adding two currencies together would produce a figure
- * that is not any real amount. In practice this is one row.
- */
+/** Grouped by currency: goals are scalar amounts and must not be added across them. */
 function SummaryStrip({ goals }: { goals: GoalSummary[] }) {
   const currencies = [...new Set(goals.map((g) => g.currency))].sort()
   return (

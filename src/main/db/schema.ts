@@ -266,14 +266,12 @@ export const budgets = sqliteTable(
   (t) => [uniqueIndex('budgets_category_month_ux').on(t.categoryId, t.month)]
 )
 
-// savings goals: a target amount backed by one or more of the user's accounts.
-// Progress is derived from transactions (see main/goals/saved.ts), never stored,
-// so a goal can't drift from the accounts it tracks.
+// a target amount backed by accounts; progress is derived (main/goals/saved.ts),
+// never stored, so a goal can't drift from the accounts it tracks
 export const savingsGoals = sqliteTable('savings_goals', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
-  // 'balance' reads the linked accounts' derived balances; 'contributions'
-  // sums their transactions after started_at. Fixed for the goal's life.
+  // fixed for the goal's life
   mode: text('mode').$type<GoalMode>().notNull(),
   // integer milliunits, > 0 (enforced in zod)
   targetAmount: integer('target_amount').notNull(),
@@ -281,24 +279,18 @@ export const savingsGoals = sqliteTable('savings_goals', {
   targetDate: text('target_date'),
   // unix seconds, like accounts.balance_date: rows count strictly after it
   startedAt: integer('started_at').notNull(),
-  // milliunits; where the pace line starts. 0 in contributions mode, the
-  // balance as of started_at in balance mode. Pace only, never progress.
+  // where the pace line starts; never part of progress
   baselineAmount: integer('baseline_amount').notNull().default(0),
-  // copied from the linked accounts at creation, so the goal keeps a currency
-  // even after its last linked account is deleted
+  // copied at creation, so the goal keeps one after its last account is deleted
   currency: text('currency').notNull(),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
-  // reached goals the user has filed away; still listed, in a collapsed section
   archivedAt: integer('archived_at'),
-  // unix seconds when deleted; null = live. Soft delete so the action log can
-  // bring a goal back (undo toast / Ctrl+Z) instead of a confirm dialog. Rows
-  // still soft-deleted at the next app startup are purged for good.
+  // soft delete, same convention as saved_filters; purged at next startup
   deletedAt: integer('deleted_at')
 })
 
-// which accounts back a goal. Deleting an account cascades the link away but
-// leaves the goal, which then shows a warning until it's relinked.
+// deleting an account cascades the link away but leaves the goal
 export const savingsGoalAccounts = sqliteTable(
   'savings_goal_accounts',
   {

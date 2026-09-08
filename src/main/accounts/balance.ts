@@ -19,18 +19,7 @@ import { and, eq, gt, inArray, isNull, type SQL } from 'drizzle-orm'
 import { accounts, transactions } from '../db/schema'
 import { transactionDate } from '../db/expressions'
 
-/**
- * Rows that represent money which has actually moved: not soft-deleted, not
- * pending.
- *
- * Pending rows are excluded to match what a bank calls the "current" balance,
- * which also keeps the derived value equal to the reported one right after a
- * sync. Their impact stays visible through available-balance and the Pending
- * badge in the transactions table.
- *
- * Shared with goals/flow.ts, which applies the same rule with a different
- * cutoff, so the two spell these clauses once.
- */
+/** Pending is excluded to match what a bank calls the "current" balance. */
 export function settledRowsWhere(): SQL | undefined {
   return and(isNull(transactions.deletedAt), eq(transactions.pending, false))
 }

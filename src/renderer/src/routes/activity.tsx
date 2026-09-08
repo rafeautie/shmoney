@@ -185,7 +185,6 @@ function EntryRow({
   )
   // saved-filter deletes: likewise contextless, they just name the preset
   const isSavedFilterEntry = entry.changes.some((c) => c.field === 'savedFilterDeletedAt')
-  // savings-goal deletes: contextless too, they just name the goal
   const isGoalEntry = entry.changes.some((c) => c.field === 'savingsGoalDeletedAt')
 
   const toggle = useMutation({
