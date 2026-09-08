@@ -6,6 +6,7 @@ import { accounts, savingsGoalAccounts, savingsGoals } from '../db/schema'
 import { computeBaseline } from '../goals/saved'
 import { getGoalSeries } from '../goals/series'
 import { getGoalSummaries } from '../goals/summary'
+import { endOfDay } from 'date-fns'
 import { parseLocalDay } from '../goals/pace'
 import { recordAction } from './action-log'
 import {
@@ -44,10 +45,13 @@ function sharedCurrency(accountIds: number[]): string {
   return rows[0].currency
 }
 
+// the target day is compared at its end, matching how computePace reads the
+// deadline; comparing its midnight made a same-day target legal for a back-dated
+// start (midnight minus one second) and illegal for a start of now
 function assertDatesOrdered(startedAt: number, targetDate: string | null): void {
   if (targetDate === null) return
-  const midnight = Math.floor(parseLocalDay(targetDate).getTime() / 1000)
-  if (midnight <= startedAt) throw new Error('The target date has to be after the start')
+  const dayEnd = Math.floor(endOfDay(parseLocalDay(targetDate)).getTime() / 1000)
+  if (dayEnd <= startedAt) throw new Error('The target date has to be after the start')
 }
 
 function oneSummary(id: number): GoalSummary {

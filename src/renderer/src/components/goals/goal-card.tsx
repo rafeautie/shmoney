@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Archive02Icon, Delete02Icon, MoreHorizontalIcon } from '@hugeicons/core-free-icons'
@@ -77,7 +78,9 @@ export function GoalCard({ goal }: { goal: GoalSummary }) {
         <GoalAccountPicker
           selected={goal.accounts}
           onChange={(next) =>
-            next.length > 0 && update.mutate({ id: goal.id, accountIds: next.map((a) => a.id) })
+            next.length > 0
+              ? update.mutate({ id: goal.id, accountIds: next.map((a) => a.id) })
+              : toast('A goal needs at least one account')
           }
         />
       </CardContent>
@@ -215,6 +218,7 @@ function TargetDatePicker({
           mode="single"
           selected={selected}
           defaultMonth={selected}
+          disabled={{ before: new Date(goal.startedAt * 1000) }}
           onSelect={(next) => {
             if (next) onCommit(format(next, 'yyyy-MM-dd'))
             setOpen(false)

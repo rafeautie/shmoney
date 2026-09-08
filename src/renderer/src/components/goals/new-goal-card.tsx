@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
 import { format } from 'date-fns'
 import { startInstantForDay, type GoalMode } from '@shared/goals'
 import { GoalAccountPicker } from '@/components/goals/goal-account-picker'
@@ -102,6 +102,7 @@ export function NewGoalCard({ currency, onDone }: { currency: string; onDone: ()
             day={targetDate}
             onPick={setTargetDate}
             placeholder="Target date (optional)"
+            disabled={{ before: startDay ? parseDay(startDay) : new Date() }}
           />
           <DayPicker
             open={startOpen}
@@ -109,6 +110,7 @@ export function NewGoalCard({ currency, onDone }: { currency: string; onDone: ()
             day={startDay}
             onPick={setStartDay}
             placeholder="Starts today"
+            disabled={{ after: new Date() }}
           />
         </div>
 
@@ -127,21 +129,28 @@ export function NewGoalCard({ currency, onDone }: { currency: string; onDone: ()
   )
 }
 
+/** 'YYYY-MM-DD' as a local day; `new Date(string)` would read it as UTC. */
+function parseDay(day: string): Date {
+  const [y, m, d] = day.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 function DayPicker({
   open,
   onOpenChange,
   day,
   onPick,
-  placeholder
+  placeholder,
+  disabled
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   day: string | null
   onPick: (day: string) => void
   placeholder: string
+  disabled?: ComponentProps<typeof Calendar>['disabled']
 }) {
-  const [y, m, d] = (day ?? '').split('-').map(Number)
-  const selected = day ? new Date(y, m - 1, d) : undefined
+  const selected = day ? parseDay(day) : undefined
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger
@@ -154,6 +163,7 @@ function DayPicker({
           mode="single"
           selected={selected}
           defaultMonth={selected}
+          disabled={disabled}
           onSelect={(next) => {
             if (next) onPick(format(next, 'yyyy-MM-dd'))
             onOpenChange(false)

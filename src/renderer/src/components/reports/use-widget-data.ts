@@ -30,7 +30,9 @@ export function useWidgetData(
   const isGoals = config.query.source === 'goals'
   const goalQuery = useMemo(() => resolveGoalQuery(config, resolved), [config, resolved])
   const query = useQuery({
-    queryKey: isGoals ? ['goal-series', widgetId, goalQuery] : ['report-data', widgetId, resolved],
+    queryKey: isGoals
+      ? ['goals', 'widget-series', widgetId, goalQuery]
+      : ['report-data', widgetId, resolved],
     queryFn: () =>
       isGoals ? window.api.goals.series(goalQuery) : window.api.reports.runQuery(resolved),
     placeholderData: (prev) => prev

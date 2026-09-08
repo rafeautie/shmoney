@@ -1,63 +1,18 @@
 // Saved per goal per time bucket, in the report system's QueryRow shape so the
 // existing chart widgets can plot goals with no new drawing code.
-import {
-  addDays,
-  addMonths,
-  addQuarters,
-  addWeeks,
-  addYears,
-  endOfDay,
-  endOfMonth,
-  endOfQuarter,
-  endOfWeek,
-  endOfYear,
-  startOfDay,
-  startOfMonth,
-  startOfQuarter,
-  startOfWeek,
-  startOfYear
-} from 'date-fns'
 import { eq, sum } from 'drizzle-orm'
 import { db } from '../db'
 import { savingsGoalAccounts, transactions } from '../db/schema'
 import { bucketSql } from '../reports/query'
 import { flowSinceWhere } from './flow'
-import { backProjectSeries, suffixFlows, type SeriesBucket } from './pace'
+import { backProjectSeries, bucketsUpToNow, STEPPERS, suffixFlows, type SeriesGrain } from './pace'
 import { goalAccounts, loadGoalRows, toGoalRef } from './summary'
 import { savedNow } from './saved'
-import { bucketLabelFor, MAX_BUCKETS, type QueryRow, type RunQueryResult } from '@shared/reports'
+import { bucketLabelFor, type QueryRow, type RunQueryResult } from '@shared/reports'
 import type { GoalSeriesQuery } from '@shared/goals'
 
-const STEPPERS = {
-  day: { start: startOfDay, end: endOfDay, add: addDays },
-  week: {
-    start: (d: Date) => startOfWeek(d, { weekStartsOn: 1 }),
-    end: (d: Date) => endOfWeek(d, { weekStartsOn: 1 }),
-    add: addWeeks
-  },
-  month: { start: startOfMonth, end: endOfMonth, add: addMonths },
-  quarter: { start: startOfQuarter, end: endOfQuarter, add: addQuarters },
-  year: { start: startOfYear, end: endOfYear, add: addYears }
-}
-
-/** Labels match bucketLabelFor, which is what bucketSql emits, so flows join back by label. */
-function bucketsUpToNow(grain: keyof typeof STEPPERS, startSec: number): SeriesBucket[] {
-  const step = STEPPERS[grain]
-  const now = Date.now()
-  const buckets: SeriesBucket[] = []
-  let cursor = step.start(new Date(startSec * 1000))
-  while (cursor.getTime() <= now && buckets.length < MAX_BUCKETS) {
-    buckets.push({
-      label: bucketLabelFor(grain, cursor),
-      endSec: Math.floor(step.end(cursor).getTime() / 1000)
-    })
-    cursor = step.add(cursor, 1)
-  }
-  return buckets
-}
-
 function flowsByBucket(
-  grain: keyof typeof STEPPERS,
+  grain: SeriesGrain,
   sinceSec: number,
   goalIds: number[]
 ): Map<number, Map<string, number>> {
@@ -116,9 +71,12 @@ export function getGoalSeries(query: GoalSeriesQuery): RunQueryResult {
   const buckets = bucketsUpToNow(query.timeGrain, fromSec)
   if (buckets.length === 0) return { rows: [], currencies }
 
-  // one second before the first bucket begins, so its own flows are in the set
+  // one second before the first kept bucket begins, so its own flows are in the
+  // set; taken from the buckets rather than fromSec, which the cap may have passed
   const sinceSec =
-    Math.floor(STEPPERS[query.timeGrain].start(new Date(fromSec * 1000)).getTime() / 1000) - 1
+    Math.floor(
+      STEPPERS[query.timeGrain].start(new Date(buckets[0].endSec * 1000)).getTime() / 1000
+    ) - 1
   const flows = flowsByBucket(
     query.timeGrain,
     sinceSec,

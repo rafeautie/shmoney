@@ -3,6 +3,8 @@ import { toast } from 'sonner'
 import type { GoalCreateInput, GoalSummary, GoalUpdateInput } from '@shared/goals'
 import { ipcErrorMessage } from '@/lib/utils'
 
+// every goal cache hangs off the 'goals' root (the list, the Budget series, the
+// widget series) so one invalidation reaches all of them
 function useInvalidateGoals(): () => void {
   const queryClient = useQueryClient()
   return () => {

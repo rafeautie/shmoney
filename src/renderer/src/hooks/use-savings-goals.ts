@@ -35,7 +35,7 @@ export function useSavingsGoals(month: string, currency: string): SavingsGoals {
   })
 
   const seriesQuery = useQuery({
-    queryKey: ['goals-series', month],
+    queryKey: ['goals', 'series', month],
     queryFn: () => {
       const [y, m] = month.split('-').map(Number)
       return window.api.goals.series({
@@ -69,7 +69,12 @@ export function useSavingsGoals(month: string, currency: string): SavingsGoals {
     rows,
     excluded: active.filter((goal) => goal.currency !== currency),
     totals: {
-      planned: rows.reduce((sum, row) => sum + (row.goal.neededPerMonth ?? 0), 0),
+      // a goal with no linked account renders a prompt to relink instead of a
+      // Planned cell, so counting it here would show a figure no row accounts for
+      planned: rows.reduce(
+        (sum, row) => sum + (row.goal.accounts.length > 0 ? (row.goal.neededPerMonth ?? 0) : 0),
+        0
+      ),
       saved: rows.reduce((sum, row) => sum + row.saved, 0)
     },
     showPlanned,
