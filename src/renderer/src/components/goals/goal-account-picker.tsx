@@ -13,11 +13,7 @@ import {
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
-/**
- * Which accounts back a goal. Multi-select, and narrowed to one currency: a goal
- * is a scalar amount and can't keep currencies apart, so the first pick fixes
- * the rest (the IPC handler rejects a mixed set anyway).
- */
+/** Narrowed to one currency: the first pick fixes the rest. */
 export function GoalAccountPicker({
   selected,
   onChange

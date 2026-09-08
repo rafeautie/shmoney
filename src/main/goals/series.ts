@@ -1,10 +1,5 @@
-// Saved at the end of each time bucket, per goal, shaped as the report system's
-// own QueryRow. Speaking that shape is what lets the existing chart widgets plot
-// goals with no new drawing code.
-//
-// The numbers descend from saved.ts: savedNow is the anchor and the buckets are
-// back-projected off it (see backProjectSeries), so the last point of a series
-// is the same figure the goal card shows, by construction.
+// Saved per goal per time bucket, in the report system's QueryRow shape so the
+// existing chart widgets can plot goals with no new drawing code.
 import {
   addDays,
   addMonths,
@@ -45,11 +40,7 @@ const STEPPERS = {
   year: { start: startOfYear, end: endOfYear, add: addYears }
 }
 
-/**
- * Buckets from `startSec` up to now, with each one's last instant. Labels match
- * bucketLabelFor exactly, which is also what bucketSql produces, so the SQL
- * flows join back onto these by label.
- */
+/** Labels match bucketLabelFor, which is what bucketSql emits, so flows join back by label. */
 function bucketsUpToNow(grain: keyof typeof STEPPERS, startSec: number): SeriesBucket[] {
   const step = STEPPERS[grain]
   const now = Date.now()
@@ -65,7 +56,6 @@ function bucketsUpToNow(grain: keyof typeof STEPPERS, startSec: number): SeriesB
   return buckets
 }
 
-/** goalId -> (bucket label -> net flow in that bucket) */
 function flowsByBucket(
   grain: keyof typeof STEPPERS,
   sinceSec: number,
@@ -94,10 +84,7 @@ function flowsByBucket(
 }
 
 export function getGoalSeries(query: GoalSeriesQuery): RunQueryResult {
-  const rows = loadGoalRows(query.goalIds).filter(
-    // active goals only: archived ones are history, not a status board
-    (row) => row.archivedAt === null
-  )
+  const rows = loadGoalRows(query.goalIds).filter((row) => row.archivedAt === null)
   if (rows.length === 0) return { rows: [], currencies: [] }
 
   const linked = goalAccounts(rows.map((r) => r.id))
@@ -123,17 +110,13 @@ export function getGoalSeries(query: GoalSeriesQuery): RunQueryResult {
     }
   }
 
-  // enumerate from the requested start (or the earliest goal start) all the way
-  // to now, not to the requested end: back-projection subtracts everything that
-  // landed after a bucket, so the buckets past the window still have to be
-  // walked. They're dropped from the result at the end.
-  const earliestStart = Math.min(...rows.map((r) => r.startedAt))
-  const fromSec = query.dateStart ?? earliestStart
+  // walk to now, not the requested end: later buckets still have to be summed
+  // for the back-projection, then dropped from the result below
+  const fromSec = query.dateStart ?? Math.min(...rows.map((r) => r.startedAt))
   const buckets = bucketsUpToNow(query.timeGrain, fromSec)
   if (buckets.length === 0) return { rows: [], currencies }
 
-  // one second before the first bucket begins, so that bucket's own flows are
-  // in the set too and the suffix sums start from a complete picture
+  // one second before the first bucket begins, so its own flows are in the set
   const sinceSec =
     Math.floor(STEPPERS[query.timeGrain].start(new Date(fromSec * 1000)).getTime() / 1000) - 1
   const flows = flowsByBucket(
@@ -147,8 +130,6 @@ export function getGoalSeries(query: GoalSeriesQuery): RunQueryResult {
   const out: QueryRow[] = []
   for (const row of rows) {
     const after = suffixFlows(buckets, flows.get(row.id) ?? new Map())
-    // contributions goals didn't exist before their start, so earlier buckets
-    // are a gap rather than a zero; a balance goal's earlier balance is real
     const floorSec = row.mode === 'contributions' ? row.startedAt : null
     for (const point of backProjectSeries(saved.get(row.id) ?? 0, buckets, after, floorSec)) {
       if (lastLabel !== null && point.label > lastLabel) continue

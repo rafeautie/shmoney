@@ -2,9 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
 import { flowSinceWhere, goalFlowWhere } from './flow'
 
-// better-sqlite3 is built for Electron's ABI and won't load under vitest, so
-// the predicates are asserted as generated SQL here, the way balance.test.ts
-// checks balanceDeltaWhere.
+// asserted as generated SQL, the way balance.test.ts checks balanceDeltaWhere
 const dialect = new SQLiteSyncDialect()
 function render(clause: ReturnType<typeof goalFlowWhere>): { sql: string; params: unknown[] } {
   const { sql, params } = dialect.sqlToQuery(clause!)

@@ -1,7 +1,5 @@
-// The only place in the app that computes what a goal has saved. The Goals page
-// reads it through goals:list, the report widgets through goals:series, and
-// anything added later reads it from here too, so no surface can disagree with
-// another about how much is saved.
+// The only place that computes what a goal has saved. Every surface reads it
+// through goals:list or goals:series, so none can disagree with another.
 import { eq, inArray, sum } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, savingsGoalAccounts, savingsGoals, transactions } from '../db/schema'
@@ -15,12 +13,7 @@ export interface GoalRef {
   accountIds: number[]
 }
 
-/**
- * Contributions per goal, counted from each goal's own start instant. One
- * grouped query for every goal asked about; the cutoff rides on the joined
- * savings_goals row (see goalFlowWhere), so goals with different starts still
- * come back together.
- */
+/** One grouped query, since the per-goal cutoff rides on the joined row. */
 export function contributionFlows(goalIds: number[]): Map<number, number> {
   if (goalIds.length === 0) return new Map()
   const rows = db
@@ -35,7 +28,6 @@ export function contributionFlows(goalIds: number[]): Map<number, number> {
   return new Map(rows.map((r) => [r.goalId, Number(r.total ?? 0)]))
 }
 
-/** accountId -> derived balance, the same anchor-plus-delta the Accounts page shows */
 function derivedBalances(accountIds: number[]): Map<number, number> {
   if (accountIds.length === 0) return new Map()
   const anchors = db
@@ -54,11 +46,7 @@ function derivedBalances(accountIds: number[]): Map<number, number> {
   return new Map(anchors.map((a) => [a.id, a.balance + (deltas.get(a.id) ?? 0)]))
 }
 
-/**
- * goalId -> milliunits saved, per each goal's mode. Two queries at most: the
- * derived balances the accounts list already runs, and one grouped sum of
- * contributions. A goal with no linked accounts saves 0.
- */
+/** goalId -> milliunits saved, per each goal's mode. A goal with no accounts saves 0. */
 export function savedNow(goals: GoalRef[]): Map<number, number> {
   const balanceGoals = goals.filter((g) => g.mode === 'balance')
   const flowGoals = goals.filter((g) => g.mode === 'contributions')
@@ -77,15 +65,7 @@ export function savedNow(goals: GoalRef[]): Map<number, number> {
   return saved
 }
 
-/**
- * Where a goal's pace line starts: 0 in contributions mode, and in balance mode
- * the linked accounts' balance as of started_at, which is today's balance minus
- * everything that has landed since. Pace only; progress never reads it, so a
- * stale baseline can mislabel a status but cannot misstate how much is saved.
- *
- * Reads the goal's stored start instant, so callers must write the row (and its
- * account links) before asking.
- */
+/** Reads the goal's stored start, so callers write the row and links first. */
 export function computeBaseline(goal: GoalRef): number {
   if (goal.mode === 'contributions') return 0
   const saved = savedNow([goal]).get(goal.id) ?? 0

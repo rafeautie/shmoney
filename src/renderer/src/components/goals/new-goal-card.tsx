@@ -24,10 +24,7 @@ const MODES: { value: GoalMode; label: string; hint: string }[] = [
   }
 ]
 
-/**
- * The pinned create card at the start of the grid, the same shape as the
- * transactions table's pinned entry row. Enter saves, Escape discards.
- */
+/** Pinned create card, like the transactions table's entry row. Enter saves, Escape discards. */
 export function NewGoalCard({ currency, onDone }: { currency: string; onDone: () => void }) {
   const create = useCreateGoal()
   const [name, setName] = useState('')
@@ -51,8 +48,6 @@ export function NewGoalCard({ currency, onDone }: { currency: string; onDone: ()
         mode,
         targetAmount,
         targetDate,
-        // a chosen day counts from just before its local midnight, so every
-        // transaction dated that day is inside the goal
         startedAt: startDay === null ? undefined : startInstantForDay(startDay),
         accountIds: accounts.map((a) => a.id)
       },

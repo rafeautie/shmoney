@@ -219,9 +219,8 @@ function setSavedFilterGuarded(
   return tx.update(savedFilters).set({ deletedAt: target }).where(where).run().changes
 }
 
-// same guarded semantics for a savings goal's soft-delete timestamp. Goal names
-// carry no unique index, so unlike saved filters there's nothing to collide with
-// on the way back.
+// same guarded semantics; goal names carry no unique index, so unlike saved
+// filters there's nothing to collide with on the way back
 function setGoalGuarded(
   tx: Tx,
   change: SavingsGoalActionChange,

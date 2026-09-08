@@ -25,21 +25,13 @@ function nowSec(): number {
   return Math.floor(Date.now() / 1000)
 }
 
-/**
- * Soft-deleted goals from a prior session had their undo toast close with the
- * app, so there's no restoring them; runs once at startup and hard-deletes those
- * rows for good. Same-session deletes stay restorable since this never runs
- * mid-session. The same treatment saved filters get.
- */
+/** A prior session's undo toast is gone, so those rows can never come back. */
 function purgeDeletedGoals(): void {
   const removed = db.delete(savingsGoals).where(isNotNull(savingsGoals.deletedAt)).run().changes
   if (removed > 0) log.info('goals.purged-deleted', { count: removed })
 }
 
-/**
- * A goal is a scalar amount and can't keep currencies apart, so every linked
- * account has to agree on one. Returns it.
- */
+/** A goal is a scalar amount and can't keep currencies apart. */
 function sharedCurrency(accountIds: number[]): string {
   const rows = db
     .select({ id: accounts.id, currency: accounts.currency })
@@ -52,7 +44,6 @@ function sharedCurrency(accountIds: number[]): string {
   return rows[0].currency
 }
 
-/** targetDate is compared in JS, never in SQL; this is the only place it turns into an instant. */
 function assertDatesOrdered(startedAt: number, targetDate: string | null): void {
   if (targetDate === null) return
   const midnight = Math.floor(parseLocalDay(targetDate).getTime() / 1000)
@@ -105,8 +96,7 @@ export function registerGoalsIpc(): void {
       return row.id
     })
 
-    // the baseline reads the goal's stored start and links, so it's computed
-    // after the row exists rather than from the input
+    // the baseline reads the stored start and links, so the row goes in first
     setBaseline(id, mode, accountIds)
     return oneSummary(id)
   })
@@ -149,15 +139,12 @@ export function registerGoalsIpc(): void {
       }
     })
 
-    // the pace line starts somewhere else once the start or the accounts move
     if (patch.startedAt !== undefined || accountIds)
       setBaseline(patch.id, existing.mode, accountIds ?? linkedAccountIds(patch.id))
     return oneSummary(patch.id)
   })
 
-  // soft delete, recorded in the action log: the row stays put so undo — the
-  // toast or Ctrl+Z — can bring the goal back, which is why deleting one asks
-  // for no confirmation.
+  // soft delete so undo can bring the goal back; that is why there is no confirm
   ipcMain.handle(GOALS_IPC.remove, (_event, input: unknown): GoalRemoveResult => {
     const { id } = goalRemoveSchema.parse(input)
     const now = nowSec()

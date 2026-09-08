@@ -1,6 +1,4 @@
--- Savings goals: a target amount backed by one or more accounts. Progress is
--- derived from transactions (main/goals/saved.ts), never stored. deleted_at is a
--- soft delete so removing a goal is undoable through the action log.
+-- Savings goals. Progress is derived from transactions, never stored.
 CREATE TABLE `savings_goals` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
 	`name` text NOT NULL,

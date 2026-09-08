@@ -4,7 +4,6 @@ import { backProjectSeries, computePace, suffixFlows, type PaceInput } from './p
 const sec = (y: number, m: number, d: number): number =>
   Math.floor(new Date(y, m - 1, d, 12).getTime() / 1000)
 
-// a goal started 1 Jan 2026 for 12,000 (milliunits x1000 throughout), due 31 Dec
 const base: PaceInput = {
   targetAmount: 12_000_000,
   baselineAmount: 0,
@@ -17,7 +16,6 @@ const base: PaceInput = {
 describe('computePace status', () => {
   it('is reached once progress meets the target, whatever the date says', () => {
     expect(computePace({ ...base, progress: 12_000_000 }).status).toBe('reached')
-    // still reached even after the deadline has passed
     expect(computePace({ ...base, progress: 20_000_000, now: sec(2027, 3, 1) }).status).toBe(
       'reached'
     )
@@ -31,13 +29,11 @@ describe('computePace status', () => {
   })
 
   it('is overdue past the end of the target day, not on it', () => {
-    // the goal has all of 31 Dec to be met
     expect(computePace({ ...base, now: sec(2026, 12, 31) }).status).toBe('behind')
     expect(computePace({ ...base, now: sec(2027, 1, 1) }).status).toBe('overdue')
   })
 
   it('is behind below the pace line and on track at or above it', () => {
-    // six months into a twelve-month goal, half the target is on the line
     expect(computePace({ ...base, progress: 6_000_000 }).status).toBe('on-track')
     expect(computePace({ ...base, progress: 1_000_000 }).status).toBe('behind')
   })
@@ -54,7 +50,6 @@ describe('computePace figures', () => {
   })
 
   it('divides what is left across the calendar months remaining', () => {
-    // 1 Jul to 31 Dec is 5 calendar months out
     const pace = computePace({ ...base, progress: 2_000_000 })
     expect(pace.neededPerMonth).toBe(10_000_000 / 5)
   })
@@ -72,7 +67,6 @@ describe('computePace figures', () => {
       now: sec(2026, 1, 1),
       progress: 2_000_000
     })
-    // Nov 2025 to Jan 2026 is 2 months elapsed; Jan to Feb 2026 is 1 remaining
     expect(pace.averagePerMonth).toBe(1_000_000)
     expect(pace.neededPerMonth).toBe(10_000_000)
   })
@@ -93,13 +87,11 @@ describe('computePace figures', () => {
       baselineAmount: 4_000_000,
       progress: 10_000_000
     })
-    // six months elapsed, 6,000,000 saved over the baseline
     expect(pace.averagePerMonth).toBe(1_000_000)
   })
 
   it('runs the pace line from the baseline to the target', () => {
     const pace = computePace({ ...base, baselineAmount: 6_000_000, progress: 6_000_000 })
-    // halfway through the span, halfway between 6,000,000 and 12,000,000
     expect(pace.expectedByNow).toBeGreaterThan(8_800_000)
     expect(pace.expectedByNow).toBeLessThan(9_200_000)
   })
@@ -107,7 +99,6 @@ describe('computePace figures', () => {
 
 describe('computePace projection', () => {
   it('projects from the current average', () => {
-    // 3,000,000 over 6 months is 500,000 a month; the 9,000,000 left is 18 months
     const pace = computePace({ ...base, progress: 3_000_000 })
     expect(pace.projectedDate).toBe('2028-01-01')
   })
@@ -153,7 +144,6 @@ describe('suffixFlows and backProjectSeries', () => {
   it('repeats the next bucket’s value through a bucket with no flows', () => {
     const after = suffixFlows(buckets, new Map([['2026-06', 500]]))
     const points = backProjectSeries(5_000, buckets, after, null)
-    // nothing moved in May, so April and May both sit where May ended
     expect(points[0].saved).toBe(4_500)
     expect(points[1].saved).toBe(4_500)
   })
