@@ -220,3 +220,57 @@ export function shapeResult(
   }
   return { ok: true, columns, rows: kept, rowCount: kept.length, truncated, durationMs }
 }
+
+/**
+ * The two goal tables the model reads, created before each turn beside the
+ * scope views. Tables rather than views: a goal's saved amount, status and
+ * pace come from `main/goals`, and re-deriving them in SQL would be a second,
+ * slightly wrong definition (pace is calendar-month arithmetic, which SQL can
+ * only approximate as 30.44 days). The model reads finished numbers that are
+ * character-identical to the ones on the goal card.
+ *
+ * Pure and value-free on purpose: every row is inserted with bound parameters
+ * (see GOAL_INSERT_SQL), because a goal name is user text and inlining
+ * untrusted values into DDL is exactly what the accountId guard in
+ * scopeViewsDdl exists to prevent. Amounts are divided out of milliunits at
+ * insert time, matching every other money column the model sees.
+ */
+export function goalTableDdl(): string[] {
+  return [
+    'DROP TABLE IF EXISTS temp.goals',
+    'CREATE TEMP TABLE goals (' +
+      'id INTEGER, ' +
+      'name TEXT, ' +
+      'mode TEXT, ' +
+      'accounts TEXT, ' +
+      'currency TEXT, ' +
+      'target REAL, ' +
+      'saved REAL, ' +
+      'remaining REAL, ' +
+      'percent_complete REAL, ' +
+      'status TEXT, ' +
+      'target_date TEXT, ' +
+      'started_at TEXT, ' +
+      'needed_per_month REAL, ' +
+      'average_per_month REAL, ' +
+      'projected_date TEXT)',
+    'DROP TABLE IF EXISTS temp.goal_history',
+    // goal rides along as the name so the model never joins for a label, the
+    // same reason transactions carries category and account_name
+    'CREATE TEMP TABLE goal_history (goal_id INTEGER, goal TEXT, month TEXT, saved REAL)'
+  ]
+}
+
+export const GOAL_INSERT_SQL =
+  'INSERT INTO temp.goals (id, name, mode, accounts, currency, target, saved, remaining, ' +
+  'percent_complete, status, target_date, started_at, needed_per_month, average_per_month, ' +
+  'projected_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+
+export const GOAL_HISTORY_INSERT_SQL =
+  'INSERT INTO temp.goal_history (goal_id, goal, month, saved) VALUES (?, ?, ?, ?)'
+
+/** bound-parameter rows for the two tables, in their INSERT column order */
+export interface GoalTableRows {
+  goals: unknown[][]
+  history: unknown[][]
+}
