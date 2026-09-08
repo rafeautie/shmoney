@@ -1,3 +1,4 @@
+import { GOAL_STATUS_LABELS } from '@shared/goals'
 import { MAX_CHART_SERIES } from './tools/chart-tool'
 import { MAX_ROWS, MAX_TOOL_CALLS_PER_TURN } from './tools/sql-tool'
 
@@ -23,6 +24,13 @@ export interface PromptDbContext {
 // without bound; a pathological list gets clipped rather than eat the replay
 // budget (see historyWindow)
 export const MAX_CATEGORY_CHARS = 700
+
+// the goals table's status column, quoted from the one vocabulary every
+// surface reads (shared/goals.ts): the model both filters on the string and
+// says it back, so a word invented here would be a word that matches nothing
+const STATUS_VALUES = Object.values(GOAL_STATUS_LABELS)
+  .map((label) => `'${label}'`)
+  .join(', ')
 
 const monthOf = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
@@ -194,6 +202,8 @@ You get ${MAX_TOOL_CALLS_PER_TURN} tool calls per reply and results cap at ${MAX
 - transactions(id, account_id, account_name, posted, amount, description, pending, transacted_at, category_id, category, category_group, system_key, txn_date, month, quarter, year, week, currency): query directly only when asked about transfers or pending rows themselves.
 - accounts(id, name, institution_name, currency, balance, available_balance, balance_date)
 - budget_status(category_id, category, month, budget, spent, available): one row per budgeted category per month, through the current month. budget is that month's amount, spent is what went out, and available carries unspent money forward exactly like the app's Budgets page, so quote available for "how much is left".
+- goals(id, name, mode, accounts, currency, target, saved, remaining, percent_complete, status, target_date, started_at, needed_per_month, average_per_month, projected_date): the user's savings goals with every figure already worked out, matching the Goals page. status is one of ${STATUS_VALUES}.
+- goal_history(goal_id, goal, month, saved): what each goal had saved at the end of each month, for the last 24 months.
 - holdings(id, account_id, symbol, description, currency, shares, market_value, cost_basis, purchase_price, created_at): shares is text; CAST(shares AS REAL) for math
 - connections(id, last_synced_at, created_at): the bank link; last_synced_at NULL means never synced
 - rules(id, name, enabled, priority, conditions, action, created_at, updated_at): auto-categorization rules; conditions and action are JSON
@@ -207,6 +217,8 @@ You get ${MAX_TOOL_CALLS_PER_TURN} tool calls per reply and results cap at ${MAX
 - Every transaction already carries category, category_group and system_key (all NULL when uncategorized); never join for a name.
 - system_key = 'transfers' marks transfers between accounts and 'opening' a manual account's starting balance; tx already excludes both. Over transactions, exclude with IS NOT 'transfers', never != (which also drops every NULL row). Never count 'opening' as activity; accounts.balance already includes it.
 - pending is 0 or 1; tx keeps only pending = 0. Deleted rows are already filtered out; never filter on deleted_at.
+- Goal figures are finished numbers: read saved, remaining, status, needed_per_month and projected_date off the goals row, never rebuild them from transactions or account balances.
+- percent_complete is a percentage and the goal dates are dates, so neither goes inside an amount tag. A goals row is a status readout: answer it in sentences with no chart, and chart a goal's progress from goal_history.
 - Group by a label column (description, category, account_name, a time bucket), never an id: an id charts as an axis labelled 1, 2, 3.
 - Column aliases are bare words: letters, digits and underscores, never starting with a digit.
 - The outer query of a WITH clause sees ONLY the columns in the CTE's own SELECT list. A window function always spells its frame: OVER (ORDER BY month ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW).
@@ -229,6 +241,7 @@ Match the user's everyday words to the label to group or filter on:
 - "the last 3 months", "past year" → that many COMPLETE periods: resolve_dates with includeCurrent false, unless the user says "including this month" or "so far".
 - "saved", "savings rate", "left over" → net, which is income minus spending: ROUND(SUM(amount), 2) over tx, never a sum of absolute amounts.
 - "budget", "on track", "how much is left" → budget_status.
+- A goal's name, "goal", "saving for", or "on track for" a goal → goals; how a goal has grown → goal_history. "saved" with no goal named is still net.
 - "subscriptions", "recurring", "bills" → descriptions that repeat most months at a steady price.
 - A thing that is neither a category nor a store ("coffee", "gas", "flights") → match a few likely words inside one pair of parentheses, WHERE amount < 0 AND (description LIKE '%WORD1%' OR description LIKE '%WORD2%'), GROUP BY description so you see what actually matched, and say which ones you counted.
 - "why", "what changed", "what drove" → the same categories in two periods side by side, sorted by the change.
@@ -311,6 +324,20 @@ It returns 4 rows: 🍽️ Dining Out 150.00 212.40 -62.40 | 🛍️ Shopping 20
 Budget against spent is two measures of one label, so I call chart: a bar, x category, series budget and spent, no group.
 
 I answer: Mostly, with one miss: dining out is over, {{212.40 ${cur}}} spent against a {{150.00 ${cur}}} budget. Everything else has room, with {{247.25 ${cur}}} still left for groceries.
+
+### "am I on track for the Japan trip?"
+
+A goal's figures are already worked out, so I match its name on the distinctive word and read every figure straight off the row:
+SELECT name, saved, target, remaining, percent_complete, status, needed_per_month, target_date
+FROM goals WHERE name LIKE '%Japan%'
+It returns 1 row: Japan trip 3120.00 6000.00 2880.00 52.0 Behind 720.00 2027-03-31
+
+A goals row is a status readout, not a measure, so no chart.
+
+I answer: Not quite. The Japan trip is at {{3120.00 ${cur}}} of {{6000.00 ${cur}}}, 52% of the way, and marked Behind. Putting away {{720.00 ${cur}}} a month gets it there by March 2027.
+
+Asked how a goal has grown, I read its month-end totals and call chart: a line, x month, series saved.
+SELECT month, saved FROM goal_history WHERE goal LIKE '%Japan%' ORDER BY month
 
 ### "what's my checking balance?"
 
