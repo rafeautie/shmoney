@@ -2,14 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import type { GoalSummary } from '@shared/goals'
 import { currentMonth, shiftMonth } from '@/lib/format-date'
 
-// What the Budget page's savings section reads. Read-only throughout: a goal's
-// monthly plan is derived from its target and its target date, so the only way
-// to change the plan is to change the goal, and nothing on the Budget page
-// writes to one.
-
 export interface SavingsGoalRow {
   goal: GoalSummary
-  /** milliunits saved over the viewed month; the delta of two month-end levels */
+  /** milliunits saved over the viewed month */
   saved: number
 }
 
@@ -18,20 +13,15 @@ export interface SavingsGoals {
   /** active goals left out because they aren't in the budget's currency */
   excluded: GoalSummary[]
   totals: { planned: number; saved: number }
-  /** neededPerMonth is a fact about today, so it is a plan for now and later */
+  /** neededPerMonth is computed from today, so it's a plan for now and later */
   showPlanned: boolean
   /** a future month has no transactions to read */
   showSaved: boolean
 }
 
 /**
- * The goals the Budget page shows for one month, with each one's saved figure.
- *
- * `saved` is a subtraction of two points the app already computes:
- * `savedAt(end of the viewed month)` minus `savedAt(end of the month before)`,
- * both from `goals:series` at monthly grain. The renderer's only contribution
- * is the minus sign, so a month's saving cannot drift from the goal card's
- * headline.
+ * `saved` is the delta of two `goals:series` month-end levels, so there is no
+ * second formula for a month's saving to drift from the goal card's headline.
  */
 export function useSavingsGoals(month: string, currency: string): SavingsGoals {
   const today = currentMonth()
@@ -58,8 +48,7 @@ export function useSavingsGoals(month: string, currency: string): SavingsGoals {
     placeholderData: (prev) => prev
   })
 
-  // archived goals are history, not a status board; the same exclusion the
-  // report widget makes
+  // archived goals are history, not a status board
   const active = (goalsQuery.data ?? []).filter((goal) => goal.archivedAt === null)
   const included = active.filter((goal) => goal.currency === currency)
 
@@ -69,8 +58,8 @@ export function useSavingsGoals(month: string, currency: string): SavingsGoals {
       levels.set(`${row.groupId}:${row.bucket}`, row.value)
     }
   }
-  // a bucket below a contributions goal's floor is absent and reads as 0, so a
-  // goal started this month counts the whole of its progress
+  // a bucket below a contributions goal's floor is absent, so a goal started
+  // this month reads its whole progress as saved
   const savedIn = (goal: GoalSummary): number =>
     (levels.get(`${goal.id}:${month}`) ?? 0) - (levels.get(`${goal.id}:${previous}`) ?? 0)
 

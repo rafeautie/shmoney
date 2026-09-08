@@ -8,7 +8,7 @@ export interface Stat {
   /** milliunits */
   value: number
   colored: boolean
-  /** small line beneath the figure, e.g. what it is being measured against */
+  /** small line beneath the figure, e.g. what it is measured against */
   sub?: ReactNode
 }
 
