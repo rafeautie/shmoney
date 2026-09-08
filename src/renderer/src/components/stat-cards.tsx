@@ -9,7 +9,7 @@ export interface Stat {
   value: number
   /** green/red by sign; only for the one number where the sign is the story */
   colored: boolean
-  /** small line beneath the figure, e.g. what it is being measured against */
+  /** small line beneath the figure, e.g. what it is measured against */
   sub?: ReactNode
 }
 

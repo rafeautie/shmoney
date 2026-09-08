@@ -135,14 +135,10 @@ function BudgetPage() {
 }
 
 /**
- * The three envelope figures, plus a fourth for savings when goals exist.
- *
- * Planned savings deliberately does not reduce `Available`. `Available` is the
- * accumulated rollover balance across every month an envelope has existed, and
- * subtracting one month's plan from a cumulative multi-month figure would
- * drift further from meaning anything with every month that passed. The
- * comparison the user came for lives in the Saved card's subcaption instead,
- * where neither number moves the other.
+ * Planned savings deliberately does not reduce `Available`, a balance rolled up
+ * over every month an envelope has existed: subtracting one month's plan from
+ * it would drift further from meaning anything every month. The comparison goes
+ * in the Saved card's subcaption instead.
  */
 function statCards(summary: BudgetSummary, goals: SavingsGoals): Stat[] {
   const stats: Stat[] = [
@@ -151,8 +147,7 @@ function statCards(summary: BudgetSummary, goals: SavingsGoals): Stat[] {
     // the one number where sign is the story: total rolled-forward balance
     { label: 'Available', value: summary.totals.balance, colored: true }
   ]
-  // saved is a fact about a month that has happened; planned is a fact about
-  // today. Only the current month can honestly show both.
+  // saved needs a month that has happened; only the current month shows both
   if (goals.rows.length > 0 && goals.showSaved) {
     stats.push({
       label: 'Saved',

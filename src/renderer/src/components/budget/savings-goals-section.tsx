@@ -5,14 +5,10 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 import type { SavingsGoals } from '@/hooks/use-savings-goals'
 import { cn, TABLE_BLEED } from '@/lib/utils'
 
-// The Budget page's savings tie-in: goals as figures and links back to /goals,
-// never as something this page can edit.
-
 /**
- * Goals as their own section below the envelope table, never as envelope rows:
- * `Monthly fill`, `This month` and `Available` mean rollover-specific things a
- * goal has no version of, and filing a goal under those headers would make the
- * columns mean two things depending on the row.
+ * Read-only: the plan is derived from the goal, so names link to /goals instead
+ * of editing. Its own section, since the envelope columns mean rollover things
+ * a goal has no version of.
  */
 export function SavingsGoalsSection({
   goals,
@@ -28,8 +24,7 @@ export function SavingsGoalsSection({
   const { rows, excluded, totals, showPlanned, showSaved } = goals
 
   if (rows.length === 0 && excluded.length === 0) {
-    // the page already owns an empty state; a second Empty block stacked under
-    // it would read as an error rather than as an invitation
+    // the page already owns an empty state; two stacked read as an error
     if (!hasEnvelopes) return null
     return (
       <p className={cn('px-6 py-4 text-xs text-muted-foreground', className)}>
@@ -46,8 +41,7 @@ export function SavingsGoalsSection({
       <div className="flex items-end justify-between gap-4 px-6 pb-2">
         <div>
           <h3 className="text-sm font-medium">Savings goals</h3>
-          {/* the one visible consequence of having no rollover here: the pace
-              line is the rollover, computed rather than carried forward */}
+          {/* there is no rollover here: the pace line already is one */}
           <p className="text-xs text-muted-foreground">
             What you need to put away this month to stay on pace. It rises if you fall behind.
           </p>
@@ -73,7 +67,6 @@ export function SavingsGoalsSection({
         <TableHeader>
           <TableRow>
             <TableHead>Goal</TableHead>
-            {/* a column that would be a guess is simply not drawn */}
             {showPlanned && <TableHead className="w-28 text-right">Planned</TableHead>}
             {showSaved && <TableHead className="w-28 text-right">Saved</TableHead>}
             <TableHead className="w-72">Progress</TableHead>
@@ -98,7 +91,6 @@ export function SavingsGoalsSection({
                 <>
                   {showPlanned && (
                     <TableCell className="text-right">
-                      {/* undated goals are real savings with no plan: a dash, not a zero */}
                       {goal.neededPerMonth === null ? (
                         <span className="text-muted-foreground">—</span>
                       ) : (
@@ -129,8 +121,7 @@ export function SavingsGoalsSection({
       </table>
 
       {excluded.length > 0 && (
-        // folding a euro goal into a dollar total would produce a number that is
-        // not any real amount, so it is named here rather than added in
+        // a euro goal folded into a dollar total is not any real amount
         <p className="px-6 pt-2 text-xs text-muted-foreground">
           Not shown, in another currency: {excluded.map((goal) => goal.name).join(', ')}.
         </p>
