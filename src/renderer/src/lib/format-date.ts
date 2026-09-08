@@ -32,3 +32,13 @@ export function formatMonthLong(month: string): string {
   const [, y, m] = match
   return format(new Date(Number(y), Number(m) - 1, 1), 'MMMM yyyy')
 }
+
+// months are 'YYYY-MM' strings throughout, matching the budget engine's buckets
+export function currentMonth(): string {
+  return format(new Date(), 'yyyy-MM')
+}
+
+export function shiftMonth(month: string, delta: number): string {
+  const [y, m] = month.split('-').map(Number)
+  return format(new Date(y, m - 1 + delta, 1), 'yyyy-MM')
+}
