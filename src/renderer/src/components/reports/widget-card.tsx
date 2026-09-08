@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { Link } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Delete02Icon } from '@hugeicons/core-free-icons'
 import type { ReportFilters, ReportWidget } from '@shared/reports'
@@ -75,7 +76,18 @@ export const WidgetCard = memo(function WidgetCard({
       )}
     >
       <div className="flex h-6 shrink-0 items-center gap-2 px-4">
-        <h3 className="min-w-0 truncate text-sm font-medium">{widget.title}</h3>
+        {/* one condition covers every chart type sourced from goals: a goal on
+            screen should be one click from the page where it can be edited */}
+        {widget.config?.query.source === 'goals' ? (
+          <Link
+            to="/goals"
+            className="min-w-0 truncate text-sm font-medium hover:underline underline-offset-2"
+          >
+            {widget.title}
+          </Link>
+        ) : (
+          <h3 className="min-w-0 truncate text-sm font-medium">{widget.title}</h3>
+        )}
         <OverrideBadge widget={widget} />
         {editing && (
           <div className="ml-auto flex shrink-0 items-center gap-1">
