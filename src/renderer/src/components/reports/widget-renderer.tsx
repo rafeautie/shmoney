@@ -964,8 +964,8 @@ function GoalsWidget({ config }: { config: WidgetConfig }) {
   )
 }
 
-/** Saved against target, one bar per goal, toned by GOAL_STATUS_TONE so a behind
- * goal is red here and red on the page. */
+/** Saved as a share of target, one bar per goal, toned by GOAL_STATUS_TONE so a
+ * behind goal is red here and red on the page. */
 function GoalBarsChart({ goals }: { goals: GoalSummary[] }) {
   const data = goals.map((goal, i) => ({
     label: goal.name,
@@ -974,6 +974,7 @@ function GoalBarsChart({ goals }: { goals: GoalSummary[] }) {
         ? Math.min(100, Math.max(0, (goal.progress / goal.targetAmount) * 100))
         : 0,
     progress: goal.progress,
+    target: goal.targetAmount,
     currency: goal.currency,
     fill: GOAL_STATUS_TONE[goal.status] === 'destructive' ? 'var(--destructive)' : paletteColor(i)
   }))
@@ -981,9 +982,13 @@ function GoalBarsChart({ goals }: { goals: GoalSummary[] }) {
     <div className="h-full px-4 pb-4">
       <ChartContainer config={{ pct: { label: 'Saved' } }} className="aspect-auto h-full w-full">
         <BarChart data={data} layout="vertical" margin={{ top: 8, right: 8 }}>
+          {/* the gridded 0-100% scale is what "against target" reads off, and it
+              stays legible for a goal with nothing saved and so no bar */}
+          <CartesianGrid horizontal={false} />
           <XAxis
             type="number"
             domain={[0, 100]}
+            ticks={[0, 25, 50, 75, 100]}
             tickLine={false}
             axisLine={false}
             tickFormatter={(value: number) => `${Math.round(value)}%`}
@@ -1011,7 +1016,7 @@ function GoalBarsChart({ goals }: { goals: GoalSummary[] }) {
               />
             }
           />
-          <Bar dataKey="pct" background radius={[0, 2, 2, 0]} isAnimationActive={false}>
+          <Bar dataKey="pct" radius={[0, 2, 2, 0]} isAnimationActive={false}>
             {data.map((d) => (
               <Cell key={d.label} fill={d.fill} />
             ))}
