@@ -28,12 +28,14 @@ import type {
   WidgetConfig
 } from '@shared/reports'
 import type { BudgetSummary, EnvelopeSummary } from '@shared/budgets'
+import { GOAL_STATUS_TONE, type GoalSummary } from '@shared/goals'
 import { cn, formatAmount } from '@/lib/utils'
 import { formatBucketLabel, formatMonthLong } from '@/lib/format-date'
 import { usePrivacy } from '@/lib/settings'
 import { Amount } from '@/components/amount'
 import { Chart, type FormatValue } from '@/components/charts/chart'
 import { EnvelopeProgressRow } from '@/components/budget/envelope-progress'
+import { GoalProgressRow } from '@/components/goals/goal-progress'
 import { TransactionsTable } from '@/components/transactions/transactions-table'
 import { Badge } from '@/components/ui/badge'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
@@ -120,6 +122,15 @@ function TooltipRow({
   )
 }
 
+/**
+ * Goal values are money levels: never a count, and never sign-coloured, because
+ * the Goals page shows saved uncoloured too. 'income' is the formatting token
+ * for exactly that, so every formatter below needs no goal case of its own.
+ */
+function displayMeasure(config: WidgetConfig): Measure {
+  return config.query.source === 'goals' ? 'income' : config.query.measure
+}
+
 /** Money renders via <Amount> (signed coloring for sums only); counts as plain text. */
 function MeasureValue({
   measure,
@@ -179,6 +190,11 @@ function TimeSeriesChart({
   resolved: ResolvedQuery
 }) {
   const grain = config.query.timeGrain as Exclude<TimeGrain, 'none'>
+  // a goal series is a level, not a flow: a running total of a running total is
+  // nonsense, and zero-filling would draw a drop to $0 in a quiet bucket. The
+  // series is already dense (goals/series.ts back-projects every bucket), so the
+  // only holes left are the buckets before the goal existed, which are gaps.
+  const isGoals = config.query.source === 'goals'
   const { data, series, tooManyBuckets } = useMemo(
     () =>
       pivotTimeSeries(
@@ -186,14 +202,15 @@ function TimeSeriesChart({
         grain,
         resolved.filters.dateStart,
         resolved.filters.dateEnd,
-        config.query.cumulative,
-        config.query.measure !== 'avg'
+        isGoals ? false : config.query.cumulative,
+        isGoals ? false : config.query.measure !== 'avg'
       ),
     [
       rows,
       grain,
       resolved.filters.dateStart,
       resolved.filters.dateEnd,
+      isGoals,
       config.query.cumulative,
       config.query.measure
     ]
@@ -207,7 +224,7 @@ function TimeSeriesChart({
   }
 
   const currency = currencies[0] ?? 'USD'
-  const measure = config.query.measure
+  const measure = displayMeasure(config)
   const fv = makeFormatValue(measure, currency)
   const chartSeries = series.map((s) => ({ key: s.key, label: s.label, currency: s.currency }))
   const kind = widget.type === 'line' ? 'line' : widget.type === 'area' ? 'area' : 'bar'
@@ -249,7 +266,7 @@ function CategoricalBarChart({
   if (totals.length === 0) {
     return <CenteredNote>No transactions match these filters.</CenteredNote>
   }
-  const measure = config.query.measure
+  const measure = displayMeasure(config)
   const currency = currencies[0] ?? 'USD'
   const fv = makeFormatValue(measure, currency)
   const data = totals.map((t) => ({ label: t.label, value: t.value, currency: t.currency }))
@@ -296,7 +313,7 @@ function PieChartWidget({
       <CenteredNote>No positive values to chart. Try the expense or income measure.</CenteredNote>
     )
   }
-  const measure = config.query.measure
+  const measure = displayMeasure(config)
   const fv = makeFormatValue(measure, currencies[0] ?? 'USD')
   const data = totals.map((t) => ({ label: t.label, value: t.value, currency: t.currency }))
   return (
@@ -342,7 +359,7 @@ function RadarChartWidget({
       <CenteredNote>No positive values to chart. Try the expense or income measure.</CenteredNote>
     )
   }
-  const measure = config.query.measure
+  const measure = displayMeasure(config)
   const currency = currencies[0] ?? 'USD'
   const chartConfig: ChartConfig = { value: { label: 'Value', color: 'var(--chart-1)' } }
   return (
@@ -414,7 +431,7 @@ function RadialChartWidget({
       <CenteredNote>No positive values to chart. Try the expense or income measure.</CenteredNote>
     )
   }
-  const measure = config.query.measure
+  const measure = displayMeasure(config)
   // keyed by arc label, mirroring the pie widget's legend lookup
   const chartConfig: ChartConfig = Object.fromEntries(
     totals.map((t) => [t.label, { label: t.label }])
@@ -478,7 +495,28 @@ function StatCardWidget({
   rows: QueryRow[]
   currencies: string[]
 }) {
-  const measure = config.query.measure
+  const measure = displayMeasure(config)
+  // the group is always the goal, so one card per goal: summing them would
+  // answer a question nobody asked
+  if (config.query.source === 'goals') {
+    return (
+      <ScrollArea className="h-full">
+        <div className="space-y-3 p-4">
+          {rows.map((row) => (
+            <div key={`${row.groupId}-${row.currency}`} className="min-w-0">
+              <div className="truncate text-xs text-muted-foreground">{row.groupLabel}</div>
+              <Amount
+                value={row.value}
+                currency={row.currency}
+                colored={false}
+                className="text-2xl font-semibold tracking-tight"
+              />
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
+    )
+  }
   // one row per currency when groupBy/timeGrain are 'none'
   const byCurrency = currencies.map((currency) => ({
     currency,
@@ -526,7 +564,7 @@ function SummaryTableWidget({
     () => groupTotals(rows, config.query.sort ?? { by: 'value', dir: 'desc' }, config.query.limit),
     [rows, config.query.sort, config.query.limit]
   )
-  const measure = config.query.measure
+  const measure = displayMeasure(config)
   const totalByCurrency = useMemo(() => {
     const map = new Map<string, number>()
     for (const t of totals) map.set(t.currency, (map.get(t.currency) ?? 0) + Math.abs(t.value))
@@ -898,6 +936,118 @@ function BudgetGaugeChart({
   )
 }
 
+// ---------- goals ----------
+
+/**
+ * The status board: every active goal, from the same ['goals'] query key the
+ * Goals page uses, so a card and a widget open side by side can never disagree.
+ * Archived goals are excluded; this is a board, not an archive.
+ */
+function GoalsWidget({ config }: { config: WidgetConfig }) {
+  const query = useQuery({
+    queryKey: ['goals'],
+    queryFn: () => window.api.goals.list(),
+    placeholderData: (prev: GoalSummary[] | undefined) => prev
+  })
+
+  if (query.isLoading) return <WidgetSkeleton />
+  if (query.isError) {
+    return <CenteredNote>Failed to load: {String(query.error)}</CenteredNote>
+  }
+  const goals = query.data!.filter((goal) => goal.archivedAt === null)
+  if (goals.length === 0) return <NoGoalsNote />
+
+  const view = config.display?.goalView ?? 'list'
+  return view === 'list' ? (
+    <ScrollArea className="h-full">
+      <div className="space-y-3 px-4 pb-4">
+        {goals.map((goal) => (
+          <Link key={goal.id} to="/goals" className="block hover:opacity-80">
+            <GoalProgressRow goal={goal} />
+          </Link>
+        ))}
+      </div>
+    </ScrollArea>
+  ) : (
+    <GoalBarsChart goals={goals} />
+  )
+}
+
+/**
+ * Saved against target, one horizontal bar per goal, with the target as the
+ * track behind it. Tone comes from GOAL_STATUS_TONE, so a behind goal is red
+ * here and red on the page.
+ */
+function GoalBarsChart({ goals }: { goals: GoalSummary[] }) {
+  const data = goals.map((goal, i) => ({
+    label: goal.name,
+    pct:
+      goal.targetAmount > 0
+        ? Math.min(100, Math.max(0, (goal.progress / goal.targetAmount) * 100))
+        : 0,
+    progress: goal.progress,
+    currency: goal.currency,
+    fill: GOAL_STATUS_TONE[goal.status] === 'destructive' ? 'var(--destructive)' : paletteColor(i)
+  }))
+  return (
+    <div className="h-full px-4 pb-4">
+      <ChartContainer config={{ pct: { label: 'Saved' } }} className="aspect-auto h-full w-full">
+        <BarChart data={data} layout="vertical" margin={{ top: 8, right: 8 }}>
+          <XAxis
+            type="number"
+            domain={[0, 100]}
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(value: number) => `${Math.round(value)}%`}
+          />
+          <YAxis
+            type="category"
+            dataKey="label"
+            tickLine={false}
+            axisLine={false}
+            width={96}
+            tickMargin={4}
+          />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                hideLabel
+                formatter={(_value, _name, item) => (
+                  <TooltipRow
+                    label={item.payload?.label}
+                    measure="income"
+                    value={item.payload?.progress ?? 0}
+                    currency={item.payload?.currency}
+                  />
+                )}
+              />
+            }
+          />
+          <Bar dataKey="pct" background radius={[0, 2, 2, 0]} isAnimationActive={false}>
+            {data.map((d) => (
+              <Cell key={d.label} fill={d.fill} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ChartContainer>
+    </div>
+  )
+}
+
+/** Shared by the goals widget and the goal-sourced charts. */
+function NoGoalsNote() {
+  return (
+    <Empty className="h-full p-4">
+      <EmptyDescription className="text-sm">
+        No savings goals yet.{' '}
+        <Link to="/goals" className="underline underline-offset-2">
+          Create a goal
+        </Link>
+      </EmptyDescription>
+    </Empty>
+  )
+}
+
 // ---------- dispatcher ----------
 
 function AggregateWidget({
@@ -910,12 +1060,80 @@ function AggregateWidget({
   reportFilters: ReportFilters
 }) {
   const { resolved, query } = useWidgetData(widget.id, config, reportFilters)
-  if (query.isLoading) return <WidgetSkeleton />
+  const isGoals = config.query.source === 'goals'
+  // the goal list answers "which of the empty states is this?"; it shares the
+  // Goals page's key, so it is already in cache whenever the page has been open
+  const goalsQuery = useQuery({
+    queryKey: ['goals'],
+    queryFn: () => window.api.goals.list(),
+    enabled: isGoals
+  })
+
+  if (query.isLoading || goalsQuery.isLoading) return <WidgetSkeleton />
   if (query.isError) {
     return <CenteredNote>Failed to load: {String(query.error)}</CenteredNote>
   }
   const { rows, currencies } = query.data!
 
+  const body = (
+    <AggregateBody
+      widget={widget}
+      config={config}
+      rows={rows}
+      currencies={currencies}
+      resolved={resolved}
+    />
+  )
+  if (!isGoals) return body
+
+  const active = (goalsQuery.data ?? []).filter((goal) => goal.archivedAt === null)
+  if (active.length === 0) return <NoGoalsNote />
+
+  const ids = config.query.goalIds
+  const chosen = ids === undefined ? active : active.filter((goal) => ids.includes(goal.id))
+  if (chosen.length === 0) {
+    return <CenteredNote>No goals selected. Edit this widget to pick some.</CenteredNote>
+  }
+
+  // a goal with no linked account has nothing to derive from, so its line would
+  // be a flat zero: drop it and name it instead
+  const unlinked = chosen.filter((goal) => goal.accounts.length === 0)
+  const note = unlinked.map((goal) => `${goal.name} has no linked account.`).join(' ')
+  const linked = new Set(chosen.filter((goal) => goal.accounts.length > 0).map((goal) => goal.id))
+  if (linked.size === 0) return <CenteredNote>{note}</CenteredNote>
+
+  const plotted = rows.filter((row) => row.groupId !== null && linked.has(row.groupId))
+  if (plotted.length === 0) return <CenteredNote>No goal history in this range.</CenteredNote>
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1">
+        <AggregateBody
+          widget={widget}
+          config={config}
+          rows={plotted}
+          currencies={currencies}
+          resolved={resolved}
+        />
+      </div>
+      {note && <p className="shrink-0 px-4 pb-2 text-xs text-muted-foreground">{note}</p>}
+    </div>
+  )
+}
+
+function AggregateBody({
+  widget,
+  config,
+  rows,
+  currencies,
+  resolved
+}: {
+  widget: ReportWidget
+  config: WidgetConfig
+  rows: QueryRow[]
+  currencies: string[]
+  resolved: ResolvedQuery
+}) {
   switch (widget.type) {
     case 'line':
     case 'area':
@@ -983,6 +1201,9 @@ export function WidgetRenderer({
   }
   if (widget.type === 'budget') {
     return <BudgetWidget config={widget.config} reportFilters={reportFilters} />
+  }
+  if (widget.type === 'goals') {
+    return <GoalsWidget config={widget.config} />
   }
   return <AggregateWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
 }
