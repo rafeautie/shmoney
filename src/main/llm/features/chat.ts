@@ -385,6 +385,14 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     .orderBy(chatMessages.id)
     .all()
 
+  // gathered before any rows are written and before the lock is claimed, so a
+  // throw here leaves no half-written turn and no stranded lock; currency and
+  // the goal tables are point-in-time snapshots of the turn either way
+  const context = promptDbContext(scope.accountId)
+  const history = buildHistory(priorRows, buildSystemPrompt(scope, context))
+  const currency = resolveCurrency(context.accounts)
+  const goalRows = goalTableRows(scope.accountId)
+
   const userRow = db
     .insert(chatMessages)
     .values({
@@ -416,20 +424,14 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
 
   const controller = new AbortController()
   activeChat = controller
-  const context = promptDbContext(scope.accountId)
-  const history = buildHistory(priorRows, buildSystemPrompt(scope, context))
   launchGeneration({
     conversationId: conversationRow.id,
     assistantMessageId: assistantRow.id,
     history,
     prompt: input.text,
     scope,
-    // the currency chart values format as, fixed per turn alongside the
-    // prompt context it derives from; the worker stamps it at the source
-    currency: resolveCurrency(context.accounts),
-    // the goal tables are a snapshot taken as the turn starts, like the prompt
-    // context beside it; chat is a point-in-time surface either way
-    goalRows: goalTableRows(scope.accountId),
+    currency,
+    goalRows,
     controller
   })
 
