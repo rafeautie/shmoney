@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Tick02Icon } from '@hugeicons/core-free-icons'
-import { Badge } from '@/components/ui/badge'
+import { ArrowDown01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -12,14 +11,21 @@ import {
   CommandList
 } from '@/components/ui/command'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { cn } from '@/lib/utils'
 
 /** Narrowed to one currency: the first pick fixes the rest. */
 export function GoalAccountPicker({
   selected,
-  onChange
+  onChange,
+  modal,
+  placeholder
 }: {
   selected: { id: number; name: string }[]
   onChange: (accounts: { id: number; name: string }[]) => void
+  /** set inside a dialog, whose scroll lock would otherwise swallow the list */
+  modal?: boolean
+  /** shown instead of the missing-account warning while a goal is being drafted */
+  placeholder?: string
 }) {
   const [open, setOpen] = useState(false)
   const { data: accounts } = useQuery({
@@ -38,22 +44,27 @@ export function GoalAccountPicker({
         : [...selected, { id: account.id, name: account.name }]
     )
 
+  const empty = selected.length === 0
+  const label = empty
+    ? (placeholder ?? 'No linked account')
+    : selected.length === 1
+      ? selected[0].name
+      : `${selected.length} accounts`
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover modal={modal} open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={<Button variant="ghost" size="sm" className="h-auto px-1 py-0.5 font-normal" />}
+        render={<Button variant="outline" className="w-full justify-between font-normal" />}
       >
-        {selected.length === 0 ? (
-          <span className="text-xs text-destructive">No linked account</span>
-        ) : (
-          <span className="flex flex-wrap gap-1">
-            {selected.map((account) => (
-              <Badge key={account.id} variant="secondary" className="font-normal">
-                {account.name}
-              </Badge>
-            ))}
-          </span>
-        )}
+        <span
+          className={cn(
+            'truncate',
+            empty && (placeholder === undefined ? 'text-destructive' : 'text-muted-foreground')
+          )}
+        >
+          {label}
+        </span>
+        <HugeiconsIcon icon={ArrowDown01Icon} size={14} className="text-muted-foreground" />
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
         <Command>
