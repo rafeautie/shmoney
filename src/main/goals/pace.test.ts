@@ -113,6 +113,18 @@ describe('computePace projection', () => {
   it('has no projection once reached', () => {
     expect(computePace({ ...base, progress: 12_000_000 }).projectedDate).toBeNull()
   })
+
+  it('has no projection when a tiny positive average projects centuries out', () => {
+    const pace = computePace({
+      ...base,
+      targetAmount: 20_000_000,
+      baselineAmount: 0,
+      progress: 10,
+      now: sec(2026, 3, 1)
+    })
+    expect(pace.averagePerMonth).toBeGreaterThan(0)
+    expect(pace.projectedDate).toBeNull()
+  })
 })
 
 describe('suffixFlows and backProjectSeries', () => {

@@ -88,6 +88,10 @@ export function computePace(input: PaceInput): GoalPace {
   }
 }
 
+// past this horizon the projection is meaningless anyway, and addMonths on a
+// month count in the millions overflows into an Invalid Date that format() throws on
+const MAX_PROJECTION_MONTHS = 1200
+
 function projectDate(
   now: Date,
   remaining: number,
@@ -96,7 +100,7 @@ function projectDate(
 ): string | null {
   if (reached || averagePerMonth <= 0) return null
   const months = remaining / averagePerMonth
-  if (!Number.isFinite(months)) return null
+  if (!Number.isFinite(months) || months > MAX_PROJECTION_MONTHS) return null
   return format(addMonths(now, Math.ceil(months)), 'yyyy-MM-dd')
 }
 
