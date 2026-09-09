@@ -71,8 +71,8 @@ way can be archived rather than deleted.
 
 Goals show up wherever they are useful, all reading the same numbers:
 
-- The **Goals** page, with a card per goal and totals across all of them.
-- A savings section on the **Budget** page, giving what to put away this month next to your envelopes.
+- The **Goals** page, as a card or a row per goal, with totals across all of them.
+- The **Budget** page's Saved card, comparing what you put away this month against the plan.
 - **Report** widgets for progress, saved per goal, and saved over time, plus a ready-made Savings Goals report.
 - The **account** page, which shows the goals pointed at that account.
 - **Chat**, which can answer questions about how your goals are doing.
