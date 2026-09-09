@@ -42,7 +42,10 @@ export function GoalBar({ goal, className }: { goal: GoalSummary; className?: st
 export function GoalStatusBadge({ status }: { status: GoalSummary['status'] }) {
   if (status === 'no-date') return null
   return (
-    <Badge variant={GOAL_STATUS_TONE[status] === 'destructive' ? 'destructive' : 'secondary'}>
+    <Badge
+      variant={GOAL_STATUS_TONE[status] === 'destructive' ? 'destructive' : 'secondary'}
+      className="shrink-0"
+    >
       {GOAL_STATUS_LABELS[status]}
     </Badge>
   )
@@ -51,12 +54,12 @@ export function GoalStatusBadge({ status }: { status: GoalSummary['status'] }) {
 /** Compact read-only row, the shape a report widget lists. */
 export function GoalProgressRow({ goal }: { goal: GoalSummary }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="min-w-0 flex-1">
-        <span className="truncate text-sm">{goal.name}</span>
-        <GoalBar goal={goal} />
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate text-sm">{goal.name}</span>
+        <GoalStatusBadge status={goal.status} />
       </div>
-      <GoalStatusBadge status={goal.status} />
+      <GoalBar goal={goal} />
     </div>
   )
 }

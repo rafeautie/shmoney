@@ -969,9 +969,7 @@ function GoalsWidget({ config }: { config: WidgetConfig }) {
     <ScrollArea className="h-full">
       <div className="space-y-3 px-4 pb-4">
         {goals.map((goal) => (
-          <Link key={goal.id} to="/goals" className="block hover:opacity-80">
-            <GoalProgressRow goal={goal} />
-          </Link>
+          <GoalProgressRow key={goal.id} goal={goal} />
         ))}
       </div>
     </ScrollArea>
@@ -1046,12 +1044,7 @@ function GoalBarsChart({ goals }: { goals: GoalSummary[] }) {
 function NoGoalsNote() {
   return (
     <Empty className="h-full p-4">
-      <EmptyDescription className="text-sm">
-        No savings goals yet.{' '}
-        <Link to="/goals" className="underline underline-offset-2">
-          Create a goal
-        </Link>
-      </EmptyDescription>
+      <EmptyDescription className="text-sm">No savings goals yet.</EmptyDescription>
     </Empty>
   )
 }
