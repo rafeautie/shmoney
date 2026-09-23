@@ -77,6 +77,9 @@ A ready-made driver lives in `scripts/` next to this skill: `driver.mjs`
   `round-corners.ps1 -Radius 16` (8px CSS at the 2x capture scale). It
   fills a rounded GraphicsPath with a TextureBrush; `Graphics.SetClip`
   gives jagged corners.
+- rafe.dev's shmoney page keeps its own copies. After committing new
+  shots, run `pnpm sync-screenshots` in `rafe.dev/workspaces/web`; its
+  build derives the AVIF/WebP variants.
 - Screenshot consistency: the chat sidebar history and the notification
   dot appear on every page, so any chat/notification change made
   mid-run means recapturing earlier pages too. Capture chat last, then
