@@ -3,12 +3,14 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import {
   LLM_MODELS,
+  MODEL_FAMILIES,
   MODEL_IDS,
   modelComfortable,
   modelRunnable,
   type HardwareInfo,
   type LlmDownloadProgress,
   type LlmModel,
+  type ModelFamily,
   type ModelId
 } from '@shared/llm'
 import {
@@ -33,12 +35,13 @@ function formatBytes(bytes: number): string {
 
 /**
  * The model chooser shared by Settings and onboarding. It reads live status
- * itself, so any surface can drop it in with no props. One row per model, each
- * showing the recommended-for-this-hardware badge, a capability hint, and its
- * own download/cancel/delete control. Clicking a runnable row makes it the
- * selected (active) model; downloading a model selects it too, so downloading
- * is also choosing. A model the machine can't run is disabled, and when nothing
- * runs the whole picker leads with a warning that AI features are off.
+ * itself, so any surface can drop it in with no props. Models are grouped by
+ * family, one slim row each: the recommended-for-this-hardware badge, a size
+ * and fit hint, and its own download/cancel/delete control. Clicking a runnable
+ * row makes it the selected (active) model; downloading a model selects it
+ * too, so downloading is also choosing. Models the machine can't run fold
+ * behind a toggle, and when nothing runs the picker leads with a warning that
+ * AI features are off.
  */
 export function ModelPicker({ className }: { className?: string }): React.JSX.Element {
   const supported = useLlmSupported()
@@ -49,24 +52,65 @@ export function ModelPicker({ className }: { className?: string }): React.JSX.El
   const actions = useModelActions()
   // one confirm dialog, reused across rows; holds the model pending deletion
   const [confirmDelete, setConfirmDelete] = useState<ModelId | null>(null)
+  const [showAll, setShowAll] = useState(false)
+
+  // models this machine can't run fold away, except the selected one so the
+  // current choice never disappears; optimistic while hardware is loading
+  const runnableHere = (id: ModelId): boolean => !hw || modelRunnable(LLM_MODELS[id], hw)
+  const hiddenCount = MODEL_IDS.filter((id) => !runnableHere(id) && id !== selected).length
+  const visible = (id: ModelId): boolean => showAll || runnableHere(id) || id === selected
+
+  const families = (Object.keys(MODEL_FAMILIES) as ModelFamily[])
+    .map((family) => ({
+      family,
+      ids: MODEL_IDS.filter((id) => LLM_MODELS[id].family === family && visible(id))
+    }))
+    .filter((group) => group.ids.length > 0)
 
   return (
-    <div className={cn('space-y-3', className)}>
+    <div className={cn('space-y-4', className)}>
       {!supported && <UnsupportedWarning />}
-      <div className="space-y-2">
-        {MODEL_IDS.map((id) => (
-          <ModelOption
-            key={id}
-            model={LLM_MODELS[id]}
-            selected={selected === id}
-            recommended={recommended === id}
-            hw={hw}
-            progress={progress[id]}
-            actions={actions}
-            onDelete={() => setConfirmDelete(id)}
-          />
-        ))}
-      </div>
+      {families.map(({ family, ids }) => (
+        <section key={family} className="space-y-1.5">
+          <h3 className="text-xs font-medium text-muted-foreground">
+            {MODEL_FAMILIES[family].label}
+            <span className="font-normal text-muted-foreground/70">
+              {' '}
+              · {MODEL_FAMILIES[family].vendor}
+            </span>
+          </h3>
+          <div
+            role="radiogroup"
+            aria-label={`${MODEL_FAMILIES[family].label} models`}
+            className="divide-y overflow-hidden rounded-lg border"
+          >
+            {ids.map((id) => (
+              <ModelRow
+                key={id}
+                model={LLM_MODELS[id]}
+                selected={selected === id}
+                recommended={recommended === id}
+                hw={hw}
+                progress={progress[id]}
+                actions={actions}
+                onDelete={() => setConfirmDelete(id)}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+      {hiddenCount > 0 && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 text-muted-foreground"
+          onClick={() => setShowAll((v) => !v)}
+        >
+          {showAll
+            ? 'Hide models this device can’t run'
+            : `Show ${hiddenCount} more that need more memory`}
+        </Button>
+      )}
 
       <ConfirmDialog
         open={confirmDelete !== null}
@@ -87,7 +131,7 @@ export function ModelPicker({ className }: { className?: string }): React.JSX.El
   )
 }
 
-function ModelOption({
+function ModelRow({
   model,
   selected,
   recommended,
@@ -123,12 +167,19 @@ function ModelOption({
     actions.download.mutate(model.id)
   }
 
+  const percent = verifying
+    ? 100
+    : progress && progress.totalBytes > 0
+      ? (progress.downloadedBytes / progress.totalBytes) * 100
+      : 0
+
   return (
     <div
-      role="button"
+      role="radio"
       tabIndex={runnable ? 0 : -1}
-      aria-pressed={selected}
+      aria-checked={selected}
       aria-disabled={!runnable}
+      aria-label={model.label}
       onClick={select}
       onKeyDown={(e) => {
         if ((e.key === 'Enter' || e.key === ' ') && runnable) {
@@ -137,40 +188,55 @@ function ModelOption({
         }
       }}
       className={cn(
-        'rounded-lg border p-3 text-left transition-colors',
+        'px-3 py-2 text-sm transition-colors outline-none focus-visible:bg-muted/60',
         runnable ? 'cursor-pointer' : 'cursor-not-allowed opacity-60',
-        selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'
+        selected ? 'bg-primary/5' : runnable && 'hover:bg-muted/40'
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              aria-hidden
-              className={cn(
-                'flex size-4 shrink-0 items-center justify-center rounded-full border',
-                selected
-                  ? 'border-primary bg-primary text-primary-foreground'
-                  : 'border-muted-foreground/40'
-              )}
-            >
-              {selected && <HugeiconsIcon icon={Tick02Icon} size={11} strokeWidth={3} />}
-            </span>
-            <span className="font-medium text-foreground">{model.label}</span>
-            {recommended && <Badge variant="default">Recommended</Badge>}
-            {/* in-memory state only means anything for the active model */}
-            {selected && isDownloaded && <LlmStatusBadge />}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {capabilityHint({ model, runnable, comfortable, isDownloaded })}
-          </p>
+      <div className="flex min-h-7 items-center gap-3">
+        <span
+          aria-hidden
+          className={cn(
+            'flex size-4 shrink-0 items-center justify-center rounded-full border',
+            selected
+              ? 'border-primary bg-primary text-primary-foreground'
+              : 'border-muted-foreground/40'
+          )}
+        >
+          {selected && <HugeiconsIcon icon={Tick02Icon} size={11} strokeWidth={3} />}
+        </span>
+        <span className="w-9 shrink-0 font-medium text-foreground tabular-nums">
+          {model.variant}
+        </span>
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          {recommended && <Badge variant="default">Recommended</Badge>}
+          {/* in-memory state only means anything for the active model */}
+          {selected && isDownloaded && <LlmStatusBadge />}
         </div>
 
-        {/* actions sit outside the row's select handler */}
-        <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        {downloading || verifying ? (
+          <div className="flex w-40 shrink-0 items-center gap-2">
+            <Progress value={percent} className="flex-1" />
+            <span className="w-16 text-right text-xs text-muted-foreground tabular-nums">
+              {verifying ? 'Verifying' : progress ? `${Math.floor(percent)}%` : 'Starting'}
+            </span>
+          </div>
+        ) : (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {sizeHint({ model, runnable, comfortable, isDownloaded })}
+          </span>
+        )}
+
+        {/* actions sit outside the row's select handler; a fixed width keeps
+            the size column aligned across rows */}
+        <div
+          className="flex w-20 shrink-0 justify-end"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
           {downloading && (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               disabled={actions.cancelDownload.isPending}
               onClick={() => actions.cancelDownload.mutate(model.id)}
@@ -189,42 +255,21 @@ function ModelOption({
             </Button>
           )}
           {isDownloaded && (
-            <Button variant="outline" size="sm" onClick={onDelete}>
+            <Button variant="ghost" size="sm" onClick={onDelete}>
               Delete
             </Button>
           )}
         </div>
       </div>
 
-      {(downloading || verifying) && (
-        <div className="mt-2.5 space-y-1.5">
-          <Progress
-            value={
-              verifying
-                ? 100
-                : progress && progress.totalBytes > 0
-                  ? (progress.downloadedBytes / progress.totalBytes) * 100
-                  : 0
-            }
-          />
-          <p className="text-xs text-muted-foreground">
-            {verifying
-              ? 'Verifying file integrity…'
-              : progress
-                ? `${formatBytes(progress.downloadedBytes)} / ${formatBytes(progress.totalBytes)}`
-                : 'Starting download…'}
-          </p>
-        </div>
-      )}
-
-      {errored && error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+      {errored && error && <p className="mt-1 pl-7 text-xs text-destructive">{error}</p>}
     </div>
   )
 }
 
-// one muted line under the name: what running this model on this machine means,
-// plus its download/disk size
-function capabilityHint({
+// the muted size column: the model's footprint plus what running it on this
+// machine means
+function sizeHint({
   model,
   runnable,
   comfortable,
@@ -236,10 +281,9 @@ function capabilityHint({
   isDownloaded: boolean
 }): string {
   const size = formatBytes(model.downloadBytes)
-  if (!runnable) return "Needs more memory than this device has, so it can't run here."
-  if (isDownloaded) return `Downloaded · ${size} on disk.`
-  const fit = comfortable ? 'runs well on this device' : 'may run slowly on this device'
-  return `${size} download · ${fit}.`
+  if (!runnable) return 'Needs more memory'
+  if (isDownloaded) return `${size} on disk`
+  return `${size} · ${comfortable ? 'runs well' : 'may be slow'}`
 }
 
 function UnsupportedWarning(): React.JSX.Element {

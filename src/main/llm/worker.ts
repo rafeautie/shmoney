@@ -13,6 +13,8 @@ import {
   LlamaChatSession,
   LlamaLogLevel,
   Gemma4ChatWrapper,
+  QwenChatWrapper,
+  type ChatWrapper,
   type ChatHistoryItem,
   type ChatSessionModelFunctions,
   type Llama,
@@ -21,7 +23,9 @@ import {
 } from 'node-llama-cpp'
 import {
   CHAT_CONTEXT_SIZE,
+  GENERATE_CONTEXT_SIZE,
   LLM_MODELS,
+  type LlmModel,
   type ModelId,
   type ModelStage,
   type RuntimeStage
@@ -116,7 +120,7 @@ interface ChatSessionState {
 }
 let chatLoaded: ChatSessionState | null = null
 
-// in-flight downloads, keyed by model so both models can download independently
+// in-flight downloads, keyed by model so models can download independently
 // and a cancel targets one. `canceled` lets us tell a user cancel apart from a
 // real failure: aborting can make download() either resolve or reject, so the
 // outcome is decided by this flag, not by whether the promise threw.
@@ -196,6 +200,22 @@ function runQuery(sql: string): QueryToolResult {
     return shapeResult(columns, rows, Date.now() - started)
   } catch (err) {
     return fail(String((err as Error)?.message ?? err))
+  }
+}
+
+// Explicit per family rather than resolveChatWrapper's auto-detection, so each
+// mode's reasoning behavior is ours to decide. Qwen3.5 thinks freely in chat
+// (the thought chain shows it) but is steered off thinking for generate, whose
+// callers parse the reply.
+function chatWrapperFor(model: LlmModel, mode: 'generate' | 'chat'): ChatWrapper {
+  switch (model.family) {
+    case 'gemma4':
+      return new Gemma4ChatWrapper()
+    case 'qwen35':
+      return new QwenChatWrapper({
+        variation: '3.5',
+        thoughts: mode === 'chat' ? 'auto' : 'discourage'
+      })
   }
 }
 
@@ -331,12 +351,10 @@ async function handleLoad(modelId: ModelId): Promise<null> {
   try {
     const llamaInstance = await ensureLlama()
     const llamaModel = await llamaInstance.loadModel({ modelPath: filePath })
-    const context = await llamaModel.createContext({ contextSize: model.contextSize })
+    const context = await llamaModel.createContext({ contextSize: GENERATE_CONTEXT_SIZE })
     const session = new LlamaChatSession({
       contextSequence: context.getSequence(),
-      // Gemma 4 reasons by default; disable it so a prompt returns the answer
-      // directly (features like categorize parse the response as JSON).
-      chatWrapper: new Gemma4ChatWrapper()
+      chatWrapper: chatWrapperFor(model, 'generate')
     })
     loaded = { modelId, model: llamaModel, context, session }
     postRuntime('ready')
@@ -409,7 +427,7 @@ async function ensureChatSession(): Promise<LlamaChatSession> {
   const context = await loaded.model.createContext({ contextSize: CHAT_CONTEXT_SIZE })
   const session = new LlamaChatSession({
     contextSequence: context.getSequence(),
-    chatWrapper: new Gemma4ChatWrapper()
+    chatWrapper: chatWrapperFor(LLM_MODELS[loaded.modelId], 'chat')
   })
   chatLoaded = { context, session }
   return session

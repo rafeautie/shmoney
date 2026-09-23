@@ -17,12 +17,18 @@ const SKIPPED_TAGS = new Set(['code', 'pre', 'a'])
 // misfire the way it would in prose ("in 2026 USD terms")
 const TABLE_CELL_TAGS = new Set(['td', 'th'])
 
-const TAGGED_PATTERN = /\{\{(-?\d+(?:\.\d+)?) ([A-Z]{3})\}\}/g
+// some models write grouped digits ("24,301.23"), so a well-formed group of
+// thousands is accepted and the commas are stripped before the value is used
+const NUMBER = String.raw`-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?`
+const TAGGED_PATTERN = new RegExp(String.raw`\{\{(${NUMBER}) ([A-Z]{3})\}\}`, 'g')
 // the tagged alternative first, so a {{...}} match consumes its braces; the
 // lookbehind keeps the bare form from starting mid-word or mid-number
-// ("v1.2 USD", the ".12" of "1203123.12 USD"), and the \b rejects "1.00 USDC"
-const CELL_PATTERN =
-  /\{\{(-?\d+(?:\.\d+)?) ([A-Z]{3})\}\}|(?<![\w.])(-?\d+(?:\.\d+)?) ([A-Z]{3})\b/g
+// ("v1.2 USD", the ".12" of "1203123.12 USD", the "301" of "24,301 USD"), and
+// the \b rejects "1.00 USDC"
+const CELL_PATTERN = new RegExp(
+  String.raw`\{\{(${NUMBER}) ([A-Z]{3})\}\}|(?<![\w.,])(${NUMBER}) ([A-Z]{3})\b`,
+  'g'
+)
 
 function splitTextNode(node: HastNode, inCell: boolean): HastNode[] {
   const text = node.value ?? ''
@@ -41,7 +47,10 @@ function splitTextNode(node: HastNode, inCell: boolean): HastNode[] {
     result.push({
       type: 'element',
       tagName: 'span',
-      properties: { dataAmount: match[1] ?? match[3], dataCurrency: match[2] ?? match[4] },
+      properties: {
+        dataAmount: (match[1] ?? match[3]).replaceAll(',', ''),
+        dataCurrency: match[2] ?? match[4]
+      },
       children: []
     })
     lastIndex = match.index + match[0].length
