@@ -13,6 +13,7 @@ import {
 import { usePrivacy, useTheme } from '@/lib/settings'
 import { isMac } from '@/lib/platform'
 import { connectionOptions } from '@/lib/queries'
+import { useUpdateState } from '@/lib/updates'
 import { Logo } from '@/components/logo'
 import { connectionNeedsAttention } from '@shared/ipc'
 import { NavChat } from './nav-chat'
@@ -71,18 +72,28 @@ function SettingsLink() {
   const matchRoute = useMatchRoute()
   const { data: connection } = useQuery(connectionOptions)
   const needsAttention = connection ? connectionNeedsAttention(connection) : false
+  const updateReady = useUpdateState().data?.status === 'downloaded'
+  // the SimpleFIN warning outranks the update: it's the one that needs the user
+  const dot = needsAttention ? 'bg-amber-500' : updateReady ? 'bg-blue-500' : null
+  const tooltip = needsAttention
+    ? 'Settings: SimpleFIN needs your attention'
+    : updateReady
+      ? 'Settings: update ready, restart to install'
+      : 'Settings'
 
   return (
     <SidebarMenuButton
       render={<Link to="/settings" />}
       isActive={!!matchRoute({ to: '/settings', fuzzy: false })}
-      tooltip={needsAttention ? 'Settings: SimpleFIN needs your attention' : 'Settings'}
+      tooltip={tooltip}
     >
       {/* the dot rides the icon so it stays visible with the sidebar collapsed */}
       <span className="relative flex">
         <HugeiconsIcon icon={Settings01Icon} size={16} />
-        {needsAttention && (
-          <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber-500 ring-2 ring-sidebar" />
+        {dot && (
+          <span
+            className={`absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2 ring-sidebar ${dot}`}
+          />
         )}
       </span>
       <span>Settings</span>
