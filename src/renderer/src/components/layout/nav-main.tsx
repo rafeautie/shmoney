@@ -13,6 +13,8 @@ import {
   SidebarMenuButton,
   SidebarMenuItem
 } from '@/components/ui/sidebar'
+import { useUnseenActivity } from '@/lib/activity-seen'
+import { NavDot } from './nav-dot'
 
 // Chat lives in its own sidebar section (NavChat), rendered below this group.
 const BASE_NAV_ITEMS = [
@@ -30,22 +32,29 @@ const NAV_ITEMS = import.meta.env.DEV ? [...BASE_NAV_ITEMS, DEBUG_NAV_ITEM] : BA
 
 export function NavMain() {
   const matchRoute = useMatchRoute()
+  const unseenActivity = useUnseenActivity()
 
   return (
     <SidebarGroup>
       <SidebarMenu>
-        {NAV_ITEMS.map((item) => (
-          <SidebarMenuItem key={item.to}>
-            <SidebarMenuButton
-              render={<Link to={item.to} />}
-              isActive={!!matchRoute({ to: item.to, fuzzy: item.fuzzy })}
-              tooltip={item.label}
-            >
-              <HugeiconsIcon icon={item.icon} size={16} />
-              <span>{item.label}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          const dot = item.to === '/activity' && unseenActivity
+          return (
+            <SidebarMenuItem key={item.to}>
+              <SidebarMenuButton
+                render={<Link to={item.to} />}
+                isActive={!!matchRoute({ to: item.to, fuzzy: item.fuzzy })}
+                tooltip={dot ? `${item.label}: new automatic changes` : item.label}
+              >
+                <span className="relative flex">
+                  <HugeiconsIcon icon={item.icon} size={16} />
+                  {dot && <NavDot tone="info" />}
+                </span>
+                <span>{item.label}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )
+        })}
       </SidebarMenu>
     </SidebarGroup>
   )

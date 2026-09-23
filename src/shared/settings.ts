@@ -26,7 +26,9 @@ export const settingSchemas = {
   // suggest new rules when identical transactions get categorized repeatedly
   ruleSuggestionsEnabled: z.boolean(),
   // whether the first-run onboarding dialog has been finished or skipped
-  onboardingComplete: z.boolean()
+  onboardingComplete: z.boolean(),
+  // newest automated Activity entry the user has seen; drives the Activity nav dot
+  activitySeenAt: z.number().nullable()
 }
 
 export type SettingKey = keyof typeof settingSchemas
@@ -43,7 +45,8 @@ export const SETTINGS_DEFAULTS: Settings = {
   detectTransfers: true,
   applyRulesOnSync: true,
   ruleSuggestionsEnabled: true,
-  onboardingComplete: false
+  onboardingComplete: false,
+  activitySeenAt: null
 }
 
 export const SETTINGS_IPC = {
