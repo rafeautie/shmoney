@@ -23,11 +23,28 @@ export function sfinErrorSeverity({ code }: SfinError): SfinErrorSeverity {
   return code === 'gen.auth' || code === 'con.auth' ? 'action' : 'transient'
 }
 
+/** Errlist entries the user has to fix themselves (auth failures at the bridge). */
+export function actionNeededErrors(errors: SfinError[]): SfinError[] {
+  return errors.filter((e) => sfinErrorSeverity(e) === 'action')
+}
+
+/** A failed last sync or an auth failure: nothing stays current until the user acts. */
+export function connectionNeedsAttention(connection: Connection): boolean {
+  return (
+    connection.lastSyncFailedAt !== null || actionNeededErrors(connection.lastSyncErrors).length > 0
+  )
+}
+
 export interface Connection {
   lastSyncedAt: number | null
   createdAt: string
   /** errlist from the most recent sync; empty once a clean sync clears it */
   lastSyncErrors: SfinError[]
+  /** unix seconds of the most recent sync that threw; null once a sync succeeds */
+  lastSyncFailedAt: number | null
+  lastSyncFailure: string | null
+  /** the bridge's site (origin only, no credentials), for re-authorizing banks */
+  bridgeUrl: string | null
 }
 
 export interface SyncResult extends Connection {

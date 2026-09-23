@@ -1,5 +1,6 @@
 import type { ComponentProps } from 'react'
 import { Link, useMatchRoute } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ComputerIcon,
@@ -11,7 +12,9 @@ import {
 } from '@hugeicons/core-free-icons'
 import { usePrivacy, useTheme } from '@/lib/settings'
 import { isMac } from '@/lib/platform'
+import { connectionOptions } from '@/lib/queries'
 import { Logo } from '@/components/logo'
+import { connectionNeedsAttention } from '@shared/ipc'
 import { NavChat } from './nav-chat'
 import { NavMain } from './nav-main'
 import {
@@ -66,14 +69,22 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
 
 function SettingsLink() {
   const matchRoute = useMatchRoute()
+  const { data: connection } = useQuery(connectionOptions)
+  const needsAttention = connection ? connectionNeedsAttention(connection) : false
 
   return (
     <SidebarMenuButton
       render={<Link to="/settings" />}
       isActive={!!matchRoute({ to: '/settings', fuzzy: false })}
-      tooltip="Settings"
+      tooltip={needsAttention ? 'Settings: SimpleFIN needs your attention' : 'Settings'}
     >
-      <HugeiconsIcon icon={Settings01Icon} size={16} />
+      {/* the dot rides the icon so it stays visible with the sidebar collapsed */}
+      <span className="relative flex">
+        <HugeiconsIcon icon={Settings01Icon} size={16} />
+        {needsAttention && (
+          <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber-500 ring-2 ring-sidebar" />
+        )}
+      </span>
       <span>Settings</span>
     </SidebarMenuButton>
   )

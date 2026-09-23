@@ -19,6 +19,7 @@ import {
 import { ipcErrorMessage, cn } from '@/lib/utils'
 import { useOnboarding } from '@/lib/settings'
 import { useConnectSimpleFin } from '@/hooks/use-connect-simplefin'
+import { connectionOptions } from '@/lib/queries'
 import { ExperimentalBadge } from '@/components/experimental-badge'
 import { Logo } from '@/components/logo'
 import { ModelPicker } from '@/components/llm/model-picker'
@@ -55,10 +56,7 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const { setupToken, setSetupToken, connect, syncConnection } = useConnectSimpleFin()
-  const connectionQuery = useQuery({
-    queryKey: ['connection'],
-    queryFn: () => window.api.connection.get()
-  })
+  const connectionQuery = useQuery(connectionOptions)
 
   const isLast = step === STEP_COUNT - 1
   // The last step walks through connecting → syncing → connected. Once the user

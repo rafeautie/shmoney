@@ -35,3 +35,8 @@ export const actionLogOptions = queryOptions({
   queryKey: ['actionLog'],
   queryFn: () => window.api.actionLog.list()
 })
+
+export const connectionOptions = queryOptions({
+  queryKey: ['connection'],
+  queryFn: () => window.api.connection.get()
+})

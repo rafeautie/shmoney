@@ -2,7 +2,11 @@ import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useNotify } from '@/lib/notify-store'
-import { plural } from '@/lib/utils'
+import { ipcErrorMessage, plural } from '@/lib/utils'
+import { actionNeededErrors } from '@shared/ipc'
+
+/** Shared by every sync trigger so `useIsMutating` sees any of them in flight. */
+export const SYNC_MUTATION_KEY = ['connection', 'sync']
 
 /** The SimpleFIN connect flow shared by the Settings card and the onboarding dialog:
  * exchange a setup token for a connection, kick off the first sync, and announce
@@ -16,10 +20,20 @@ export function useConnectSimpleFin(options?: { onConnected?: () => void }) {
   const [setupToken, setSetupToken] = useState('')
 
   const syncConnection = useMutation({
+    mutationKey: SYNC_MUTATION_KEY,
     mutationFn: () => window.api.connection.sync(),
     // sync applies transfer detection and rules automatically; report what it
     // touched so those silent mutations stay visible and reviewable
     onSuccess: (result) => {
+      // transient errlist entries stay on the Accounts banner; only ones the
+      // user must fix earn a notification (and the red ring)
+      const actionNeeded = actionNeededErrors(result.lastSyncErrors)
+      if (actionNeeded.length > 0) {
+        notify.error('SimpleFIN needs your attention', {
+          description: actionNeeded.map((e) => e.msg).join(' '),
+          action: { label: 'View', onClick: () => navigate({ to: '/accounts' }) }
+        })
+      }
       if (result.matchedImports > 0) {
         notify(`Matched ${plural(result.matchedImports, 'imported transaction')}`, {
           description:
@@ -39,6 +53,8 @@ export function useConnectSimpleFin(options?: { onConnected?: () => void }) {
         })
       }
     },
+    // covers auto-sync too, which otherwise fails with nothing on screen
+    onError: (error) => notify.error('Sync failed', { description: ipcErrorMessage(error) }),
     onSettled: () => queryClient.invalidateQueries()
   })
 

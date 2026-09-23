@@ -50,12 +50,26 @@ export function applyRulesOnSyncEnabled(): boolean {
   return row ? row.value !== false : true
 }
 
+// the bridge's own site, where the user re-authorizes banks; the origin alone
+// carries none of the access URL's embedded credentials
+function bridgeUrl(row: ConnectionRow): string | null {
+  try {
+    const accessUrl = safeStorage.decryptString(Buffer.from(row.accessUrlEncrypted, 'base64'))
+    return new URL(accessUrl).origin
+  } catch {
+    return null
+  }
+}
+
 function toConnection(row: ConnectionRow): Connection {
   // accessUrlEncrypted deliberately never crosses IPC
   return {
     lastSyncedAt: row.lastSyncedAt,
     createdAt: row.createdAt,
-    lastSyncErrors: row.lastSyncErrors ?? []
+    lastSyncErrors: row.lastSyncErrors ?? [],
+    lastSyncFailedAt: row.lastSyncFailedAt,
+    lastSyncFailure: row.lastSyncFailure,
+    bridgeUrl: bridgeUrl(row)
   }
 }
 
@@ -340,7 +354,7 @@ async function syncConnection(): Promise<SyncResult> {
       payload.errlist.length > 0 ? payload.errlist.map((e) => ({ code: e.code, msg: e.msg })) : null
     const [updated] = tx
       .update(connections)
-      .set({ lastSyncedAt: now, lastSyncErrors })
+      .set({ lastSyncedAt: now, lastSyncErrors, lastSyncFailedAt: null, lastSyncFailure: null })
       .where(eq(connections.id, row.id))
       .returning()
       .all()
@@ -399,6 +413,17 @@ export function registerConnectionsIpc(): void {
         log.error('sync.failed', undefined, { codes: e.codes.join(',') })
       } else {
         log.error('sync.failed', e)
+      }
+      // kept so the failure outlives this session; the next good sync clears it
+      const row = connectionRow()
+      if (row) {
+        db.update(connections)
+          .set({
+            lastSyncFailedAt: Math.floor(Date.now() / 1000),
+            lastSyncFailure: e instanceof Error ? e.message : String(e)
+          })
+          .where(eq(connections.id, row.id))
+          .run()
       }
       throw e
     }
