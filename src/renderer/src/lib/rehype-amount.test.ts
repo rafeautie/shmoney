@@ -48,6 +48,21 @@ describe('rehypeAmount', () => {
     ])
   })
 
+  it('accepts thousands separators and strips them from the value', () => {
+    const tree = run(root([textNode('{{24,301.23 USD}} and {{-1,234,567 EUR}}')]))
+    expect(tree.children).toEqual([
+      amountSpan('24301.23', 'USD'),
+      textNode(' and '),
+      amountSpan('-1234567', 'EUR')
+    ])
+  })
+
+  it('leaves a marker with malformed grouping untouched', () => {
+    const node = textNode('{{24,30.1 USD}}')
+    const tree = run(root([node]))
+    expect(tree.children?.[0]).toBe(node)
+  })
+
   it('leaves bare numbers untouched', () => {
     const node = textNode('1203123.12')
     const tree = run(root([node]))
@@ -137,6 +152,11 @@ describe('rehypeAmount', () => {
         amountSpan('5.00', 'USD'),
         textNode(' since May')
       ])
+    })
+
+    it('turns a bare grouped amount in a cell into a span', () => {
+      const tree = run(root([cell('td', textNode('29,379.01 USD'))]))
+      expect(tree.children?.[0]?.children).toEqual([amountSpan('29379.01', 'USD')])
     })
 
     it('leaves a ticker-like word after the number untouched', () => {

@@ -84,7 +84,7 @@ export function StorageSettings() {
   }
 
   const data = llmSize.isPending ? undefined : size.data
-  // both models can be on disk at once; the LLM segment is their combined size
+  // several models can be on disk at once; the LLM segment is their combined size
   const llmBytes = llmSize.data
     ? Object.values(llmSize.data).reduce((sum: number, bytes) => sum + (bytes ?? 0), 0)
     : 0

@@ -83,14 +83,11 @@ export function useLlmReady(): boolean {
 /**
  * Live download progress per model while it downloads; a model that isn't
  * actively downloading reads null, so a finished run's final numbers never
- * linger. One subscription feeds both models — read `progress[id]` per row.
+ * linger. One subscription feeds every model — read `progress[id]` per row.
  */
 export function useLlmDownloadProgress(): Record<ModelId, LlmDownloadProgress | null> {
   const models = useLlmStatus().data?.models
-  const [progress, setProgress] = useState<Record<ModelId, LlmDownloadProgress | null>>({
-    e2b: null,
-    e4b: null
-  })
+  const [progress, setProgress] = useState<Partial<Record<ModelId, LlmDownloadProgress>>>({})
 
   useEffect(
     () =>
@@ -100,11 +97,12 @@ export function useLlmDownloadProgress(): Record<ModelId, LlmDownloadProgress | 
     []
   )
 
-  const result: Record<ModelId, LlmDownloadProgress | null> = { e2b: null, e4b: null }
-  for (const id of MODEL_IDS) {
-    if (models?.[id].stage === 'downloading') result[id] = progress[id]
-  }
-  return result
+  return Object.fromEntries(
+    MODEL_IDS.map((id) => [
+      id,
+      models?.[id].stage === 'downloading' ? (progress[id] ?? null) : null
+    ])
+  ) as Record<ModelId, LlmDownloadProgress | null>
 }
 
 /**
