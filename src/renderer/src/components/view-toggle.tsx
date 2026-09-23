@@ -13,13 +13,13 @@ export function ViewToggle({
   onChange: (view: ListView) => void
 }) {
   return (
-    <Tabs value={view} onValueChange={(next) => onChange(next as ListView)}>
-      <TabsList className="h-7">
-        <TabsTrigger value="cards" className="text-xs" aria-label="Card view">
+    <Tabs className="mx-1" value={view} onValueChange={(next) => onChange(next as ListView)}>
+      <TabsList className="h-7 rounded-md">
+        <TabsTrigger value="cards" className="rounded-sm text-xs" aria-label="Card view">
           <HugeiconsIcon icon={GridViewIcon} className="size-3.5" />
           Cards
         </TabsTrigger>
-        <TabsTrigger value="table" className="text-xs" aria-label="Table view">
+        <TabsTrigger value="table" className="rounded-sm text-xs" aria-label="Table view">
           <HugeiconsIcon icon={ListViewIcon} className="size-3.5" />
           Table
         </TabsTrigger>
