@@ -1,9 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Alert02Icon } from '@hugeicons/core-free-icons'
-import { sfinErrorSeverity, type SfinError } from '@shared/ipc'
 import { ipcErrorMessage } from '@/lib/utils'
+import { connectionOptions } from '@/lib/queries'
 import { useOnboarding } from '@/lib/settings'
 import { useConnectSimpleFin } from '@/hooks/use-connect-simplefin'
 import { Button } from '@/components/ui/button'
@@ -12,14 +10,12 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { SettingsGroup, SettingAction } from './settings-controls'
 import { ConfirmButton } from '@/components/confirm-dialog'
+import { ConnectionAlerts } from '@/components/connection/connection-alerts'
 
 export function ConnectionSettings() {
   const queryClient = useQueryClient()
 
-  const connectionQuery = useQuery({
-    queryKey: ['connection'],
-    queryFn: () => window.api.connection.get()
-  })
+  const connectionQuery = useQuery(connectionOptions)
   const connection = connectionQuery.data
 
   const { setupToken, setSetupToken, connect, syncConnection } = useConnectSimpleFin()
@@ -98,14 +94,7 @@ export function ConnectionSettings() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {connection.lastSyncErrors.length > 0 && (
-          <SyncErrorsAlert errors={connection.lastSyncErrors} />
-        )}
-        {syncConnection.isError && (
-          <p className="text-sm text-destructive">
-            Sync failed: {ipcErrorMessage(syncConnection.error)}
-          </p>
-        )}
+        <ConnectionAlerts connection={connection} />
         {disconnect.isError && (
           <p className="text-sm text-destructive">
             Disconnect failed: {ipcErrorMessage(disconnect.error)}
@@ -144,73 +133,5 @@ export function ConnectionSettings() {
         </SettingsGroup>
       </CardContent>
     </Card>
-  )
-}
-
-function SyncErrorsAlert({ errors }: { errors: SfinError[] }) {
-  // Auth failures need the user to act; retry-advised/bridge notices clear on a
-  // later sync, so surface those far more quietly. Developer-facing entries
-  // (gen.api) match neither bucket and are intentionally not shown to the user.
-  const actionNeeded = errors.filter((e) => sfinErrorSeverity(e) === 'action')
-  const transient = errors.filter((e) => sfinErrorSeverity(e) === 'transient')
-  return (
-    <>
-      {actionNeeded.length > 0 && (
-        <SyncNotice tone="error" title="SimpleFIN needs your attention" errors={actionNeeded} />
-      )}
-      {transient.length > 0 && (
-        <SyncNotice
-          tone="muted"
-          title="SimpleFIN couldn’t fetch everything last sync"
-          hint="These usually clear on the next sync."
-          errors={transient}
-        />
-      )}
-    </>
-  )
-}
-
-function SyncNotice({
-  tone,
-  title,
-  hint,
-  errors
-}: {
-  tone: 'error' | 'muted'
-  title: string
-  hint?: string
-  errors: SfinError[]
-}) {
-  const isError = tone === 'error'
-  return (
-    <div
-      role={isError ? 'alert' : 'status'}
-      className={
-        isError
-          ? 'flex gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400'
-          : 'flex gap-3 rounded-lg border border-border bg-muted/50 p-3 text-muted-foreground'
-      }
-    >
-      <HugeiconsIcon icon={Alert02Icon} size={18} className="mt-0.5 shrink-0" />
-      <div className="min-w-0 space-y-1.5">
-        <p className={isError ? 'text-sm font-medium' : 'text-sm font-medium text-foreground'}>
-          {title}
-        </p>
-        {hint && <p className="text-xs">{hint}</p>}
-        <ul
-          className={
-            isError
-              ? 'space-y-1 text-sm text-amber-700/90 dark:text-amber-400/90'
-              : 'space-y-1 text-sm'
-          }
-        >
-          {errors.map((error, i) => (
-            <li key={`${error.code}-${i}`} className="leading-snug">
-              {error.msg}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
   )
 }

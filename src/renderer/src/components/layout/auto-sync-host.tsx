@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useNotify } from '@/lib/notify-store'
 import { useConnectSimpleFin } from '@/hooks/use-connect-simplefin'
+import { connectionOptions } from '@/lib/queries'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -27,10 +28,7 @@ export function AutoSyncHost(): null {
   const { syncConnection } = useConnectSimpleFin()
   const { mutate } = syncConnection
 
-  const { data: connection } = useQuery({
-    queryKey: ['connection'],
-    queryFn: () => window.api.connection.get()
-  })
+  const { data: connection } = useQuery(connectionOptions)
   const lastSyncedAt = connection?.lastSyncedAt ?? null
 
   // the lastSyncedAt we last kicked a sync off for. After mutate() fires, the

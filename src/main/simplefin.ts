@@ -116,6 +116,10 @@ export async function fetchAccounts(accessUrl: string, startDate: number): Promi
   url.search = `?version=2&start-date=${startDate}&pending=1`
 
   const response = await fetch(url, { headers: { Authorization: `Basic ${basic}` } })
+  if (response.status === 403) {
+    // the protocol's answer to revoked or invalid credentials
+    throw new Error('SimpleFIN refused access. The connection may have been revoked at the bridge.')
+  }
   if (!response.ok) {
     throw new Error(`SimpleFIN accounts request failed (HTTP ${response.status})`)
   }

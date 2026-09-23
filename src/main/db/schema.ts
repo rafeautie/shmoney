@@ -15,6 +15,9 @@ export const connections = sqliteTable('connections', {
   lastSyncedAt: integer('last_synced_at'),
   // errlist from the most recent sync; null once a clean sync clears it
   lastSyncErrors: text('last_sync_errors', { mode: 'json' }).$type<SfinError[]>(),
+  // the most recent sync that threw; both null once a sync succeeds
+  lastSyncFailedAt: integer('last_sync_failed_at'),
+  lastSyncFailure: text('last_sync_failure'),
   createdAt: text('created_at')
     .notNull()
     .default(sql`(current_timestamp)`)
