@@ -43,6 +43,12 @@ mac:
   # electron-updater on macOS reads updates from the zip, not the dmg
   target: dmg
   category: public.app-category.productivity
+  # no Developer ID yet: ad-hoc sign so the bundle's signature stays valid after
+  # packaging; an unsigned-but-modified bundle is reported as "damaged" on
+  # Apple Silicon. Hardened runtime off because ad-hoc signed native modules
+  # (better-sqlite3, node-llama-cpp) would fail library validation.
+  identity: '-'
+  hardenedRuntime: false
   files:
     - '!node_modules/@node-llama-cpp/{linux-arm64,linux-armv7l,linux-riscv64,linux-x64,linux-x64-cuda,linux-x64-cuda-ext,linux-x64-vulkan,win-arm64,win-x64,win-x64-cuda,win-x64-cuda-ext,win-x64-vulkan}/**/*'
 dmg:
