@@ -1,5 +1,5 @@
-// The web demo (npm run build:demo) as an assets-only Worker. Deployed by
-// .github/workflows/deploy-demo.yml; `npm run deploy:demo` does the same by hand.
+// The web demo (npm run build:demo) as an assets-only Worker. Deployed by the
+// release workflow's demo job; `npm run deploy:demo` does the same by hand.
 {
   "name": "shmoney-demo",
   // not a secret; saves CI a second one
