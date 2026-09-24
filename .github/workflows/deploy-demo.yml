@@ -1,15 +1,11 @@
 name: Deploy demo
 
 # The web demo embedded on rafe.dev/shmoney, deployed to shmoney-demo.rafe.dev
-# with web screenshots shot fresh from the same build. Runs on every release
-# tag, on demand, and whenever this workflow itself changes on main (which is
-# what performs the very first deploy).
+# with web screenshots shot fresh from the same build, so it always matches the
+# latest release.
 on:
   push:
     tags: ['v*']
-    branches: [main]
-    paths: ['.github/workflows/deploy-demo.yml']
-  workflow_dispatch:
 
 permissions:
   contents: read

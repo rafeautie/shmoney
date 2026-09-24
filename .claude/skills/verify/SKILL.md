@@ -74,8 +74,8 @@ npm run screenshots -- --only chat --out <dir>   # one screen, elsewhere
 - Captures are 1280x800 @2x (2560x1600, the size rafe.dev embeds the demo at), light theme, with 8px rounded
   transparent corners done in CSS. `?shot=1` renders the demo exactly like
   the desktop app (no demo bar, model shown as downloaded).
-- rafe.dev keeps no copies: the deploy-demo workflow (release tags, or run by
-  hand from Actions) re-shoots the
+- rafe.dev keeps no copies: the deploy-demo workflow (release tags only)
+  re-shoots the
   web AVIF/WebP variants from the tagged build and deploys them with the demo
   to shmoney-demo.rafe.dev. `npm run deploy:demo` does the same by hand.
 - The Debug page's Sample data card loads the same datasets into the dev
