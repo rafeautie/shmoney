@@ -1,7 +1,8 @@
-import { ipcMain, safeStorage } from 'electron'
+import { ipcMain } from 'electron'
 import { and, asc, count, desc, eq, gte, inArray, isNull, like, lte, sum } from 'drizzle-orm'
 import { db } from '../db'
 import { createLogger } from '../logging'
+import { canEncryptAccessUrl, decryptAccessUrl, encryptAccessUrl } from '../access-url'
 import { connections, accounts, categories, holdings, transactions, settings } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
 import {
@@ -54,8 +55,9 @@ export function applyRulesOnSyncEnabled(): boolean {
 // carries none of the access URL's embedded credentials
 function bridgeUrl(row: ConnectionRow): string | null {
   try {
-    const accessUrl = safeStorage.decryptString(Buffer.from(row.accessUrlEncrypted, 'base64'))
-    return new URL(accessUrl).origin
+    const { origin } = new URL(decryptAccessUrl(row.accessUrlEncrypted))
+    // non-http schemes (the demo bridge) have no origin to link to
+    return origin === 'null' ? null : origin
   } catch {
     return null
   }
@@ -217,11 +219,11 @@ function claimImportedRows(
   )
 }
 
-async function syncConnection(): Promise<SyncResult> {
+export async function syncConnection(): Promise<SyncResult> {
   const row = connectionRow()
   if (!row) throw new Error('Not connected to SimpleFIN')
 
-  const accessUrl = safeStorage.decryptString(Buffer.from(row.accessUrlEncrypted, 'base64'))
+  const accessUrl = decryptAccessUrl(row.accessUrlEncrypted)
   const now = Math.floor(Date.now() / 1000)
   const startDate = row.lastSyncedAt
     ? row.lastSyncedAt - RESYNC_OVERLAP_SECONDS
@@ -387,7 +389,7 @@ export function registerConnectionsIpc(): void {
 
   ipcMain.handle(IPC.connectionConnect, async (_event, input: unknown) => {
     const { setupToken } = connectInputSchema.parse(input)
-    if (!safeStorage.isEncryptionAvailable()) {
+    if (!canEncryptAccessUrl()) {
       throw new Error('Credential encryption is not available on this system')
     }
     if (connectionRow()) {
@@ -399,7 +401,7 @@ export function registerConnectionsIpc(): void {
     if (connectionRow()) {
       throw new Error('Already connected to SimpleFIN. Disconnect first to use a new setup token.')
     }
-    const accessUrlEncrypted = safeStorage.encryptString(accessUrl).toString('base64')
+    const accessUrlEncrypted = encryptAccessUrl(accessUrl)
     const [row] = db.insert(connections).values({ accessUrlEncrypted }).returning().all()
     return toConnection(row)
   })

@@ -98,6 +98,7 @@ import {
   type SetConversationAccountInput
 } from '@shared/chat'
 import { UPDATES_IPC, type UpdateState } from '@shared/updates'
+import { DEMO_IPC, type DemoDataset } from '@shared/demo'
 import { DIAGNOSTICS_IPC, LOG_IPC, type LogWriteInput } from '@shared/diagnostics'
 import {
   BUDGETS_IPC,
@@ -390,6 +391,15 @@ const api = {
     /** Mirror a notice to an OS toast; a no-op when the
      * window is focused or the user turned native notifications off. */
     notify: (title: string, body: string): void => ipcRenderer.send(IPC.appNotify, { title, body })
+  },
+  demo: {
+    // dev and web demo only: rejects in production, where the handlers are never
+    // registered (see main/ipc/demo)
+    datasets: (): Promise<DemoDataset[]> => ipcRenderer.invoke(DEMO_IPC.datasets),
+    /** Replace all data with a sample dataset */
+    seed: (id: string): Promise<void> => ipcRenderer.invoke(DEMO_IPC.seed, id),
+    /** Delete all data, back to a fresh install (display preferences kept) */
+    clear: (): Promise<void> => ipcRenderer.invoke(DEMO_IPC.clear)
   },
   debug: {
     // dev-only: the raw SimpleFIN /accounts payload. Rejects in production, where

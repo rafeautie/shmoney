@@ -68,3 +68,32 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # no signing certificate in CI; skip keychain identity lookup on macOS
           CSC_IDENTITY_AUTO_DISCOVERY: false
+
+  # the web demo embedded on rafe.dev: same tag, same code, and its web
+  # screenshots are shot fresh from this exact build
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      # the demo bundles no native modules, so skip electron-builder's rebuild
+      - run: npm ci --ignore-scripts
+
+      # category names carry emoji; the runner has no color emoji font
+      - run: sudo apt-get update && sudo apt-get install -y fonts-noto-color-emoji
+
+      - run: npm run build:demo
+
+      # Chrome is preinstalled on the runner; playwright-core drives it
+      - run: npm run screenshots -- --out out/demo/screenshots --web
+
+      - name: Deploy to shmoney-demo.rafe.dev
+        run: npx wrangler@4 deploy -c wrangler.demo.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

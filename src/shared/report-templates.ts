@@ -1,4 +1,4 @@
-import type { ReportCreateInput } from '@shared/reports'
+import type { ReportCreateInput } from './reports'
 
 /** Starter report offered on the empty state and in the New report menu. */
 export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {

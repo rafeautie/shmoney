@@ -1,5 +1,7 @@
 import { z } from 'zod'
+import { DEMO_TOKEN_PREFIX } from '@shared/demo'
 import { createLogger } from './logging'
+import { demoAccountSet, getDataset } from './demo-data'
 
 // SimpleFIN protocol v2 (https://www.simplefin.org/protocol.html), requested
 // via ?version=2. errlist/connections default to [] so a server that ignores
@@ -79,6 +81,11 @@ export function parseAmount(value: string): number {
 }
 
 export async function claimAccessUrl(setupToken: string): Promise<string> {
+  // a sample dataset stands in for a bridge: the token is its own access URL
+  if (setupToken.startsWith(DEMO_TOKEN_PREFIX)) {
+    getDataset(setupToken.slice(DEMO_TOKEN_PREFIX.length))
+    return setupToken
+  }
   let claimUrl: URL
   try {
     claimUrl = new URL(Buffer.from(setupToken, 'base64').toString('utf8'))
@@ -105,6 +112,9 @@ export async function claimAccessUrl(setupToken: string): Promise<string> {
 }
 
 export async function fetchAccounts(accessUrl: string, startDate: number): Promise<SfinAccountSet> {
+  if (accessUrl.startsWith(DEMO_TOKEN_PREFIX)) {
+    return accountSetSchema.parse(demoAccountSet(accessUrl.slice(DEMO_TOKEN_PREFIX.length)))
+  }
   // fetch() rejects URLs with embedded credentials, so move them to a header
   const url = new URL(accessUrl)
   const basic = Buffer.from(

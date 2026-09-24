@@ -24,6 +24,7 @@ import { registerUpdatesIpc, startUpdateChecks } from './ipc/updates'
 import { registerLogIpc } from './ipc/log'
 import { registerDiagnosticsIpc } from './ipc/diagnostics'
 import { registerDebugIpc } from './ipc/debug'
+import { registerDemoIpc } from './ipc/demo'
 import { registerAppIpc } from './ipc/app'
 import { initChromeTheme, resolvedChrome, USES_TITLE_BAR_OVERLAY } from './chrome-theme'
 import { sendImportFile, statementPathFrom } from './file-open'
@@ -190,8 +191,12 @@ if (!app.requestSingleInstanceLock()) {
     registerUpdatesIpc()
     registerLogIpc()
     registerDiagnosticsIpc()
-    // dev-only diagnostics for the Debug page; never registered in production builds
-    if (is.dev) registerDebugIpc()
+    // dev-only diagnostics and sample data for the Debug page; never registered
+    // in production builds
+    if (is.dev) {
+      registerDebugIpc()
+      registerDemoIpc()
+    }
 
     // both read settings, so they have to follow runMigrations
     initChromeTheme(readSettings().theme)

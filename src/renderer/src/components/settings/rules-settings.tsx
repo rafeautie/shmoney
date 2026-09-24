@@ -99,6 +99,7 @@ export function RulesSettings(): React.JSX.Element {
     if (data) {
       for (const group of data.groups) for (const c of group.categories) map.set(c.id, c.name)
       for (const c of data.ungrouped) map.set(c.id, c.name)
+      for (const c of data.system) map.set(c.id, c.name)
     }
     return map
   }, [categoriesQuery.data])

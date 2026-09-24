@@ -15,6 +15,7 @@ import { ChatInput } from '@/components/chat/chat-input'
 import { ChatInputNotice } from '@/components/chat/chat-input-notice'
 import { ChatModelGate } from '@/components/chat/chat-model-gate'
 import { ChatView } from '@/components/chat/chat-view'
+import { isDemo } from '@/lib/platform'
 
 export const Route = createFileRoute('/chat')({
   component: ChatPage,
@@ -102,8 +103,9 @@ function ChatPage() {
             // existing conversations stay readable without the model; only
             // the composer gives way to an explanation
             <ChatInputNotice>
-              The model isn&apos;t on this device, so this conversation is read-only. Start a new
-              chat to download it.
+              {isDemo
+                ? 'Chat runs on an on-device model in the desktop app, so conversations here are read-only.'
+                : "The model isn't on this device, so this conversation is read-only. Start a new chat to download it."}
             </ChatInputNotice>
           ) : (
             <ChatInput

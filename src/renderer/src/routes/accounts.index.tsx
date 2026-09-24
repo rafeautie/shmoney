@@ -38,7 +38,12 @@ import {
   TableRow
 } from '@/components/ui/table'
 
+type AccountsTab = 'accounts' | 'transactions'
+
 export const Route = createFileRoute('/accounts/')({
+  // the tab rides in the URL so it survives reloads and can be linked to
+  validateSearch: (search: Record<string, unknown>): { tab?: AccountsTab } =>
+    search.tab === 'transactions' ? { tab: 'transactions' } : {},
   loader: ({ context }) => context.queryClient.ensureQueryData(accountsOptions),
   component: AccountsPage
 })
@@ -58,7 +63,10 @@ function hasDistinctAvailable(account: Account): boolean {
 function AccountsPage() {
   const [creating, setCreating] = useState(false)
   // controlled so the Create button can jump to the transactions tab
-  const [tab, setTab] = useState('accounts')
+  const { tab = 'accounts' } = Route.useSearch()
+  const navigate = Route.useNavigate()
+  const setTab = (next: string): void =>
+    void navigate({ search: next === 'transactions' ? { tab: 'transactions' } : {}, replace: true })
   const filterState = useTransactionFilters()
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">

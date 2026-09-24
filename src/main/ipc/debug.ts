@@ -1,8 +1,9 @@
-import { ipcMain, safeStorage } from 'electron'
+import { ipcMain } from 'electron'
 import { asc } from 'drizzle-orm'
 import { db } from '../db'
 import { connections } from '../db/schema'
 import { fetchAccounts } from '../simplefin'
+import { decryptAccessUrl } from '../access-url'
 import { IPC } from '@shared/ipc'
 
 // Developer diagnostics only. index.ts registers this handler exclusively when
@@ -16,7 +17,7 @@ export function registerDebugIpc(): void {
   ipcMain.handle(IPC.debugRawAccounts, () => {
     const row = db.select().from(connections).orderBy(asc(connections.id)).limit(1).get()
     if (!row) throw new Error('Not connected to SimpleFIN')
-    const accessUrl = safeStorage.decryptString(Buffer.from(row.accessUrlEncrypted, 'base64'))
+    const accessUrl = decryptAccessUrl(row.accessUrlEncrypted)
     const startDate = Math.floor(Date.now() / 1000) - DEBUG_FETCH_WINDOW_SECONDS
     return fetchAccounts(accessUrl, startDate)
   })
