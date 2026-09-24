@@ -9,7 +9,13 @@ import { ipcMain } from './shims/electron'
 // The few channels whose real handlers need the OS: the updater, log files and
 // the database file on disk. Everything else runs the desktop app's own code.
 export function registerOverrides(): void {
-  const updates: UpdateState = { status: 'disabled', version: null, progress: null, error: null }
+  const updates: UpdateState = {
+    status: 'disabled',
+    version: null,
+    progress: null,
+    error: null,
+    url: null
+  }
   ipcMain.handle(UPDATES_IPC.getState, () => updates)
   ipcMain.handle(UPDATES_IPC.check, () => updates)
   ipcMain.handle(UPDATES_IPC.quitAndInstall, () => {})

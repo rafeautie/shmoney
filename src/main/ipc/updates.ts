@@ -3,6 +3,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 // but throws at runtime in the ESM main bundle, so destructure the default
 import electronUpdater from 'electron-updater'
 import { createLogger } from '../logging'
+import { findNewerMacRelease } from '../release-check'
 import { UPDATES_IPC, type UpdateState } from '@shared/updates'
 
 const { autoUpdater } = electronUpdater
@@ -13,15 +14,20 @@ const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
 // git-ignored dev-app-update.yml (see docs/RELEASING.md)
 const testing = !!process.env.SHMONEY_TEST_UPDATES
 
-// updates only work in packaged builds; on macOS electron-updater additionally
-// requires a code-signed app, which this project doesn't have
-const supported = testing || (app.isPackaged && process.platform !== 'darwin')
+// updates only work in packaged builds
+const supported = testing || app.isPackaged
+// on macOS electron-updater requires a code-signed app, which this project
+// doesn't have, so there the app only finds a newer release and links to it
+const manual = supported && !testing && process.platform === 'darwin'
+
+const log = createLogger('updater')
 
 let state: UpdateState = {
   status: supported ? 'idle' : 'disabled',
   version: null,
   progress: null,
-  error: null
+  error: null,
+  url: null
 }
 
 function setState(next: Partial<UpdateState>): void {
@@ -32,14 +38,37 @@ function setState(next: Partial<UpdateState>): void {
 // re-checking mid-download restarts the download, and a downloaded update
 // needs a restart rather than another check
 function checkable(): boolean {
-  return supported && state.status !== 'downloading' && state.status !== 'downloaded'
+  if (!supported) return false
+  if (manual) return state.status !== 'checking'
+  return state.status !== 'downloading' && state.status !== 'downloaded'
+}
+
+async function checkManually(): Promise<void> {
+  setState({ status: 'checking', error: null })
+  try {
+    const release = await findNewerMacRelease(app.getVersion())
+    setState(
+      release
+        ? { status: 'available', version: release.version, url: release.url }
+        : { status: 'up-to-date', version: null, url: null }
+    )
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    log.warn('releaseCheck.failed', { error: message })
+    setState({ status: 'error', error: message })
+  }
+}
+
+// failures surface through state (the 'error' event or checkManually), so
+// this never rejects
+function checkForUpdates(): Promise<unknown> {
+  return manual ? checkManually() : autoUpdater.checkForUpdates().catch(() => {})
 }
 
 export function registerUpdatesIpc(): void {
   ipcMain.handle(UPDATES_IPC.getState, (): UpdateState => state)
   ipcMain.handle(UPDATES_IPC.check, async (): Promise<UpdateState> => {
-    // failures surface through the 'error' event, so the invoke itself never rejects
-    if (checkable()) await autoUpdater.checkForUpdates().catch(() => {})
+    if (checkable()) await checkForUpdates()
     return state
   })
   ipcMain.handle(UPDATES_IPC.quitAndInstall, (): void => {
@@ -49,11 +78,21 @@ export function registerUpdatesIpc(): void {
 
 export function startUpdateChecks(): void {
   if (!supported) return
+  if (!manual) listenToAutoUpdater()
+
+  // let startup (migrations, first window paint) win the first seconds
+  setTimeout(() => void checkForUpdates(), 5_000)
+  setInterval(() => {
+    if (checkable()) void checkForUpdates()
+  }, CHECK_INTERVAL_MS)
+}
+
+function listenToAutoUpdater(): void {
   if (testing) autoUpdater.forceDevUpdateConfig = true
 
   // electron-updater's internals go to the same scrubbed local file; its
   // logger slot accepts our Logger since it only ever passes one argument
-  autoUpdater.logger = createLogger('updater')
+  autoUpdater.logger = log
 
   autoUpdater.autoDownload = true
   // an ignored Restart prompt still applies the update on the next normal quit
@@ -72,10 +111,4 @@ export function startUpdateChecks(): void {
   )
   // offline / GitHub hiccups are routine: recorded for the About card, never a notification
   autoUpdater.on('error', (err) => setState({ status: 'error', error: err.message }))
-
-  // let startup (migrations, first window paint) win the first seconds
-  setTimeout(() => void autoUpdater.checkForUpdates().catch(() => {}), 5_000)
-  setInterval(() => {
-    if (checkable()) void autoUpdater.checkForUpdates().catch(() => {})
-  }, CHECK_INTERVAL_MS)
 }

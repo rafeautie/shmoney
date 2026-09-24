@@ -20,6 +20,8 @@ function updateStatusLine(state: UpdateState | undefined): string {
         : `Downloading v${state.version}…`
     case 'downloaded':
       return `v${state.version} ready — restart to install.`
+    case 'available':
+      return `v${state.version} is available. Download it from GitHub to update.`
     case 'up-to-date':
       return "You're on the latest version."
     case 'error':
@@ -32,10 +34,14 @@ function updateStatusLine(state: UpdateState | undefined): string {
 function UpdatesRow() {
   const state = useUpdateState().data
   const busy = state?.status === 'checking' || state?.status === 'downloading'
+  const downloadUrl = state?.status === 'available' ? state.url : null
   return (
     <SettingAction label="Updates" description={updateStatusLine(state)}>
       {state?.status === 'downloaded' ? (
         <Button onClick={() => void window.api.updates.quitAndInstall()}>Restart to update</Button>
+      ) : downloadUrl ? (
+        // window.open on an https URL goes to the OS browser (see main/index.ts)
+        <Button onClick={() => window.open(downloadUrl)}>Download update</Button>
       ) : (
         <Button
           variant="outline"

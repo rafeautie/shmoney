@@ -48,6 +48,9 @@ export function useSettingsStatus(): DotStatus | null {
   if (update?.status === 'downloaded') {
     return { tone: 'info', tooltip: 'Update ready, restart to install' }
   }
+  if (update?.status === 'available') {
+    return { tone: 'info', tooltip: `Update available: v${update.version}` }
+  }
   return null
 }
 
