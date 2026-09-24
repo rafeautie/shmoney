@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNull, sql } from 'drizzle-orm'
 import {
   CHAT_IPC,
   conversationIdSchema,
@@ -11,7 +11,7 @@ import {
   type SendChatResult
 } from '@shared/chat'
 import { db } from '../db'
-import { conversations } from '../db/schema'
+import { chatMessages, conversations } from '../db/schema'
 import {
   listConversations,
   listMessages,
@@ -39,6 +39,19 @@ export function registerChatIpc(): void {
   )
 
   ipcMain.handle(CHAT_IPC.stop, (): void => stopChat())
+
+  ipcMain.handle(CHAT_IPC.markSeen, (_event, input: unknown): void => {
+    const id = conversationIdSchema.parse(input)
+    db.update(conversations)
+      .set({
+        seenReplyId: sql`(
+          select max(id) from ${chatMessages}
+          where conversation_id = ${id} and role = 'assistant' and status != 'streaming'
+        )`
+      })
+      .where(eq(conversations.id, id))
+      .run()
+  })
 
   // takes effect on the next turn: the in-flight one captured its scope at send
   ipcMain.handle(CHAT_IPC.setConversationAccount, (_event, input: unknown): boolean => {

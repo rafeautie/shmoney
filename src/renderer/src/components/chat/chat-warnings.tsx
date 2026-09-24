@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useAutoCategorize, useLlmReady } from '@/lib/llm'
+import { categorizeRunLabel, useAutoCategorize, useCategorizeRun, useLlmReady } from '@/lib/llm'
 import { ChatWarning, type ChatWarningItem } from '@/components/chat/chat-warning'
 
 // warn once uncategorized transactions reach this share of the visible set
@@ -20,6 +20,7 @@ function useChatWarningItems(): ChatWarningItem[] {
   }).data
   const llmReady = useLlmReady()
   const categorize = useAutoCategorize({})
+  const run = useCategorizeRun()
 
   if (stats && stats.total > 0) {
     const ratio = stats.uncategorized / stats.total
@@ -29,7 +30,7 @@ function useChatWarningItems(): ChatWarningItem[] {
         message: `${Math.round(ratio * 100)}% of your transactions aren't categorized yet.`,
         subtitle: 'Categorized transactions help the assistant answer more accurately.',
         action: {
-          label: categorize.isRunning ? 'Categorizing…' : 'Auto-categorize',
+          label: categorize.isRunning ? categorizeRunLabel(run) : 'Auto-categorize',
           onClick: () => categorize.start(),
           disabled: !llmReady || categorize.anyRunning
         }

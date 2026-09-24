@@ -249,7 +249,10 @@ function promptDbContext(accountId: number | null): PromptDbContext {
   }
 }
 
-function rowToConversation(row: ConversationRow): Conversation {
+function rowToConversation(
+  row: ConversationRow,
+  lastReply: Conversation['lastReply'] = null
+): Conversation {
   return {
     id: row.id,
     title: row.title,
@@ -257,19 +260,30 @@ function rowToConversation(row: ConversationRow): Conversation {
     updatedAt: row.updatedAt,
     lastMessageAt: row.lastMessageAt,
     modelLabel: row.modelLabel,
-    accountId: row.accountId
+    accountId: row.accountId,
+    lastReply,
+    seenReplyId: row.seenReplyId
   }
 }
 
 export function listConversations(): Conversation[] {
   // soft-deleted rows are excluded here and restored by undoing the delete (action log)
+  // the outer id is spelled out: drizzle leaves columns unqualified in a
+  // single-table select, which would bind to the subquery's own id
+  const lastReply = sql<string | null>`(
+    select json_object('id', m.id, 'status', m.status) from ${chatMessages} m
+    where m.conversation_id = "conversations"."id" and m.role = 'assistant'
+    order by m.id desc limit 1
+  )`
   return db
-    .select()
+    .select({ row: conversations, lastReply })
     .from(conversations)
     .where(isNull(conversations.deletedAt))
     .orderBy(desc(conversations.lastMessageAt), desc(conversations.id))
     .all()
-    .map(rowToConversation)
+    .map(({ row, lastReply }) =>
+      rowToConversation(row, lastReply === null ? null : JSON.parse(lastReply))
+    )
 }
 
 /**

@@ -7,7 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { CategoryPicker } from './category-picker'
-import { useAutoCategorize, useLlmReady, useLlmSupported } from '@/lib/llm'
+import {
+  categorizeRunLabel,
+  useAutoCategorize,
+  useCategorizeRun,
+  useLlmReady,
+  useLlmSupported
+} from '@/lib/llm'
 
 interface TransactionsBulkActionsProps {
   /** The selected transactions currently visible under the active filters */
@@ -33,6 +39,7 @@ export function TransactionsBulkActions({
   const transactionIds = transactions.map((transaction) => transaction.id)
 
   const autoCategorize = useAutoCategorize({ transactionIds })
+  const run = useCategorizeRun()
 
   const setCategory = useMutation({
     mutationFn: (categoryId: number | null) =>
@@ -116,7 +123,7 @@ export function TransactionsBulkActions({
         <Button
           variant="ghost"
           size="lg"
-          className="text-sm"
+          className="text-sm tabular-nums"
           disabled={!llmReady || busy || autoCategorize.anyRunning}
           title={
             llmReady
@@ -127,8 +134,19 @@ export function TransactionsBulkActions({
           }
           onClick={() => autoCategorize.start()}
         >
-          Auto-categorize
+          {busy ? categorizeRunLabel(run) : 'Auto-categorize'}
         </Button>
+        {busy && (
+          <Button
+            variant="ghost"
+            size="lg"
+            className="text-sm"
+            disabled={run.canceling}
+            onClick={run.cancel}
+          >
+            Cancel
+          </Button>
+        )}
         <Button
           variant="destructive"
           size="lg"

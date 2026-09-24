@@ -16,7 +16,7 @@ function draftName(group: RuleSuggestionGroup): string {
 
 /**
  * Globally mounted host for the rule-suggestions dialog and the rule editor it
- * launches. Any trigger (notification action, settings card, activity feed)
+ * launches. Any trigger (settings card, activity feed)
  * opens it in place via useSuggestionsUi, without navigating to a page.
  */
 export function RuleSuggestionsHost(): React.JSX.Element {

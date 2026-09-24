@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Delete02Icon, MoreHorizontalIcon, PencilEdit01Icon } from '@hugeicons/core-free-icons'
-import type { Conversation } from '@shared/chat'
+import { conversationStatus, type Conversation } from '@shared/chat'
 import { useDeleteConversation, useRenameConversation } from '@/lib/chat'
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { StatusDot } from '@/components/layout/nav-dot'
 import { SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
 
 /** One conversation in the sidebar history: link, inline rename, delete menu. */
@@ -25,6 +26,9 @@ export function ConversationRow({
   const rename = useRenameConversation()
   const deleteConversation = useDeleteConversation()
   const [editing, setEditing] = useState(false)
+  const status = conversationStatus(conversation)
+  // the open thread is being read as it lands; only its running reply is news
+  const dot = status === 'busy' || (status !== null && !active) ? status : null
 
   const commitRename = (title: string) => {
     setEditing(false)
@@ -60,7 +64,13 @@ export function ConversationRow({
         // button's hover look, so it doesn't flicker off under the action
         className="group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground"
       >
-        <span>{conversation.title ?? 'Untitled'}</span>
+        <span className="truncate">{conversation.title ?? 'Untitled'}</span>
+        {dot && (
+          <StatusDot
+            tone={dot === 'busy' ? 'busy' : dot === 'failed' ? 'attention' : 'info'}
+            className="ml-auto"
+          />
+        )}
       </SidebarMenuButton>
       <DropdownMenu>
         <DropdownMenuTrigger

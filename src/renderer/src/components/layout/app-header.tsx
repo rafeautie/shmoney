@@ -1,4 +1,3 @@
-import { NotificationCenter } from '@/components/layout/notification-center'
 import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { isMac } from '@/lib/platform'
 import { cn } from '@/lib/utils'
@@ -39,9 +38,6 @@ export function AppHeader(): React.JSX.Element {
       }}
     >
       <SidebarTrigger size="icon" className="-ml-1 [-webkit-app-region:no-drag]" />
-      <div className="flex [-webkit-app-region:no-drag]">
-        <NotificationCenter />
-      </div>
     </header>
   )
 }

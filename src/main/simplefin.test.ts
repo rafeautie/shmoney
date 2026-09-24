@@ -7,10 +7,10 @@ import { fetchAccounts, parseAmount, SfinErrlistError } from './simplefin'
 
 const ACCESS_URL = 'https://user:pa%3Ass@bridge.example/simplefin'
 
-function stubFetch(payload: unknown, ok = true): ReturnType<typeof vi.fn> {
+function stubFetch(payload: unknown, status = 200): ReturnType<typeof vi.fn> {
   const fetchMock = vi
     .fn()
-    .mockResolvedValue({ ok, status: ok ? 200 : 403, json: async () => payload })
+    .mockResolvedValue({ ok: status < 400, status, json: async () => payload })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
@@ -72,8 +72,13 @@ describe('fetchAccounts', () => {
     await expect(fetchAccounts(ACCESS_URL, 0)).rejects.toBeInstanceOf(SfinErrlistError)
   })
 
-  it('throws on a non-ok response', async () => {
-    stubFetch({}, false)
-    await expect(fetchAccounts(ACCESS_URL, 0)).rejects.toThrow(/HTTP 403/)
+  it('reads a 403 as revoked access', async () => {
+    stubFetch({}, 403)
+    await expect(fetchAccounts(ACCESS_URL, 0)).rejects.toThrow(/refused access/)
+  })
+
+  it('throws with the status on any other non-ok response', async () => {
+    stubFetch({}, 500)
+    await expect(fetchAccounts(ACCESS_URL, 0)).rejects.toThrow(/HTTP 500/)
   })
 })

@@ -227,7 +227,7 @@ function ModelStep(): React.JSX.Element {
         </DialogDescription>
       </DialogHeader>
       {/* the same picker used in Settings: choosing a model downloads it in the
-          background, and the notification center tracks the download from here */}
+          background, and the Settings dot tracks the download from here */}
       <ModelPicker />
     </>
   )

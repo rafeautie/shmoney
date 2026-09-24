@@ -1,9 +1,9 @@
 // Recommended rules: when the same description gets categorized the same way
 // repeatedly (by the user or auto-categorize), the detector suggests turning it
 // into a rule — matching on a model-extracted merchant term when one is
-// available, or the exact description otherwise. Suggestions surface
-// transiently in the notification center and live in the Settings rules card
-// and Activity page until accepted or dismissed. Neither is forever:
+// available, or the exact description otherwise. New suggestions light the
+// Activity dot and live in the Settings rules card and Activity page until
+// accepted or dismissed. Neither is forever:
 // categorizing the cluster again re-suggests a dismissed pair, and deleting
 // the accepted rule re-suggests its pair.
 

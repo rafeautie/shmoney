@@ -1,22 +1,22 @@
+import type { DotTone } from '@/lib/nav-status'
 import { cn } from '@/lib/utils'
 
-const TONES = {
-  // the user needs to act
+const TONES: Record<DotTone, string> = {
   attention: 'bg-amber-500',
-  // something new, nothing wrong
-  info: 'bg-blue-500'
-} as const
+  info: 'bg-blue-500',
+  busy: 'animate-pulse-busy bg-sidebar-foreground'
+}
 
-export type NavDotTone = keyof typeof TONES
-
-/** Status dot pinned to a sidebar icon's corner, so it shows with the sidebar collapsed. */
-export function NavDot({ tone }: { tone: NavDotTone }) {
+export function StatusDot({ tone, className }: { tone: DotTone; className?: string }) {
   return (
     <span
-      className={cn(
-        'absolute -top-0.5 -right-0.5 size-2 rounded-full ring-2 ring-sidebar',
-        TONES[tone]
-      )}
+      aria-hidden
+      className={cn('block size-2 shrink-0 rounded-full', TONES[tone], className)}
     />
   )
+}
+
+/** Status dot pinned to a sidebar icon's corner, so it shows with the sidebar collapsed. */
+export function NavDot({ tone }: { tone: DotTone }) {
+  return <StatusDot tone={tone} className="absolute -top-0.5 -right-0.5 ring-2 ring-sidebar" />
 }

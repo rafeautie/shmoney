@@ -1,6 +1,4 @@
 import type { ComponentProps } from 'react'
-import { Link, useMatchRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ComputerIcon,
@@ -12,14 +10,10 @@ import {
 } from '@hugeicons/core-free-icons'
 import { usePrivacy, useTheme } from '@/lib/settings'
 import { isMac } from '@/lib/platform'
-import { connectionOptions } from '@/lib/queries'
-import { useUpdateState } from '@/lib/updates'
-import { useLlmStatus } from '@/lib/llm'
 import { Logo } from '@/components/logo'
-import { connectionNeedsAttention } from '@shared/ipc'
 import { NavChat } from './nav-chat'
-import { NavMain } from './nav-main'
-import { NavDot, type NavDotTone } from './nav-dot'
+import { NavLinkButton, NavMain } from './nav-main'
+import { useSettingsStatus } from '@/lib/nav-status'
 import {
   Sidebar,
   SidebarContent,
@@ -71,35 +65,14 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
 }
 
 function SettingsLink() {
-  const matchRoute = useMatchRoute()
-  const { data: connection } = useQuery(connectionOptions)
-  const needsAttention = connection ? connectionNeedsAttention(connection) : false
-  const models = useLlmStatus().data?.models
-  const modelFailed = models ? Object.values(models).some((m) => m.stage === 'error') : false
-  const updateReady = useUpdateState().data?.status === 'downloaded'
-
-  // first match wins: things the user must fix outrank the update
-  const status: { tone: NavDotTone; tooltip: string } | null = needsAttention
-    ? { tone: 'attention', tooltip: 'Settings: SimpleFIN needs your attention' }
-    : modelFailed
-      ? { tone: 'attention', tooltip: 'Settings: model download failed' }
-      : updateReady
-        ? { tone: 'info', tooltip: 'Settings: update ready, restart to install' }
-        : null
-
   return (
-    <SidebarMenuButton
-      render={<Link to="/settings" />}
-      isActive={!!matchRoute({ to: '/settings', fuzzy: false })}
-      tooltip={status?.tooltip ?? 'Settings'}
-    >
-      {/* the dot rides the icon so it stays visible with the sidebar collapsed */}
-      <span className="relative flex">
-        <HugeiconsIcon icon={Settings01Icon} size={16} />
-        {status && <NavDot tone={status.tone} />}
-      </span>
-      <span>Settings</span>
-    </SidebarMenuButton>
+    <NavLinkButton
+      to="/settings"
+      label="Settings"
+      fuzzy={false}
+      icon={Settings01Icon}
+      status={useSettingsStatus()}
+    />
   )
 }
 

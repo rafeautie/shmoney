@@ -286,7 +286,10 @@ export const conversations = sqliteTable('conversations', {
   modelLabel: text('model_label').notNull(),
   // account the chat's query tool is narrowed to; null = all accounts. The
   // chat survives its account's deletion, just widened back out.
-  accountId: integer('account_id').references(() => accounts.id, { onDelete: 'set null' })
+  accountId: integer('account_id').references(() => accounts.id, { onDelete: 'set null' }),
+  // newest assistant reply the user has looked at; a later finished reply shows
+  // the thread's unread dot
+  seenReplyId: integer('seen_reply_id')
 })
 
 export const chatMessages = sqliteTable(
