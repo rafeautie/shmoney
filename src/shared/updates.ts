@@ -1,7 +1,15 @@
-// disabled = a build where auto-update can't work: dev, or unsigned macOS
-// (electron-updater requires a code-signed app there)
+// disabled = a dev build, where updates never run. available = macOS only: a
+// newer release exists but must be downloaded by hand, since electron-updater
+// can't install on an unsigned Mac app
 export type UpdateStatus =
-  'disabled' | 'idle' | 'checking' | 'up-to-date' | 'downloading' | 'downloaded' | 'error'
+  | 'disabled'
+  | 'idle'
+  | 'checking'
+  | 'up-to-date'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
 
 export interface UpdateState {
   status: UpdateStatus
@@ -11,6 +19,8 @@ export interface UpdateState {
   progress: { percent: number; transferred: number; total: number } | null
   /** present only when status is 'error' */
   error: string | null
+  /** present only when status is 'available': the release page to download from */
+  url: string | null
 }
 
 export const UPDATES_IPC = {

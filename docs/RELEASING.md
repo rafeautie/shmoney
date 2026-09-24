@@ -12,7 +12,7 @@ Installed apps pick the release up on next launch or within 4 hours. If the user
 
 ## Platform notes
 
-- Windows only for now. macOS auto-update requires a code-signed app (Apple Developer ID), which this project doesn't have; a Linux job is easy to add if there's ever an audience.
+- Automatic updates are Windows only for now. macOS auto-update requires a code-signed app (Apple Developer ID), which this project doesn't have, so Mac builds instead check the latest published GitHub release on the same schedule and, when it's newer and has a `.dmg`, show a **Download update** button on Settings → About (plus the Settings dot) linking to the release page.
 - Builds are unsigned: SmartScreen warns on the first manually downloaded install, but electron-updater's own downloads update silently afterwards.
 - Updates download only changed blocks (blockmap differential), so update downloads are much smaller than the full installer despite the bundled llama binaries.
 
