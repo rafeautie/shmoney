@@ -3,6 +3,7 @@ import { Page } from '@/components/page'
 import { CategoriesSettings } from '@/components/settings/categories-settings'
 import { ConnectionSettings } from '@/components/settings/connection-settings'
 import { NotificationSettings } from '@/components/settings/notification-settings'
+import { AppearanceSettings } from '@/components/settings/appearance-settings'
 import { PrivacySettings } from '@/components/settings/privacy-settings'
 import { TransferSettings } from '@/components/settings/transfer-settings'
 import { RulesSettings } from '@/components/settings/rules-settings'
@@ -27,6 +28,8 @@ function SettingsPage() {
       <ConnectionSettings />
 
       <TransferSettings />
+
+      <AppearanceSettings />
 
       <PrivacySettings />
 
