@@ -15,6 +15,7 @@ import {
   goalRemoveSchema,
   goalSeriesQuerySchema,
   goalUpdateSchema,
+  type GoalCreateInput,
   type GoalRemoveResult,
   type GoalSummary
 } from '@shared/goals'
@@ -60,6 +61,48 @@ function oneSummary(id: number): GoalSummary {
   return summary
 }
 
+// the demo seed creates its goals through here too, so they get the same baseline
+export function createGoal({
+  name,
+  mode,
+  targetAmount,
+  targetDate,
+  startedAt,
+  accountIds
+}: GoalCreateInput): number {
+  const now = nowSec()
+  const start = startedAt ?? now
+  if (start > now) throw new Error("A goal can't start in the future")
+  assertDatesOrdered(start, targetDate ?? null)
+  const currency = sharedCurrency(accountIds)
+
+  const id = db.transaction((tx) => {
+    const [row] = tx
+      .insert(savingsGoals)
+      .values({
+        name,
+        mode,
+        targetAmount,
+        targetDate: targetDate ?? null,
+        startedAt: start,
+        baselineAmount: 0,
+        currency,
+        createdAt: now,
+        updatedAt: now
+      })
+      .returning({ id: savingsGoals.id })
+      .all()
+    tx.insert(savingsGoalAccounts)
+      .values(accountIds.map((accountId) => ({ goalId: row.id, accountId })))
+      .run()
+    return row.id
+  })
+
+  // the baseline reads the stored start and links, so the row goes in first
+  setBaseline(id, mode, accountIds)
+  return id
+}
+
 export function registerGoalsIpc(): void {
   purgeDeletedGoals()
 
@@ -69,41 +112,9 @@ export function registerGoalsIpc(): void {
     getGoalSeries(goalSeriesQuerySchema.parse(input))
   )
 
-  ipcMain.handle(GOALS_IPC.create, (_event, input: unknown): GoalSummary => {
-    const { name, mode, targetAmount, targetDate, startedAt, accountIds } =
-      goalCreateSchema.parse(input)
-    const now = nowSec()
-    const start = startedAt ?? now
-    if (start > now) throw new Error("A goal can't start in the future")
-    assertDatesOrdered(start, targetDate ?? null)
-    const currency = sharedCurrency(accountIds)
-
-    const id = db.transaction((tx) => {
-      const [row] = tx
-        .insert(savingsGoals)
-        .values({
-          name,
-          mode,
-          targetAmount,
-          targetDate: targetDate ?? null,
-          startedAt: start,
-          baselineAmount: 0,
-          currency,
-          createdAt: now,
-          updatedAt: now
-        })
-        .returning({ id: savingsGoals.id })
-        .all()
-      tx.insert(savingsGoalAccounts)
-        .values(accountIds.map((accountId) => ({ goalId: row.id, accountId })))
-        .run()
-      return row.id
-    })
-
-    // the baseline reads the stored start and links, so the row goes in first
-    setBaseline(id, mode, accountIds)
-    return oneSummary(id)
-  })
+  ipcMain.handle(GOALS_IPC.create, (_event, input: unknown): GoalSummary =>
+    oneSummary(createGoal(goalCreateSchema.parse(input)))
+  )
 
   ipcMain.handle(GOALS_IPC.update, (_event, input: unknown): GoalSummary => {
     const patch = goalUpdateSchema.parse(input)

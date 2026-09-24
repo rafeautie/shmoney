@@ -1,3 +1,4 @@
+import { addMonths, endOfMonth, format, startOfMonth, subMonths } from 'date-fns'
 import { and, eq, inArray, isNull, like, lt, sql } from 'drizzle-orm'
 import { DEMO_TOKEN_PREFIX } from '@shared/demo'
 import { LLM_MODELS, DEFAULT_MODEL_ID } from '@shared/llm'
@@ -28,6 +29,7 @@ import {
 } from '../db/schema'
 import { encryptAccessUrl } from '../access-url'
 import { syncConnection } from '../ipc/connections'
+import { createGoal } from '../ipc/goals'
 import { writeSetting } from '../settings-store'
 import { runChatScript } from './chat'
 import { monthKey } from './generate'
@@ -142,6 +144,7 @@ export async function seedDataset(id: string): Promise<void> {
   await syncConnection()
 
   seedExtras(dataset, category, now)
+  seedGoals(dataset, now)
 }
 
 function seedExtras(
@@ -302,4 +305,28 @@ function seedExtras(
 
   // the sync's automated Activity entries are part of the story, not news
   writeSetting('activitySeenAt', Date.now())
+}
+
+function seedGoals(dataset: DatasetDefinition, now: Date): void {
+  for (const goal of dataset.goals ?? []) {
+    createGoal({
+      name: goal.name,
+      mode: goal.mode,
+      targetAmount: goal.target * 1000,
+      targetDate:
+        goal.targetMonthsAhead === undefined
+          ? null
+          : format(endOfMonth(addMonths(now, goal.targetMonthsAhead)), 'yyyy-MM-dd'),
+      startedAt: Math.floor(startOfMonth(subMonths(now, goal.startedMonthsAgo)).getTime() / 1000),
+      accountIds: goal.accounts.map((name) => {
+        const row = db
+          .select({ id: accounts.id })
+          .from(accounts)
+          .where(eq(accounts.name, name))
+          .get()
+        if (!row) throw new Error(`Demo goal ${goal.name} names unknown account ${name}`)
+        return row.id
+      })
+    })
+  }
 }

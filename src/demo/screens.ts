@@ -14,10 +14,13 @@ export const SCREENS: DemoScreen[] = [
   { name: 'transactions', route: '/accounts?tab=transactions' },
   { name: 'accounts', route: '/accounts' },
   { name: 'budget', route: '/budget' },
+  { name: 'goals', route: '/goals' },
   // the income-versus-spending conversation, the second one seeded
   { name: 'chat', route: '/chat?c=2' },
   { name: 'reports', route: '/reports' },
   { name: 'report-detail', route: '/reports/1' },
+  // the Savings Goals template, the household dataset's third report
+  { name: 'savings-goals-report', route: '/reports/3' },
   { name: 'activity', route: '/activity' },
   { name: 'settings-llm', route: '/settings', scrollTo: 'Local AI model' }
 ]

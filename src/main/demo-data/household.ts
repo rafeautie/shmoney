@@ -1,4 +1,4 @@
-import { SPENDING_OVERVIEW_TEMPLATE } from '@shared/report-templates'
+import { SAVINGS_GOALS_TEMPLATE, SPENDING_OVERVIEW_TEMPLATE } from '@shared/report-templates'
 import { AccountDraft, cents, dayAt, random, type Day } from './generate'
 import { usd } from './format'
 import type { DatasetDefinition } from './types'
@@ -294,6 +294,32 @@ export const household: DatasetDefinition = {
           h: 5
         }
       ]
+    },
+    SAVINGS_GOALS_TEMPLATE
+  ],
+  goals: [
+    {
+      name: 'Emergency fund',
+      mode: 'balance',
+      accounts: ['High-Yield Savings'],
+      target: 30_000,
+      startedMonthsAgo: 8,
+      targetMonthsAhead: 9
+    },
+    {
+      name: 'Trip to Japan',
+      mode: 'contributions',
+      accounts: ['High-Yield Savings'],
+      target: 6_000,
+      startedMonthsAgo: 5
+    },
+    {
+      name: 'House down payment',
+      mode: 'contributions',
+      accounts: ['Individual Brokerage'],
+      target: 25_000,
+      startedMonthsAgo: 10,
+      targetMonthsAhead: 26
     }
   ],
   savedFilters: [

@@ -34,7 +34,9 @@ describe('seedDataset household', () => {
     expect(count(schema.transactions)).toBeGreaterThan(500)
     expect(count(schema.rules)).toBeGreaterThan(0)
     expect(count(schema.budgets)).toBeGreaterThan(0)
-    expect(count(schema.reports)).toBe(2)
+    expect(count(schema.reports)).toBe(3)
+    expect(count(schema.savingsGoals)).toBe(3)
+    expect(count(schema.savingsGoalAccounts)).toBe(3)
     expect(count(schema.savedFilters)).toBe(2)
     expect(count(schema.ruleSuggestions)).toBe(1)
     expect(count(schema.conversations)).toBe(2)
@@ -93,5 +95,12 @@ describe('clearData', () => {
     expect(count(schema.connections)).toBe(0)
     expect(count(schema.actionLog)).toBe(0)
     expect(count(schema.categories)).toBeGreaterThan(10)
+  })
+
+  it('takes the goals with it', async () => {
+    await seedDataset('household')
+    clearData()
+    expect(count(schema.savingsGoals)).toBe(0)
+    expect(count(schema.savingsGoalAccounts)).toBe(0)
   })
 })

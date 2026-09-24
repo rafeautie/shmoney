@@ -33,6 +33,15 @@ export interface DatasetDefinition extends DemoDataset {
     })[]
   })[]
   savedFilters?: { name: string; filters: NamedFilters<TransactionFilters> }[]
+  /** accounts by name; dates in whole months from now, a target at that month's end */
+  goals?: {
+    name: string
+    mode: 'balance' | 'contributions'
+    accounts: string[]
+    target: number
+    startedMonthsAgo: number
+    targetMonthsAhead?: number
+  }[]
   suggestions?: { phrase: string; category: CategoryRef }[]
   chats?: ChatScript[]
   settings?: Partial<Settings>
