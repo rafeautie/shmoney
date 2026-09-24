@@ -221,7 +221,13 @@ export const household: DatasetDefinition = {
           title: 'Net by month',
           type: 'bar',
           config: {
-            query: { measure: 'sum', groupBy: 'none', timeGrain: 'month', cumulative: false },
+            query: {
+              source: 'transactions',
+              measure: 'sum',
+              groupBy: 'none',
+              timeGrain: 'month',
+              cumulative: false
+            },
             filters: { mode: 'inherit', overrides: {} }
           },
           x: 0,
@@ -234,6 +240,7 @@ export const household: DatasetDefinition = {
           type: 'budget',
           config: {
             query: {
+              source: 'transactions',
               measure: 'expense',
               groupBy: 'category',
               timeGrain: 'none',
@@ -253,6 +260,7 @@ export const household: DatasetDefinition = {
           categories: [GROCERIES, DINING_OUT],
           config: {
             query: {
+              source: 'transactions',
               measure: 'expense',
               groupBy: 'category',
               timeGrain: 'month',
@@ -271,6 +279,7 @@ export const household: DatasetDefinition = {
           type: 'summaryTable',
           config: {
             query: {
+              source: 'transactions',
               measure: 'expense',
               groupBy: 'category',
               timeGrain: 'none',

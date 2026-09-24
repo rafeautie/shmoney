@@ -21,6 +21,8 @@ import {
   ruleSuggestions,
   rules,
   savedFilters,
+  savingsGoalAccounts,
+  savingsGoals,
   settings,
   transactions
 } from '../db/schema'
@@ -40,6 +42,8 @@ const DATA_TABLES = [
   ruleSuggestions,
   rules,
   budgets,
+  savingsGoalAccounts,
+  savingsGoals,
   reportWidgets,
   reports,
   savedFilters,
@@ -55,6 +59,7 @@ const DATA_TABLE_NAMES = [
   'rule_suggestions',
   'rules',
   'budgets',
+  'savings_goals',
   'report_widgets',
   'reports',
   'saved_filters',
