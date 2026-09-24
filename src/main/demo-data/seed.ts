@@ -269,7 +269,8 @@ function seedExtras(
       })
       .returning()
       .all()
-    db.insert(chatMessages)
+    const [, reply] = db
+      .insert(chatMessages)
       .values([
         {
           conversationId: conversation.id,
@@ -285,6 +286,12 @@ function seedExtras(
           createdAt: at + 45_000
         }
       ])
+      .returning({ id: chatMessages.id })
+      .all()
+    // already read, so no thread opens with an unread dot
+    db.update(conversations)
+      .set({ seenReplyId: reply.id })
+      .where(eq(conversations.id, conversation.id))
       .run()
   }
 

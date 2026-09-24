@@ -63,6 +63,12 @@ describe('seedDataset household', () => {
       m.parts.filter((p) => p.type === 'functionCall' && p.name === 'chart')
     )
     expect(charts).toHaveLength(2)
+    const unseen = db
+      .select()
+      .from(schema.conversations)
+      .all()
+      .filter((c) => c.seenReplyId === null)
+    expect(unseen).toHaveLength(0)
   })
 
   it('re-syncs idempotently', async () => {
