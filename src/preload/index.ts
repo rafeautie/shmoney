@@ -318,6 +318,9 @@ const api = {
       ipcRenderer.invoke(CHAT_IPC.send, input),
     /** Stop the in-flight reply; its partial text still lands via onMessageDone */
     stop: (): Promise<void> => ipcRenderer.invoke(CHAT_IPC.stop),
+    /** Mark the conversation's newest finished reply as read (clears its sidebar dot) */
+    markSeen: (conversationId: number): Promise<void> =>
+      ipcRenderer.invoke(CHAT_IPC.markSeen, conversationId),
     rename: (input: RenameConversationInput): Promise<boolean> =>
       ipcRenderer.invoke(CHAT_IPC.renameConversation, input),
     /** Narrow (or widen, accountId null) the conversation's query scope; next turn on */
@@ -384,7 +387,7 @@ const api = {
       ipcRenderer.on(IPC.appOpenImportFile, listener)
       return () => ipcRenderer.removeListener(IPC.appOpenImportFile, listener)
     },
-    /** Mirror a notification-center message to an OS toast; a no-op when the
+    /** Mirror a notice to an OS toast; a no-op when the
      * window is focused or the user turned native notifications off. */
     notify: (title: string, body: string): void => ipcRenderer.send(IPC.appNotify, { title, body })
   },

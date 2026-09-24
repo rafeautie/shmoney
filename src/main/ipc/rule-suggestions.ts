@@ -79,7 +79,7 @@ function alreadyCovered(
  * behavior. A pair is suppressed only while it's active — already pending, or
  * covered by an enabled rule; a dismissed or orphaned-accepted pair earns a
  * fresh suggestion by being categorized again. Fires a renderer event when it
- * creates any, so the notification center and settings list refresh.
+ * creates any, so the Activity dot and settings list refresh.
  */
 export async function detectRuleSuggestions(
   changed: { transactionId: number; categoryId: number }[],

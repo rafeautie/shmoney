@@ -227,6 +227,20 @@ export interface Conversation {
   modelLabel: string
   /** account this chat is narrowed to; null = all accounts */
   accountId: number | null
+  /** the newest assistant reply; null before the first send */
+  lastReply: { id: number; status: ChatMessageStatus } | null
+  /** newest reply the user has viewed */
+  seenReplyId: number | null
+}
+
+export type ConversationStatus = 'busy' | 'unread' | 'failed' | null
+
+/** What the thread's sidebar dot shows: a reply generating, or one finished since last viewed. */
+export function conversationStatus(c: Conversation): ConversationStatus {
+  if (!c.lastReply) return null
+  if (c.lastReply.status === 'streaming') return 'busy'
+  if (c.seenReplyId !== null && c.lastReply.id <= c.seenReplyId) return null
+  return c.lastReply.status === 'error' ? 'failed' : 'unread'
 }
 
 /** Extract a message's displayable text (its text parts, joined). */
@@ -312,6 +326,7 @@ export const CHAT_IPC = {
   listMessages: 'chat:listMessages',
   send: 'chat:send',
   stop: 'chat:stop',
+  markSeen: 'chat:markSeen',
   // main → renderer push events
   part: 'chat:part',
   messageDone: 'chat:messageDone'

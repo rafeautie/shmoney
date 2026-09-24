@@ -4,6 +4,7 @@ import { useIsMutating } from '@tanstack/react-query'
 import { DEFAULT_MODEL_ID } from '@shared/llm'
 import {
   useConversations,
+  useMarkConversationSeen,
   useSendChat,
   useSetConversationAccount,
   useStopChat,
@@ -45,6 +46,7 @@ function ChatPage() {
   // scope: a new chat's selection is local until the first send creates the
   // conversation with it; an existing chat's lives on the conversation row
   const conversations = useConversations().data
+  useMarkConversationSeen(conversations?.find((conv) => conv.id === conversationId))
   const [draftAccountId, setDraftAccountId] = useState<number | null>(null)
   const scopeAccountId =
     conversationId === null

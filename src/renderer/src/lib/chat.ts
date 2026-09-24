@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { Conversation, ConversationMessages, StreamingChatPart } from '@shared/chat'
+import {
+  conversationStatus,
+  type Conversation,
+  type ConversationMessages,
+  type StreamingChatPart
+} from '@shared/chat'
 import { ipcErrorMessage } from '@/lib/utils'
 
 export const CHAT_CONVERSATIONS_KEY = ['chat', 'conversations'] as const
@@ -50,6 +55,19 @@ export function useSendChat() {
     // silently eat the message; say what went wrong instead
     onError: (error) => toast(ipcErrorMessage(error))
   })
+}
+
+/** The open thread's finished reply counts as read, clearing its sidebar dot. */
+export function useMarkConversationSeen(conversation: Conversation | undefined): void {
+  const queryClient = useQueryClient()
+  const status = conversation ? conversationStatus(conversation) : null
+  const id = conversation?.id
+  useEffect(() => {
+    if (id === undefined || (status !== 'unread' && status !== 'failed')) return
+    void window.api.chat
+      .markSeen(id)
+      .then(() => queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY }))
+  }, [id, status, queryClient])
 }
 
 export function useStopChat() {

@@ -464,7 +464,7 @@ export const IPC = {
   appNavigate: 'app:navigate',
   // a statement file arrived from outside the window (file association, drop)
   appOpenImportFile: 'app:openImportFile',
-  // mirror a notification-center message to an OS toast while unfocused
+  // mirror a notice to an OS toast while unfocused
   appNotify: 'app:notify',
   // dev-only: raw SimpleFIN /accounts passthrough for the Debug page (handler
   // registered only when is.dev, so it isn't present in production builds)

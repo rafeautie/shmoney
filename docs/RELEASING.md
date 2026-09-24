@@ -1,6 +1,6 @@
 # Releasing
 
-Releases are built and published to GitHub Releases by CI when a version tag is pushed. Installed apps check for updates on launch and every 4 hours, download silently, and prompt for a restart via the notification center.
+Releases are built and published to GitHub Releases by CI when a version tag is pushed. Installed apps check for updates on launch and every 4 hours, download silently, and prompt for a restart with a blue dot on Settings.
 
 ## Cutting a release
 
@@ -18,7 +18,7 @@ Installed apps pick the release up on next launch or within 4 hours. If the user
 
 ## Testing the update flow in dev
 
-The updater normally only runs in packaged builds. To exercise the full flow (check → progress job in the notification center → "Update ready" → Restart) without publishing:
+The updater normally only runs in packaged builds. To exercise the full flow (check → download progress on the Settings page → blue Settings dot → Restart) without publishing:
 
 1. Create a git-ignored `dev-app-update.yml` in the project root:
 

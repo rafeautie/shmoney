@@ -17,9 +17,9 @@ export function setTaskbarProgress(fraction: number | null): void {
 
 /**
  * OS notification for background work that finished while the user was
- * elsewhere. Deliberately silent when the window is focused: the in-app
- * notification center already covers that case, and a toast for something
- * you are looking at is noise.
+ * elsewhere. Deliberately silent when the window is focused: the sidebar dots
+ * and in-app toasts already cover that case, and a toast for something you
+ * are looking at is noise.
  */
 export function notifyOs(title: string, body: string): void {
   const window = mainWindow()

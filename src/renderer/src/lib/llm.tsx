@@ -6,6 +6,7 @@ import {
   MODEL_IDS,
   llmSupported,
   recommendedModelId,
+  type CategorizeProgress,
   type LlmDownloadProgress,
   type LlmStatus,
   type ModelId,
@@ -13,7 +14,7 @@ import {
 } from '@shared/llm'
 import type { CategorizeScopeInput } from '@shared/ipc'
 import { ipcErrorMessage, plural } from '@/lib/utils'
-import { useNotify } from '@/lib/notify-store'
+import { notify } from '@/lib/notify'
 
 export const LLM_STATUS_QUERY_KEY = ['llm', 'status'] as const
 export const LLM_HARDWARE_QUERY_KEY = ['llm', 'hardware'] as const
@@ -142,8 +143,8 @@ export interface AutoCategorize {
 }
 
 // shared key so every trigger's run is the same mutation to `useIsMutating`,
-// which is how they see (and block on) a run started by another trigger — and how
-// the notification center observes a run without owning it
+// which is how they see (and block on) a run started by another trigger, and how
+// the sidebar observes a run without owning it
 export const CATEGORIZE_MUTATION_KEY = ['llm', 'categorize'] as const
 
 /**
@@ -152,12 +153,11 @@ export const CATEGORIZE_MUTATION_KEY = ['llm', 'categorize'] as const
  * immediately as one undoable action-log entry — the notification's Review action
  * links to the Activity page, the undo surface. Only one run happens at a time app-wide
  * (see `anyRunning`), since the worker shares a single chat session. Live progress
- * and cancel are surfaced by the navbar notification center, not here.
+ * and cancel come from `useCategorizeRun`.
  */
 export function useAutoCategorize(scope: CategorizeScopeInput): AutoCategorize {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const notify = useNotify()
   const anyRunning = useIsMutating({ mutationKey: CATEGORIZE_MUTATION_KEY }) > 0
 
   const run = useMutation({
@@ -186,4 +186,45 @@ export function useAutoCategorize(scope: CategorizeScopeInput): AutoCategorize {
     anyRunning,
     start: () => run.mutate()
   }
+}
+
+export interface CategorizeRun {
+  running: boolean
+  /** null until the first batch reports (the model may still be loading) */
+  progress: CategorizeProgress | null
+  canceling: boolean
+  cancel: () => void
+}
+
+/** The app-wide categorize run, whichever trigger started it: live progress and cancel. */
+export function useCategorizeRun(): CategorizeRun {
+  const running = useIsMutating({ mutationKey: CATEGORIZE_MUTATION_KEY }) > 0
+  const [progress, setProgress] = useState<CategorizeProgress | null>(null)
+  const [canceling, setCanceling] = useState(false)
+
+  useEffect(() => window.api.llm.onCategorizeProgress(setProgress), [])
+  // a finished run's numbers and cancel flag must not carry into the next run
+  useEffect(() => {
+    if (running) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resets push-fed state when the run ends; there is no render-derivable source for it
+    setProgress(null)
+    setCanceling(false)
+  }, [running])
+
+  return {
+    running,
+    progress: running ? progress : null,
+    canceling,
+    cancel: () => {
+      setCanceling(true)
+      void window.api.llm.cancelCategorize()
+    }
+  }
+}
+
+/** Button text for a running categorize: live counts once the first batch reports. */
+export function categorizeRunLabel(run: CategorizeRun): string {
+  if (run.canceling) return 'Cancelling…'
+  const p = run.progress
+  return p && p.total > 0 ? `Categorizing ${p.processed}/${p.total}…` : 'Categorizing…'
 }

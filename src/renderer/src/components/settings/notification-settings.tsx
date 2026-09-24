@@ -10,8 +10,8 @@ export function NotificationSettings() {
       <CardHeader>
         <CardTitle className="text-base">Notifications</CardTitle>
         <CardDescription>
-          Background work always lands in the notification center; this decides whether it also
-          reaches you outside the app.
+          Background work always shows as a dot in the sidebar; this decides whether it also reaches
+          you outside the app.
         </CardDescription>
       </CardHeader>
       <CardContent>

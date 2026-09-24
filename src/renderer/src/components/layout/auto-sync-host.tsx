@@ -1,7 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import { useNotify } from '@/lib/notify-store'
 import { useConnectSimpleFin } from '@/hooks/use-connect-simplefin'
 import { connectionOptions } from '@/lib/queries'
 
@@ -19,12 +17,10 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000
  * (connection.lastSyncedAt) — immediately on launch if the app was closed across
  * that mark, and on a coarse interval so an app left open still syncs when the
  * mark is crossed. Reuses the same sync path as the manual button, so transfer
- * detection, rules, and query invalidation all run; a completion message lands
- * in the notification center on top of whatever that sync touched.
+ * detection, rules, and query invalidation all run; what it changed shows up
+ * on the Activity dot.
  */
 export function AutoSyncHost(): null {
-  const notify = useNotify()
-  const navigate = useNavigate()
   const { syncConnection } = useConnectSimpleFin()
   const { mutate } = syncConnection
 
@@ -46,19 +42,13 @@ export function AutoSyncHost(): null {
       if (Date.now() - lastSyncedAt * 1000 < DAY_MS) return
       if (triggeredFor.current === lastSyncedAt) return
       triggeredFor.current = lastSyncedAt
-      mutate(undefined, {
-        onSuccess: () =>
-          notify('Accounts auto-synced', {
-            description: 'shmoney refreshes your accounts about once a day.',
-            action: { label: 'View accounts', onClick: () => navigate({ to: '/accounts' }) }
-          })
-      })
+      mutate()
     }
 
     check()
     const id = window.setInterval(check, CHECK_INTERVAL_MS)
     return () => window.clearInterval(id)
-  }, [lastSyncedAt, mutate, notify, navigate])
+  }, [lastSyncedAt, mutate])
 
   return null
 }

@@ -1,19 +1,39 @@
 import type { CategorizeScopeInput } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { useAutoCategorize, useLlmReady, useLlmSupported } from '@/lib/llm'
+import {
+  categorizeRunLabel,
+  useAutoCategorize,
+  useCategorizeRun,
+  useLlmReady,
+  useLlmSupported
+} from '@/lib/llm'
 
 /**
  * Header action that auto-categorizes a scope — a whole account when given an
  * `accountId`, or every uncategorized transaction when the scope is empty. Needs a
  * downloaded model (disabled with a hint until then), and is disabled while any
- * categorize run is active, since only one runs at a time. Progress and cancel for
- * a run in flight live in the navbar notification center.
+ * categorize run is active, since only one runs at a time. Its own run shows live
+ * progress and a Cancel beside it.
  */
 export function AutoCategorizeButton({ scope }: { scope: CategorizeScopeInput }) {
   const llmReady = useLlmReady()
   const supported = useLlmSupported()
   const autoCategorize = useAutoCategorize(scope)
+  const run = useCategorizeRun()
+
+  if (autoCategorize.isRunning) {
+    return (
+      <div className="flex shrink-0 gap-2">
+        <Button variant="outline" disabled className="tabular-nums">
+          {categorizeRunLabel(run)}
+        </Button>
+        <Button variant="outline" disabled={run.canceling} onClick={run.cancel}>
+          Cancel
+        </Button>
+      </div>
+    )
+  }
 
   const button = (
     <Button
@@ -22,7 +42,7 @@ export function AutoCategorizeButton({ scope }: { scope: CategorizeScopeInput })
       disabled={!llmReady || autoCategorize.anyRunning}
       onClick={() => autoCategorize.start()}
     >
-      {autoCategorize.isRunning ? 'Categorizing…' : 'Auto-categorize'}
+      Auto-categorize
     </Button>
   )
 
