@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { db } from './db'
 import { createLogger } from './logging'
 import { settings } from './db/schema'
@@ -36,8 +37,11 @@ export function readSettings(): Settings {
 }
 
 export function writeSetting<K extends SettingKey>(key: K, value: Settings[K]): void {
+  // drizzle sends a JS null as SQL NULL instead of JSON-encoding it, which the
+  // NOT NULL column rejects; store the JSON literal so it reads back as null
+  const stored = value === null ? sql`'null'` : value
   db.insert(settings)
-    .values({ key, value })
-    .onConflictDoUpdate({ target: settings.key, set: { value } })
+    .values({ key, value: stored })
+    .onConflictDoUpdate({ target: settings.key, set: { value: stored } })
     .run()
 }

@@ -8,6 +8,7 @@ import type { ActionLogEntry } from '@shared/ipc'
 import { groupSuggestions, type RuleSuggestion } from '@shared/rule-suggestions'
 import { cn, plural } from '@/lib/utils'
 import { actionLogOptions } from '@/lib/queries'
+import { useMarkActivitySeen } from '@/lib/activity-seen'
 import { formatBucketLabel } from '@/lib/format-date'
 import { Page } from '@/components/page'
 import { EntrySourceIcon } from '@/components/transactions/entry-source-icon'
@@ -42,6 +43,7 @@ function dayLabel(ms: number): string {
 function ActivityPage() {
   const query = useQuery(actionLogOptions)
   const entries = query.data ?? []
+  useMarkActivitySeen(query.data)
 
   const suggestionsQuery = useQuery({
     queryKey: ['ruleSuggestions'],

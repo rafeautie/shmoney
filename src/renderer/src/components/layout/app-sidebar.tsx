@@ -13,10 +13,13 @@ import {
 import { usePrivacy, useTheme } from '@/lib/settings'
 import { isMac } from '@/lib/platform'
 import { connectionOptions } from '@/lib/queries'
+import { useUpdateState } from '@/lib/updates'
+import { useLlmStatus } from '@/lib/llm'
 import { Logo } from '@/components/logo'
 import { connectionNeedsAttention } from '@shared/ipc'
 import { NavChat } from './nav-chat'
 import { NavMain } from './nav-main'
+import { NavDot, type NavDotTone } from './nav-dot'
 import {
   Sidebar,
   SidebarContent,
@@ -71,19 +74,29 @@ function SettingsLink() {
   const matchRoute = useMatchRoute()
   const { data: connection } = useQuery(connectionOptions)
   const needsAttention = connection ? connectionNeedsAttention(connection) : false
+  const models = useLlmStatus().data?.models
+  const modelFailed = models ? Object.values(models).some((m) => m.stage === 'error') : false
+  const updateReady = useUpdateState().data?.status === 'downloaded'
+
+  // first match wins: things the user must fix outrank the update
+  const status: { tone: NavDotTone; tooltip: string } | null = needsAttention
+    ? { tone: 'attention', tooltip: 'Settings: SimpleFIN needs your attention' }
+    : modelFailed
+      ? { tone: 'attention', tooltip: 'Settings: model download failed' }
+      : updateReady
+        ? { tone: 'info', tooltip: 'Settings: update ready, restart to install' }
+        : null
 
   return (
     <SidebarMenuButton
       render={<Link to="/settings" />}
       isActive={!!matchRoute({ to: '/settings', fuzzy: false })}
-      tooltip={needsAttention ? 'Settings: SimpleFIN needs your attention' : 'Settings'}
+      tooltip={status?.tooltip ?? 'Settings'}
     >
       {/* the dot rides the icon so it stays visible with the sidebar collapsed */}
       <span className="relative flex">
         <HugeiconsIcon icon={Settings01Icon} size={16} />
-        {needsAttention && (
-          <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber-500 ring-2 ring-sidebar" />
-        )}
+        {status && <NavDot tone={status.tone} />}
       </span>
       <span>Settings</span>
     </SidebarMenuButton>
