@@ -1,5 +1,5 @@
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Alert02Icon, Download01Icon } from '@hugeicons/core-free-icons'
+import { Alert02Icon, ComputerIcon, Download01Icon } from '@hugeicons/core-free-icons'
 import { LLM_MODELS } from '@shared/llm'
 import {
   useLlmDownloadProgress,
@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Progress } from '@/components/ui/progress'
+import { DESKTOP_APP_URL, isDemo } from '@/lib/platform'
 
 function formatBytes(bytes: number): string {
   return `${(bytes / 1_000_000_000).toFixed(1)} GB`
@@ -26,6 +27,29 @@ export function ChatModelGate() {
   const stage = useModelState(selected).stage
   const progress = useLlmDownloadProgress()[selected]
   const actions = useModelActions()
+
+  if (isDemo) {
+    return (
+      <Empty className="flex-1 border-none">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <HugeiconsIcon icon={ComputerIcon} />
+          </EmptyMedia>
+          <EmptyTitle>Chat runs on your computer</EmptyTitle>
+          <EmptyDescription>
+            In the desktop app, an on-device model answers questions about your money, fully
+            offline. Open a conversation in the sidebar to see how it answers.
+          </EmptyDescription>
+        </EmptyHeader>
+        <Button
+          nativeButton={false}
+          render={<a href={DESKTOP_APP_URL} target="_blank" rel="noreferrer" />}
+        >
+          Get shmoney
+        </Button>
+      </Empty>
+    )
+  }
 
   // an unsupported machine can't run any model, so there's nothing to download
   // and no download UI makes sense here

@@ -13,6 +13,7 @@ import {
   CardTitle
 } from '@/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { DatasetControls } from '@/components/demo/dataset-controls'
 import { ipcErrorMessage } from '@/lib/utils'
 
 // Developer-only diagnostics. Three layers keep this out of production builds:
@@ -61,6 +62,18 @@ function DebugPage() {
         </p>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Sample data</CardTitle>
+          <CardDescription>
+            Replace everything with a generated dataset (the same ones the web demo and the
+            screenshots use), or clear back to a fresh install. Display preferences are kept.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DatasetControls />
+        </CardContent>
+      </Card>
       <JsonCard
         title="Raw accounts response"
         description="Live SimpleFIN /accounts payload (last 90 days), fetched fresh and never stored."

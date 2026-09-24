@@ -58,33 +58,28 @@ Gotchas that cost time:
 - A full turn takes 20-60s (model load on first turn plus generation);
   poll every ~2.5s with a 280s timeout.
 
-## Production-mode screenshots (README/docs)
+## Screenshots (README, rafe.dev)
 
-A ready-made driver lives in `scripts/` next to this skill: `driver.mjs`
-(`targets` / `eval "<js>"` / `shot out.png` subcommands) and
-`round-corners.ps1` (`-In -Out -Radius`).
+Screenshots come from the web demo, not the Electron window, so they always
+show the household sample dataset on the same build the live demo runs:
 
-- Launch the shipped UI without dev artifacts: `npm run build`, then
-  `npx electron . --remote-debugging-port=9222` from the Bash tool.
-  Unpackaged still counts as dev for dev-paths, so it opens the same
-  `%APPDATA%\shmoney-dev` profile (demo data, model, settings), but the
-  renderer is the built bundle: no Debug nav item, `import.meta.env.DEV`
-  false.
-- `shot` sizes every capture identically via
-  `Emulation.setDeviceMetricsOverride` 1440x900 @2x → 2880x1800 PNG,
-  matching the existing `docs/screenshots/`.
-- Round to the Windows 11 window radius with
-  `round-corners.ps1 -Radius 16` (8px CSS at the 2x capture scale). It
-  fills a rounded GraphicsPath with a TextureBrush; `Graphics.SetClip`
-  gives jagged corners.
-- rafe.dev's shmoney page keeps its own copies. After committing new
-  shots, run `pnpm sync-screenshots` in `rafe.dev/workspaces/web`; its
-  build derives the AVIF/WebP variants.
-- Screenshot consistency: the chat sidebar history and the notification
-  dot appear on every page, so any chat/notification change made
-  mid-run means recapturing earlier pages too. Capture chat last, then
-  re-shoot anything taken before the transcript reached its final
-  state.
+```bash
+npm run build:demo
+npm run screenshots          # -> docs/screenshots/*.png (commit these)
+npm run screenshots -- --only chat --out <dir>   # one screen, elsewhere
+```
+
+- The screen list (names, routes, scroll targets) is `src/demo/screens.ts`;
+  rafe.dev and the embed address screens by these names.
+- Captures are 1280x800 @2x (2560x1600, the size rafe.dev embeds the demo at), light theme, with 8px rounded
+  transparent corners done in CSS. `?shot=1` renders the demo exactly like
+  the desktop app (no demo bar, model shown as downloaded).
+- rafe.dev keeps no copies: the release workflow's `demo` job
+  re-shoots the
+  web AVIF/WebP variants from the tagged build and deploys them with the demo
+  to shmoney-demo.rafe.dev. `npm run deploy:demo` does the same by hand.
+- The Debug page's Sample data card loads the same datasets into the dev
+  app, for Electron-only checks against known data.
 - Base UI selects resolve a bare `<SelectValue />` to its label only
   when the `Select` root gets an `items` prop (fixed across the app
   2026-07-17); a trigger showing a raw token like `last-12-months`

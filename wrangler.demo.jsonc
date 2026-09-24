@@ -1,0 +1,15 @@
+// The web demo (npm run build:demo) as an assets-only Worker. Deployed by the
+// release workflow's demo job; `npm run deploy:demo` does the same by hand.
+{
+  "name": "shmoney-demo",
+  // not a secret; saves CI a second one
+  "account_id": "2353f11b0d61973acf2e497a1b7a80ff",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./out/demo",
+    "not_found_handling": "single-page-application"
+  },
+  "routes": [{ "pattern": "shmoney-demo.rafe.dev", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": false
+}

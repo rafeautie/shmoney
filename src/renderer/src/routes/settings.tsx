@@ -10,6 +10,7 @@ import { RulesSettings } from '@/components/settings/rules-settings'
 import { LlmSettings } from '@/components/settings/llm-settings'
 import { StorageSettings } from '@/components/settings/storage-settings'
 import { AboutSettings } from '@/components/settings/about-settings'
+import { isDemo } from '@/lib/platform'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsPage
@@ -33,7 +34,8 @@ function SettingsPage() {
 
       <PrivacySettings />
 
-      <NotificationSettings />
+      {/* OS notifications have no counterpart in a browser tab */}
+      {!isDemo && <NotificationSettings />}
 
       <LlmSettings />
 

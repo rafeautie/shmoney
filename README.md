@@ -24,6 +24,10 @@
   <a href="https://github.com/rafeautie/shmoney/actions"><picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/github/rafeautie/shmoney/ci.svg?size=xs&amp;font=geist&amp;mode=light"></picture></a>
 </p>
 
+<p align="center">
+  <a href="https://rafe.dev/shmoney"><b>Try the live demo</b></a>
+</p>
+
 # shmoney
 
 shmoney is a local-first personal finance app for the desktop. It tracks your accounts, transactions, budgets, and investments in a single SQLite database on your own machine. There is no cloud backend, no user account, and no telemetry.
@@ -31,6 +35,8 @@ shmoney is a local-first personal finance app for the desktop. It tracks your ac
 It is built for people who want a full-featured finance tracker without handing their bank credentials or transaction history to a hosted service. Bank data comes in through [SimpleFIN](https://www.simplefin.org/) or plain file imports, and everything else, including AI categorization, runs entirely on your device.
 
 Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and Linux.
+
+**[Try the live demo](https://rafe.dev/shmoney)**: the real app running in your browser with sample data. Nothing is uploaded or saved.
 
 ## ✨ Features
 

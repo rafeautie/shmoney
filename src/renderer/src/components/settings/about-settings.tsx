@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { useUpdateState } from '@/lib/updates'
 import { featureRequestUrl } from '@/lib/github'
+import { isDemo } from '@/lib/platform'
 import { LicensesButton } from './licenses-dialog'
 import { ReportBugButton } from './report-bug-dialog'
 import { SettingsGroup, SettingAction } from './settings-controls'
@@ -57,7 +58,7 @@ export function AboutSettings() {
       </CardHeader>
       <CardContent>
         <SettingsGroup>
-          <UpdatesRow />
+          {!isDemo && <UpdatesRow />}
           <SettingAction
             label="Open source licenses"
             description="The open source software shmoney is built with."

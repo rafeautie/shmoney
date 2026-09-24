@@ -1,0 +1,15 @@
+/*
+  Content-Security-Policy: frame-ancestors https://rafe.dev https://*.rafe.dev http://localhost:* http://127.0.0.1:*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/screenshots/*
+  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
+  Access-Control-Allow-Origin: *
+
+/screens.json
+  Cache-Control: public, max-age=300, stale-while-revalidate=86400
+  Access-Control-Allow-Origin: *
