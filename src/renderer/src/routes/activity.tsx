@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, isToday, isYesterday } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDown01Icon, Clock01Icon } from '@hugeicons/core-free-icons'
-import type { ActionLogEntry } from '@shared/ipc'
+import { isSavingsGoalChange, type ActionLogChange, type ActionLogEntry } from '@shared/ipc'
 import { groupSuggestions, type RuleSuggestion } from '@shared/rule-suggestions'
 import { cn, plural } from '@/lib/utils'
 import { actionLogOptions } from '@/lib/queries'
@@ -32,6 +32,27 @@ export const Route = createFileRoute('/activity')({
   loader: ({ context }) => context.queryClient.ensureQueryData(actionLogOptions),
   component: ActivityPage
 })
+
+function goalChangeText(
+  change: Extract<ActionLogChange, { goalId: number; name: string }>
+): ReactNode {
+  switch (change.field) {
+    case 'savingsGoalDeletedAt':
+      return change.name
+    case 'savingsGoalTargetAmount':
+      return (
+        <>
+          {change.name}: target{' '}
+          <Amount value={change.before} currency={change.currency} colored={false} /> to{' '}
+          <Amount value={change.after} currency={change.currency} colored={false} />
+        </>
+      )
+    case 'savingsGoalTargetDate':
+      return `${change.name}: target date ${change.before ?? 'none'} to ${change.after ?? 'none'}`
+    case 'savingsGoalArchivedAt':
+      return `${change.name}: ${change.after === null ? 'unarchived' : 'archived'}`
+  }
+}
 
 function dayLabel(ms: number): string {
   const date = new Date(ms)
@@ -184,7 +205,7 @@ function EntryRow({
   )
   // saved-filter deletes: likewise contextless, they just name the preset
   const isSavedFilterEntry = entry.changes.some((c) => c.field === 'savedFilterDeletedAt')
-  const isGoalEntry = entry.changes.some((c) => c.field === 'savingsGoalDeletedAt')
+  const isGoalEntry = entry.changes.some(isSavingsGoalChange)
 
   const toggle = useMutation({
     mutationFn: () =>
@@ -304,11 +325,16 @@ function EntryRow({
                   <TableCell />
                   {isCategoryEntry && <TableCell />}
                 </TableRow>
-              ) : change.field === 'savingsGoalDeletedAt' ? (
-                <TableRow key={`savings-goal:${change.goalId}`} className="hover:bg-transparent">
+              ) : isSavingsGoalChange(change) ? (
+                <TableRow
+                  key={`savings-goal:${change.goalId}:${change.field}`}
+                  className="hover:bg-transparent"
+                >
                   <TableCell className="text-muted-foreground">—</TableCell>
                   <TableCell className="text-muted-foreground">—</TableCell>
-                  <TableCell className="w-full max-w-0 truncate">{change.name}</TableCell>
+                  <TableCell className="w-full max-w-0 truncate">
+                    {goalChangeText(change)}
+                  </TableCell>
                   <TableCell />
                   {isCategoryEntry && <TableCell />}
                 </TableRow>

@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { GOAL_STATUS_LABELS } from '@shared/goals'
 import { registerStatFunctions } from './stat-functions'
+import { merchantOf } from './tools/analysis/merchant'
 import { GOAL_HISTORY_INSERT_SQL, GOAL_INSERT_SQL, goalTableDdl } from './tools/sql-tool'
 
 // Shared test-only harness: a real, fully migrated database in memory. Not
@@ -29,6 +30,7 @@ export function migratedDb(): DatabaseSync {
   // the real chat connection registers these on its tool DB (see worker.ts), so
   // the test connection mirrors it and recipes using MEDIAN and friends run
   registerStatFunctions((name, def) => db.aggregate(name, def as never))
+  db.function('MERCHANT', { deterministic: true }, merchantOf as never)
   return db
 }
 

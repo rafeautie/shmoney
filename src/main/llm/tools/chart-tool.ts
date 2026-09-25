@@ -40,9 +40,9 @@ export const CHART_FUNCTION_PARAMS = {
       description: 'A short title for the chart, e.g. "Spending by month".'
     },
     x: {
-      type: 'string',
+      type: ['string', 'null'],
       description:
-        'The label column: the time bucket or group name. Copy it character-for-character from the columns array of your last query result. For stat, repeat the value column here.'
+        "The label column: the time bucket or group name, copied character-for-character from the columns array of your last query result. For stat, repeat the value column here. null to keep the last chart's columns and change only its type, e.g. 'show that as a pie'."
     },
     group: {
       type: ['string', 'null'],
@@ -50,12 +50,12 @@ export const CHART_FUNCTION_PARAMS = {
         "Null, unless your last result has one row per x per group — its columns being the x, a group label, and one measure. Then: the group label column, copied character-for-character from that result's columns array; its values become one line each."
     },
     series: {
-      type: 'array',
-      items: { type: 'string' },
-      minItems: 1,
-      maxItems: MAX_CHART_SERIES,
+      oneOf: [
+        { type: 'null' },
+        { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: MAX_CHART_SERIES }
+      ],
       description:
-        'The numeric value column(s), each copied character-for-character from the columns array of your last query result — never a name from an example, and never a name that query did not alias. Naming several draws one line or bar set each, which is how two measures are compared. With group, exactly the one measure column; pie takes exactly one; stat takes the value column plus optionally a change column.'
+        'The numeric value column(s), each copied character-for-character from the columns array of your last query result; never a name from an example, and never a name that query did not alias. Naming several draws one line or bar set each, which is how two measures are compared. With group, exactly the one measure column; pie takes exactly one; stat takes the value column plus optionally a change column. null together with a null x to keep the last chart.'
     }
   }
 } as const

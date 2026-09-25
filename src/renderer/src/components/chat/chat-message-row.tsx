@@ -32,12 +32,15 @@ import { ThoughtChain, type ChainPart } from '@/components/chat/thought-chain'
 function Parts({
   parts,
   streaming,
-  asOf
+  asOf,
+  messageId
 }: {
   parts: StreamingChatPart[]
   streaming: boolean
   /** unix ms the turn was generated; absent while it streams (it's live) */
   asOf?: number
+  /** the message the parts belong to, once it's settled; proposals address it */
+  messageId?: number
 }) {
   const lastIndex = parts.length - 1
   const nodes: ReactNode[] = []
@@ -47,7 +50,16 @@ function Parts({
   // trailing run of a streaming turn is still growing
   const flushRun = (live: boolean) => {
     if (run.length === 0) return
-    nodes.push(<ThoughtChain key={`chain-${runStart}`} parts={run} streaming={live} asOf={asOf} />)
+    nodes.push(
+      <ThoughtChain
+        key={`chain-${runStart}`}
+        parts={run}
+        streaming={live}
+        asOf={asOf}
+        messageId={messageId}
+        startIndex={runStart}
+      />
+    )
     run = []
   }
   parts.forEach((part, i) => {
@@ -66,15 +78,25 @@ function Parts({
   return nodes
 }
 
-// decided off the SQL the turn ran, so nothing new has to be kept in step; a
-// loose match costs a spare link, never a wrong number
+// decided off the tools the turn ran (for SQL, the tables it named), so nothing
+// new has to be kept in step; a loose match costs a spare link, never a wrong number
 const GOAL_QUERY = /\bgoals\b|\bgoal_history\b/i
 
 function queriedGoals(parts: StreamingChatPart[]): boolean {
-  return parts.some(
-    (part) =>
-      part.type === 'functionCall' && part.name === 'query' && GOAL_QUERY.test(part.args?.sql ?? '')
-  )
+  return parts.some((part) => {
+    if (part.type !== 'functionCall' || !part.args) return false
+    switch (part.name) {
+      case 'query':
+        return GOAL_QUERY.test(part.args.sql)
+      case 'goals':
+      case 'update_goal':
+        return true
+      case 'what_if':
+        return part.args.goal != null
+      default:
+        return false
+    }
+  })
 }
 
 /** The turn is accepted but nothing has streamed yet. */
@@ -161,7 +183,12 @@ export function ChatMessageRow({
     // than starting one, so a landing turn doesn't flash
     <Message className={streaming ? 'animate-in fade-in-0 duration-300' : undefined}>
       <MessageContent>
-        <Parts parts={parts} streaming={streaming} asOf={message.createdAt} />
+        <Parts
+          parts={parts}
+          streaming={streaming}
+          asOf={message.createdAt}
+          messageId={streaming ? undefined : message.id}
+        />
         {!streaming && queriedGoals(parts) && (
           <Badge
             variant="outline"
