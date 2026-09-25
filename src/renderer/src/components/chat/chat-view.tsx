@@ -1,19 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
-import {
-  Alert02Icon,
-  Analytics01Icon,
-  ArrowRight01Icon,
-  BubbleChatIcon,
-  PiggyBankIcon,
-  Search01Icon,
-  Wallet01Icon
-} from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { Alert02Icon, Wallet01Icon } from '@hugeicons/core-free-icons'
 import type { ChatMessage, ChatTurnScope } from '@shared/chat'
 import { cn } from '@/lib/utils'
 import { useMessages, type ActiveReply } from '@/lib/chat'
 import { ChatMessageRow } from '@/components/chat/chat-message-row'
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
+import { ChatStarters } from '@/components/chat/chat-starters'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import {
   MessageScroller,
@@ -23,54 +15,6 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport
 } from '@/components/ui/message-scroller'
-
-/**
- * Openers for a blank chat. Each is a whole question the assistant answers well
- * from the query/chart tools (a trend, a breakdown, income-vs-spending, a
- * top-N); the text sent is exactly what the user sees, so nothing is
- * paraphrased behind their back.
- */
-const STARTER_PROMPTS: { icon: IconSvgElement; prompt: string }[] = [
-  { icon: Analytics01Icon, prompt: 'How much do I spend each month?' },
-  { icon: Wallet01Icon, prompt: 'Where did my money go last month?' },
-  { icon: PiggyBankIcon, prompt: 'Am I earning more than I spend?' },
-  { icon: Search01Icon, prompt: 'What are my biggest expenses this year?' }
-]
-
-/** The starter-prompt grid shown under the blank-chat header. */
-function StarterPrompts({
-  onPick,
-  disabled
-}: {
-  onPick: (prompt: string) => void
-  disabled?: boolean
-}) {
-  return (
-    <div className="grid w-full max-w-md grid-cols-1 gap-2 sm:grid-cols-2">
-      {STARTER_PROMPTS.map(({ icon, prompt }) => (
-        <button
-          key={prompt}
-          type="button"
-          disabled={disabled}
-          onClick={() => onPick(prompt)}
-          className="group flex items-center gap-2.5 rounded-lg border bg-card/50 p-3 text-left text-xs/snug text-foreground transition-colors hover:border-ring/60 hover:bg-accent focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
-        >
-          <HugeiconsIcon
-            icon={icon}
-            className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
-            strokeWidth={2}
-          />
-          <span className="flex-1">{prompt}</span>
-          <HugeiconsIcon
-            icon={ArrowRight01Icon}
-            className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-            strokeWidth={2}
-          />
-        </button>
-      ))}
-    </div>
-  )
-}
 
 /**
  * Where the recorded turn scope changes, keyed by the message id the marker
@@ -139,20 +83,7 @@ export function ChatView({
   }, [conversationId, hasMessages])
 
   if (conversationId === null) {
-    return (
-      <Empty className="flex-1 border-none">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <HugeiconsIcon icon={BubbleChatIcon} />
-          </EmptyMedia>
-          <EmptyTitle>Start a conversation</EmptyTitle>
-          <EmptyDescription>
-            Chat with the on-device model. Nothing you type leaves this computer.
-          </EmptyDescription>
-        </EmptyHeader>
-        {onPickPrompt && <StarterPrompts onPick={onPickPrompt} disabled={openersDisabled} />}
-      </Empty>
-    )
+    return <ChatStarters onPick={onPickPrompt} disabled={openersDisabled} />
   }
 
   return (
