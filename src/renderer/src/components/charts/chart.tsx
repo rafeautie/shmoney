@@ -23,7 +23,7 @@ import {
   ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart'
-import { BLUR_Y_TICK_LABELS, paletteColor } from './chart-style'
+import { BLUR_X_TICK_LABELS, BLUR_Y_TICK_LABELS, paletteColor } from './chart-style'
 
 // The one chart-drawing surface shared by the report widgets and the chat
 // charts. It owns the house style — axes, tooltip, legend, palette, per-point
@@ -225,8 +225,33 @@ function CartesianView({
   const labelFmt = formatLabel ?? ((l: string) => l)
   const showLegend = legend === 'auto' ? series.length > 1 : legend
   const singleSeries = series.length === 1
+  // a categorical breakdown lays its bars sideways so every category label gets
+  // its own row; along a horizontal axis Recharts drops labels that would overlap.
+  // minTickGap={0} on the category axis skips a label only when its row is
+  // shorter than the text, which beats piling labels on top of each other
+  const horizontal = kind === 'bar' && colorByPoint && singleSeries
 
-  const axes = (
+  const axes = horizontal ? (
+    <>
+      <CartesianGrid horizontal={false} />
+      <XAxis
+        type="number"
+        tickLine={false}
+        axisLine={false}
+        tickMargin={8}
+        tickFormatter={(value: number) => formatValue(value, { compact: true })}
+      />
+      <YAxis
+        type="category"
+        dataKey={xKey}
+        tickLine={false}
+        axisLine={false}
+        width="auto"
+        minTickGap={0}
+        tickFormatter={labelFmt}
+      />
+    </>
+  ) : (
     <>
       <CartesianGrid vertical={false} />
       <XAxis
@@ -289,7 +314,7 @@ function CartesianView({
       config={chartConfig}
       className={cn(
         'aspect-auto w-full',
-        blurAmounts && sensitive && BLUR_Y_TICK_LABELS,
+        blurAmounts && sensitive && (horizontal ? BLUR_X_TICK_LABELS : BLUR_Y_TICK_LABELS),
         className
       )}
     >
@@ -333,17 +358,17 @@ function CartesianView({
           ))}
         </AreaChart>
       ) : (
-        <BarChart data={data} margin={{ top: 16, right: 8 }}>
+        <BarChart
+          data={data}
+          layout={horizontal ? 'vertical' : 'horizontal'}
+          margin={{ top: 16, right: 8 }}
+        >
           {axes}
           {tooltip}
           {legendEl}
-          {colorByPoint && singleSeries ? (
+          {horizontal ? (
             // a single-series breakdown colors per bar, like the report's categorical bar
-            <Bar
-              dataKey={series[0].key}
-              radius={stacked ? 0 : [2, 2, 0, 0]}
-              isAnimationActive={false}
-            >
+            <Bar dataKey={series[0].key} radius={[0, 2, 2, 0]} isAnimationActive={false}>
               {data.map((_row, i) => (
                 <Cell key={i} fill={paletteColor(i)} />
               ))}

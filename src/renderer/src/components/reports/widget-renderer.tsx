@@ -48,7 +48,7 @@ import {
   ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart'
-import { BLUR_Y_TICK_LABELS, paletteColor } from '@/components/charts/chart-style'
+import { BLUR_X_TICK_LABELS, paletteColor } from '@/components/charts/chart-style'
 import { groupTotals, pivotTimeSeries } from './data'
 import { useResolvedQuery, useWidgetData } from './use-widget-data'
 
@@ -707,16 +707,24 @@ function BudgetBarsChart({
     <div className="min-h-0 flex-1 px-4 pb-4">
       <ChartContainer
         config={chartConfig}
-        className={cn('aspect-auto h-full w-full', blurAmounts && BLUR_Y_TICK_LABELS)}
+        className={cn('aspect-auto h-full w-full', blurAmounts && BLUR_X_TICK_LABELS)}
       >
-        <BarChart data={data} margin={{ top: 8, right: 8 }}>
-          <CartesianGrid vertical={false} />
-          <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
-          <YAxis
+        <BarChart data={data} layout="vertical" margin={{ top: 8, right: 8 }}>
+          <CartesianGrid horizontal={false} />
+          <XAxis
+            type="number"
             tickLine={false}
             axisLine={false}
-            width={56}
+            tickMargin={8}
             tickFormatter={tickFormatter('expense', currency)}
+          />
+          <YAxis
+            type="category"
+            dataKey="label"
+            tickLine={false}
+            axisLine={false}
+            width="auto"
+            minTickGap={0}
           />
           <ChartTooltip
             content={
@@ -737,13 +745,13 @@ function BudgetBarsChart({
           <Bar
             dataKey="budgeted"
             fill="var(--color-budgeted)"
-            radius={[2, 2, 0, 0]}
+            radius={[0, 2, 2, 0]}
             isAnimationActive={false}
           />
           <Bar
             dataKey="spent"
             fill="var(--color-spent)"
-            radius={[2, 2, 0, 0]}
+            radius={[0, 2, 2, 0]}
             isAnimationActive={false}
           />
         </BarChart>
@@ -767,16 +775,24 @@ function BudgetBalancesChart({
     <div className="min-h-0 flex-1 px-4 pb-4">
       <ChartContainer
         config={chartConfig}
-        className={cn('aspect-auto h-full w-full', blurAmounts && BLUR_Y_TICK_LABELS)}
+        className={cn('aspect-auto h-full w-full', blurAmounts && BLUR_X_TICK_LABELS)}
       >
-        <BarChart data={data} margin={{ top: 8, right: 8 }}>
-          <CartesianGrid vertical={false} />
-          <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} />
-          <YAxis
+        <BarChart data={data} layout="vertical" margin={{ top: 8, right: 8 }}>
+          <CartesianGrid horizontal={false} />
+          <XAxis
+            type="number"
             tickLine={false}
             axisLine={false}
-            width={56}
+            tickMargin={8}
             tickFormatter={tickFormatter('sum', currency)}
+          />
+          <YAxis
+            type="category"
+            dataKey="label"
+            tickLine={false}
+            axisLine={false}
+            width="auto"
+            minTickGap={0}
           />
           <ChartTooltip
             content={
@@ -793,7 +809,7 @@ function BudgetBalancesChart({
               />
             }
           />
-          <Bar dataKey="balance" radius={[2, 2, 0, 0]} isAnimationActive={false}>
+          <Bar dataKey="balance" radius={[0, 2, 2, 0]} isAnimationActive={false}>
             {data.map((d, i) => (
               <Cell key={d.label} fill={d.balance < 0 ? 'var(--destructive)' : paletteColor(i)} />
             ))}

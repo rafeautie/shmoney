@@ -17,3 +17,7 @@ export function paletteColor(index: number): string {
 // on, so the privacy blur has to target the labels from the chart container.
 export const BLUR_Y_TICK_LABELS =
   '[&_.recharts-yAxis-tick-labels]:blur-sm [&_.recharts-yAxis-tick-labels]:select-none [&_.recharts-yAxis-tick-labels]:bg-foreground/20'
+
+/** The same blur for value ticks on the x-axis (sideways bar charts). */
+export const BLUR_X_TICK_LABELS =
+  '[&_.recharts-xAxis-tick-labels]:blur-sm [&_.recharts-xAxis-tick-labels]:select-none [&_.recharts-xAxis-tick-labels]:bg-foreground/20'
