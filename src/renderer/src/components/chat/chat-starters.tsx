@@ -89,8 +89,7 @@ export function ChatStarters({
           </div>
           <h2 className="text-lg font-medium">Ask about your money</h2>
           <p className="max-w-sm text-sm/relaxed text-muted-foreground">
-            Answers are worked out from your own transactions by the on-device model. Nothing you
-            type leaves this computer.
+            Answered on this device. Nothing leaves your computer.
           </p>
         </header>
         {onPick && (
