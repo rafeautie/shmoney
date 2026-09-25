@@ -169,6 +169,27 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     'CREATE TEMP VIEW budgets AS ' +
       'SELECT b.id, b.category_id, c.name AS category, b.month, b.amount / 1000.0 AS amount ' +
       'FROM main.budgets b LEFT JOIN main.categories c ON c.id = b.category_id',
+    // the envelope math of budgets/rollover.ts as a view, one row per envelope
+    // per month through the current one: budget rows are sparse and inherit
+    // forward, and available carries unspent money over, so a model reading
+    // budgets raw would answer against the wrong number. Spend mirrors
+    // getBudgetSummary (pending counted, opening balances not).
+    'DROP VIEW IF EXISTS temp.budget_status',
+    'CREATE TEMP VIEW budget_status AS ' +
+      'WITH RECURSIVE months(month) AS (SELECT MIN(month) FROM main.budgets ' +
+      "UNION ALL SELECT strftime('%Y-%m', month || '-01', '+1 month') FROM months " +
+      "WHERE month < strftime('%Y-%m', 'now', 'localtime')), " +
+      'grid AS (SELECT e.category_id, m.month, ' +
+      '(SELECT b.amount FROM main.budgets b WHERE b.category_id = e.category_id AND b.month <= m.month ' +
+      'ORDER BY b.month DESC LIMIT 1) / 1000.0 AS budget, ' +
+      '(SELECT COALESCE(SUM(-t.amount), 0) FROM temp.transactions t WHERE t.category_id = e.category_id ' +
+      "AND t.month = m.month AND t.amount < 0 AND t.system_key IS NOT 'opening') AS spent " +
+      'FROM (SELECT category_id, MIN(month) AS start FROM main.budgets GROUP BY category_id) e ' +
+      'JOIN months m ON m.month >= e.start) ' +
+      'SELECT g.category_id, c.name AS category, g.month, ROUND(g.budget, 2) AS budget, ' +
+      'ROUND(g.spent, 2) AS spent, ROUND(SUM(g.budget - g.spent) OVER (PARTITION BY g.category_id ' +
+      'ORDER BY g.month ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW), 2) AS available ' +
+      'FROM grid g JOIN main.categories c ON c.id = g.category_id',
     // never scoped, but always shadowed: strips the encrypted access URL.
     // created_at is already UTC text (current_timestamp default), not an
     // epoch, so it only needs the localtime shift
@@ -219,4 +240,28 @@ export function shapeResult(
     truncated = true
   }
   return { ok: true, columns, rows: kept, rowCount: kept.length, truncated, durationMs }
+}
+
+/**
+ * The months at either end of the data that aren't whole: the one in progress,
+ * and the first one when the data starts after its 1st. `firstDate` is the
+ * earliest txn_date ('YYYY-MM-DD', null with no data), `today` the turn's date.
+ */
+export function partialMonths(firstDate: string | null, today: string): string[] {
+  const months = [today.slice(0, 7)]
+  if (firstDate && firstDate.slice(8) !== '01' && firstDate.slice(0, 7) !== months[0])
+    months.unshift(firstDate.slice(0, 7))
+  return months
+}
+
+/**
+ * A caution appended to a query result that carries a partial month as a row
+ * label. The prompt states the partial months too, but the model ranked a
+ * stub first month as "the lowest" anyway; a note beside the rows it is about
+ * to read is what this model acts on.
+ */
+export function partialMonthNote(rows: unknown[][], partial: string[]): string | null {
+  const present = partial.filter((month) => rows.some((row) => row.includes(month)))
+  if (present.length === 0) return null
+  return `${present.join(' and ')} ${present.length === 1 ? 'is a partial month' : 'are partial months'} (the data starts or the month is still in progress there): never call ${present.length === 1 ? 'it' : 'either'} the lowest, highest or typical month, and leave ${present.length === 1 ? 'it' : 'them'} out of any range or average you state.`
 }

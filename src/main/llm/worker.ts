@@ -37,6 +37,8 @@ import {
   MAX_ROWS,
   MAX_TOOL_CALLS_PER_TURN,
   scopeViewsDdl,
+  partialMonthNote,
+  partialMonths,
   shapeResult,
   validateQuerySql,
   type ChatToolScope
@@ -440,6 +442,8 @@ interface ChatTurnState {
   // what the chart tool draws from: charts always visualize the turn's most
   // recent successful query result, so no result-id plumbing is needed
   lastQuery: QueryToolResult | null
+  // 'YYYY-MM' labels of the months at the data's edges that aren't whole
+  partialMonths: string[]
 }
 
 /**
@@ -489,9 +493,10 @@ function chatFunctions(ctx: {
         // beats the same rule in the system prompt — and this one carries the
         // model's OWN aliases and result shape, which no system prompt can.
         // In-turn only; replayed calls carry a bare result.
-        return result.ok && result.columns?.length && result.rows?.length
-          ? { ...result, note: chartCallNote(result.columns, result.rows) }
-          : result
+        if (!result.ok || !result.columns?.length || !result.rows?.length) return result
+        const partial = partialMonthNote(result.rows, state.partialMonths)
+        const note = chartCallNote(result.columns, result.rows)
+        return { ...result, note: partial ? `${partial} ${note}` : note }
       }
     }),
     chart: defineChatSessionFunction({
@@ -593,9 +598,16 @@ async function handleChat(
     // every mutation below reports the changed part as a chatPart patch, and
     // finish() yields the same parts for persistence
     const turn = createTurnLog((index, part) => post({ event: 'chatPart', id, index, part }))
-    const state: ChatTurnState = { handledCalls: 0, lastQuery: null }
     // one local date for the whole turn, same 'YYYY-MM-DD' the prompt quotes
     const today = new Date().toLocaleDateString('en-CA')
+    const first = ensureToolDb().prepare('SELECT MIN(txn_date) AS d FROM tx').get() as {
+      d: string | null
+    }
+    const state: ChatTurnState = {
+      handledCalls: 0,
+      lastQuery: null,
+      partialMonths: partialMonths(first.d, today)
+    }
     // wall-clock when the tool call being written opened; each handler reads the
     // span up to its own settle, so the chain of thought can total tool time
     let openedCallAt: number | null = null

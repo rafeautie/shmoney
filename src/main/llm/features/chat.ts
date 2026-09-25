@@ -229,8 +229,8 @@ function promptDbContext(accountId: number | null): PromptDbContext {
 
   const range = db
     .select({
-      min: sql<string | null>`strftime('%Y-%m', min(${transactionDate}), 'unixepoch', 'localtime')`,
-      max: sql<string | null>`strftime('%Y-%m', max(${transactionDate}), 'unixepoch', 'localtime')`
+      min: sql<string | null>`date(min(${transactionDate}), 'unixepoch', 'localtime')`,
+      max: sql<string | null>`date(max(${transactionDate}), 'unixepoch', 'localtime')`
     })
     .from(transactions)
     .where(

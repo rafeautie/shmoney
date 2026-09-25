@@ -30,8 +30,15 @@ const CELL_PATTERN = new RegExp(
   'g'
 )
 
+// the model sometimes wraps a figure that isn't an amount ("{{28.29%}}"), or
+// drops the currency; the braces are only ever markup, so show what's inside
+const WELL_FORMED = new RegExp(String.raw`^${NUMBER} [A-Z]{3}$`)
+const unwrapMalformed = (text: string): string =>
+  text.replace(/\{\{([^{}]*)\}\}/g, (tag, inner: string) => (WELL_FORMED.test(inner) ? tag : inner))
+
 function splitTextNode(node: HastNode, inCell: boolean): HastNode[] {
-  const text = node.value ?? ''
+  const original = node.value ?? ''
+  const text = unwrapMalformed(original)
   const pattern = inCell ? CELL_PATTERN : TAGGED_PATTERN
   pattern.lastIndex = 0
   const result: HastNode[] = []
@@ -57,7 +64,7 @@ function splitTextNode(node: HastNode, inCell: boolean): HastNode[] {
   }
 
   if (!matched) {
-    return [node]
+    return text === original ? [node] : [{ ...node, value: text }]
   }
 
   if (lastIndex < text.length) {
