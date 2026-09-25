@@ -82,10 +82,10 @@ export function ToolCallCard({
         <HugeiconsIcon
           icon={ArrowRight01Icon}
           strokeWidth={2}
-          className="-ml-0.5 size-3.5 group-data-panel-open/tool:rotate-90"
+          className="-ml-0.5 size-3.5 transition-[rotate] duration-200 ease-out group-data-panel-open/tool:rotate-90 motion-reduce:transition-none"
         />
       </CollapsibleTrigger>
-      <CollapsibleContent>
+      <CollapsibleContent animated>
         <div className="mt-1.5 flex flex-col gap-2 rounded-lg border bg-muted/30 p-2 text-xs">
           {input !== undefined && (
             <IOSection label="Input">

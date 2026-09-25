@@ -168,12 +168,20 @@
 }
 
 /* In-progress markers: a soft highlight sweeps across a static icon + label
- * via an animated mask (works on SVG icons, unlike text-clip shimmers). */
+ * via an animated mask (works on SVG icons, unlike text-clip shimmers).
+ * --shimmer-dim is registered so it can transition: easing it to 100% fades
+ * the effect out without restarting or snapping the sweep. */
+@property --shimmer-dim {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 45%;
+}
+
 @utility animate-shimmer {
   mask-image: linear-gradient(90deg,
-      rgb(0 0 0 / 45%) 42%,
+      rgb(0 0 0 / var(--shimmer-dim)) 42%,
       rgb(0 0 0) 50%,
-      rgb(0 0 0 / 45%) 58%);
+      rgb(0 0 0 / var(--shimmer-dim)) 58%);
   mask-size: 300% 100%;
   animation: shimmer 2s linear infinite;
 }
@@ -203,6 +211,57 @@
     50% {
       background-color: var(--muted-foreground);
     }
+  }
+}
+
+/* Status-line crossfade: labels swap in place, with a touch of blur so two
+ * words mid-fade read as one soft morph rather than overlapping text. */
+@theme {
+  --animate-label-in: label-in 300ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  --animate-label-out: label-out 200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+
+  @keyframes label-in {
+    from {
+      opacity: 0;
+      filter: blur(2px);
+    }
+  }
+
+  @keyframes label-out {
+    to {
+      opacity: 0;
+      filter: blur(2px);
+    }
+  }
+}
+
+/* Streamed answer words fade in, each from its own arrival (see
+ * AssistantBubble's useWordFade). Opacity only: many words animate at once,
+ * and a per-word filter would cost a layer each. */
+@theme {
+  --animate-word-in: word-in 450ms cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes word-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* Reduced motion: labels and words swap instantly (a 1ms run, not none, so
+ * a leaving label still reports its end and gets removed) and the shimmer
+ * holds still as a flat dim. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-label-in,
+  .animate-label-out,
+  .animate-word-in {
+    animation-duration: 1ms !important;
+  }
+
+  .animate-shimmer {
+    animation: none;
+    mask-image: none;
+    opacity: 0.6;
   }
 }
 

@@ -44,14 +44,23 @@ export function ChainOfThoughtHeader({
 
 export function ChainOfThoughtContent({
   className,
+  children,
   ...props
 }: ComponentProps<typeof CollapsibleContent>) {
-  return <CollapsibleContent className={cn('mt-1.5 space-y-3', className)} {...props} />
+  // the gap below the header is padding inside the animated panel, not a
+  // margin outside it, so it collapses with the panel and the first step's
+  // connector (which reaches up into it) isn't clipped
+  return (
+    <CollapsibleContent animated {...props}>
+      <div className={cn('space-y-3 pt-1.5', className)}>{children}</div>
+    </CollapsibleContent>
+  )
 }
 
+// in progress shimmers, done holds steady: the same rule as every status label
 const stepStatusStyles = {
-  complete: 'text-muted-foreground',
-  active: 'text-foreground'
+  complete: '',
+  active: 'animate-shimmer'
 }
 
 /**
@@ -74,7 +83,7 @@ export function ChainOfThoughtStep({
   status?: keyof typeof stepStatusStyles
 }) {
   return (
-    <div className={cn('group/step flex gap-2', stepStatusStyles[status], className)} {...props}>
+    <div className={cn('group/step flex gap-2 text-muted-foreground', className)} {...props}>
       {/* w-3.5 fixes the gutter, so an icon-less step still lines up */}
       <div className="relative flex w-3.5 shrink-0 flex-col items-center">
         {/* connector up into the gap above: on the first step it reaches the
@@ -83,7 +92,7 @@ export function ChainOfThoughtStep({
         <div className="absolute -top-1.5 left-1/2 h-1.5 w-px -translate-x-1/2 bg-border" />
         {/* h-4 matches the text-xs line box, so the icon centres on the label */}
         {icon && (
-          <div className="flex h-4 items-center">
+          <div className={cn('flex h-4 items-center', stepStatusStyles[status])}>
             <HugeiconsIcon icon={icon} strokeWidth={2} className="size-3.5" />
           </div>
         )}
