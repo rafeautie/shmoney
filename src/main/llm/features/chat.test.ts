@@ -37,7 +37,7 @@ const CTX: PromptDbContext = {
     { group: 'Food', names: ['Dining', 'Groceries'] },
     { group: 'Ungrouped', names: ['Misc'] }
   ],
-  dateRange: { min: '2023-04', max: '2026-07' }
+  dateRange: { min: '2023-04-12', max: '2026-07-15' }
 }
 
 const RESULT: QueryToolResult = {
@@ -518,7 +518,7 @@ describe('buildSystemPrompt', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
     expect(prompt).toContain('Accounts: Chase Checking (USD), Vanguard (USD).')
     expect(prompt).toContain('Food: Dining, Groceries; Ungrouped: Misc.')
-    expect(prompt).toContain('Transactions span 2023-04 to 2026-07.')
+    expect(prompt).toContain('Transactions span 2023-04-12 to 2026-07-15.')
   })
 
   it('says so when there is no data rather than leaving empty headers', () => {
@@ -543,7 +543,7 @@ describe('buildSystemPrompt', () => {
   it('never asks the model to convert epochs, which the views already did', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
     expect(prompt).not.toMatch(/unixepoch/i)
-    expect(prompt).toContain("txn_date is 'YYYY-MM-DD'")
+    expect(prompt).toContain("txn_date 'YYYY-MM-DD'")
   })
 
   it('clips a pathologically long category list', () => {
@@ -631,7 +631,7 @@ describe('buildSystemPrompt', () => {
     const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
     expect(prompt).toContain('must sit in a row a query actually returned to you')
     expect(prompt).toContain('carries no total of its own')
-    expect(prompt).toContain('I query the total')
+    expect(prompt).toContain('the total rides along as a column')
     // and the example figures are labelled fictional, so they are never quoted
     // back at the user as if they were this user's data
     expect(prompt).toContain('are INVENTED to show the shape')

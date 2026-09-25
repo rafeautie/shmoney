@@ -57,10 +57,21 @@ describe('rehypeAmount', () => {
     ])
   })
 
-  it('leaves a marker with malformed grouping untouched', () => {
-    const node = textNode('{{24,30.1 USD}}')
-    const tree = run(root([node]))
-    expect(tree.children?.[0]).toBe(node)
+  it('shows a marker with malformed grouping as plain text, not an amount', () => {
+    const tree = run(root([textNode('{{24,30.1 USD}}')]))
+    expect(tree.children).toEqual([textNode('24,30.1 USD')])
+  })
+
+  // the model sometimes tags a figure that is not an amount; the braces are
+  // markup either way, so the user sees the figure rather than {{28.29%}}
+  it('unwraps a tagged percentage or a tag missing its currency', () => {
+    const tree = run(root([textNode('a rate of {{28.29%}} on {{19947.09}} of income')]))
+    expect(tree.children).toEqual([textNode('a rate of 28.29% on 19947.09 of income')])
+  })
+
+  it('unwraps a malformed tag while still converting a well-formed one beside it', () => {
+    const tree = run(root([textNode('{{28.29%}} of {{19947.09 USD}}')]))
+    expect(tree.children).toEqual([textNode('28.29% of '), amountSpan('19947.09', 'USD')])
   })
 
   it('leaves bare numbers untouched', () => {
@@ -70,16 +81,14 @@ describe('rehypeAmount', () => {
     expect(tree.children?.[0]).toBe(node)
   })
 
-  it('leaves a marker missing a currency code untouched', () => {
-    const node = textNode('{{1234.56}}')
-    const tree = run(root([node]))
-    expect(tree.children?.[0]).toBe(node)
+  it('shows a marker missing a currency code as plain text', () => {
+    const tree = run(root([textNode('{{1234.56}}')]))
+    expect(tree.children).toEqual([textNode('1234.56')])
   })
 
-  it('leaves a lowercase currency code untouched', () => {
-    const node = textNode('{{12.34 usd}}')
-    const tree = run(root([node]))
-    expect(tree.children?.[0]).toBe(node)
+  it('shows a lowercase currency code as plain text', () => {
+    const tree = run(root([textNode('{{12.34 usd}}')]))
+    expect(tree.children).toEqual([textNode('12.34 usd')])
   })
 
   it('skips subtrees inside a code element', () => {

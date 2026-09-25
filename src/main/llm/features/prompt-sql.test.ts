@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { scopeViewsDdl } from '../tools/sql-tool'
 import { migratedDb } from '../test-db'
 import type { PromptDbContext } from './chat'
+import { monthSpanLines } from '../system-prompt'
 
 // chat.ts reaches Electron through these modules; stub them so the prompt
 // builder stays loadable (same pattern as chat.test.ts)
@@ -41,7 +42,7 @@ const CTX: PromptDbContext = {
     { group: '🎉 Wants', names: ['🍽️ Dining Out'] },
     { group: '📌 Needs', names: ['🛒 Groceries'] }
   ],
-  dateRange: { min: '2026-01', max: '2026-07' }
+  dateRange: { min: '2026-01-01', max: '2026-07-31' }
 }
 
 const SCOPE = { accountId: null, accountName: null }
@@ -99,7 +100,12 @@ function seed(db: DatabaseSync): void {
            (9, 1, 't9', 0, -2000, 'Undated', 0, 0, ${DINING}),
            -- on the last day of a month, which is where a 'YYYY-MM-DD' upper
            -- endpoint against a timed column silently loses rows
-           (10, 1, 't10', ${day(7, 31)}, -7000, 'Last day', 0, ${day(7, 31)}, ${GROCERIES});
+           (10, 1, 't10', ${day(7, 31)}, -7000, 'Last day', 0, ${day(7, 31)}, ${GROCERIES}),
+           -- a steady monthly charge, for the recurring-charges recipe
+           (11, 1, 't11', ${day(5, 10)}, -15490, 'Streamy', 0, ${day(5, 10)}, NULL),
+           (12, 1, 't12', ${day(6, 10)}, -15490, 'Streamy', 0, ${day(6, 10)}, NULL),
+           (13, 1, 't13', ${day(7, 10)}, -15490, 'Streamy', 0, ${day(7, 10)}, NULL);
+    INSERT INTO budgets (category_id, month, amount) VALUES (${DINING}, '2026-07', 150000);
   `)
 }
 
@@ -126,41 +132,41 @@ describe('system prompt SQL', () => {
   it('extracts every recipe from the prompt', () => {
     // bump deliberately when adding a recipe, and add its assertions below;
     // this is what stops a new recipe from shipping unexecuted
-    expect(RECIPES).toHaveLength(13)
+    expect(RECIPES).toHaveLength(10)
   })
 
-  // the merchant recipe answers "where / which store do I spend" by grouping on
-  // the raw description — the column the app has no cleaner substitute for — so
-  // the user never has to say "group by description". It filters to spending and
-  // comes back one row per description.
-  it('groups spending by raw description, so "which store" needs no merchant column', () => {
-    const recipe = RECIPES.find((r) => r.includes('GROUP BY description'))
+  // a recurring charge is a description repeating across months at a steady
+  // price: the monthly Streamy row qualifies, one-off and varying rows don't,
+  // and monthly_total is what they cost together
+  it('finds steady recurring charges and totals them per month', () => {
+    const recipe = RECIPES.find((r) => r.includes('monthly_total'))
     expect(recipe).toBeDefined()
-    expect(recipe).toContain('WHERE amount < 0')
-    const rows = db.prepare(recipe as string).all() as Record<string, unknown>[]
-    expect(rows.length).toBeGreaterThan(0)
-    expect(rows.every((r) => 'description' in r && typeof r.spending === 'number')).toBe(true)
-    // one row per description: the group key never repeats
-    const labels = rows.map((r) => r.description)
-    expect(new Set(labels).size).toBe(labels.length)
+    expect(db.prepare(recipe as string).all()).toEqual([
+      { description: 'Streamy', category: null, months: 3, typical: 15.49, monthly_total: 15.49 }
+    ])
   })
 
-  // the income-vs-spending recipe: the two sides of a measure comparison are
-  // columns of ONE query (each charts as its own series), never two queries
-  it('keeps income and spending as columns of one query, so each draws its own line', () => {
+  // income and spending as columns of ONE query, never two queries
+  it('keeps income and spending as columns of one query', () => {
     const recipe = RECIPES.find((r) => r.includes('AS income') && r.includes('AS spending'))
     expect(recipe).toBeDefined()
-    const rows = db.prepare(recipe as string).all() as Record<string, unknown>[]
-    // seeded months: May (spend only), June (spend + paycheck), July (spend only)
-    expect(rows).toHaveLength(3)
-    const june = rows.find((r) => r.month === '2026-06')
-    expect(june).toMatchObject({ income: 500, spending: 20.34, net: 479.66 })
+    // April through June: the June paycheck in, and May and June spending out
+    expect(db.prepare(recipe as string).all()).toEqual([{ income: 500, spending: 55.82 }])
+  })
+
+  // spent counts the pending row too, like the Budgets page does
+  it('reads a budget straight off budget_status for the month asked', () => {
+    const recipe = RECIPES.find((r) => r.includes('FROM budget_status'))
+    expect(recipe).toBeDefined()
+    expect(db.prepare(recipe as string).all()).toEqual([
+      { category: '🍽️ Dining Out', budget: 150, spent: 30, available: 120 }
+    ])
   })
 
   it('tx drops transfers, pending and undated rows', () => {
     const rows = db.prepare('SELECT * FROM tx').all()
-    // rows 1-6 and 10 survive; 7 is a transfer, 8 is pending, 9 has no date
-    expect(rows).toHaveLength(7)
+    // rows 1-6 and 10-13 survive; 7 is a transfer, 8 is pending, 9 has no date
+    expect(rows).toHaveLength(10)
     expect(rows.map((r) => (r as { description: string }).description)).not.toContain(
       'Moved to savings'
     )
@@ -235,7 +241,8 @@ describe('system prompt SQL', () => {
   // wrong the moment the model adapts it to a query grouped by month AND
   // something else, which the recipe right above it does.
   it('spells out a ROWS frame on every window function, so adapting one stays correct', () => {
-    const windows = PROMPT.match(/OVER \([^)]*\)/g) ?? []
+    // one level of nested parentheses, for an ORDER BY MIN(txn_date) inside
+    const windows = PROMPT.match(/OVER \((?:[^()]|\([^()]*\))*\)/g) ?? []
     expect(windows.length).toBeGreaterThan(0)
     for (const clause of windows) expect(clause).toContain('ROWS BETWEEN')
   })
@@ -288,7 +295,7 @@ describe('system prompt silent-wrong-answer guards', () => {
     // and the recipe that ships is the prescribed form, divisor written as a
     // decimal so SQLite doesn't truncate the quotient to a whole number
     const recipe = RECIPES.find((r) => r.includes('avg_monthly_spending'))
-    expect(recipe).toContain('/ 6.0')
+    expect(recipe).toContain('/ 5.0')
     expect(rows(recipe as string)[0].avg_monthly_spending).not.toEqual(
       Math.trunc(rows(recipe as string)[0].avg_monthly_spending as number)
     )
@@ -299,29 +306,18 @@ describe('system prompt silent-wrong-answer guards', () => {
   // ONE's spending read off the nearest row. Prose telling it not to do that
   // did not stop it, so the recipe now carries the month's own total on every
   // row: the right number sits in the column beside the one it grabs.
-  it('carries each month total on every day row of the comparison recipe', () => {
-    const recipe = RECIPES.find((r) => r.includes('month_total'))
+  // and the fix for its successor: comparing a month in progress against a
+  // whole month was unfair, and picking the same-day figure out of a day-level
+  // table grabbed the wrong row. Both figures now ride as columns of one row
+  // per month.
+  it('carries the same-days figure beside each month total in the comparison recipe', () => {
+    const recipe = RECIPES.find((r) => r.includes('same_days'))
     expect(recipe).toBeDefined()
-    const rows = db.prepare(recipe as string).all() as Record<string, unknown>[]
-    expect(rows.length).toBeGreaterThan(0)
-
-    // month_total is constant within a month, and equals that month's sum of
-    // the day values: the figure the reply should quote
-    const byMonth = new Map<string, { total: Set<unknown>; summed: number }>()
-    for (const row of rows) {
-      const month = String(row.month)
-      const seen = byMonth.get(month) ?? { total: new Set(), summed: 0 }
-      seen.total.add(row.month_total)
-      seen.summed += Number(row.spending)
-      byMonth.set(month, seen)
-    }
-    expect(byMonth.size).toBeGreaterThan(1)
-    for (const [, { total, summed }] of byMonth) {
-      expect(total.size).toBe(1)
-      expect(Number([...total][0])).toBeCloseTo(summed, 2)
-    }
-    // and a day's own figure must not be mistakable for the month's
-    expect(rows.some((r) => Number(r.spending) !== Number(r.month_total))).toBe(true)
+    // July's first 21 days leave out the 31st; June has nothing after the 21st
+    expect(db.prepare(recipe as string).all()).toEqual([
+      { month: '2026-06', same_days: 35.83, month_total: 35.83 },
+      { month: '2026-07', same_days: 43.49, month_total: 50.49 }
+    ])
   })
 
   // REGRESSION: two of eight smoke questions failed outright because the model
@@ -371,14 +367,6 @@ describe('system prompt silent-wrong-answer guards', () => {
     expect(PROMPT).toContain('OR category IS NULL')
   })
 
-  it('warns that avg_3mo counts rows, not calendar months, when a month has no data', () => {
-    // the seeded data has no April, so a 3-row window over Mar/May/Jun is not
-    // a 3-calendar-month window; the prompt has to say so, because SQL cannot
-    const months = rows(`SELECT month FROM tx GROUP BY month ORDER BY month`).map((r) => r.month)
-    expect(months).toEqual(['2026-05', '2026-06', '2026-07']) // no gap-free guarantee
-    expect(PROMPT).toContain('those are the three months that have data')
-  })
-
   it('gives the model an account NAME to group by, so a chart axis is not 1, 2, 3', () => {
     // the view carries it: a name the model must join for is a name it will
     // not get
@@ -388,7 +376,7 @@ describe('system prompt silent-wrong-answer guards', () => {
          FROM tx WHERE amount < 0 GROUP BY account_name ORDER BY spending DESC`
       )
     ).toEqual([
-      { account_name: 'Chase Checking', spending: 55.34 },
+      { account_name: 'Chase Checking', spending: 101.81 },
       { account_name: 'Amex 💳 Card', spending: 4.5 }
     ])
   })
@@ -449,8 +437,8 @@ describe('system prompt user data content', () => {
   it('names the account, a category and the date span', () => {
     expect(PROMPT).toContain('Chase Checking')
     expect(PROMPT).toContain('🍽️ Dining Out')
-    expect(PROMPT).toContain('2026-01')
-    expect(PROMPT).toContain('2026-07')
+    expect(PROMPT).toContain('2026-01-01')
+    expect(PROMPT).toContain('2026-07-31')
   })
 
   it('says there is no data for an empty scope', () => {
@@ -473,16 +461,51 @@ describe('system prompt inline expressions', () => {
   })
 
   // totals over every non-transfer, non-pending, dated row: 12.34 + 8 + 25 + 3
-  // + 7 spent on the USD account, 4.50 on the EUR one, 500 in. They
+  // + 7 + 3 x 15.49 spent on the USD account, 4.50 on the EUR one, 500 in. They
   // deliberately blend currencies, which is what an unqualified measure does;
   // the prompt's separate rule is to GROUP BY currency, not to change these.
   it.each([
-    ['spending', 'ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending', 59.84],
+    ['spending', 'ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending', 106.31],
     ['income', 'ROUND(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 2) AS income', 500],
-    ['net', 'ROUND(SUM(amount), 2) AS net', 440.16]
+    ['net', 'ROUND(SUM(amount), 2) AS net', 393.69]
   ])('the %s measure is stated correctly and sums real amounts', (_name, expression, total) => {
     expect(PROMPT).toContain(expression)
     const [row] = db.prepare(`SELECT ${expression} FROM tx`).all() as Record<string, number>[]
     expect(Object.values(row)[0]).toBeCloseTo(total, 2)
+  })
+})
+
+/**
+ * Partial months at either end of the data, handed over as data. Read as
+ * complete, a stub first month drags an average down and a month in progress
+ * reads as a spending drop.
+ */
+describe('system prompt month span', () => {
+  const today = new Date(2026, 8, 24) // Sep 24, 2026
+
+  it('starts the complete months after a mid-month first transaction and stops before today', () => {
+    const lines = monthSpanLines(today, { min: '2025-09-14', max: '2026-09-22' })
+    expect(lines[0]).toContain('Complete months run 2025-10 through 2026-08 (11 months)')
+    expect(lines[1]).toContain('2026-09 is the month in progress: day 24 of 30')
+    expect(lines[1]).toContain('over its first 24 days')
+  })
+
+  it('counts a first month that starts on the 1st as complete', () => {
+    expect(monthSpanLines(today, { min: '2026-06-01', max: '2026-09-02' })[0]).toContain(
+      '2026-06 through 2026-08 (3 months)'
+    )
+  })
+
+  it('says nothing about a month in progress when the data stopped before it', () => {
+    const lines = monthSpanLines(today, { min: '2026-01-01', max: '2026-07-31' })
+    expect(lines).toEqual([
+      'Complete months run 2026-01 through 2026-07 (7 months); use these for averages and "typical" figures.'
+    ])
+  })
+
+  it('claims no complete month when the data is younger than one', () => {
+    const lines = monthSpanLines(today, { min: '2026-09-03', max: '2026-09-20' })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toContain('month in progress')
   })
 })

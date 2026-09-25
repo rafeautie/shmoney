@@ -5,6 +5,8 @@ import {
   MAX_ROWS,
   scopeViewsDdl,
   shapeResult,
+  partialMonthNote,
+  partialMonths,
   validateQuerySql
 } from './sql-tool'
 
@@ -137,5 +139,29 @@ describe('shapeResult', () => {
   it('handles empty results', () => {
     const result = shapeResult(['n'], [], 1)
     expect(result).toMatchObject({ ok: true, rows: [], rowCount: 0, truncated: false })
+  })
+})
+
+describe('partial months', () => {
+  it('flags the month in progress, plus a first month that starts after the 1st', () => {
+    expect(partialMonths('2025-09-14', '2026-09-24')).toEqual(['2025-09', '2026-09'])
+    expect(partialMonths('2025-09-01', '2026-09-24')).toEqual(['2026-09'])
+    expect(partialMonths('2026-09-03', '2026-09-24')).toEqual(['2026-09'])
+    expect(partialMonths(null, '2026-09-24')).toEqual(['2026-09'])
+  })
+
+  it('notes only the partial months a result actually carries', () => {
+    const rows = [
+      ['2025-09', 359.46],
+      ['2025-10', 4530.76],
+      ['2026-09', 4230.58]
+    ]
+    expect(partialMonthNote(rows, ['2025-09', '2026-09'])).toMatch(
+      /^2025-09 and 2026-09 are partial months .*lowest, highest or typical/
+    )
+    expect(partialMonthNote(rows.slice(1, 2), ['2025-09', '2026-09'])).toBeNull()
+    expect(partialMonthNote(rows.slice(2), ['2025-09', '2026-09'])).toMatch(
+      /^2026-09 is a partial month/
+    )
   })
 })

@@ -2,6 +2,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { scopeViewsDdl } from './sql-tool'
 import { migratedDb } from '../test-db'
+import { computeEnvelopes } from '../../budgets/rollover'
 
 // The scope views are the seam that hands the model its data, and their whole
 // job is to be exactly right about units. String-matching the DDL only proves
@@ -190,6 +191,64 @@ describe('scope views: category names', () => {
     expect(query(db, 'SELECT category, amount FROM budgets')).toEqual([
       { category: 'Test Category', amount: 30 }
     ])
+  })
+})
+
+describe('scope views: budget_status', () => {
+  // local months relative to now, so the view's recursion reaches the seed
+  const month = (back: number): string => {
+    const d = new Date()
+    d.setDate(1)
+    d.setMonth(d.getMonth() - back)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  }
+  const midMonth = (back: number): number => {
+    const d = new Date()
+    d.setDate(15)
+    d.setHours(12, 0, 0, 0)
+    d.setMonth(d.getMonth() - back)
+    return Math.floor(d.getTime() / 1000)
+  }
+
+  it('matches the Budgets page envelope math: inherited fills and rolled-over balance', () => {
+    const db = migratedDb()
+    db.exec(`
+      INSERT INTO accounts (id, name, currency, balance, available_balance, balance_date)
+      VALUES (1, 'Checking', 'USD', 0, NULL, 0);
+      INSERT INTO categories (id, name) VALUES (901, 'Test Category');
+      -- sparse fills: 100 from two months back, raised to 150 last month
+      INSERT INTO budgets (id, category_id, month, amount)
+      VALUES (1, 901, '${month(2)}', 100000), (2, 901, '${month(1)}', 150000);
+      INSERT INTO transactions (id, account_id, simplefin_id, posted, amount, description, pending,
+                                transacted_at, category_id)
+      VALUES (1, 1, 't1', ${midMonth(2)}, -60000, 'a', 0, ${midMonth(2)}, 901),
+             (2, 1, 't2', ${midMonth(1)}, -200000, 'b', 0, ${midMonth(1)}, 901),
+             (3, 1, 't3', 0, -25000, 'pending counts, like the Budgets page', 1, ${midMonth(0)}, 901),
+             (4, 1, 't4', ${midMonth(0)}, 5000, 'a refund is not negative spend', 0, ${midMonth(0)}, 901);
+    `)
+    for (const ddl of scopeViewsDdl({ accountId: null })) db.exec(ddl)
+    const rows = query(
+      db,
+      'SELECT month, budget, spent, available FROM budget_status ORDER BY month'
+    )
+    const [expected] = computeEnvelopes(
+      [
+        { categoryId: 901, month: month(2), amount: 100 },
+        { categoryId: 901, month: month(1), amount: 150 }
+      ],
+      new Map([
+        [`901:${month(2)}`, 60],
+        [`901:${month(1)}`, 200],
+        [`901:${month(0)}`, 25]
+      ]),
+      month(0)
+    )
+    expect(rows).toEqual([
+      { month: month(2), budget: 100, spent: 60, available: 40 },
+      { month: month(1), budget: 150, spent: 200, available: -10 },
+      { month: month(0), budget: 150, spent: 25, available: 115 }
+    ])
+    expect(rows[2]).toMatchObject({ spent: expected.spent, available: expected.balance })
   })
 })
 
