@@ -8,8 +8,16 @@ import {
   Calendar03Icon,
   DatabaseIcon
 } from '@hugeicons/core-free-icons'
-import type { StreamingChatPart } from '@shared/chat'
+import {
+  ACTION_TOOL_NAMES,
+  ANALYSIS_TOOL_NAMES,
+  type ActionToolName,
+  type AnalysisToolName,
+  type ChatMessagePart,
+  type StreamingChatPart
+} from '@shared/chat'
 import { cn } from '@/lib/utils'
+import { PENDING_LABELS, actionToolLabel, analysisToolLabel } from '@/lib/chat-tools'
 import { CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   ChainOfThought,
@@ -18,6 +26,8 @@ import {
 } from '@/components/ui/chain-of-thought'
 import { ToolCallCard } from '@/components/chat/tool-call'
 import { ChatChart } from '@/components/chat/chat-chart'
+import { ProposalCard } from '@/components/chat/proposal-card'
+import { TOOL_ICONS } from '@/components/chat/tool-icons'
 
 // A turn's chain of thought: its reasoning and tool calls as one collapsible
 // timeline, so a turn that thinks, fires several queries and a chart reads as a
@@ -71,25 +81,63 @@ function stepDurationMs(part: ChainPart): number {
   return part.result === undefined ? 0 : (part.durationMs ?? 0)
 }
 
+/** in-flight label per tool */
+const PENDING: Record<string, string> = {
+  query: 'Writing query…',
+  chart: 'Building chart…',
+  calc: 'Calculating…',
+  resolve_dates: 'Resolving dates…',
+  ...PENDING_LABELS
+}
+
+type SettledCall = Extract<ChatMessagePart, { type: 'functionCall' }>
+type AnalysisCall = Extract<SettledCall, { name: AnalysisToolName }>
+type ActionCall = Extract<SettledCall, { name: ActionToolName }>
+
+function isAnalysisCall(part: SettledCall): part is AnalysisCall {
+  return (ANALYSIS_TOOL_NAMES as readonly string[]).includes(part.name)
+}
+
+function isActionCall(part: SettledCall): part is ActionCall {
+  return (ACTION_TOOL_NAMES as readonly string[]).includes(part.name)
+}
+
 /**
  * One tool call's view, derived straight from its part — the label wording that
  * used to live in QueryCard/ChartCard, in one place now that the chain renders
  * every tool. Returns null for a shape this build doesn't know (e.g. a row
  * written before the formats merged); the chain drops it rather than guess.
  */
-/** icon and in-flight label per tool, the one place a tool name maps to chrome */
-const PENDING: Record<string, { icon: IconSvgElement; label: string }> = {
-  query: { icon: DatabaseIcon, label: 'Writing query…' },
-  chart: { icon: Analytics01Icon, label: 'Building chart…' },
-  calc: { icon: Calculator01Icon, label: 'Calculating…' },
-  resolve_dates: { icon: Calendar03Icon, label: 'Resolving dates…' }
-}
-
 function describeTool(part: ToolPart): ToolView | null {
   // pending: the model is still writing this call's params
   if (part.result === undefined) {
-    const pending = PENDING[part.name] ?? { icon: DatabaseIcon, label: 'Working…' }
-    return { ...pending, active: true, failed: false }
+    return {
+      icon: TOOL_ICONS[part.name] ?? DatabaseIcon,
+      label: PENDING[part.name] ?? 'Working…',
+      active: true,
+      failed: false
+    }
+  }
+  if (isAnalysisCall(part)) {
+    return {
+      icon: TOOL_ICONS[part.name],
+      label: analysisToolLabel(part.name, part.args, part.result),
+      active: false,
+      failed: !part.result.ok,
+      input: part.args,
+      output: part.result
+    }
+  }
+  if (isActionCall(part)) {
+    return {
+      icon: TOOL_ICONS[part.name],
+      label: actionToolLabel(part.result),
+      active: false,
+      failed: !part.result.ok,
+      input: part.args,
+      // the model saw only this summary; the card below shows the proposal itself
+      output: part.result
+    }
   }
   if (part.name === 'query') {
     const { result } = part
@@ -178,6 +226,19 @@ function chartDeliverable(part: ChainPart, asOf?: number): ReactNode {
 }
 
 /**
+ * The approval card for a settled action call. Null when the proposal failed
+ * (the chain shows why) or the part isn't an action call.
+ */
+function proposalDeliverable(
+  part: ChainPart,
+  target: { messageId: number; partIndex: number } | null
+): ReactNode {
+  if (part.type !== 'functionCall' || part.result === undefined || !isActionCall(part)) return null
+  if (part.display == null) return null
+  return <ProposalCard display={part.display} target={target} />
+}
+
+/**
  * A turn's chain of thought as one collapsible. While the run is live the
  * header tracks the in-flight step — the thought or tool call happening now —
  * so tool calls surface as they run. Once the run settles it collapses to a
@@ -185,18 +246,24 @@ function chartDeliverable(part: ChainPart, asOf?: number): ReactNode {
  * alike) and how many calls ran, e.g. "Thought for 6s · 3 calls". Expanded it
  * lays every step on a rail: thoughts as quote-bar text, tool calls as an icon
  * beside their own expandable input/output card. The user's toggle always wins.
- * Chart deliverables follow the chain, still visible when it's collapsed, since
- * a chart is the answer, not a step.
+ * Chart and proposal deliverables follow the chain, still visible when it's
+ * collapsed, since a chart or a change to approve is the answer, not a step.
  */
 export function ThoughtChain({
   parts,
   streaming = false,
-  asOf
+  asOf,
+  messageId,
+  startIndex = 0
 }: {
   parts: ChainPart[]
   /** true only for the live, still-growing run of a streaming turn */
   streaming?: boolean
   asOf?: number
+  /** the settled message these parts belong to; absent while the turn streams, so proposals can't be acted on yet */
+  messageId?: number
+  /** index of parts[0] in the message's parts, to address a proposal */
+  startIndex?: number
 }) {
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
   const open = userOpen ?? false
@@ -275,8 +342,13 @@ export function ThoughtChain({
         </ChainOfThoughtContent>
       </ChainOfThought>
       {parts.map((part, i) => {
-        const chart = chartDeliverable(part, asOf)
-        return chart && <Fragment key={i}>{chart}</Fragment>
+        const deliverable =
+          chartDeliverable(part, asOf) ??
+          proposalDeliverable(
+            part,
+            messageId === undefined ? null : { messageId, partIndex: startIndex + i }
+          )
+        return deliverable && <Fragment key={i}>{deliverable}</Fragment>
       })}
     </>
   )

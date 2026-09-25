@@ -111,7 +111,7 @@ export function scopeViewsDdl(scope: ChatToolScope): string[] {
     'CREATE TEMP VIEW transactions AS ' +
       'SELECT t.id, t.account_id, a.name AS account_name, ' +
       "datetime(NULLIF(t.posted, 0), 'unixepoch', 'localtime') AS posted, " +
-      't.amount / 1000.0 AS amount, t.description, t.pending, ' +
+      't.amount / 1000.0 AS amount, t.description, MERCHANT(t.description) AS merchant, t.pending, ' +
       "datetime(NULLIF(t.transacted_at, 0), 'unixepoch', 'localtime') AS transacted_at, " +
       't.category_id, c.name AS category, g.name AS category_group, c.system_key, ' +
       `date(${txnEpoch}, 'unixepoch', 'localtime') AS txn_date, ` +

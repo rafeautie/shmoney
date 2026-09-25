@@ -1,10 +1,15 @@
 import { format, startOfMonth, subMonths } from 'date-fns'
-import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { ChatHistoryItem, ChatModelResponse } from 'node-llama-cpp'
 import { CHAT_CONTEXT_SIZE, LLM_MODELS } from '@shared/llm'
-import { GOAL_STATUS_LABELS } from '@shared/goals'
+import { GOAL_STATUS_LABELS, type GoalSummary } from '@shared/goals'
 import {
+  ACTION_TOOL_NAMES,
+  ANALYSIS_TOOL_NAMES,
   CHAT_IPC,
+  type ActionToolName,
+  type AnalysisToolName,
+  type ChartSpec,
   type ChatMessage,
   type ChatMessagePart,
   type Conversation,
@@ -12,9 +17,16 @@ import {
   type SendChatInput,
   type SendChatResult
 } from '@shared/chat'
-import type { ChatGenerationResult } from '../protocol'
+import type { ChatGenerationResult, ChatSeedCall, ChatToolInputs } from '../protocol'
 import { resolveCurrency } from '../tools/chart-tool'
 import type { GoalTableRows } from '../tools/sql-tool'
+import {
+  actionToolSchemas,
+  analysisToolSchemas,
+  replayView,
+  type GoalPaceInput,
+  type ToolVocab
+} from '../tools/analysis'
 import { getGoalSummaries } from '../../goals/summary'
 import { getGoalSeries } from '../../goals/series'
 import { buildSystemPrompt, type ChatPromptScope, type PromptDbContext } from '../system-prompt'
@@ -30,6 +42,7 @@ import {
 } from '../../db/schema'
 import { transactionDate } from '../../db/expressions'
 import { createLogger } from '../../logging'
+import { reconcileProposals } from '../../ipc/chat-proposals'
 import { llmManager, sendToRenderer } from '../manager'
 import { enqueueGenerate } from '../queue'
 
@@ -72,13 +85,55 @@ type ReplayItem = { kind: 'text'; text: string } | { kind: 'call'; call: ReplayC
  * (re-run the query) exactly where the model reads. Failed results replay
  * as-is: their error strings are already small and instructive.
  */
-function replayResult(part: Extract<ChatMessagePart, { type: 'functionCall' }>): object {
+function replayResult(part: FunctionCallPart): object {
+  if (isAnalysisCall(part)) return replayView(part.result)
+  // a past proposal replays as what became of it, never its row ids
+  if (isActionCall(part))
+    return part.display
+      ? { ok: true, summary: part.result.summary, status: part.display.status }
+      : part.result
   if (part.name !== 'query' || !part.result.ok) return part.result
   return {
     ok: true,
     rowCount: part.result.rowCount,
     note: 'Expired; to reuse or chart this data, run the query again in the current reply.'
   }
+}
+
+type FunctionCallPart = Extract<ChatMessagePart, { type: 'functionCall' }>
+
+function isAnalysisCall(
+  part: FunctionCallPart
+): part is Extract<FunctionCallPart, { name: AnalysisToolName }> {
+  return (ANALYSIS_TOOL_NAMES as readonly string[]).includes(part.name)
+}
+
+function isActionCall(
+  part: FunctionCallPart
+): part is Extract<FunctionCallPart, { name: ActionToolName }> {
+  return (ACTION_TOOL_NAMES as readonly string[]).includes(part.name)
+}
+
+/**
+ * The newest successful data call in the conversation so far, which the next
+ * turn reruns so follow-ups ("as a pie", "now just groceries") have rows.
+ */
+export function lastDataCall(
+  rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[]
+): ChatSeedCall | null {
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i].role !== 'assistant' || rows[i].status === 'error') continue
+    // the newest chart drawn after the data call, walking back to it
+    let chart: ChartSpec | null = null
+    for (let j = rows[i].parts.length - 1; j >= 0; j--) {
+      const part = rows[i].parts[j]
+      if (part.type !== 'functionCall' || !part.result.ok) continue
+      if (part.name === 'chart') chart ??= part.args
+      if (isAnalysisCall(part)) return { name: part.name, args: part.args, chart }
+      if (part.name === 'query') return { name: 'query', args: { sql: part.args.sql }, chart }
+    }
+  }
+  return null
 }
 
 /**
@@ -98,11 +153,14 @@ function replayResult(part: Extract<ChatMessagePart, { type: 'functionCall' }>):
  */
 function replayable(row: Pick<ChatMessage, 'role' | 'status' | 'parts'>): ReplayItem[] | null {
   if (row.status === 'error') return null
-  const items = row.parts.flatMap((p): ReplayItem[] => {
+  const items = row.parts.flatMap((p, i): ReplayItem[] => {
     if (p.type === 'text') return p.text.trim() ? [{ kind: 'text', text: p.text }] : []
-    if (p.type === 'functionCall')
-      return [{ kind: 'call', call: { name: p.name, params: p.args, result: replayResult(p) } }]
-    return []
+    if (p.type !== 'functionCall') return []
+    // the loop draws a typed tool's chart right after it; replayed, that reads
+    // as the model calling chart itself, which it then copies
+    const before = row.parts[i - 1]
+    if (p.name === 'chart' && before?.type === 'functionCall' && isAnalysisCall(before)) return []
+    return [{ kind: 'call', call: { name: p.name, params: p.args, result: replayResult(p) } }]
   })
   return items.length > 0 ? items : null
 }
@@ -123,11 +181,14 @@ function replayCost(items: ReplayItem[]): number {
  */
 export function historyWindow(
   rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[],
-  systemPrompt: string
+  systemPrompt: string,
+  toolDocsChars = 0
 ): { start: number; truncated: boolean } {
   let chars = 0
   let start = rows.length
-  const budget = HISTORY_TOKEN_BUDGET * CHARS_PER_TOKEN - systemPrompt.length
+  // the chat wrapper injects the tool descriptions into the system message, so
+  // they share the budget just like the prompt does
+  const budget = HISTORY_TOKEN_BUDGET * CHARS_PER_TOKEN - systemPrompt.length - toolDocsChars
   for (let i = rows.length - 1; i >= 0; i--) {
     const replay = replayable(rows[i])
     if (!replay) continue
@@ -147,10 +208,11 @@ export function historyWindow(
  */
 export function buildHistory(
   rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[],
-  systemPrompt: string
+  systemPrompt: string,
+  toolDocsChars = 0
 ): ChatHistoryItem[] {
   const items: ChatHistoryItem[] = []
-  for (let i = historyWindow(rows, systemPrompt).start; i < rows.length; i++) {
+  for (let i = historyWindow(rows, systemPrompt, toolDocsChars).start; i < rows.length; i++) {
     const replay = replayable(rows[i])
     if (!replay) continue
     if (rows[i].role === 'user') {
@@ -217,6 +279,8 @@ function promptDbContext(accountId: number | null): PromptDbContext {
     .select({ group: categoryGroups.name, name: categories.name })
     .from(categories)
     .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
+    // transfers and opening balances are never analyzed, so never offered
+    .where(or(isNull(categories.systemKey), eq(categories.systemKey, 'income')))
     .orderBy(categories.name)
     .all()
   const byGroup = new Map<string, string[]>()
@@ -309,13 +373,15 @@ export function listMessages(conversationId: number): ConversationMessages {
     .where(eq(conversations.id, conversationId))
     .get()
   const scope = accountScope(conversation?.accountId ?? null)
+  const context = promptDbContext(scope.accountId)
   const { start, truncated } = historyWindow(
     rows,
-    buildSystemPrompt(scope, promptDbContext(scope.accountId))
+    buildSystemPrompt(scope, context),
+    toolDocsChars(toolVocab(context, goalNames(scope.accountId)))
   )
   // ChatMessageRow is structurally a ChatMessage; no mapping needed
   return {
-    messages: rows,
+    messages: reconcileProposals(rows),
     truncatedBeforeId: truncated ? (rows[start]?.id ?? null) : null
   }
 }
@@ -389,9 +455,15 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
   // throw here leaves no half-written turn and no stranded lock; currency and
   // the goal tables are point-in-time snapshots of the turn either way
   const context = promptDbContext(scope.accountId)
-  const history = buildHistory(priorRows, buildSystemPrompt(scope, context))
+  const goals = goalInputs(scope.accountId)
+  const vocab = toolVocab(
+    context,
+    goals.pace.map((goal) => goal.name)
+  )
+  const history = buildHistory(priorRows, buildSystemPrompt(scope, context), toolDocsChars(vocab))
   const currency = resolveCurrency(context.accounts)
-  const goalRows = goalTableRows(scope.accountId)
+  const goalRows = goals.rows
+  const tools: ChatToolInputs = { vocab, goalPace: goals.pace, seed: lastDataCall(priorRows) }
 
   const userRow = db
     .insert(chatMessages)
@@ -432,6 +504,7 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     scope,
     currency,
     goalRows,
+    tools,
     controller
   })
 
@@ -461,13 +534,55 @@ const GOAL_HISTORY_MONTHS = 24
  * scope still reports its full saved amount and names its other accounts, which
  * is the one place these tables reach past what scopeViewsDdl shows.
  */
-function goalTableRows(accountId: number | null): GoalTableRows {
-  const summaries = getGoalSummaries().filter(
+function scopedGoals(accountId: number | null): GoalSummary[] {
+  return getGoalSummaries().filter(
     (goal) =>
       goal.archivedAt === null &&
       (accountId === null || goal.accounts.some((a) => a.id === accountId))
   )
-  if (summaries.length === 0) return { goals: [], history: [] }
+}
+
+function goalNames(accountId: number | null): string[] {
+  return scopedGoals(accountId).map((goal) => goal.name)
+}
+
+/** the names the typed tools' schemas enumerate this turn */
+function toolVocab(context: PromptDbContext, goals: string[]): ToolVocab {
+  return {
+    categories: context.categories.flatMap((c) => c.names),
+    accounts: context.accounts.map((a) => a.name),
+    goals
+  }
+}
+
+// chart, calc and query ride beside the typed tools with fixed descriptions,
+// so a flat allowance covers them
+const FIXED_TOOL_DOCS_CHARS = 2500
+
+/**
+ * What the tool descriptions cost in the context, in the chars the history
+ * budget counts. The wrappers render the schemas close to their JSON, so the
+ * JSON's length is a fair measure.
+ */
+export function toolDocsChars(vocab: ToolVocab): number {
+  const schemas = { ...analysisToolSchemas(vocab), ...actionToolSchemas(vocab) }
+  return JSON.stringify(schemas).length + FIXED_TOOL_DOCS_CHARS
+}
+
+function goalInputs(accountId: number | null): { rows: GoalTableRows; pace: GoalPaceInput[] } {
+  const summaries = scopedGoals(accountId)
+  if (summaries.length === 0) return { rows: { goals: [], history: [] }, pace: [] }
+  // what update_goal and what_if rerun the Goals page's pace math with
+  const pace: GoalPaceInput[] = summaries.map((goal) => ({
+    id: goal.id,
+    name: goal.name,
+    targetAmount: goal.targetAmount,
+    baselineAmount: goal.baselineAmount,
+    progress: goal.progress,
+    startedAt: goal.startedAt,
+    targetDate: goal.targetDate,
+    currency: goal.currency
+  }))
 
   const goals = summaries.map((goal) => [
     goal.id,
@@ -499,7 +614,7 @@ function goalTableRows(accountId: number | null): GoalTableRows {
     .filter((row) => row.bucket !== null && row.groupId !== null && names.has(row.groupId))
     .map((row) => [row.groupId, names.get(row.groupId!), row.bucket, money(row.value)])
 
-  return { goals, history }
+  return { rows: { goals, history }, pace }
 }
 
 /**
@@ -516,6 +631,7 @@ function launchGeneration(turn: {
   scope: ChatPromptScope
   currency: string | null
   goalRows: GoalTableRows
+  tools: ChatToolInputs
   controller: AbortController
 }): void {
   const { conversationId, assistantMessageId, controller } = turn
@@ -525,6 +641,7 @@ function launchGeneration(turn: {
       toolScope: { accountId: turn.scope.accountId },
       currency: turn.currency,
       goalRows: turn.goalRows,
+      tools: turn.tools,
       onPart: (index, part) => sendToRenderer(CHAT_IPC.part, { conversationId, index, part })
     })
   )

@@ -135,6 +135,136 @@ export interface DateWindowToolResult {
   error?: string
 }
 
+// ---------- typed analysis tools ----------
+
+export const ANALYSIS_TOOL_NAMES = [
+  'totals',
+  'goals',
+  'transactions',
+  'budgets',
+  'recurring',
+  'balances',
+  'what_if',
+  'unusual'
+] as const
+export type AnalysisToolName = (typeof ANALYSIS_TOOL_NAMES)[number]
+
+export const ACTION_TOOL_NAMES = ['recategorize', 'set_budget', 'update_goal'] as const
+export type ActionToolName = (typeof ACTION_TOOL_NAMES)[number]
+
+/**
+ * Outcome of one typed analysis call. The whole object persists and renders in
+ * the transcript; the model reads a trimmed view of it (facts first, capped
+ * rows) and a past turn replays only its facts. Amounts are major units, rows
+ * are arrays, like query results.
+ */
+export interface AnalysisToolResult {
+  ok: boolean
+  /** present when ok is false, phrased for the model */
+  error?: string
+  /** the resolved window, e.g. '2026-06 to 2026-08 (3 complete months)' */
+  period?: string
+  /** the resolved comparison window, when there is one */
+  comparedWith?: string
+  columns?: string[]
+  rows?: unknown[][]
+  /** rows before any cap */
+  rowCount?: number
+  /** finished figures the answer quotes */
+  facts?: Record<string, unknown>
+  /** coverage, what a search matched, caveats: short sentences */
+  notes?: string[]
+  durationMs: number
+}
+
+// ---------- proposals (action tools) ----------
+
+/** mirrors the AI SDK's tool-approval states, plus undone after an applied change is reverted */
+export type ProposalStatus = 'approval-requested' | 'approved' | 'denied' | 'undone'
+
+/** one merchant's share of a recategorize proposal, so the card can narrow by merchant */
+export interface ProposalMerchantGroup {
+  merchant: string
+  transactionIds: number[]
+  /**
+   * each row's category id at preview time, aligned with transactionIds; apply
+   * skips rows whose category changed since. Absent on older proposals.
+   */
+  fromCategoryIds?: (number | null)[]
+  /** major units, summed signed amounts */
+  total: number
+}
+
+export type Proposal =
+  | {
+      kind: 'recategorize'
+      toCategoryId: number
+      toCategory: string
+      groups: ProposalMerchantGroup[]
+      /** up to 5 rows for the preview, newest first */
+      sample: {
+        id: number
+        date: string
+        description: string
+        amount: number
+        category: string | null
+      }[]
+      currency: string | null
+    }
+  | {
+      kind: 'set_budget'
+      categoryId: number
+      category: string
+      /** 'YYYY-MM' the fill is written at; later months inherit it */
+      month: string
+      /** major units; null when the category had no budget */
+      before: number | null
+      after: number
+      /** average monthly spending over the last 6 complete months */
+      averageSpending: number | null
+      currency: string | null
+    }
+  | {
+      kind: 'update_goal'
+      goalId: number
+      goal: string
+      before: { targetAmount: number; targetDate: string | null; archived: boolean }
+      after: { targetAmount: number; targetDate: string | null; archived: boolean }
+      /** the Goals page's pace figures before and after, major units */
+      pace: {
+        before: { status: string; neededPerMonth: number | null; projectedDate: string | null }
+        after: { status: string; neededPerMonth: number | null; projectedDate: string | null }
+      }
+      currency: string
+    }
+
+/**
+ * A proposal's render payload and lifecycle. Lives in the part's display
+ * (never shown to the model); the apply/dismiss/undo IPC rewrites it in place
+ * on the persisted message, so the card's state survives reloads and a
+ * proposal can't be applied twice.
+ */
+export interface ProposalDisplay {
+  proposal: Proposal
+  status: ProposalStatus
+  /** the action-log entry an approval recorded, for undo */
+  actionId: number | null
+  /** how many rows or records the approval actually changed */
+  applied: number | null
+  /** rows the approval skipped because they changed after the preview */
+  skipped: number | null
+}
+
+/** what the model receives from an action tool: a summary, never ids */
+export interface ProposalToolResult {
+  ok: boolean
+  /** present when ok is true: one line the model restates */
+  summary?: string
+  note?: string
+  /** present when ok is false */
+  error?: string
+}
+
 /**
  * One settled tool call, discriminated by tool name. args and result are
  * exactly what crossed the model boundary, and are the only fields that replay
@@ -154,6 +284,14 @@ export type ChatToolCall =
       name: 'resolve_dates'
       args: { unit: DateUnit; count: number; includeCurrent: boolean }
       result: DateWindowToolResult
+    }
+  | { name: AnalysisToolName; args: Record<string, unknown>; result: AnalysisToolResult }
+  // display is null when the proposal failed (result.error says why)
+  | {
+      name: ActionToolName
+      args: Record<string, unknown>
+      result: ProposalToolResult
+      display: ProposalDisplay | null
     }
 
 // messages store an array of parts, so tool calls are a variant here, not a
@@ -277,6 +415,21 @@ export const setConversationAccountSchema = z.object({
 })
 export type SetConversationAccountInput = z.infer<typeof setConversationAccountSchema>
 
+export const resolveProposalSchema = z.object({
+  messageId: z.number().int().positive(),
+  partIndex: z.number().int().min(0),
+  decision: z.enum(['approve', 'deny']),
+  /** recategorize only: the merchant groups left checked; omitted = all */
+  merchants: z.array(z.string()).optional()
+})
+export type ResolveProposalInput = z.infer<typeof resolveProposalSchema>
+
+export const undoProposalSchema = z.object({
+  messageId: z.number().int().positive(),
+  partIndex: z.number().int().min(0)
+})
+export type UndoProposalInput = z.infer<typeof undoProposalSchema>
+
 // ---------- push event payloads ----------
 
 /**
@@ -327,6 +480,8 @@ export const CHAT_IPC = {
   send: 'chat:send',
   stop: 'chat:stop',
   markSeen: 'chat:markSeen',
+  resolveProposal: 'chat:resolveProposal',
+  undoProposal: 'chat:undoProposal',
   // main → renderer push events
   part: 'chat:part',
   messageDone: 'chat:messageDone'

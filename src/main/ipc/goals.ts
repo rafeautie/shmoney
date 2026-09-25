@@ -8,7 +8,8 @@ import { getGoalSeries } from '../goals/series'
 import { getGoalSummaries } from '../goals/summary'
 import { endOfDay } from 'date-fns'
 import { parseLocalDay } from '../goals/pace'
-import { recordAction } from './action-log'
+import { recordAction, type Runner } from './action-log'
+import type { SavingsGoalActionChange } from '@shared/ipc'
 import {
   GOALS_IPC,
   goalCreateSchema,
@@ -16,6 +17,7 @@ import {
   goalSeriesQuerySchema,
   goalUpdateSchema,
   type GoalCreateInput,
+  type GoalUpdateInput,
   type GoalRemoveResult,
   type GoalSummary
 } from '@shared/goals'
@@ -103,6 +105,90 @@ export function createGoal({
   return id
 }
 
+/**
+ * Apply a goal edit. Target amount, target date and archived state are
+ * recorded as one undoable action-log entry (null actionId when none of them
+ * changed); name, start and accounts aren't undoable.
+ */
+export function updateGoal(
+  patch: GoalUpdateInput,
+  label = 'Edit savings goal',
+  runner: Runner = db
+): { id: number; actionId: number | null } {
+  const existing = db
+    .select()
+    .from(savingsGoals)
+    .where(and(eq(savingsGoals.id, patch.id), isNull(savingsGoals.deletedAt)))
+    .get()
+  if (!existing) throw new Error(`Goal ${patch.id} not found`)
+
+  const now = nowSec()
+  const start = patch.startedAt ?? existing.startedAt
+  if (start > now) throw new Error("A goal can't start in the future")
+  const targetDate = patch.targetDate === undefined ? existing.targetDate : patch.targetDate
+  assertDatesOrdered(start, targetDate ?? null)
+  const accountIds = patch.accountIds
+  const currency = accountIds ? sharedCurrency(accountIds) : existing.currency
+  // re-archiving keeps the original timestamp, so it isn't logged as a change
+  const archivedAt =
+    patch.archived === undefined
+      ? existing.archivedAt
+      : patch.archived
+        ? (existing.archivedAt ?? now)
+        : null
+
+  const changes: SavingsGoalActionChange[] = []
+  const ref = { goalId: patch.id, name: patch.name ?? existing.name }
+  if (patch.targetAmount !== undefined && patch.targetAmount !== existing.targetAmount)
+    changes.push({
+      field: 'savingsGoalTargetAmount',
+      ...ref,
+      before: existing.targetAmount,
+      after: patch.targetAmount,
+      currency
+    })
+  if ((targetDate ?? null) !== existing.targetDate)
+    changes.push({
+      field: 'savingsGoalTargetDate',
+      ...ref,
+      before: existing.targetDate,
+      after: targetDate ?? null
+    })
+  if (archivedAt !== existing.archivedAt)
+    changes.push({
+      field: 'savingsGoalArchivedAt',
+      ...ref,
+      before: existing.archivedAt,
+      after: archivedAt
+    })
+
+  const actionId = runner.transaction((tx) => {
+    tx.update(savingsGoals)
+      .set({
+        ...(patch.name !== undefined ? { name: patch.name } : {}),
+        ...(patch.targetAmount !== undefined ? { targetAmount: patch.targetAmount } : {}),
+        ...(patch.targetDate !== undefined ? { targetDate: patch.targetDate ?? null } : {}),
+        ...(patch.startedAt !== undefined ? { startedAt: patch.startedAt } : {}),
+        archivedAt,
+        currency,
+        updatedAt: now
+      })
+      .where(eq(savingsGoals.id, patch.id))
+      .run()
+    if (accountIds) {
+      tx.delete(savingsGoalAccounts).where(eq(savingsGoalAccounts.goalId, patch.id)).run()
+      tx.insert(savingsGoalAccounts)
+        .values(accountIds.map((accountId) => ({ goalId: patch.id, accountId })))
+        .run()
+    }
+    return changes.length > 0 ? recordAction(tx, { source: 'user', label, changes }) : null
+  })
+
+  if (patch.startedAt !== undefined || accountIds)
+    setBaseline(patch.id, existing.mode, accountIds ?? linkedAccountIds(patch.id))
+  return { id: patch.id, actionId }
+}
+
 export function registerGoalsIpc(): void {
   purgeDeletedGoals()
 
@@ -117,46 +203,8 @@ export function registerGoalsIpc(): void {
   )
 
   ipcMain.handle(GOALS_IPC.update, (_event, input: unknown): GoalSummary => {
-    const patch = goalUpdateSchema.parse(input)
-    const existing = db
-      .select()
-      .from(savingsGoals)
-      .where(and(eq(savingsGoals.id, patch.id), isNull(savingsGoals.deletedAt)))
-      .get()
-    if (!existing) throw new Error(`Goal ${patch.id} not found`)
-
-    const now = nowSec()
-    const start = patch.startedAt ?? existing.startedAt
-    if (start > now) throw new Error("A goal can't start in the future")
-    const targetDate = patch.targetDate === undefined ? existing.targetDate : patch.targetDate
-    assertDatesOrdered(start, targetDate ?? null)
-    const accountIds = patch.accountIds
-    const currency = accountIds ? sharedCurrency(accountIds) : existing.currency
-
-    db.transaction((tx) => {
-      tx.update(savingsGoals)
-        .set({
-          ...(patch.name !== undefined ? { name: patch.name } : {}),
-          ...(patch.targetAmount !== undefined ? { targetAmount: patch.targetAmount } : {}),
-          ...(patch.targetDate !== undefined ? { targetDate: patch.targetDate ?? null } : {}),
-          ...(patch.startedAt !== undefined ? { startedAt: patch.startedAt } : {}),
-          ...(patch.archived !== undefined ? { archivedAt: patch.archived ? now : null } : {}),
-          currency,
-          updatedAt: now
-        })
-        .where(eq(savingsGoals.id, patch.id))
-        .run()
-      if (accountIds) {
-        tx.delete(savingsGoalAccounts).where(eq(savingsGoalAccounts.goalId, patch.id)).run()
-        tx.insert(savingsGoalAccounts)
-          .values(accountIds.map((accountId) => ({ goalId: patch.id, accountId })))
-          .run()
-      }
-    })
-
-    if (patch.startedAt !== undefined || accountIds)
-      setBaseline(patch.id, existing.mode, accountIds ?? linkedAccountIds(patch.id))
-    return oneSummary(patch.id)
+    const { id } = updateGoal(goalUpdateSchema.parse(input))
+    return oneSummary(id)
   })
 
   // soft delete so undo can bring the goal back; that is why there is no confirm

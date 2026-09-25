@@ -5,7 +5,7 @@ import { db } from '../db'
 import { createLogger } from '../logging'
 import { accounts, categories, transactions } from '../db/schema'
 import { dayToUnix } from '../import/parse'
-import { recordAction } from './action-log'
+import { recordAction, type Runner } from './action-log'
 import { detectRuleSuggestions } from './rule-suggestions'
 import {
   buildUpdateChanges,
@@ -30,10 +30,22 @@ const log = createLogger('transactions')
 
 /**
  * Apply per-row category changes as one undoable action-log entry, skipping
- * pending/missing rows and no-ops; returns the number of rows actually changed.
+ * pending/deleted/missing rows and no-ops; returns the number of rows actually changed.
  * Shared so LLM auto-categorize records through the same path as manual edits.
  */
-export function setCategories({ changes, source }: TransactionsSetCategoriesInput): number {
+export function setCategories(input: TransactionsSetCategoriesInput): number {
+  return applyCategories(input).changed
+}
+
+/**
+ * setCategories plus the recorded entry's id (null when nothing changed), for
+ * callers that offer their own undo. label gets the changed-row count.
+ */
+export function applyCategories(
+  { changes, source }: TransactionsSetCategoriesInput,
+  label: (changed: number) => string = (n) => `Set category on ${plural(n, 'transaction')}`,
+  runner: Runner = db
+): { changed: number; actionId: number | null } {
   const categoryIds = [
     ...new Set(changes.map((c) => c.categoryId).filter((id): id is number => id !== null))
   ]
@@ -45,33 +57,34 @@ export function setCategories({ changes, source }: TransactionsSetCategoriesInpu
       .all()
     if (found.length !== categoryIds.length) throw new Error('Category not found')
   }
-  const logged = db.transaction((tx) => {
+  const { logged, actionId } = runner.transaction((tx) => {
     const ids = changes.map((c) => c.transactionId)
-    // current categories for the non-pending targets, so undo can restore each
+    // current categories for the live, non-pending targets, so undo can restore each
     const before = new Map(
       tx
         .select({ id: transactions.id, categoryId: transactions.categoryId })
         .from(transactions)
-        .where(and(inArray(transactions.id, ids), notPending))
+        .where(and(inArray(transactions.id, ids), notPending, isNull(transactions.deletedAt)))
         .all()
         .map((r) => [r.id, r.categoryId])
     )
     const logged: TransactionActionChange[] = []
     for (const { transactionId, categoryId } of changes) {
-      if (!before.has(transactionId)) continue // missing or pending: skip
+      if (!before.has(transactionId)) continue // missing, deleted or pending: skip
       const prev = before.get(transactionId)!
       if (prev === categoryId) continue // no-op
       tx.update(transactions).set({ categoryId }).where(eq(transactions.id, transactionId)).run()
       logged.push({ transactionId, field: 'categoryId', before: prev, after: categoryId })
     }
-    if (logged.length > 0) {
-      recordAction(tx, {
-        source: source ?? 'user',
-        label: `Set category on ${plural(logged.length, 'transaction')}`,
-        changes: logged
-      })
-    }
-    return logged
+    const actionId =
+      logged.length > 0
+        ? recordAction(tx, {
+            source: source ?? 'user',
+            label: label(logged.length),
+            changes: logged
+          })
+        : null
+    return { logged, actionId }
   })
 
   // turn repeated identical categorizations into a rule suggestion — after the
@@ -86,7 +99,7 @@ export function setCategories({ changes, source }: TransactionsSetCategoriesInpu
       })
     })
   }
-  return logged.length
+  return { changed: logged.length, actionId }
 }
 
 export function registerTransactionsIpc(): void {

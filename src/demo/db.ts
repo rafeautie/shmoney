@@ -3,6 +3,7 @@ import wasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
 import { drizzle } from 'drizzle-orm/sql-js'
 import * as schema from '../main/db/schema'
 import journal from '../../drizzle/meta/_journal.json'
+import { merchantOf } from '../main/llm/tools/analysis/merchant'
 
 // Stands in for main/db/index.ts: the same drizzle schema over an in-memory
 // SQLite compiled to WebAssembly. drizzle's sql-js driver is synchronous like
@@ -12,6 +13,8 @@ import journal from '../../drizzle/meta/_journal.json'
 const SQL = await initSqlJs(typeof document === 'undefined' ? {} : { locateFile: () => wasmUrl })
 const sqlite = new SQL.Database()
 sqlite.run('PRAGMA foreign_keys = ON')
+// the chat scope views' merchant column calls it (seeded demo transcripts run them)
+sqlite.create_function('MERCHANT', merchantOf)
 
 export const db = drizzle(sqlite, { schema })
 

@@ -7,6 +7,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { is } from '@electron-toolkit/utils'
 import { createLogger } from '../logging'
 import * as schema from './schema'
+import { merchantOf } from '../llm/tools/analysis/merchant'
 
 const log = createLogger('db')
 
@@ -15,6 +16,8 @@ export const dbPath = path.join(app.getPath('userData'), 'shmoney.db')
 const sqlite = new Database(dbPath)
 sqlite.pragma('journal_mode = WAL')
 sqlite.pragma('foreign_keys = ON')
+// the chat scope views' merchant column calls it (demo transcripts run them here)
+sqlite.function('MERCHANT', { deterministic: true }, merchantOf)
 
 export const db = drizzle(sqlite, { schema })
 

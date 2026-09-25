@@ -21,12 +21,14 @@ import {
   stopChat
 } from '../llm/features/chat'
 import { recordAction } from './action-log'
+import { registerChatProposalsIpc } from './chat-proposals'
 
 // Thin wiring only: generation lives in ../llm/features/chat; the simple
 // conversation CRUD is plain drizzle right here.
 export function registerChatIpc(): void {
   recoverAbandonedTurns()
   purgeDeletedConversations()
+  registerChatProposalsIpc()
 
   ipcMain.handle(CHAT_IPC.listConversations, (): Conversation[] => listConversations())
 

@@ -63,7 +63,13 @@ export interface GoalRemoveResult {
 }
 
 const goalNameSchema = z.string().trim().min(1).max(100)
-const daySchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/)
+const daySchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/)
+  .refine((day) => {
+    const [y, m, d] = day.split('-').map(Number)
+    return new Date(Date.UTC(y, m - 1, d)).getUTCDate() === d
+  }, 'Not a real calendar day')
 
 export const goalCreateSchema = z.object({
   name: goalNameSchema,

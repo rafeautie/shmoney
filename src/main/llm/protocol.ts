@@ -1,6 +1,7 @@
-import type { StreamingChatPart } from '@shared/chat'
+import type { ChartSpec, StreamingChatPart } from '@shared/chat'
 import type { LlmDownloadProgress, ModelId, ModelStage, RuntimeStage } from '@shared/llm'
 import type { ChatToolScope, GoalTableRows } from './tools/sql-tool'
+import type { GoalPaceInput, ToolVocab } from './tools/analysis'
 // type-only: erased at compile time, so the manager still never runtime-imports
 // node-llama-cpp (the worker is the only place that does)
 import type { ChatHistoryItem } from 'node-llama-cpp'
@@ -46,7 +47,27 @@ export type WorkerCommand =
       // the turn's goal tables, worked out by main/goals: the worker has no
       // route to the main database, and pace has only one implementation
       goalRows: GoalTableRows
+      tools: ChatToolInputs
     }
+
+/** the previous turn's last data call, rerun so follow-ups start from its rows */
+export interface ChatSeedCall {
+  name: string
+  args: Record<string, unknown>
+  /** the chart drawn from that result, so "show that as a pie" can restyle it */
+  chart: ChartSpec | null
+}
+
+/**
+ * What the typed tools need from main for one turn: the names their schemas
+ * enumerate (so the grammar only admits real ones), the goals' pace inputs
+ * (pace has one implementation, in main/goals), and the call to seed from.
+ */
+export interface ChatToolInputs {
+  vocab: ToolVocab
+  goalPace: GoalPaceInput[]
+  seed: ChatSeedCall | null
+}
 
 /** reply payload of a 'chat' command: the assistant row's parts in their
  * persisted format, built in generation order by the worker's TurnLog (which

@@ -17,6 +17,7 @@ import {
   type ChatWrapper,
   type ChatHistoryItem,
   type ChatSessionModelFunctions,
+  type GbnfJsonObjectSchema,
   type Llama,
   type LlamaModel,
   type LlamaContext
@@ -30,8 +31,22 @@ import {
   type ModelStage,
   type RuntimeStage
 } from '@shared/llm'
-import type { ChartSpec, ChartToolResult, QueryToolResult } from '@shared/chat'
-import type { ChatGenerationResult, WorkerCommand, WorkerMessage } from './protocol'
+import {
+  ACTION_TOOL_NAMES,
+  ANALYSIS_TOOL_NAMES,
+  type AnalysisToolName,
+  type AnalysisToolResult,
+  type ChartSpec,
+  type ChartToolResult,
+  type QueryToolResult
+} from '@shared/chat'
+import type {
+  ChatGenerationResult,
+  ChatSeedCall,
+  ChatToolInputs,
+  WorkerCommand,
+  WorkerMessage
+} from './protocol'
 import { createTurnLog, type TurnLog } from './turn-log'
 import {
   GOAL_HISTORY_INSERT_SQL,
@@ -47,10 +62,25 @@ import {
   type ChatToolScope,
   type GoalTableRows
 } from './tools/sql-tool'
-import { CHART_FUNCTION_PARAMS, chartCallNote, prepareChart } from './tools/chart-tool'
+import {
+  CHART_FUNCTION_PARAMS,
+  chartCallNote,
+  prepareChart,
+  type PreparedChart
+} from './tools/chart-tool'
 import { CALC_FUNCTION_PARAMS, evaluateExpression } from './tools/calc-tool'
-import { RESOLVE_DATES_PARAMS, resolveDateWindow } from './tools/resolve-dates-tool'
+import {
+  ANALYSIS_RUNNERS,
+  actionToolSchemas,
+  analysisToolSchemas,
+  modelView,
+  runAction,
+  type AnalysisContext,
+  type ProposalOutput,
+  type ToolOutput
+} from './tools/analysis'
 import { registerStatFunctions } from './stat-functions'
+import { merchantOf } from './tools/analysis/merchant'
 
 const modelsDir: string = (() => {
   const dir = process.env.LLM_MODELS_DIR
@@ -149,6 +179,8 @@ function ensureToolDb(): Database.Database {
   registerStatFunctions((name, def) =>
     db.aggregate(name, def as unknown as Database.AggregateOptions)
   )
+  // the tx view's merchant column calls it, so it must exist before any view does
+  db.function('MERCHANT', { deterministic: true }, merchantOf)
   db.pragma('query_only = ON')
   toolDb = db
   return db
@@ -444,144 +476,277 @@ async function ensureChatSession(): Promise<LlamaChatSession> {
   return session
 }
 
-// the mutable call bookkeeping the turn's two tool handlers share
+// the mutable call bookkeeping the turn's tool handlers share
 interface ChatTurnState {
   // counts handler invocations to enforce the per-turn tool budget
   handledCalls: number
-  // what the chart tool draws from: charts always visualize the turn's most
-  // recent successful query result, so no result-id plumbing is needed
+  // what the chart tool draws from: charts always visualize the most recent
+  // successful data result, so no result-id plumbing is needed. A turn starts
+  // with the previous turn's last result rerun here (see seedLastResult), so
+  // "show that as a pie" has something to draw.
   lastQuery: QueryToolResult | null
+  // the chart the typed tool behind lastQuery suggested; a restyle keeps its
+  // columns and swaps the type
+  lastChart: ChartSpec | null
   // 'YYYY-MM' labels of the months at the data's edges that aren't whole
   partialMonths: string[]
+  // an action tool proposed a change: the turn only summarizes from here on
+  proposed: boolean
+}
+
+/** a typed result as the chart tool's source, when it has rows to draw */
+function asQueryResult(result: AnalysisToolResult): QueryToolResult | null {
+  if (!result.ok || !result.columns?.length || !result.rows?.length) return null
+  return {
+    ok: true,
+    columns: result.columns,
+    rows: result.rows,
+    rowCount: result.rowCount ?? result.rows.length,
+    durationMs: result.durationMs
+  }
+}
+
+/**
+ * Rerun the previous turn's last data call so this turn's chart tool and the
+ * model's follow-ups ("now just groceries", "as a pie") start from fresh rows.
+ * Silent: it adds no part, and a failure just leaves nothing to draw.
+ */
+function seedLastResult(
+  seed: ChatSeedCall | null,
+  analysis: AnalysisContext,
+  state: ChatTurnState
+): void {
+  if (!seed) return
+  // the seed replays from persisted history every turn, so a throw here would
+  // fail every later turn of the conversation, not just this one
+  try {
+    if (seed.name === 'query') {
+      const result = runQuery(String(seed.args.sql ?? ''))
+      if (result.ok) {
+        state.lastQuery = result
+        state.lastChart = seed.chart
+      }
+      return
+    }
+    const run = ANALYSIS_RUNNERS[seed.name as AnalysisToolName]
+    if (!run) return
+    const output = run(seed.args, analysis)
+    state.lastQuery = asQueryResult(output.result)
+    state.lastChart = state.lastQuery ? (seed.chart ?? output.chart) : null
+  } catch (err) {
+    console.warn(`chat seed rerun failed: ${String((err as Error)?.message ?? err)}`)
+  }
+}
+
+/** a runner's output, or its exception as an ok:false result the model can read */
+function guarded<T>(run: () => T, failed: (error: string) => T): T {
+  try {
+    return run()
+  } catch (err) {
+    return failed(`The tool failed: ${String((err as Error)?.message ?? err)}`)
+  }
 }
 
 /**
  * The tools a chat turn exposes. Handlers report through the turn log alone —
  * it is the single assembler, and its part patches are the stream — so events
  * and persisted parts carry the same shapes by construction, chart currency
- * included. query and chart read/draw the finance data; calc and resolve_dates
- * are database-free helpers for the two things a small model gets wrong on its
- * own — arithmetic and date math — so their results never touch state.lastQuery.
+ * included. The typed tools answer the common questions with finished
+ * figures; query is the fallback for anything they don't cover, with calc for
+ * arithmetic on its rows. Action tools only propose: the user applies.
  */
 function chatFunctions(ctx: {
   turn: TurnLog
   currency: string | null
   state: ChatTurnState
-  // the turn's local date, so resolve_dates shares one "now" with the prompt
-  today: string
+  analysis: AnalysisContext
   // the current call's open-to-settle wall-clock, read at settle time
   callDurationMs: () => number
 }): ChatSessionModelFunctions {
-  const { turn, currency, state, today, callDurationMs } = ctx
+  const { turn, currency, state, analysis, callDurationMs } = ctx
   const overBudget =
     'The tool budget for this reply is used up; answer with the data you already have.'
-  return {
-    query: defineChatSessionFunction({
-      description: `Run one read-only SQLite SELECT statement against the finance database. CTEs and window functions (SUM() OVER, AVG() OVER) are supported. Aggregate in SQL and alias columns clearly; results are capped at ${MAX_ROWS} rows, so aggregate or LIMIT in SQL.`,
-      params: {
-        type: 'object',
-        properties: {
-          sql: {
-            type: 'string',
-            description: 'A single SQLite SELECT (or WITH ... SELECT) statement.'
-          }
-        }
+  const afterProposal =
+    'A change is already proposed for the user to apply; answer in one sentence without calling more tools.'
+  // why a call can't run, or null when it can; counts the call either way
+  const blocked = (): string | null => {
+    state.handledCalls++
+    if (state.proposed) return afterProposal
+    return state.handledCalls > MAX_TOOL_CALLS_PER_TURN ? overBudget : null
+  }
+
+  /** draw a chart as its own part, the same shape a chart call settles as */
+  const drawChart = (spec: ChartSpec): PreparedChart => {
+    const prepared = prepareChart(spec, state.lastQuery)
+    turn.settleCall(
+      {
+        name: 'chart',
+        args: spec,
+        result: prepared.ok ? { ok: true } : { ok: false, error: prepared.error },
+        display: prepared.ok ? { data: prepared.data, currency, series: prepared.series } : null
       },
-      handler({ sql }) {
-        state.handledCalls++
-        const result =
-          state.handledCalls > MAX_TOOL_CALLS_PER_TURN
-            ? { ok: false, error: overBudget, durationMs: 0 }
-            : runQuery(sql)
-        if (result.ok) state.lastQuery = result
-        turn.settleCall({ name: 'query', args: { sql }, result }, callDurationMs())
-        // Append chartCallNote last, where a chart call is about to be
-        // written: the exact legal column names, plus the group recipe when
-        // the result is unambiguously long-form. Same reasoning as the chart
-        // handler's note below — a rule adjacent to the generation point
-        // beats the same rule in the system prompt — and this one carries the
-        // model's OWN aliases and result shape, which no system prompt can.
-        // In-turn only; replayed calls carry a bare result.
-        if (!result.ok || !result.columns?.length || !result.rows?.length) return result
-        const partial = partialMonthNote(result.rows, state.partialMonths)
-        const note = chartCallNote(result.columns, result.rows)
-        return { ...result, note: partial ? `${partial} ${note}` : note }
-      }
-    }),
-    chart: defineChatSessionFunction({
-      description:
-        "Show a chart in your reply, drawn from your most recent query result in this reply; results from earlier replies have expired, so query first. Every name you write in x, group and series must appear verbatim in that result's columns array — a name from an example, or one you aliased in an earlier query, is rejected. For a result with one row per x per group, set group to the group column and series to the single measure column; otherwise group is null.",
-      params: CHART_FUNCTION_PARAMS,
+      0
+    )
+    return prepared
+  }
+
+  const functions: Record<string, ChatSessionModelFunctions[string]> = {}
+  const analysisSchemas = analysisToolSchemas(analysis.vocab)
+  for (const name of ANALYSIS_TOOL_NAMES) {
+    const schema = analysisSchemas[name]
+    functions[name] = defineChatSessionFunction({
+      description: schema.description,
+      params: schema.params as GbnfJsonObjectSchema,
       handler(params) {
-        state.handledCalls++
-        // re-shape out of the grammar's readonly inference into the shared type
-        const spec: ChartSpec = {
-          type: params.type,
-          title: params.title,
-          x: params.x,
-          series: [...params.series],
-          group: params.group
+        const args = { ...(params as Record<string, unknown>) }
+        const reason = blocked()
+        const failed = (error: string): ToolOutput => ({
+          result: { ok: false, error, durationMs: 0 },
+          chart: null
+        })
+        const output = reason
+          ? failed(reason)
+          : guarded(() => ANALYSIS_RUNNERS[name](args, analysis), failed)
+        turn.settleCall({ name, args, result: output.result }, callDurationMs())
+        const source = asQueryResult(output.result)
+        // an empty result replaces the last one too, so a chart can't draw
+        // stale rows under an answer about something else
+        if (output.result.ok) {
+          state.lastQuery = source
+          state.lastChart = source ? output.chart : null
         }
-        // prepareChart owns the whole spec-to-drawable step (including the
-        // group pivot), so its data is the single source of what renders;
-        // the model still only ever sees the tiny ok/error result
-        const prepared =
-          state.handledCalls > MAX_TOOL_CALLS_PER_TURN
-            ? ({ ok: false, error: overBudget } as const)
-            : prepareChart(spec, state.lastQuery)
-        const result: ChartToolResult = prepared.ok
-          ? { ok: true }
-          : { ok: false, error: prepared.error }
-        const display = prepared.ok
-          ? { data: prepared.data, currency, series: prepared.series }
-          : null
-        turn.settleCall({ name: 'chart', args: spec, result, display }, callDurationMs())
-        // steer the follow-up prose from the result itself — instructions
-        // this close to where the model writes next land far more reliably
-        // on a small model than the same words back in the system prompt.
-        // In-turn only: replayed chart calls carry a bare ok.
-        return result.ok
+        // the loop draws the tool's own chart, so the model never names columns
+        // for a typed result; its note steers the prose away from the rows
+        const drawn = output.chart !== null && source !== null && drawChart(output.chart).ok
+        return drawn
           ? {
-              ...result,
-              note: 'The chart is now displayed. Give the takeaway in a sentence or two; do not repeat the charted rows as a table.'
+              ...modelView(output.result),
+              note: 'A chart of these rows is shown with your answer. Give the takeaway in a sentence or two; do not list the rows.'
             }
-          : result
-      }
-    }),
-    calc: defineChatSessionFunction({
-      description:
-        'Evaluate one arithmetic expression and get the exact number back. Reach for it whenever an answer needs arithmetic you would otherwise do in your head, above all to combine figures from more than one query result: a percentage of one figure against another, a difference, a ratio, or a growth figure. It does not read the database, so write the actual numbers into the expression rather than column names. Supports + - * / ** and parentheses.',
-      params: CALC_FUNCTION_PARAMS,
-      handler({ expression }) {
-        state.handledCalls++
-        const result =
-          state.handledCalls > MAX_TOOL_CALLS_PER_TURN
-            ? { ok: false, error: overBudget }
-            : evaluateExpression(expression)
-        turn.settleCall({ name: 'calc', args: { expression }, result }, callDurationMs())
-        return result
-      }
-    }),
-    resolve_dates: defineChatSessionFunction({
-      description:
-        "Turn a relative time period into the exact dates to filter on, so you never compute a date in your head. Give it a unit (day, week, month, quarter, year), a count, and whether to include the current in-progress period; it returns { start, end } as 'YYYY-MM-DD' bounds plus the list of months the window covers. Use it for phrases like 'the last 3 months', 'the past 90 days', or 'year to date'. A specific named period such as June 2026 or 2026-Q2 you filter directly, without this.",
-      params: RESOLVE_DATES_PARAMS,
-      handler(params) {
-        state.handledCalls++
-        const args = {
-          unit: params.unit,
-          count: params.count,
-          includeCurrent: params.includeCurrent
-        }
-        const result =
-          state.handledCalls > MAX_TOOL_CALLS_PER_TURN
-            ? { ok: false, error: overBudget }
-            : resolveDateWindow(args, today)
-        turn.settleCall({ name: 'resolve_dates', args, result }, callDurationMs())
-        return result
+          : modelView(output.result)
       }
     })
   }
+
+  const actionSchemas = actionToolSchemas(analysis.vocab)
+  for (const name of ACTION_TOOL_NAMES) {
+    const schema = actionSchemas[name]
+    functions[name] = defineChatSessionFunction({
+      description: schema.description,
+      params: schema.params as GbnfJsonObjectSchema,
+      handler(params) {
+        const args = { ...(params as Record<string, unknown>) }
+        const reason = blocked()
+        const failed = (error: string): ProposalOutput => ({
+          result: { ok: false, error },
+          display: null
+        })
+        const output = reason
+          ? failed(reason)
+          : guarded(() => runAction(name, args, analysis), failed)
+        if (output.result.ok) state.proposed = true
+        turn.settleCall(
+          { name, args, result: output.result, display: output.display },
+          callDurationMs()
+        )
+        return output.result
+      }
+    })
+  }
+
+  functions.query = defineChatSessionFunction({
+    description: `Run one read-only SQLite SELECT over the finance data, only when none of the other tools can answer. CTEs and window functions are supported. Aggregate in SQL and alias columns clearly; results are capped at ${MAX_ROWS} rows.`,
+    params: {
+      type: 'object',
+      properties: {
+        sql: {
+          type: 'string',
+          description: 'A single SQLite SELECT (or WITH ... SELECT) statement.'
+        }
+      }
+    },
+    handler({ sql }) {
+      const reason = blocked()
+      const result = reason ? { ok: false, error: reason, durationMs: 0 } : runQuery(sql)
+      if (result.ok) {
+        state.lastQuery = result
+        state.lastChart = null
+      }
+      turn.settleCall({ name: 'query', args: { sql }, result }, callDurationMs())
+      // Append chartCallNote last, where a chart call is about to be
+      // written: the exact legal column names, plus the group recipe when
+      // the result is unambiguously long-form. A rule adjacent to the
+      // generation point beats the same rule in the system prompt, and this
+      // one carries the model's OWN aliases and result shape, which no system
+      // prompt can. In-turn only; replayed calls carry a bare result.
+      if (!result.ok || !result.columns?.length || !result.rows?.length) return result
+      const partial = partialMonthNote(result.rows, state.partialMonths)
+      const note = chartCallNote(result.columns, result.rows)
+      return { ...result, note: partial ? `${partial} ${note}` : note }
+    }
+  })
+
+  functions.chart = defineChatSessionFunction({
+    description:
+      "Show a chart of your latest query result, or restyle the chart already shown ('show that as a pie', 'as bars'). The other tools draw their own charts, so never call this right after them. Every name in x, group and series must appear verbatim in that result's columns array; for a restyle, set x and series to null and give only the new type and title.",
+    params: CHART_FUNCTION_PARAMS,
+    handler(params) {
+      const reason = blocked()
+      // null columns restyle the chart the last typed result drew
+      const base = params.x === null || params.series === null ? state.lastChart : null
+      const spec: ChartSpec = {
+        type: params.type,
+        title: params.title,
+        x: params.x ?? base?.x ?? '',
+        series: params.series ? [...params.series] : (base?.series ?? []),
+        group: params.x === null ? (base?.group ?? null) : params.group
+      }
+      // prepareChart owns the whole spec-to-drawable step (including the
+      // group pivot), so its data is the single source of what renders;
+      // the model still only ever sees the tiny ok/error result
+      const prepared: PreparedChart = reason
+        ? { ok: false, error: reason }
+        : spec.x === '' || spec.series.length === 0
+          ? {
+              ok: false,
+              error: 'There is no chart to restyle yet; name x and series from your result.'
+            }
+          : prepareChart(spec, state.lastQuery)
+      // what a later "show that as a pie" restyles
+      if (prepared.ok) state.lastChart = spec
+      const result: ChartToolResult = prepared.ok
+        ? { ok: true }
+        : { ok: false, error: prepared.error }
+      const display = prepared.ok
+        ? { data: prepared.data, currency, series: prepared.series }
+        : null
+      turn.settleCall({ name: 'chart', args: spec, result, display }, callDurationMs())
+      // steer the follow-up prose from the result itself; instructions this
+      // close to where the model writes next land far more reliably on a small
+      // model than the same words back in the system prompt. In-turn only:
+      // replayed chart calls carry a bare ok.
+      return result.ok
+        ? {
+            ...result,
+            note: 'The chart is now displayed. Give the takeaway in a sentence or two; do not repeat the charted rows as a table.'
+          }
+        : result
+    }
+  })
+
+  functions.calc = defineChatSessionFunction({
+    description:
+      'Evaluate one arithmetic expression and get the exact number back, for combining figures from query results: a percentage, a difference, a ratio. The other tools already return finished figures, so it is rarely needed after them. Write the actual numbers into the expression. Supports + - * / ** and parentheses.',
+    params: CALC_FUNCTION_PARAMS,
+    handler({ expression }) {
+      const reason = blocked()
+      const result = reason ? { ok: false, error: reason } : evaluateExpression(expression)
+      turn.settleCall({ name: 'calc', args: { expression }, result }, callDurationMs())
+      return result
+    }
+  })
+
+  return functions
 }
 
 async function handleChat(
@@ -590,7 +755,8 @@ async function handleChat(
   prompt: string,
   toolScope: ChatToolScope,
   currency: string | null,
-  goalRows: GoalTableRows
+  goalRows: GoalTableRows,
+  tools: ChatToolInputs
 ): Promise<ChatGenerationResult> {
   // register as the active generation before any await so an abortGenerate
   // that lands while the chat context is still being created isn't lost
@@ -610,14 +776,26 @@ async function handleChat(
     const turn = createTurnLog((index, part) => post({ event: 'chatPart', id, index, part }))
     // one local date for the whole turn, same 'YYYY-MM-DD' the prompt quotes
     const today = new Date().toLocaleDateString('en-CA')
-    const first = ensureToolDb().prepare('SELECT MIN(txn_date) AS d FROM tx').get() as {
-      d: string | null
+    const db = ensureToolDb()
+    const span = db.prepare('SELECT MIN(txn_date) AS min, MAX(txn_date) AS max FROM tx').get() as {
+      min: string | null
+      max: string | null
     }
     const state: ChatTurnState = {
       handledCalls: 0,
       lastQuery: null,
-      partialMonths: partialMonths(first.d, today)
+      lastChart: null,
+      partialMonths: partialMonths(span.min, today),
+      proposed: false
     }
+    const analysis: AnalysisContext = {
+      db,
+      today,
+      data: span.min && span.max ? { min: span.min, max: span.max } : null,
+      vocab: tools.vocab,
+      goalPace: tools.goalPace
+    }
+    seedLastResult(tools.seed, analysis, state)
     // wall-clock when the tool call being written opened; each handler reads the
     // span up to its own settle, so the chain of thought can total tool time
     let openedCallAt: number | null = null
@@ -625,7 +803,7 @@ async function handleChat(
       turn,
       currency,
       state,
-      today,
+      analysis,
       callDurationMs: () => (openedCallAt === null ? 0 : Date.now() - openedCallAt)
     })
 
@@ -700,7 +878,8 @@ async function dispatch(command: WorkerCommand): Promise<unknown> {
         command.prompt,
         command.toolScope,
         command.currency,
-        command.goalRows
+        command.goalRows,
+        command.tools
       )
   }
 }

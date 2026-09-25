@@ -54,6 +54,9 @@ describe('goal input schemas', () => {
       goalCreateSchema.safeParse({ ...base, targetDate: '2027-13-01', accountIds: [1] }).success
     ).toBe(false)
     expect(
+      goalCreateSchema.safeParse({ ...base, targetDate: '2027-02-30', accountIds: [1] }).success
+    ).toBe(false)
+    expect(
       goalCreateSchema.safeParse({ ...base, targetDate: '2027-03-31', accountIds: [1] }).success
     ).toBe(true)
   })
