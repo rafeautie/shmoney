@@ -1,3 +1,4 @@
+import { GOAL_STATUS_LABELS } from '@shared/goals'
 import { SAVINGS_GOALS_TEMPLATE, SPENDING_OVERVIEW_TEMPLATE } from '@shared/report-templates'
 import { AccountDraft, cents, dayAt, random, type Day } from './generate'
 import { usd } from './format'
@@ -413,6 +414,46 @@ export const household: DatasetDefinition = {
             highest && lowest
               ? `Your best month was **${highest.month}** at ${usd(highest.net)}, and the tightest was **${lowest.month}** at ${usd(lowest.net)}.`
               : ''
+          ].join('\n')
+        )
+      }
+    },
+    {
+      question: 'Am I on track with my savings goals?',
+      hoursAgo: 1,
+      answer(turn) {
+        turn.think(
+          'This is about saving toward goals, so the goals tool with view status covers every goal at once: saved, target, status and what each needs per month.'
+        )
+        const { result } = turn.tool('goals', { goal: null, view: 'status', chart: 'none' })
+        turn.chart({
+          type: 'bar',
+          title: 'Saved toward each goal',
+          x: 'goal',
+          series: ['saved', 'target'],
+          group: null
+        })
+        const rows = (result.rows ?? []) as [string, number, number, number, number, string][]
+        const facts = result.facts ?? {}
+        const behind = rows.filter((row) => row[5] === GOAL_STATUS_LABELS.behind)
+        const onPace = rows.filter((row) => row[5] !== GOAL_STATUS_LABELS.behind)
+        turn.say(
+          [
+            `You've saved ${usd(Number(facts.total_saved ?? 0))} of ${usd(Number(facts.total_target ?? 0))} across ${rows.length} goals.`,
+            '',
+            ...onPace.map(
+              ([name, saved, target]) => `- **${name}**: ${usd(saved)} of ${usd(target)}`
+            ),
+            ...behind.map(
+              ([name, saved, target]) =>
+                `- **${name}**: ${usd(saved)} of ${usd(target)}, behind pace`
+            ),
+            '',
+            `Staying on pace takes about ${usd(Number(facts.needed_per_month_total ?? 0))} a month in total${
+              facts.can_fund === 'yes'
+                ? `, which your average monthly surplus of ${usd(Number(facts.average_monthly_net ?? 0))} covers.`
+                : '.'
+            }`
           ].join('\n')
         )
       }

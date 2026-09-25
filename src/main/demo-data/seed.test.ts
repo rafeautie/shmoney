@@ -39,7 +39,7 @@ describe('seedDataset household', () => {
     expect(count(schema.savingsGoalAccounts)).toBe(3)
     expect(count(schema.savedFilters)).toBe(2)
     expect(count(schema.ruleSuggestions)).toBe(1)
-    expect(count(schema.conversations)).toBe(2)
+    expect(count(schema.conversations)).toBe(3)
   })
 
   it('pairs transfers and categorizes history through the real sync', () => {
@@ -64,7 +64,12 @@ describe('seedDataset household', () => {
     const charts = messages.flatMap((m) =>
       m.parts.filter((p) => p.type === 'functionCall' && p.name === 'chart')
     )
-    expect(charts).toHaveLength(2)
+    expect(charts).toHaveLength(3)
+    // the goals turn reads the seeded goals, which must land before the chats
+    const goalCall = messages
+      .flatMap((m) => m.parts)
+      .find((p) => p.type === 'functionCall' && p.name === 'goals')
+    expect(goalCall).toMatchObject({ result: { rowCount: 3 } })
     const unseen = db
       .select()
       .from(schema.conversations)

@@ -3,9 +3,16 @@ import type { AnalysisToolName, ChartSpec, ChatMessagePart, QueryToolResult } fr
 import { db } from '../db'
 import { prepareChart } from '../llm/tools/chart-tool'
 import { evaluateExpression } from '../llm/tools/calc-tool'
-import { scopeViewsDdl, shapeResult } from '../llm/tools/sql-tool'
+import {
+  GOAL_HISTORY_INSERT_SQL,
+  GOAL_INSERT_SQL,
+  goalTableDdl,
+  scopeViewsDdl,
+  shapeResult
+} from '../llm/tools/sql-tool'
+import { goalInputs } from '../llm/features/chat'
 import { ANALYSIS_RUNNERS, type AnalysisContext } from '../llm/tools/analysis'
-import type { ToolDb, ToolOutput } from '../llm/tools/analysis/common'
+import type { GoalPaceInput, ToolDb, ToolOutput } from '../llm/tools/analysis/common'
 import type { ChatScript } from './types'
 
 // Seeded chat transcripts. The model runs on-device, so the demo can't answer
@@ -30,7 +37,7 @@ const toolDb: ToolDb = {
   })
 }
 
-function scriptContext(today: string): AnalysisContext {
+function scriptContext(today: string, goalPace: GoalPaceInput[]): AnalysisContext {
   const span = db.get<{ min: string | null; max: string | null }>(
     sql.raw('SELECT MIN(txn_date) AS min, MAX(txn_date) AS max FROM tx')
   )
@@ -45,9 +52,9 @@ function scriptContext(today: string): AnalysisContext {
         "SELECT name FROM categories WHERE system_key IS NULL OR system_key = 'income' ORDER BY name"
       ),
       accounts: names('SELECT name FROM accounts ORDER BY name'),
-      goals: []
+      goals: goalPace.map((goal) => goal.name)
     },
-    goalPace: []
+    goalPace
   }
 }
 
@@ -59,7 +66,10 @@ export class Turn {
   readonly parts: ChatMessagePart[] = []
   private lastQuery: QueryToolResult | null = null
 
-  constructor(readonly today: string) {}
+  constructor(
+    readonly today: string,
+    private readonly goalPace: GoalPaceInput[]
+  ) {}
 
   think(text: string): void {
     this.parts.push({ type: 'reasoning', text, durationMs: thinkMs(text) })
@@ -90,7 +100,7 @@ export class Turn {
 
   /** a typed tool call, drawing its own chart the way the worker does */
   tool(name: AnalysisToolName, args: Record<string, unknown>): ToolOutput {
-    const output = ANALYSIS_RUNNERS[name](args, scriptContext(this.today))
+    const output = ANALYSIS_RUNNERS[name](args, scriptContext(this.today, this.goalPace))
     if (!output.result.ok) throw new Error(`demo ${name}: ${output.result.error}`)
     this.parts.push({
       type: 'functionCall',
@@ -133,18 +143,23 @@ export class Turn {
   }
 }
 
-/** Run a script's turn with the chat tool's all-accounts views in place. */
+/** Run a script's turn with the chat tool's all-accounts views and goal tables in place. */
 export function runChatScript(script: ChatScript, today: string): ChatMessagePart[] {
   const ddl = scopeViewsDdl({ accountId: null })
   // temp views shadow the real tables for unqualified names on this
   // connection, so they must be gone before any other code queries it
   const views = ddl.flatMap((s) => /^CREATE TEMP VIEW (\w+)/.exec(s)?.[1] ?? [])
+  const goals = goalInputs(null)
   try {
-    for (const statement of ddl) db.run(sql.raw(statement))
-    const turn = new Turn(today)
+    for (const statement of [...ddl, ...goalTableDdl()]) db.run(sql.raw(statement))
+    for (const row of goals.rows.goals) db.run(bound(GOAL_INSERT_SQL, row))
+    for (const row of goals.rows.history) db.run(bound(GOAL_HISTORY_INSERT_SQL, row))
+    const turn = new Turn(today, goals.pace)
     script.answer(turn)
     return turn.parts
   } finally {
     for (const view of views) db.run(sql.raw(`DROP VIEW IF EXISTS temp.${view}`))
+    db.run(sql.raw('DROP TABLE IF EXISTS temp.goals'))
+    db.run(sql.raw('DROP TABLE IF EXISTS temp.goal_history'))
   }
 }

@@ -143,8 +143,9 @@ export async function seedDataset(id: string): Promise<void> {
     .run()
   await syncConnection()
 
-  seedExtras(dataset, category, now)
+  // before the extras, whose chat scripts read the goals
   seedGoals(dataset, now)
+  seedExtras(dataset, category, now)
 }
 
 function seedExtras(
