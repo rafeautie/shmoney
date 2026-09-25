@@ -211,8 +211,8 @@ if (!app.requestSingleInstanceLock()) {
   })
 }
 
+// single-window app: closing the window quits on macOS too, instead of the
+// default of lingering in the dock
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  app.quit()
 })
