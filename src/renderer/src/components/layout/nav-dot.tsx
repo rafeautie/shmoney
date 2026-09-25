@@ -7,11 +7,16 @@ const TONES: Record<DotTone, string> = {
   busy: 'animate-pulse-busy bg-sidebar-foreground'
 }
 
-export function StatusDot({ tone, className }: { tone: DotTone; className?: string }) {
+/** A null tone draws a hollow placeholder of the same size. */
+export function StatusDot({ tone, className }: { tone: DotTone | null; className?: string }) {
   return (
     <span
       aria-hidden
-      className={cn('block size-2 shrink-0 rounded-full', TONES[tone], className)}
+      className={cn(
+        'block size-2 shrink-0 rounded-full',
+        tone ? TONES[tone] : 'border border-sidebar-foreground/40',
+        className
+      )}
     />
   )
 }
