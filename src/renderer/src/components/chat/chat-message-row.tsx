@@ -9,7 +9,6 @@ import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
 import { AssistantBubble } from '@/components/chat/assistant-bubble'
 import { ThoughtChain, type ChainPart } from '@/components/chat/thought-chain'
-import { GeneratingMark } from '@/components/chat/generating-mark'
 
 /**
  * An assistant turn's parts, strictly in order, nothing held back: chains of
@@ -171,7 +170,6 @@ export function ChatMessageRow({
             Goals
           </Badge>
         )}
-        <GeneratingMark active={streaming && parts.length > 0} />
         {message.status === 'interrupted' && <MessageFooter>Stopped generating</MessageFooter>}
       </MessageContent>
     </Message>

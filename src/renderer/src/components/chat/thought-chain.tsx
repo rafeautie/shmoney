@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import {
   Analytics01Icon,
@@ -245,7 +245,10 @@ interface HeaderView {
   key: string
   icon: IconSvgElement
   label: string
+  /** the step itself is in flight, so its timer runs */
   active: boolean
+  /** the run is still going: the line stays dimmed and shimmering, finished steps included */
+  live: boolean
   failed: boolean
   spin?: boolean
   toolCount?: number
@@ -262,12 +265,20 @@ function headerView(
     if (!streaming) return null
     // the same key as a first reasoning step, so its timer carries on from here
     return modelReady
-      ? { key: '0:Thinking…', icon: BrainIcon, label: 'Thinking…', active: true, failed: false }
+      ? {
+          key: '0:Thinking…',
+          icon: BrainIcon,
+          label: 'Thinking…',
+          active: true,
+          live: true,
+          failed: false
+        }
       : {
           key: '0:Loading model…',
           icon: Loading03Icon,
           label: 'Loading model…',
           active: true,
+          live: true,
           failed: false,
           spin: true
         }
@@ -279,6 +290,7 @@ function headerView(
       icon: last.kind === 'tool' ? last.icon : BrainIcon,
       label: last.label,
       active: last.active,
+      live: true,
       failed: last.kind === 'tool' && last.failed
     }
   }
@@ -288,11 +300,14 @@ function headerView(
     icon: BrainIcon,
     label: `Thought for ${formatThoughtDuration(parts.reduce((sum, p) => sum + stepDurationMs(p), 0))}`,
     active: false,
+    live: false,
     // the run's last tool call, for the failed-at-a-glance signal
     failed: tools[tools.length - 1]?.failed ?? false,
     toolCount: tools.length
   }
 }
+
+type ShownHeader = HeaderView & { startedAt: number }
 
 /** a label stays up at least this long, so quick tool calls don't flicker past */
 const MIN_DWELL_MS = 1000
@@ -303,9 +318,8 @@ const MIN_DWELL_MS = 1000
  * start time is when the step began, not when it got its turn on screen, so
  * the elapsed timer stays honest.
  */
-function useDwellingHeader(target: HeaderView | null) {
+function useDwellingHeader(target: HeaderView | null): ShownHeader | null {
   const [shown, setShown] = useState(() => target && { ...target, startedAt: Date.now() })
-  const [initialKey] = useState(target?.key)
   const latest = useRef(target)
   const shownAt = useRef(0)
   useEffect(() => {
@@ -326,8 +340,7 @@ function useDwellingHeader(target: HeaderView | null) {
   }, [key])
   if (!target || !shown) return null
   // same step: take its live fields (a call can fail in place) but keep the start
-  const view = shown.key === target.key ? { ...target, startedAt: shown.startedAt } : shown
-  return { ...view, animate: view.key !== initialKey }
+  return shown.key === target.key ? { ...target, startedAt: shown.startedAt } : shown
 }
 
 /**
@@ -351,10 +364,138 @@ function useNow(ticking: boolean, step: string | undefined) {
 }
 
 /**
+ * One of two suffixes sharing a slot: the shown one sits in flow (so the line's
+ * width eases to it), the other overlays it absolutely while it fades out.
+ */
+function Suffix({
+  shown,
+  className,
+  children
+}: {
+  shown: boolean
+  className?: string
+  children: ReactNode
+}) {
+  return (
+    <span
+      aria-hidden={!shown}
+      className={cn(
+        'transition-[opacity,filter] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+        !shown && 'absolute top-0 left-0 opacity-0 blur-[2px]',
+        className
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+/**
+ * One step's line: icon and label. An in-flight step's trailing ellipsis gives
+ * way to its timer once it has run a second, crossfading in the same slot.
+ */
+function HeaderLabel({ view, now }: { view: ShownHeader; now: number }) {
+  const elapsedMs = now - view.startedAt
+  const pending = view.active && view.label.endsWith('…')
+  const showTimer = pending && elapsedMs >= 1000
+  const calls = view.toolCount ? ` · ${view.toolCount} call${view.toolCount === 1 ? '' : 's'}` : ''
+  return (
+    <>
+      <HugeiconsIcon
+        icon={view.icon}
+        strokeWidth={2}
+        className={cn('size-3.5 shrink-0', view.spin && 'animate-spin')}
+      />
+      <span>
+        {pending ? view.label.slice(0, -1) : view.label + calls}
+        {pending && (
+          <span className="relative">
+            <Suffix shown={!showTimer}>…</Suffix>
+            <Suffix shown={showTimer} className="tabular-nums whitespace-pre">
+              {` · ${formatThoughtDuration(Math.max(elapsedMs, 1000))}`}
+            </Suffix>
+          </span>
+        )}
+      </span>
+    </>
+  )
+}
+
+const LAYER = 'flex w-max items-center gap-1.5 whitespace-nowrap [grid-area:1/1]'
+
+/**
+ * The status line's text. A new step crossfades in place over the old one,
+ * stacked in the same grid cell so nothing moves, while the line's width eases
+ * to the new label so the chevron glides rather than jumps. The shimmer spans
+ * the whole line for as long as the run is live, finished steps included, so
+ * it never restarts or flickers between steps; it fades out only when the line
+ * becomes the settled summary, and its mask comes off once that fade is over,
+ * so settled lines carry no running animation.
+ */
+function StatusLine({ view, now }: { view: ShownHeader; now: number }) {
+  const [initialKey] = useState(view.key)
+  const [current, setCurrent] = useState(view)
+  const [leaving, setLeaving] = useState<{ view: ShownHeader; now: number }[]>([])
+  const [shimmering, setShimmering] = useState(view.live)
+  const [width, setWidth] = useState<number>()
+  if (view.key !== current.key) {
+    setLeaving((prev) => [...prev, { view: current, now }])
+    setCurrent(view)
+  }
+  if (view.live && !shimmering) setShimmering(true)
+  // a timer, not transitionend: a fade that runs while the window is hidden
+  // never reports its end, and the mask would stay on for good
+  useEffect(() => {
+    if (view.live || !shimmering) return
+    const timer = setTimeout(() => setShimmering(false), 400)
+    return () => clearTimeout(timer)
+  }, [view.live, shimmering])
+
+  const measure = useCallback((el: HTMLSpanElement | null) => {
+    if (!el) return
+    const observer = new ResizeObserver(([entry]) => setWidth(entry.borderBoxSize[0].inlineSize))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <span
+      className={cn(
+        'grid justify-items-start overflow-hidden transition-[width,--shimmer-dim] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+        shimmering && 'animate-shimmer',
+        !view.live && '[--shimmer-dim:100%]'
+      )}
+      style={{ width }}
+    >
+      {leaving.map((layer) => (
+        <span
+          key={layer.view.key}
+          aria-hidden
+          className={cn(LAYER, 'animate-label-out')}
+          onAnimationEnd={(e) => {
+            if (e.target === e.currentTarget)
+              setLeaving((prev) => prev.filter((other) => other !== layer))
+          }}
+        >
+          <HeaderLabel view={layer.view} now={layer.now} />
+        </span>
+      ))}
+      <span
+        key={view.key}
+        ref={measure}
+        className={cn(LAYER, view.key !== initialKey && 'animate-label-in')}
+      >
+        <HeaderLabel view={view} now={now} />
+      </span>
+    </span>
+  )
+}
+
+/**
  * A turn's chain of thought as one collapsible, and the turn's one status line
  * from send to settle. Before anything streams it stands in as the waiting
  * state ("Loading model…", "Thinking…"); while the run is live it tracks the
- * in-flight step with a per-step elapsed timer, sliding each new step in; once
+ * in-flight step with a per-step elapsed timer, crossfading each new step; once
  * the run settles it becomes a summary of the whole section: how long it took
  * (thinking and tool calls alike) and how many calls ran, e.g. "Thought for 6s
  * · 3 calls". Expanded it lays every step on a rail: thoughts as quote-bar
@@ -390,9 +531,6 @@ export function ThoughtChain({
   const now = useNow(header?.active ?? false, header?.key)
   if (!header) return null
 
-  const elapsedMs = now - header.startedAt
-  const showTimer = header.active && elapsedMs >= 1000
-
   return (
     <>
       <ChainOfThought open={open} onOpenChange={setUserOpen} disabled={steps.length === 0}>
@@ -402,41 +540,15 @@ export function ThoughtChain({
             header.failed && 'text-destructive not-disabled:hover:text-destructive'
           )}
         >
-          {/* keyed so each new step slides in; the shimmer sits on an inner
-              span because both animations would claim `animation` */}
-          <span
-            key={header.key}
+          <StatusLine view={header} now={now} />
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            strokeWidth={2}
             className={cn(
-              'flex items-center',
-              header.animate && 'animate-in duration-300 fade-in-0 slide-in-from-bottom-1'
+              '-ml-0.5 size-3.5 transition-[rotate,opacity] duration-200 ease-out group-data-panel-open/cot:rotate-90 motion-reduce:transition-none',
+              steps.length === 0 && 'opacity-0'
             )}
-          >
-            <span className={cn('flex items-center gap-1.5', header.active && 'animate-shimmer')}>
-              <HugeiconsIcon
-                icon={header.icon}
-                strokeWidth={2}
-                className={cn('size-3.5', header.spin && 'animate-spin')}
-              />
-              <span className="text-left">
-                {showTimer ? header.label.replace(/…$/, '') : header.label}
-                {showTimer && (
-                  <span className="tabular-nums"> · {formatThoughtDuration(elapsedMs)}</span>
-                )}
-              </span>
-            </span>
-          </span>
-          {!!header.toolCount && (
-            <span className="opacity-70">
-              · {header.toolCount} call{header.toolCount === 1 ? '' : 's'}
-            </span>
-          )}
-          {steps.length > 0 && (
-            <HugeiconsIcon
-              icon={ArrowRight01Icon}
-              strokeWidth={2}
-              className="-ml-0.5 size-3.5 group-data-panel-open/cot:rotate-90"
-            />
-          )}
+          />
         </CollapsibleTrigger>
         <ChainOfThoughtContent>
           {steps.map((step, i) =>
