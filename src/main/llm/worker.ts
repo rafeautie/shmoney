@@ -34,6 +34,9 @@ import type { ChartSpec, ChartToolResult, QueryToolResult } from '@shared/chat'
 import type { ChatGenerationResult, WorkerCommand, WorkerMessage } from './protocol'
 import { createTurnLog, type TurnLog } from './turn-log'
 import {
+  GOAL_HISTORY_INSERT_SQL,
+  GOAL_INSERT_SQL,
+  goalTableDdl,
   MAX_ROWS,
   MAX_TOOL_CALLS_PER_TURN,
   scopeViewsDdl,
@@ -41,7 +44,8 @@ import {
   partialMonths,
   shapeResult,
   validateQuerySql,
-  type ChatToolScope
+  type ChatToolScope,
+  type GoalTableRows
 } from './tools/sql-tool'
 import { CHART_FUNCTION_PARAMS, chartCallNote, prepareChart } from './tools/chart-tool'
 import { CALC_FUNCTION_PARAMS, evaluateExpression } from './tools/calc-tool'
@@ -157,15 +161,20 @@ function closeToolDb(): void {
 
 /**
  * (Re)build the temp views the model queries through, narrowed to the turn's
- * scope. query_only lifts only around our own DDL; a failure here must fail
- * the turn (never prompt against a stale scope), so no try/catch beyond
- * restoring the pragma.
+ * scope, and refill the goal tables from the rows main sent. query_only lifts
+ * only around our own DDL; a failure here must fail the turn (never prompt
+ * against a stale scope), so no try/catch beyond restoring the pragma.
  */
-function refreshScopeViews(scope: ChatToolScope): void {
+function refreshScopeViews(scope: ChatToolScope, goalRows: GoalTableRows): void {
   const db = ensureToolDb()
   db.pragma('query_only = OFF')
   try {
     for (const ddl of scopeViewsDdl(scope)) db.exec(ddl)
+    for (const ddl of goalTableDdl()) db.exec(ddl)
+    const goal = db.prepare(GOAL_INSERT_SQL)
+    for (const row of goalRows.goals) goal.run(...(row as Parameters<typeof goal.run>))
+    const history = db.prepare(GOAL_HISTORY_INSERT_SQL)
+    for (const row of goalRows.history) history.run(...(row as Parameters<typeof history.run>))
   } finally {
     db.pragma('query_only = ON')
   }
@@ -580,7 +589,8 @@ async function handleChat(
   history: ChatHistoryItem[],
   prompt: string,
   toolScope: ChatToolScope,
-  currency: string | null
+  currency: string | null,
+  goalRows: GoalTableRows
 ): Promise<ChatGenerationResult> {
   // register as the active generation before any await so an abortGenerate
   // that lands while the chat context is still being created isn't lost
@@ -589,7 +599,7 @@ async function handleChat(
   try {
     const session = await ensureChatSession()
     if (controller.signal.aborted) return { parts: [], interrupted: true }
-    refreshScopeViews(toolScope)
+    refreshScopeViews(toolScope, goalRows)
     // the whole prior conversation is replaced per turn (stateless worker: the
     // feature owns history in the DB), so switching conversations needs nothing
     session.setChatHistory(history)
@@ -689,7 +699,8 @@ async function dispatch(command: WorkerCommand): Promise<unknown> {
         command.history,
         command.prompt,
         command.toolScope,
-        command.currency
+        command.currency,
+        command.goalRows
       )
   }
 }

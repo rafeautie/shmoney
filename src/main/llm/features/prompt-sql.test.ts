@@ -1,7 +1,8 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { GOAL_STATUS_LABELS } from '@shared/goals'
 import { scopeViewsDdl } from '../tools/sql-tool'
-import { migratedDb } from '../test-db'
+import { migratedDb, seedGoalTables } from '../test-db'
 import type { PromptDbContext } from './chat'
 import { monthSpanLines } from '../system-prompt'
 
@@ -113,6 +114,7 @@ function open(): DatabaseSync {
   const db = migratedDb()
   seed(db)
   for (const ddl of scopeViewsDdl({ accountId: null })) db.exec(ddl)
+  seedGoalTables(db)
   return db
 }
 
@@ -132,7 +134,7 @@ describe('system prompt SQL', () => {
   it('extracts every recipe from the prompt', () => {
     // bump deliberately when adding a recipe, and add its assertions below;
     // this is what stops a new recipe from shipping unexecuted
-    expect(RECIPES).toHaveLength(10)
+    expect(RECIPES).toHaveLength(12)
   })
 
   // a recurring charge is a description repeating across months at a steady
@@ -161,6 +163,39 @@ describe('system prompt SQL', () => {
     expect(db.prepare(recipe as string).all()).toEqual([
       { category: '🍽️ Dining Out', budget: 150, spent: 30, available: 120 }
     ])
+  })
+
+  // a figure recomputed from transactions is one that disagrees with the card
+  it('reads a goal status readout straight off the row', () => {
+    const recipe = RECIPES.find((r) => r.includes('FROM goals'))
+    expect(recipe).toBeDefined()
+    expect(recipe).toContain('LIKE')
+    expect(recipe).not.toMatch(/name\s*=/)
+    expect(db.prepare(recipe as string).all()).toEqual([
+      {
+        name: 'Japan trip',
+        saved: 3120,
+        target: 6000,
+        remaining: 2880,
+        percent_complete: 52,
+        status: 'Behind',
+        needed_per_month: 720,
+        target_date: '2027-03-31'
+      }
+    ])
+  })
+
+  it('quotes only status words the goals table can hold', () => {
+    for (const label of Object.values(GOAL_STATUS_LABELS)) expect(PROMPT).toContain(`'${label}'`)
+  })
+
+  it('charts a goal trend from goal_history, the x-plus-measure shape', () => {
+    const recipe = RECIPES.find((r) => r.includes('FROM goal_history'))
+    expect(recipe).toBeDefined()
+    const rows = db.prepare(recipe as string).all() as Record<string, unknown>[]
+    expect(rows.length).toBeGreaterThan(2)
+    expect(Object.keys(rows[0])).toEqual(['month', 'saved'])
+    expect(rows.at(-1)).toEqual({ month: '2026-07', saved: 3120 })
   })
 
   it('tx drops transfers, pending and undated rows', () => {

@@ -265,3 +265,48 @@ export function partialMonthNote(rows: unknown[][], partial: string[]): string |
   if (present.length === 0) return null
   return `${present.join(' and ')} ${present.length === 1 ? 'is a partial month' : 'are partial months'} (the data starts or the month is still in progress there): never call ${present.length === 1 ? 'it' : 'either'} the lowest, highest or typical month, and leave ${present.length === 1 ? 'it' : 'them'} out of any range or average you state.`
 }
+
+/**
+ * Tables rather than views: pace is calendar-month arithmetic that SQL can only
+ * approximate, so main/goals works it out and the model reads finished numbers.
+ * Value-free on purpose - rows are bound (GOAL_INSERT_SQL), because a goal name
+ * is user text.
+ */
+export function goalTableDdl(): string[] {
+  return [
+    'DROP TABLE IF EXISTS temp.goals',
+    'CREATE TEMP TABLE goals (' +
+      'id INTEGER, ' +
+      'name TEXT, ' +
+      'mode TEXT, ' +
+      'accounts TEXT, ' +
+      'currency TEXT, ' +
+      'target REAL, ' +
+      'saved REAL, ' +
+      'remaining REAL, ' +
+      'percent_complete REAL, ' +
+      'status TEXT, ' +
+      'target_date TEXT, ' +
+      'started_at TEXT, ' +
+      'needed_per_month REAL, ' +
+      'average_per_month REAL, ' +
+      'projected_date TEXT)',
+    'DROP TABLE IF EXISTS temp.goal_history',
+    // goal is the name, so the model never joins for a label
+    'CREATE TEMP TABLE goal_history (goal_id INTEGER, goal TEXT, month TEXT, saved REAL)'
+  ]
+}
+
+export const GOAL_INSERT_SQL =
+  'INSERT INTO temp.goals (id, name, mode, accounts, currency, target, saved, remaining, ' +
+  'percent_complete, status, target_date, started_at, needed_per_month, average_per_month, ' +
+  'projected_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+
+export const GOAL_HISTORY_INSERT_SQL =
+  'INSERT INTO temp.goal_history (goal_id, goal, month, saved) VALUES (?, ?, ?, ?)'
+
+/** bound-parameter rows for the two tables, in their INSERT column order */
+export interface GoalTableRows {
+  goals: unknown[][]
+  history: unknown[][]
+}

@@ -28,7 +28,11 @@ export const settingSchemas = {
   // whether the first-run onboarding dialog has been finished or skipped
   onboardingComplete: z.boolean(),
   // newest automated Activity entry the user has seen; drives the Activity nav dot
-  activitySeenAt: z.number().nullable()
+  activitySeenAt: z.number().nullable(),
+  // how the Goals page lists goals: editable cards or one row each
+  goalsView: z.enum(['cards', 'table']),
+  // the same choice for the Budget page's envelopes
+  budgetView: z.enum(['cards', 'table'])
 }
 
 export type SettingKey = keyof typeof settingSchemas
@@ -46,7 +50,10 @@ export const SETTINGS_DEFAULTS: Settings = {
   applyRulesOnSync: true,
   ruleSuggestionsEnabled: true,
   onboardingComplete: false,
-  activitySeenAt: null
+  activitySeenAt: null,
+  goalsView: 'cards',
+  // the envelope table is what the page has always opened as
+  budgetView: 'table'
 }
 
 export const SETTINGS_IPC = {

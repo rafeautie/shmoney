@@ -46,10 +46,36 @@ Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and 
 - 💬 **Chat with your finances (experimental).** Ask the same on-device model questions about your finances; it runs read-only SQL queries and can chart the results, scoped to one account if you like, fully offline with history stored locally.
 - ⚡ **Rules engine.** Prioritized rules run on every sync; the app suggests new ones from how you categorize.
 - ✉️ **Envelope budgeting.** Assign monthly amounts to category envelopes and track what remains.
+- 🎯 **Savings goals.** Point a goal at the accounts your savings land in; progress, pace, and a projected finish date are derived from your transactions, never typed in.
 - 📊 **Custom reports.** Drag-and-drop dashboards with chart, table, and stat widgets, plus saved filters.
 - 🔁 **Transfer detection.** Money moved between your own accounts is excluded from income and spending.
 - ↩️ **Activity log with undo.** Every change is recorded and reversible, even across restarts.
 - 📈 **Investments and net worth.** Holdings with market value and cost basis, and per-currency net worth.
+
+## 🎯 Savings goals
+
+A goal is a target amount plus the accounts the money lands in. Nothing is entered by hand: every figure
+on it is read back out of your transactions, so a goal can never drift away from what the accounts say.
+
+Goals come in two kinds, fixed when you create one:
+
+- **Balance.** Track what an account holds toward a target balance. Good for an emergency fund you want to reach a number.
+- **Contributions.** Count only what has gone in since the goal started. Good for saving toward something new in an account you already had money in.
+
+Give a goal a target date and it works out what you need to put away each month, what you have averaged so far,
+and when you will arrive at the current rate. It carries a status of Reached, On track, Behind, or Overdue, and the
+progress bar marks where you should be by now. Leave the date off and you still get the average and the projection.
+
+One goal can span several accounts as long as they share a currency, and a goal you no longer want in the
+way can be archived rather than deleted.
+
+Goals show up wherever they are useful, all reading the same numbers:
+
+- The **Goals** page, as a card or a row per goal, with totals across all of them.
+- The **Budget** page's Saved card, comparing what you put away this month against the plan.
+- **Report** widgets for progress, saved per goal, and saved over time, plus a ready-made Savings Goals report.
+- The **account** page, which shows the goals pointed at that account.
+- **Chat**, which can answer questions about how your goals are doing.
 
 ## 📸 Screenshots
 
@@ -66,6 +92,12 @@ Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and 
 </details>
 
 <details>
+<summary>🎯 Goals</summary>
+<br>
+<img src="docs/screenshots/goals.png" alt="Goals page with savings goal cards, progress, and pace" />
+</details>
+
+<details>
 <summary>✉️ Budget</summary>
 <br>
 <img src="docs/screenshots/budget.png" alt="Envelope budget with monthly assignments and remaining amounts" />
@@ -77,6 +109,8 @@ Built with Electron, React, TypeScript, and SQLite. Runs on Windows, macOS, and 
 <img src="docs/screenshots/reports.png" alt="Reports list of saved dashboards" />
 <br><br>
 <img src="docs/screenshots/report-detail.png" alt="Spending Overview report with stat, bar, pie, and line widgets" />
+<br><br>
+<img src="docs/screenshots/savings-goals-report.png" alt="Savings Goals report with progress bars, saved per goal, and saved over time" />
 </details>
 
 <details>

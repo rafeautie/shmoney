@@ -6,6 +6,7 @@ import { registerTransactionsIpc } from '../main/ipc/transactions'
 import { registerActionLogIpc } from '../main/ipc/action-log'
 import { registerReportsIpc } from '../main/ipc/reports'
 import { registerBudgetsIpc } from '../main/ipc/budgets'
+import { registerGoalsIpc } from '../main/ipc/goals'
 import { registerSavedFiltersIpc } from '../main/ipc/saved-filters'
 import { registerRulesIpc } from '../main/ipc/rules'
 import { registerRuleSuggestionsIpc } from '../main/ipc/rule-suggestions'
@@ -32,6 +33,7 @@ registerTransactionsIpc()
 registerActionLogIpc()
 registerReportsIpc()
 registerBudgetsIpc()
+registerGoalsIpc()
 registerSavedFiltersIpc()
 registerRulesIpc()
 registerRuleSuggestionsIpc()

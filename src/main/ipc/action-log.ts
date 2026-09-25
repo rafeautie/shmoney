@@ -8,6 +8,7 @@ import {
   categories,
   conversations,
   savedFilters,
+  savingsGoals,
   transactions
 } from '../db/schema'
 import { dominantCurrency } from '../budgets/summary'
@@ -24,6 +25,7 @@ import {
   type BudgetActionChange,
   type ConversationActionChange,
   type SavedFilterActionChange,
+  type SavingsGoalActionChange,
   type TransactionActionChange,
   type UndoResult
 } from '@shared/ipc'
@@ -217,6 +219,22 @@ function setSavedFilterGuarded(
   return tx.update(savedFilters).set({ deletedAt: target }).where(where).run().changes
 }
 
+// same guarded semantics; goal names carry no unique index, so unlike saved
+// filters there's nothing to collide with on the way back
+function setGoalGuarded(
+  tx: Tx,
+  change: SavingsGoalActionChange,
+  direction: 'undo' | 'redo'
+): number {
+  const target = direction === 'undo' ? change.before : change.after
+  const guard = direction === 'undo' ? change.after : change.before
+  const where = and(
+    eq(savingsGoals.id, change.goalId),
+    guard === null ? isNull(savingsGoals.deletedAt) : sql`${savingsGoals.deletedAt} = ${guard}`
+  )
+  return tx.update(savingsGoals).set({ deletedAt: target }).where(where).run().changes
+}
+
 // undo rewinds each field to `before` (guarding on `after`); redo does the
 // reverse. Either way the guard makes it a no-op on rows touched since, so an
 // old entry can never clobber newer edits. Returns rows actually changed.
@@ -235,6 +253,8 @@ function applyEntry(entryId: number, direction: 'undo' | 'redo'): UndoResult {
         applied += setConversationGuarded(tx, change, direction)
       } else if (change.field === 'savedFilterDeletedAt') {
         applied += setSavedFilterGuarded(tx, change, direction)
+      } else if (change.field === 'savingsGoalDeletedAt') {
+        applied += setGoalGuarded(tx, change, direction)
       } else if (change.field === 'description') {
         applied += setDescriptionGuarded(tx, change, direction)
       } else {
@@ -340,7 +360,8 @@ function listEntries(): ActionLogEntry[] {
       if (
         change.field === 'conversationTitle' ||
         change.field === 'conversationDeletedAt' ||
-        change.field === 'savedFilterDeletedAt'
+        change.field === 'savedFilterDeletedAt' ||
+        change.field === 'savingsGoalDeletedAt'
       ) {
         return change
       }

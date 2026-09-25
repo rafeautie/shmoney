@@ -19,19 +19,18 @@ import { and, eq, gt, inArray, isNull, type SQL } from 'drizzle-orm'
 import { accounts, transactions } from '../db/schema'
 import { transactionDate } from '../db/expressions'
 
+/** Pending is excluded to match what a bank calls the "current" balance. */
+export function settledRowsWhere(): SQL | undefined {
+  return and(isNull(transactions.deletedAt), eq(transactions.pending, false))
+}
+
 /**
  * Which transactions count toward an account's delta. Requires `accounts` to be
  * joined, since the cutoff is per-account.
- *
- * Pending rows are excluded to match what a bank calls the "current" balance,
- * which also keeps the derived value equal to the reported one right after a
- * sync. Their impact stays visible through available-balance and the Pending
- * badge in the transactions table.
  */
 export function balanceDeltaWhere(ids?: number[]): SQL | undefined {
   return and(
-    isNull(transactions.deletedAt),
-    eq(transactions.pending, false),
+    settledRowsWhere(),
     // strictly after: a transaction dated at the anchor is already baked into
     // it. Note this also drops unknown-date rows (txn_date 0) on a manual
     // account anchored at 0 — theoretical, since sync, import, and manual

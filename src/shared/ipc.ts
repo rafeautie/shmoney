@@ -374,8 +374,22 @@ export interface SavedFilterActionChange {
   after: number | null
 }
 
+/** Carries its own name so Activity can show which goal went without a join. */
+export interface SavingsGoalActionChange {
+  field: 'savingsGoalDeletedAt'
+  goalId: number
+  name: string
+  /** unix seconds */
+  before: number | null
+  after: number | null
+}
+
 export type ActionChange =
-  TransactionActionChange | BudgetActionChange | ConversationActionChange | SavedFilterActionChange
+  | TransactionActionChange
+  | BudgetActionChange
+  | ConversationActionChange
+  | SavedFilterActionChange
+  | SavingsGoalActionChange
 
 /** A change enriched with its current context, for the Activity list. */
 export type ActionLogChange =
@@ -395,6 +409,7 @@ export type ActionLogChange =
     })
   | ConversationActionChange
   | SavedFilterActionChange
+  | SavingsGoalActionChange
 
 export interface ActionLogEntry {
   id: number

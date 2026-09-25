@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react'
+import { Link } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Loading03Icon, SparklesIcon } from '@hugeicons/core-free-icons'
+import { Loading03Icon, SparklesIcon, Target02Icon } from '@hugeicons/core-free-icons'
 import { messageText, type ChatMessage, type StreamingChatPart } from '@shared/chat'
 import type { ActiveReply } from '@/lib/chat'
 import { useLlmStatus } from '@/lib/llm'
+import { Badge } from '@/components/ui/badge'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
@@ -62,6 +64,17 @@ function Parts({
   })
   flushRun(streaming)
   return nodes
+}
+
+// decided off the SQL the turn ran, so nothing new has to be kept in step; a
+// loose match costs a spare link, never a wrong number
+const GOAL_QUERY = /\bgoals\b|\bgoal_history\b/i
+
+function queriedGoals(parts: StreamingChatPart[]): boolean {
+  return parts.some(
+    (part) =>
+      part.type === 'functionCall' && part.name === 'query' && GOAL_QUERY.test(part.args?.sql ?? '')
+  )
 }
 
 /** The turn is accepted but nothing has streamed yet. */
@@ -149,6 +162,16 @@ export function ChatMessageRow({
     <Message className={streaming ? 'animate-in fade-in-0 duration-300' : undefined}>
       <MessageContent>
         <Parts parts={parts} streaming={streaming} asOf={message.createdAt} />
+        {!streaming && queriedGoals(parts) && (
+          <Badge
+            variant="outline"
+            className="gap-1"
+            render={<Link to="/goals" aria-label="Open Goals" />}
+          >
+            <HugeiconsIcon icon={Target02Icon} strokeWidth={2} data-icon="inline-start" />
+            Goals
+          </Badge>
+        )}
         {message.status === 'interrupted' && <MessageFooter>Stopped generating</MessageFooter>}
       </MessageContent>
     </Message>

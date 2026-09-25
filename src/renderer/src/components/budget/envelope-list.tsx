@@ -1,16 +1,14 @@
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Delete02Icon } from '@hugeicons/core-free-icons'
-import type { BudgetSummary, EnvelopeSummary } from '@shared/budgets'
+import type { BudgetSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
+import { EditableFill } from '@/components/budget/envelope-fields'
 import { BalanceBadge, EnvelopeBar } from '@/components/budget/envelope-progress'
+import { useRemoveEnvelope } from '@/components/budget/use-envelopes'
 import { Button } from '@/components/ui/button'
-import { NumberInput } from '@/components/ui/number-input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { cn, currencySymbol, parseDollars, TABLE_BLEED } from '@/lib/utils'
+import { cn, TABLE_BLEED } from '@/lib/utils'
 
 export function EnvelopeList({
   summary,
@@ -19,42 +17,7 @@ export function EnvelopeList({
   summary: BudgetSummary
   className?: string
 }) {
-  const queryClient = useQueryClient()
-  const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ['budget-summary'] })
-    queryClient.invalidateQueries({ queryKey: ['actionLog'] })
-  }
-
-  const setFill = useMutation({
-    mutationFn: (input: { categoryId: number; month: string; amount: number }) =>
-      window.api.budgets.setFill(input),
-    onSettled: invalidate
-  })
-
-  const remove = useMutation({
-    mutationFn: (envelope: EnvelopeSummary) =>
-      window.api.budgets.remove({ categoryId: envelope.categoryId }).then((result) => ({
-        envelope,
-        actionId: result.actionId
-      })),
-    onSuccess: ({ envelope, actionId }) => {
-      if (actionId === null) return
-      // the removal is an action-log entry, so the toast's Undo replays the
-      // same entry Ctrl+Z would — one undo path, no separate restore call
-      toast(`Removed the ${envelope.categoryName} envelope`, {
-        action: {
-          label: 'Undo',
-          onClick: () => {
-            window.api.actionLog
-              .undoEntry(actionId)
-              .then(invalidate)
-              .catch(() => {})
-          }
-        }
-      })
-    },
-    onSettled: invalidate
-  })
+  const remove = useRemoveEnvelope()
 
   return (
     // full-bleed like the transactions table: rows and hover reach the app
@@ -92,16 +55,10 @@ export function EnvelopeList({
                 />
               </TableCell>
               <TableCell>
-                <FillCell
+                <EditableFill
                   envelope={envelope}
+                  month={summary.month}
                   currency={summary.currency}
-                  onCommit={(amount) =>
-                    setFill.mutate({
-                      categoryId: envelope.categoryId,
-                      month: summary.month,
-                      amount
-                    })
-                  }
                 />
               </TableCell>
               <TableCell className="text-right">
@@ -139,58 +96,5 @@ export function EnvelopeList({
         </TableBody>
       </table>
     </ScrollArea>
-  )
-}
-
-// click-to-edit fill amount: an edit made while viewing month M re-anchors the
-// fill from M forward and leaves earlier months' history untouched
-function FillCell({
-  envelope,
-  currency,
-  onCommit
-}: {
-  envelope: EnvelopeSummary
-  currency: string
-  onCommit: (amount: number) => void
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
-
-  if (!editing) {
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 px-2 font-normal tabular-nums"
-        onClick={() => {
-          setDraft((envelope.fill / 1000).toString())
-          setEditing(true)
-        }}
-      >
-        <Amount value={envelope.fill} currency={currency} colored={false} />
-      </Button>
-    )
-  }
-
-  function commit() {
-    const amount = parseDollars(draft)
-    if (amount !== null && amount !== envelope.fill) onCommit(amount)
-    setEditing(false)
-  }
-
-  return (
-    <NumberInput
-      autoFocus
-      prefix={currencySymbol(currency)}
-      min={0}
-      value={draft}
-      onValueChange={setDraft}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') commit()
-        if (e.key === 'Escape') setEditing(false)
-      }}
-      className="w-28"
-    />
   )
 }

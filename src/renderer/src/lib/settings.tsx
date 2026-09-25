@@ -127,6 +127,28 @@ export function useRuleSuggestionsEnabled() {
   }
 }
 
+export function useGoalsView() {
+  const { settings, setSetting } = useSettings()
+  return {
+    goalsView: settings.goalsView,
+    setGoalsView: useCallback(
+      (view: Settings['goalsView']) => setSetting('goalsView', view),
+      [setSetting]
+    )
+  }
+}
+
+export function useBudgetView() {
+  const { settings, setSetting } = useSettings()
+  return {
+    budgetView: settings.budgetView,
+    setBudgetView: useCallback(
+      (view: Settings['budgetView']) => setSetting('budgetView', view),
+      [setSetting]
+    )
+  }
+}
+
 export function useOnboarding() {
   const { settings, setSetting } = useSettings()
   return {

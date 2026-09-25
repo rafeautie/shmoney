@@ -1,15 +1,16 @@
 import { useState } from 'react'
+import type { BudgetSummary } from '@shared/budgets'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowLeft01Icon, ArrowRight01Icon, PiggyBankIcon } from '@hugeicons/core-free-icons'
-import type { BudgetSummary } from '@shared/budgets'
-import { Amount } from '@/components/amount'
 import { AddEnvelopeButton } from '@/components/budget/add-envelope-dialog'
+import { EnvelopeCard } from '@/components/budget/envelope-card'
 import { EnvelopeList } from '@/components/budget/envelope-list'
+import { Amount } from '@/components/amount'
+import { StatCards, type Stat } from '@/components/stat-cards'
+import { ViewToggle } from '@/components/view-toggle'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import {
   Empty,
   EmptyContent,
@@ -18,28 +19,22 @@ import {
   EmptyMedia,
   EmptyTitle
 } from '@/components/ui/empty'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatMonthLong } from '@/lib/format-date'
+import { useSavingsGoals, type SavingsGoals } from '@/hooks/use-savings-goals'
+import { currentMonth, formatMonthLong, shiftMonth } from '@/lib/format-date'
+import { useBudgetView } from '@/lib/settings'
 
 export const Route = createFileRoute('/budget/')({
   component: BudgetPage
 })
-
-// months are 'YYYY-MM' strings throughout, matching the budget engine's buckets
-function currentMonth(): string {
-  return format(new Date(), 'yyyy-MM')
-}
-
-function shiftMonth(month: string, delta: number): string {
-  const [y, m] = month.split('-').map(Number)
-  return format(new Date(y, m - 1 + delta, 1), 'yyyy-MM')
-}
 
 // planning horizon: fills inherit forward, so anything past a year out is noise
 const MAX_MONTHS_AHEAD = 12
 
 function BudgetPage() {
   const [month, setMonth] = useState(currentMonth)
+  const { budgetView, setBudgetView } = useBudgetView()
 
   const summaryQuery = useQuery({
     queryKey: ['budget-summary', month],
@@ -48,6 +43,7 @@ function BudgetPage() {
   })
   const summary = summaryQuery.data
   const budgetedIds = summary?.envelopes.map((e) => e.categoryId) ?? []
+  const goals = useSavingsGoals(month, summary?.currency ?? '')
 
   const today = currentMonth()
   const maxMonth = shiftMonth(today, MAX_MONTHS_AHEAD)
@@ -69,6 +65,12 @@ function BudgetPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* leftmost, so appearing and going does not shift the month picker */}
+            {month !== today && (
+              <Button variant="ghost" onClick={() => setMonth(today)}>
+                Today
+              </Button>
+            )}
             <Button
               variant="outline"
               size="icon"
@@ -88,17 +90,13 @@ function BudgetPage() {
               <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
               <span className="sr-only">Next month</span>
             </Button>
-            {month !== today && (
-              <Button variant="ghost" onClick={() => setMonth(today)}>
-                Today
-              </Button>
-            )}
+            <ViewToggle view={budgetView} onChange={setBudgetView} />
             <AddEnvelopeButton month={month} budgetedIds={budgetedIds} />
           </div>
         </div>
 
-        {summary !== undefined && summary.envelopes.length > 0 && (
-          <SummaryCards summary={summary} />
+        {summary !== undefined && (summary.envelopes.length > 0 || goals.counted > 0) && (
+          <StatCards stats={statCards(summary, goals)} currency={summary.currency} />
         )}
       </div>
 
@@ -108,7 +106,7 @@ function BudgetPage() {
           <Skeleton className="h-64 w-full" />
         </div>
       ) : summary.envelopes.length === 0 ? (
-        <div className="px-6 pb-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
           <Empty className="border">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -127,32 +125,64 @@ function BudgetPage() {
             </EmptyContent>
           </Empty>
         </div>
-      ) : (
+      ) : budgetView === 'table' ? (
         <EnvelopeList summary={summary} className="min-h-0 flex-1" />
+      ) : (
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="space-y-4 px-6 pb-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {summary.envelopes.map((envelope) => (
+                <EnvelopeCard
+                  key={envelope.categoryId}
+                  envelope={envelope}
+                  month={summary.month}
+                  currency={summary.currency}
+                />
+              ))}
+            </div>
+            {summary.unbudgetedSpent > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Unbudgeted spending{' '}
+                <Amount
+                  value={summary.unbudgetedSpent}
+                  currency={summary.currency}
+                  colored={false}
+                />
+              </p>
+            )}
+          </div>
+        </ScrollArea>
       )}
     </div>
   )
 }
 
-function SummaryCards({ summary }: { summary: BudgetSummary }) {
-  const stats = [
+/**
+ * Planned savings deliberately does not reduce `Available`, a balance rolled up
+ * over every month an envelope has existed: subtracting one month's plan from
+ * it would drift further from meaning anything every month. The comparison goes
+ * in the Saved card's subcaption instead.
+ */
+function statCards(summary: BudgetSummary, goals: SavingsGoals): Stat[] {
+  const stats: Stat[] = [
     { label: 'Budgeted', value: summary.totals.fill, colored: false },
     { label: 'Spent', value: summary.totals.spent, colored: false },
     // the one number where sign is the story: total rolled-forward balance
     { label: 'Available', value: summary.totals.balance, colored: true }
   ]
-  return (
-    <div className="grid grid-cols-3 gap-4">
-      {stats.map((stat) => (
-        <Card key={stat.label} className="py-4">
-          <CardContent className="px-4">
-            <p className="text-sm text-muted-foreground">{stat.label}</p>
-            <p className="text-2xl font-semibold tracking-tight">
-              <Amount value={stat.value} currency={summary.currency} colored={stat.colored} />
-            </p>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  )
+  // saved needs a month that has happened; only the current month shows both
+  if (goals.counted > 0 && goals.showSaved) {
+    stats.push({
+      label: 'Saved',
+      value: goals.totals.saved,
+      colored: false,
+      sub: goals.showPlanned ? (
+        <>
+          of <Amount value={goals.totals.planned} currency={summary.currency} colored={false} />{' '}
+          planned
+        </>
+      ) : undefined
+    })
+  }
+  return stats
 }

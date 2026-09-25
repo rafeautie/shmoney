@@ -184,6 +184,7 @@ function EntryRow({
   )
   // saved-filter deletes: likewise contextless, they just name the preset
   const isSavedFilterEntry = entry.changes.some((c) => c.field === 'savedFilterDeletedAt')
+  const isGoalEntry = entry.changes.some((c) => c.field === 'savingsGoalDeletedAt')
 
   const toggle = useMutation({
     mutationFn: () =>
@@ -214,7 +215,9 @@ function EntryRow({
                     ? 'conversation'
                     : isSavedFilterEntry
                       ? 'saved filter'
-                      : 'transaction'
+                      : isGoalEntry
+                        ? 'savings goal'
+                        : 'transaction'
               )}
             </div>
           </div>
@@ -298,6 +301,14 @@ function EntryRow({
                       ? `Renamed "${change.before ?? 'Untitled'}" to "${change.after}"`
                       : (change.title ?? 'Untitled conversation')}
                   </TableCell>
+                  <TableCell />
+                  {isCategoryEntry && <TableCell />}
+                </TableRow>
+              ) : change.field === 'savingsGoalDeletedAt' ? (
+                <TableRow key={`savings-goal:${change.goalId}`} className="hover:bg-transparent">
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="text-muted-foreground">—</TableCell>
+                  <TableCell className="w-full max-w-0 truncate">{change.name}</TableCell>
                   <TableCell />
                   {isCategoryEntry && <TableCell />}
                 </TableRow>
