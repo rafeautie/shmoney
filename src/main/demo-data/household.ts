@@ -351,29 +351,29 @@ export const household: DatasetDefinition = {
       hoursAgo: 30,
       answer(turn) {
         turn.think(
-          'The user wants last month broken down by category. I will resolve "last month" to exact dates, total the spending per category, and chart the biggest ones.'
+          'The user wants last month broken down by category. totals does exactly that: spending by category over last_month, and it draws the chart itself.'
         )
-        const window = turn.dates({ unit: 'month', count: 1, includeCurrent: false })
-        const month = window.months?.[0] ?? ''
-        const rows = turn.query(
-          `SELECT category, ROUND(SUM(-amount), 2) AS spent FROM tx WHERE amount < 0 AND month = '${month}' AND category IS NOT NULL GROUP BY category ORDER BY spent DESC LIMIT 6`
-        )
-        turn.chart({
-          type: 'pie',
-          title: 'Spending by category',
-          x: 'category',
-          series: ['spent'],
-          group: null
+        const { result } = turn.tool('totals', {
+          measure: 'spending',
+          by: 'category',
+          split: 'none',
+          period: 'last_month',
+          compare_to: null,
+          category: null,
+          account: null,
+          search: null,
+          chart: 'auto'
         })
-        const top = rows.slice(0, 3) as [string, number][]
-        const total = (rows as [string, number][]).reduce((sum, [, v]) => sum + v, 0)
+        const rows = (result.rows ?? []) as [string, number][]
+        const total = Number(result.facts?.total_spending ?? 0)
+        const top = rows.filter(([name]) => name !== 'Other').slice(0, 3)
         turn.say(
           [
-            `Your biggest categories last month were:`,
+            `You spent ${usd(total)} last month. The biggest categories were:`,
             '',
             ...top.map(([name, value], i) => `${i + 1}. **${name}**: ${usd(value)}`),
             '',
-            `Together your top ${rows.length} categories came to ${usd(total)}. Housing is fixed, so ${top[1]?.[0] ?? 'the next category'} is where there's the most room to adjust.`
+            `Housing is fixed, so ${top[1]?.[0] ?? 'the next category'} is where there's the most room to adjust.`
           ].join('\n')
         )
       }
@@ -383,11 +383,19 @@ export const household: DatasetDefinition = {
       hoursAgo: 2,
       answer(turn) {
         turn.think(
-          'I need monthly totals of money in and money out. The tx view already leaves out transfers, so I can split each month on the sign of the amount, then draw both series as bars.'
+          'I need money in and money out per month. totals with measure net by month returns income and spending columns beside net, and its facts average the complete months, so I chart the two columns as bars.'
         )
-        const rows = turn.query(
-          "SELECT month, ROUND(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 2) AS income, ROUND(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 2) AS spending FROM tx WHERE txn_date >= date('now', 'start of month', '-11 months') GROUP BY month ORDER BY month"
-        ) as [string, number, number][]
+        const { result } = turn.tool('totals', {
+          measure: 'net',
+          by: 'month',
+          split: 'none',
+          period: 'last_12_months',
+          compare_to: null,
+          category: null,
+          account: null,
+          search: null,
+          chart: 'none'
+        })
         turn.chart({
           type: 'bar',
           title: 'Income vs. spending by month',
@@ -395,15 +403,16 @@ export const household: DatasetDefinition = {
           series: ['income', 'spending'],
           group: null
         })
-        const full = rows.slice(0, -1)
-        const avgIncome = full.reduce((s, r) => s + r[1], 0) / Math.max(full.length, 1)
-        const avgSpend = full.reduce((s, r) => s + r[2], 0) / Math.max(full.length, 1)
-        const peak = full.reduce((a, b) => (b[2] > a[2] ? b : a), full[0] ?? ['', 0, 0])
+        const facts = result.facts ?? {}
+        const highest = facts.highest_complete_month as { month: string; net: number } | undefined
+        const lowest = facts.lowest_complete_month as { month: string; net: number } | undefined
         turn.say(
           [
-            `Across the last ${full.length} full months you brought in about ${usd(avgIncome)} a month and spent about ${usd(avgSpend)}, leaving roughly ${usd(avgIncome - avgSpend)} a month to save or invest.`,
+            `Over the last 12 complete months you kept ${usd(Number(facts.total_net ?? 0))} after spending, ${facts.savings_rate_percent ?? 0}% of what came in, or about ${usd(Number(facts.average_per_complete_month ?? 0))} a month.`,
             '',
-            `Your highest-spending month was **${peak[0]}** at ${usd(peak[2])}. The current month is still in progress, so its bars will keep growing.`
+            highest && lowest
+              ? `Your best month was **${highest.month}** at ${usd(highest.net)}, and the tightest was **${lowest.month}** at ${usd(lowest.net)}.`
+              : ''
           ].join('\n')
         )
       }

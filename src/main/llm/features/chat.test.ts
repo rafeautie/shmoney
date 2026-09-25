@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
+  ACTION_TOOL_NAMES,
+  ANALYSIS_TOOL_NAMES,
   type ChartData,
   type ChartSpec,
   type ChatMessage,
@@ -9,7 +11,6 @@ import {
   type QueryToolResult
 } from '../../../shared/chat'
 import { CHAT_CONTEXT_SIZE } from '../../../shared/llm'
-import { MAX_CHART_SERIES } from '../tools/chart-tool'
 import type { PromptDbContext } from './chat'
 
 // chat.ts reaches Electron through these modules (better-sqlite3 won't load
@@ -21,7 +22,8 @@ vi.mock('../../logging', () => ({
 vi.mock('../manager', () => ({ llmManager: {}, sendToRenderer: vi.fn() }))
 vi.mock('../queue', () => ({ enqueueGenerate: vi.fn() }))
 
-const { buildHistory, buildSystemPrompt, historyWindow, titleFrom } = await import('./chat')
+const { buildHistory, buildSystemPrompt, historyWindow, lastDataCall, titleFrom } =
+  await import('./chat')
 
 const PROMPT = 'test system prompt'
 // the budget buildHistory trims to: 75% of the chat context, 4 chars per
@@ -497,144 +499,83 @@ describe('historyWindow', () => {
 })
 
 describe('buildSystemPrompt', () => {
+  const ALL = { accountId: null, accountName: null }
+
   it("interpolates today's date", () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain(new Date().toLocaleDateString('en-CA'))
+    expect(buildSystemPrompt(ALL, CTX)).toContain(new Date().toLocaleDateString('en-CA'))
   })
 
   it('describes the all-accounts scope when no account is selected', () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+    const prompt = buildSystemPrompt(ALL, CTX)
     expect(prompt).toContain("all of the user's accounts")
     expect(prompt).not.toContain('narrowed')
   })
 
   it('names the account and its narrowing when scoped', () => {
     const prompt = buildSystemPrompt({ accountId: 3, accountName: 'Chase Checking' }, CTX)
-    expect(prompt).toContain('narrowed to the account "Chase Checking" (id 3)')
-    expect(prompt).toContain("only show that account's data")
+    expect(prompt).toContain('narrowed to the account "Chase Checking"')
+    expect(prompt).toContain("only shows that account's data")
   })
 
-  it("quotes back the user's accounts, categories and data span", () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+  it("quotes back the user's accounts and data span", () => {
+    const prompt = buildSystemPrompt(ALL, CTX)
     expect(prompt).toContain('Accounts: Chase Checking (USD), Vanguard (USD).')
-    expect(prompt).toContain('Food: Dining, Groceries; Ungrouped: Misc.')
     expect(prompt).toContain('Transactions span 2023-04-12 to 2026-07-15.')
   })
 
   it('says so when there is no data rather than leaving empty headers', () => {
-    const prompt = buildSystemPrompt(
-      { accountId: null, accountName: null },
-      { accounts: [], categories: [], dateRange: null }
-    )
+    const prompt = buildSystemPrompt(ALL, { accounts: [], categories: [], dateRange: null })
     expect(prompt).toContain('no transaction data yet')
-    expect(prompt).not.toContain("The user's data:")
   })
 
   // the scope views hand the model real amounts (see scopeViewsDdl), so any
   // scaling that creeps back into the prompt is a 1000x error in every figure
-  // the recipe produces. Nothing else fails if this regresses.
   it('never asks the model to scale amounts, which the views already did', () => {
     const prompt = buildSystemPrompt({ accountId: 3, accountName: 'Chase Checking' }, CTX)
     expect(prompt).not.toMatch(/1000/)
     expect(prompt).not.toMatch(/milliunit/i)
-    expect(prompt).toContain('Money columns hold real amounts')
+    expect(prompt).toContain('never scale them')
   })
 
-  it('never asks the model to convert epochs, which the views already did', () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).not.toMatch(/unixepoch/i)
-    expect(prompt).toContain("txn_date 'YYYY-MM-DD'")
+  it('routes every tool the worker registers', () => {
+    const prompt = buildSystemPrompt(ALL, CTX)
+    for (const name of [...ANALYSIS_TOOL_NAMES, ...ACTION_TOOL_NAMES, 'query', 'calc'])
+      expect(prompt).toContain(name)
+    // the action tools only ever propose, and never answer a question
+    expect(prompt).toContain('Never call them to answer a question')
   })
 
-  it('clips a pathologically long category list', () => {
-    const names = Array.from({ length: 200 }, (_, i) => `Category number ${i}`)
-    const prompt = buildSystemPrompt(
-      { accountId: null, accountName: null },
-      { ...CTX, categories: [{ group: 'Everything', names }] }
-    )
-    expect(prompt).toContain('…')
-    expect(prompt).not.toContain('Category number 199')
+  // periods are resolved in code; a model left to work out a window picks the
+  // wrong month, and counted the month in progress as a complete one
+  it('hands period meaning to the tools instead of teaching date math', () => {
+    const prompt = buildSystemPrompt(ALL, CTX)
+    expect(prompt).toContain('last_3_months is the three complete months')
+    expect(prompt).toContain('never work out dates yourself')
+    expect(prompt).not.toContain('resolve_dates')
   })
 
-  it('documents the pending exclusion and the tables the model can reach', () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('pending = 0')
-    expect(prompt).toContain('action_log')
-    // the cross-currency rule renders only for mixed-currency users; that
-    // conditional lives in prompt-sql.test.ts, which runs the recipe it adds
-  })
-
-  it('teaches the chart function with literal exemplars', () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('calling the chart function')
-    expect(prompt).toContain('"type": "line"')
-    expect(prompt).toContain('"series": ["spending"]')
-    expect(prompt).toContain('most recent query result')
-    // the group pivot is declared, never guessed; the exemplar teaches it
-    expect(prompt).toContain('"group": "category_group"')
-    expect(prompt).toContain('"group": null')
-  })
-
-  // The output rules are keyed on the shape of the result the model can see
-  // (how many rows, which columns), never on classifying the question, which
-  // this model is far worse at. Each branch of that table has to survive
-  // editing, or the model falls back to prose plus a table.
-  it('picks the output from the result shape, with every branch stated', () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('SHAPE of the result you received')
-    // the branches deliberately overlap (two rows WITH a group column matches
-    // both the two-row line and a chart line), so first-match is the tiebreaker
-    // and has to survive: without it the model has no rule for the overlap
-    expect(prompt).toContain('take the FIRST matching line')
-    expect(prompt).toContain(
-      'Three or more rows, an x column and one or more measures: chart it, every measure in series'
-    )
-    expect(prompt).toContain('Exactly two rows')
-    expect(prompt).toContain('Markdown table, never a chart')
-    // REGRESSION: the model charted `bar` with x = month while this rule was a
-    // trailing clause on two bullets. It only holds as its own sentence.
-    expect(prompt).toContain('spending by month is a line, never a bar')
-    // REGRESSION: it printed the four charted rows as a table and then charted
-    // them, with the old prohibition sitting in the section's last line
-    expect(prompt).toContain('A chart REPLACES the rows it draws')
-    // a comparison is taught as a whole worked turn rather than as wording to
-    // classify, since this model matches shapes far better than intents
-    expect(prompt).toContain('did I spend more in July than June?')
-  })
-
-  // Both claims are about the chart tool's real behavior, so a prompt that
-  // drifts from chart-tool.ts teaches the model calls that fail (group) or,
-  // worse, a chart that silently omits rows (pie over a signed measure).
-  it('states the chart tool limits it actually enforces', () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('group works on line and bar only')
-    expect(prompt).toContain('never over net')
-    // the series cap is interpolated, so it can never drift from the tool
-    expect(prompt).toContain(`more than ${MAX_CHART_SERIES} distinct values`)
-    expect(MAX_CHART_SERIES).toBeGreaterThan(0)
-  })
-
-  // every worked turn ends on an answer sentence quoting a figure that is
-  // visibly sitting in the rows printed right above it, so the copy path the
-  // model learns is "read it off the row" rather than "chart it and move on"
-  it('puts the number in the answer, not only in the chart', () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
+  // every worked turn ends on an answer quoting a figure that visibly sits in
+  // the facts printed right above it, so the copy path the model learns is
+  // "read it off the result"
+  it('sources every figure from a result, never mental arithmetic', () => {
+    const prompt = buildSystemPrompt(ALL, CTX)
     expect(prompt).toContain('I answer:')
-    expect(prompt).toContain('state the figure in a sentence AND chart it as stat')
+    expect(prompt).toContain('never from your own arithmetic')
+    expect(prompt).toContain('A guessed insight is worse than none')
   })
 
-  // REGRESSION: told to lead with a number after charting a per-day result
-  // that contained no total, the model stated two invented totals as fact.
-  // Leading with a figure is only safe while the figure has to come from a
-  // row it received, so the escape hatch (query the total) rides with it.
-  it('sources the leading number from a row, never from mental arithmetic', () => {
-    const prompt = buildSystemPrompt({ accountId: null, accountName: null }, CTX)
-    expect(prompt).toContain('must sit in a row a query actually returned to you')
-    expect(prompt).toContain('carries no total of its own')
-    expect(prompt).toContain('the total rides along as a column')
-    // and the example figures are labelled fictional, so they are never quoted
-    // back at the user as if they were this user's data
-    expect(prompt).toContain('are INVENTED to show the shape')
+  // REGRESSION: an earlier draft printed a chart spec as a transcript line and
+  // the model wrote it into its answer as text, with no chart drawn
+  it('never shows a tool call as an emittable line', () => {
+    const lines = buildSystemPrompt(ALL, CTX)
+      .split('\n')
+      .map((line) => line.trim())
+    const toolNames = [...ANALYSIS_TOOL_NAMES, ...ACTION_TOOL_NAMES, 'query', 'chart', 'calc']
+    const emittable = lines.filter((line) =>
+      toolNames.some((name) => line.startsWith(`${name} {`) || line.startsWith(`${name}(`))
+    )
+    expect(emittable).toEqual([])
+    expect(lines.filter((line) => line.startsWith('{'))).toEqual([])
   })
 })
 
@@ -647,5 +588,65 @@ describe('titleFrom', () => {
     const title = titleFrom('x'.repeat(80))
     expect(title).toBe('x'.repeat(57) + '…')
     expect(title.length).toBe(58)
+  })
+})
+
+describe('typed tool replay and follow-up seed', () => {
+  const totalsArgs = { measure: 'spending', by: 'month', period: 'last_12_months', chart: 'auto' }
+  const totalsPart: ChatMessagePart = {
+    type: 'functionCall',
+    name: 'totals',
+    args: totalsArgs,
+    result: {
+      ok: true,
+      period: '2025-09 to 2026-08',
+      facts: { total_spending: 120 },
+      columns: ['month', 'spending'],
+      rows: [['2026-06', 12.5]],
+      rowCount: 1,
+      durationMs: 3
+    },
+    durationMs: 0
+  }
+  const autoChart: ChatMessagePart = {
+    type: 'functionCall',
+    name: 'chart',
+    args: SPEC,
+    result: { ok: true },
+    display: { data: DATA, currency: 'USD', series: ['spending'] },
+    durationMs: 0
+  }
+  const reply = (parts: ChatMessagePart[]): Pick<ChatMessage, 'role' | 'status' | 'parts'> => ({
+    role: 'assistant',
+    status: 'complete',
+    parts
+  })
+
+  it('replays a typed result as its facts, never its rows', () => {
+    const history = buildHistory([row('user', 'q'), reply([totalsPart])], PROMPT)
+    const model = history[2] as { response: { result: unknown }[] }
+    expect(model.response[0].result).toEqual({
+      ok: true,
+      period: '2025-09 to 2026-08',
+      facts: { total_spending: 120 },
+      rows: 1
+    })
+  })
+
+  // replayed, a chart the loop drew reads as the model calling chart right
+  // after a typed tool, which the chart tool's description forbids
+  it('never replays the chart the loop drew for a typed tool', () => {
+    const history = buildHistory(
+      [row('user', 'q'), reply([totalsPart, autoChart, { type: 'text', text: 'done' }])],
+      PROMPT
+    )
+    const model = history[2] as { response: unknown[] }
+    expect(model.response).toHaveLength(2)
+  })
+
+  it('seeds the next turn with the newest data call and the chart drawn from it', () => {
+    const rows = [row('user', 'q'), reply([totalsPart, autoChart]), row('user', 'as a pie')]
+    expect(lastDataCall(rows)).toEqual({ name: 'totals', args: totalsArgs, chart: SPEC })
+    expect(lastDataCall([row('user', 'hi')])).toBeNull()
   })
 })

@@ -88,14 +88,17 @@ import {
 } from '@shared/import'
 import {
   CHAT_IPC,
+  type ChatMessage,
   type ChatMessageDoneEvent,
   type ChatPartEvent,
   type Conversation,
   type ConversationMessages,
   type RenameConversationInput,
+  type ResolveProposalInput,
   type SendChatInput,
   type SendChatResult,
-  type SetConversationAccountInput
+  type SetConversationAccountInput,
+  type UndoProposalInput
 } from '@shared/chat'
 import { UPDATES_IPC, type UpdateState } from '@shared/updates'
 import { DEMO_IPC, type DemoDataset } from '@shared/demo'
@@ -353,6 +356,12 @@ const api = {
     /** Soft delete; resolves to the action-log entry id (null when nothing was deleted) */
     delete: (id: number): Promise<number | null> =>
       ipcRenderer.invoke(CHAT_IPC.deleteConversation, id),
+    /** Apply or dismiss a proposal part; resolves to the message with the part's new state */
+    resolveProposal: (input: ResolveProposalInput): Promise<ChatMessage> =>
+      ipcRenderer.invoke(CHAT_IPC.resolveProposal, input),
+    /** Undo an applied proposal through the action log; resolves to the updated message */
+    undoProposal: (input: UndoProposalInput): Promise<ChatMessage> =>
+      ipcRenderer.invoke(CHAT_IPC.undoProposal, input),
     onPart: (callback: (event: ChatPartEvent) => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent, event: ChatPartEvent): void =>
         callback(event)

@@ -375,13 +375,51 @@ export interface SavedFilterActionChange {
 }
 
 /** Carries its own name so Activity can show which goal went without a join. */
-export interface SavingsGoalActionChange {
-  field: 'savingsGoalDeletedAt'
-  goalId: number
-  name: string
-  /** unix seconds */
-  before: number | null
-  after: number | null
+export type SavingsGoalActionChange =
+  | {
+      field: 'savingsGoalDeletedAt'
+      goalId: number
+      name: string
+      /** unix seconds */
+      before: number | null
+      after: number | null
+    }
+  | {
+      field: 'savingsGoalTargetAmount'
+      goalId: number
+      name: string
+      /** milliunits */
+      before: number
+      after: number
+      /** the goal's currency, for display; absent on older entries */
+      currency?: string
+    }
+  | {
+      field: 'savingsGoalTargetDate'
+      goalId: number
+      name: string
+      /** 'YYYY-MM-DD'; null = no target date */
+      before: string | null
+      after: string | null
+    }
+  | {
+      field: 'savingsGoalArchivedAt'
+      goalId: number
+      name: string
+      /** unix seconds; null = active */
+      before: number | null
+      after: number | null
+    }
+
+export const SAVINGS_GOAL_FIELDS = [
+  'savingsGoalDeletedAt',
+  'savingsGoalTargetAmount',
+  'savingsGoalTargetDate',
+  'savingsGoalArchivedAt'
+] as const
+
+export function isSavingsGoalChange(c: { field: string }): c is SavingsGoalActionChange {
+  return (SAVINGS_GOAL_FIELDS as readonly string[]).includes(c.field)
 }
 
 export type ActionChange =
@@ -409,7 +447,10 @@ export type ActionLogChange =
     })
   | ConversationActionChange
   | SavedFilterActionChange
-  | SavingsGoalActionChange
+  | Exclude<SavingsGoalActionChange, { field: 'savingsGoalTargetAmount' }>
+  | (Extract<SavingsGoalActionChange, { field: 'savingsGoalTargetAmount' }> & {
+      currency: string
+    })
 
 export interface ActionLogEntry {
   id: number

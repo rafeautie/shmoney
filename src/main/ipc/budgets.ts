@@ -3,12 +3,13 @@ import { and, eq } from 'drizzle-orm'
 import { db } from '../db'
 import { budgets, categories } from '../db/schema'
 import { getBudgetSummary } from '../budgets/summary'
-import { recordAction } from './action-log'
+import { recordAction, type Runner } from './action-log'
 import {
   BUDGETS_IPC,
   budgetRemoveSchema,
   budgetSetFillSchema,
   budgetSummaryQuerySchema,
+  type BudgetSetFillInput,
   type BudgetRemoveResult,
   type BudgetSummary
 } from '@shared/budgets'
@@ -26,6 +27,53 @@ function budgetableCategoryName(categoryId: number): string {
   return row.name
 }
 
+/**
+ * Write one category's fill at a month (later months inherit it) as an undoable
+ * action-log entry. Returns the entry id, or null when the fill already held
+ * that amount. label overrides the default "Added/Changed ... envelope" wording.
+ */
+export function setBudgetFill(
+  { categoryId, month, amount }: BudgetSetFillInput,
+  label?: string,
+  runner: Runner = db
+): number | null {
+  const name = budgetableCategoryName(categoryId)
+  return runner.transaction((tx) => {
+    const existing = tx
+      .select({ amount: budgets.amount })
+      .from(budgets)
+      .where(and(eq(budgets.categoryId, categoryId), eq(budgets.month, month)))
+      .get()
+    if (existing?.amount === amount) return null
+    // "Added" only when the category has no fills yet (the envelope is being
+    // created); editing an inherited fill at a fresh month is a change to an
+    // envelope that already exists, not a new one
+    const isNewEnvelope =
+      tx
+        .select({ id: budgets.id })
+        .from(budgets)
+        .where(eq(budgets.categoryId, categoryId))
+        .get() === undefined
+    tx.insert(budgets)
+      .values({ categoryId, month, amount })
+      .onConflictDoUpdate({ target: [budgets.categoryId, budgets.month], set: { amount } })
+      .run()
+    return recordAction(tx, {
+      source: 'user',
+      label: label ?? (isNewEnvelope ? `Added ${name} envelope` : `Changed ${name} envelope fill`),
+      changes: [
+        {
+          field: 'budgetAmount',
+          categoryId,
+          month,
+          before: existing?.amount ?? null,
+          after: amount
+        }
+      ]
+    })
+  })
+}
+
 export function registerBudgetsIpc(): void {
   ipcMain.handle(BUDGETS_IPC.summary, (_event, input: unknown): BudgetSummary => {
     const { month } = budgetSummaryQuerySchema.parse(input)
@@ -33,42 +81,7 @@ export function registerBudgetsIpc(): void {
   })
 
   ipcMain.handle(BUDGETS_IPC.setFill, (_event, input: unknown): boolean => {
-    const { categoryId, month, amount } = budgetSetFillSchema.parse(input)
-    const name = budgetableCategoryName(categoryId)
-    db.transaction((tx) => {
-      const existing = tx
-        .select({ amount: budgets.amount })
-        .from(budgets)
-        .where(and(eq(budgets.categoryId, categoryId), eq(budgets.month, month)))
-        .get()
-      if (existing?.amount === amount) return
-      // "Added" only when the category has no fills yet (the envelope is being
-      // created); editing an inherited fill at a fresh month is a change to an
-      // envelope that already exists, not a new one
-      const isNewEnvelope =
-        tx
-          .select({ id: budgets.id })
-          .from(budgets)
-          .where(eq(budgets.categoryId, categoryId))
-          .get() === undefined
-      tx.insert(budgets)
-        .values({ categoryId, month, amount })
-        .onConflictDoUpdate({ target: [budgets.categoryId, budgets.month], set: { amount } })
-        .run()
-      recordAction(tx, {
-        source: 'user',
-        label: isNewEnvelope ? `Added ${name} envelope` : `Changed ${name} envelope fill`,
-        changes: [
-          {
-            field: 'budgetAmount',
-            categoryId,
-            month,
-            before: existing?.amount ?? null,
-            after: amount
-          }
-        ]
-      })
-    })
+    setBudgetFill(budgetSetFillSchema.parse(input))
     return true
   })
 

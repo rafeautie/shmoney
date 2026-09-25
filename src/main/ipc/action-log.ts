@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm'
+import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { db } from '../db'
 import {
   accounts,
@@ -17,6 +18,7 @@ import { transactionDate } from '../db/expressions'
 import {
   ACTION_LOG_IPC,
   idSchema,
+  isSavingsGoalChange,
   isTransactionChange,
   type ActionChange,
   type ActionField,
@@ -32,6 +34,12 @@ import {
 
 // the drizzle transaction handle passed to db.transaction() callbacks
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+/**
+ * Where a save opens its transaction: the db, or an enclosing transaction so
+ * the save nests as a savepoint (sql.js, the demo's driver, can't nest BEGIN).
+ */
+export type Runner = Pick<Tx, 'transaction'>
 
 const log = createLogger('action-log')
 
@@ -226,20 +234,55 @@ function setGoalGuarded(
   change: SavingsGoalActionChange,
   direction: 'undo' | 'redo'
 ): number {
-  const target = direction === 'undo' ? change.before : change.after
-  const guard = direction === 'undo' ? change.after : change.before
-  const where = and(
-    eq(savingsGoals.id, change.goalId),
-    guard === null ? isNull(savingsGoals.deletedAt) : sql`${savingsGoals.deletedAt} = ${guard}`
-  )
-  return tx.update(savingsGoals).set({ deletedAt: target }).where(where).run().changes
+  const byId = eq(savingsGoals.id, change.goalId)
+  const nullable = (col: SQLiteColumn, guard: string | number | null): SQL =>
+    guard === null ? isNull(col) : sql`${col} = ${guard}`
+  switch (change.field) {
+    case 'savingsGoalDeletedAt': {
+      const [target, guard] = sides(change, direction)
+      return tx
+        .update(savingsGoals)
+        .set({ deletedAt: target })
+        .where(and(byId, nullable(savingsGoals.deletedAt, guard)))
+        .run().changes
+    }
+    case 'savingsGoalTargetAmount': {
+      const [target, guard] = sides(change, direction)
+      return tx
+        .update(savingsGoals)
+        .set({ targetAmount: target })
+        .where(and(byId, eq(savingsGoals.targetAmount, guard)))
+        .run().changes
+    }
+    case 'savingsGoalTargetDate': {
+      const [target, guard] = sides(change, direction)
+      return tx
+        .update(savingsGoals)
+        .set({ targetDate: target })
+        .where(and(byId, nullable(savingsGoals.targetDate, guard)))
+        .run().changes
+    }
+    case 'savingsGoalArchivedAt': {
+      const [target, guard] = sides(change, direction)
+      return tx
+        .update(savingsGoals)
+        .set({ archivedAt: target })
+        .where(and(byId, nullable(savingsGoals.archivedAt, guard)))
+        .run().changes
+    }
+  }
+}
+
+/** [target, guard]: undo writes before over after, redo the reverse */
+export function sides<T>(change: { before: T; after: T }, direction: 'undo' | 'redo'): [T, T] {
+  return direction === 'undo' ? [change.before, change.after] : [change.after, change.before]
 }
 
 // undo rewinds each field to `before` (guarding on `after`); redo does the
 // reverse. Either way the guard makes it a no-op on rows touched since, so an
 // old entry can never clobber newer edits. Returns rows actually changed.
-function applyEntry(entryId: number, direction: 'undo' | 'redo'): UndoResult {
-  return db.transaction((tx) => {
+function applyEntry(entryId: number, direction: 'undo' | 'redo', runner: Runner = db): UndoResult {
+  return runner.transaction((tx) => {
     const entry = tx.select().from(actionLog).where(eq(actionLog.id, entryId)).get()
     if (!entry) throw new Error('Action not found')
 
@@ -253,7 +296,7 @@ function applyEntry(entryId: number, direction: 'undo' | 'redo'): UndoResult {
         applied += setConversationGuarded(tx, change, direction)
       } else if (change.field === 'savedFilterDeletedAt') {
         applied += setSavedFilterGuarded(tx, change, direction)
-      } else if (change.field === 'savingsGoalDeletedAt') {
+      } else if (isSavingsGoalChange(change)) {
         applied += setGoalGuarded(tx, change, direction)
       } else if (change.field === 'description') {
         applied += setDescriptionGuarded(tx, change, direction)
@@ -271,6 +314,11 @@ function applyEntry(entryId: number, direction: 'undo' | 'redo'): UndoResult {
 
     return { id: entryId, label: entry.label, applied }
   })
+}
+
+/** Undo one entry by id, as the Activity page and toast Undo do. */
+export function undoAction(entryId: number, runner: Runner = db): UndoResult {
+  return applyEntry(entryId, 'undo', runner)
 }
 
 // Ctrl+Z / Ctrl+Y are deliberately narrow: they reach only your own actions
@@ -345,6 +393,7 @@ function listEntries(): ActionLogEntry[] {
     : []
   const catById = new Map(budgetCats.map((c) => [c.id, c.name]))
   const currency = budgetCatIds.length ? dominantCurrency() : 'USD'
+  let fallbackCurrency: string | undefined
 
   return rows.map((row) => ({
     id: row.id,
@@ -356,12 +405,18 @@ function listEntries(): ActionLogEntry[] {
       if (change.field === 'budgetAmount') {
         return { ...change, categoryName: catById.get(change.categoryId) ?? null, currency }
       }
+      if (change.field === 'savingsGoalTargetAmount') {
+        return {
+          ...change,
+          currency: change.currency ?? (fallbackCurrency ??= dominantCurrency())
+        }
+      }
       // these carry their own display context (title/name), so nothing to join
       if (
         change.field === 'conversationTitle' ||
         change.field === 'conversationDeletedAt' ||
         change.field === 'savedFilterDeletedAt' ||
-        change.field === 'savingsGoalDeletedAt'
+        isSavingsGoalChange(change)
       ) {
         return change
       }

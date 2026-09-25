@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   conversationStatus,
+  type ChatMessage,
   type Conversation,
   type ConversationMessages,
-  type StreamingChatPart
+  type Proposal,
+  type ResolveProposalInput,
+  type StreamingChatPart,
+  type UndoProposalInput
 } from '@shared/chat'
 import { ipcErrorMessage } from '@/lib/utils'
 
@@ -198,5 +202,56 @@ export function useSetConversationAccount() {
       )
     },
     onSettled: () => void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
+  })
+}
+
+// ---------- proposals ----------
+
+/** what a budget or goal change touches, beyond the chat itself */
+const PROPOSAL_EFFECTS: Record<Exclude<Proposal['kind'], 'recategorize'>, string[][]> = {
+  set_budget: [['budget-summary'], ['reports'], ['report'], ['actionLog']],
+  update_goal: [['goals'], ['reports'], ['report'], ['actionLog']]
+}
+
+/**
+ * Put the message the proposal IPC returned into the thread, then refresh what
+ * the change touched. A recategorize reaches everything a category edit does
+ * (transaction tables, totals, budgets, reports), so like a category edit it
+ * refreshes every query but the chat's own.
+ */
+function applyProposalResult(
+  queryClient: QueryClient,
+  message: ChatMessage,
+  kind: Proposal['kind']
+): void {
+  queryClient.setQueryData<ConversationMessages>(chatMessagesKey(message.conversationId), (prev) =>
+    prev
+      ? { ...prev, messages: prev.messages.map((m) => (m.id === message.id ? message : m)) }
+      : prev
+  )
+  if (kind === 'recategorize') {
+    void queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] !== 'chat' })
+    return
+  }
+  for (const queryKey of PROPOSAL_EFFECTS[kind]) void queryClient.invalidateQueries({ queryKey })
+}
+
+/** Apply or dismiss a proposal; the returned message carries its new state. */
+export function useResolveProposal(kind: Proposal['kind']) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: ResolveProposalInput) => window.api.chat.resolveProposal(input),
+    onSuccess: (message) => applyProposalResult(queryClient, message, kind),
+    onError: (error) => toast(ipcErrorMessage(error))
+  })
+}
+
+/** Revert an applied proposal through its action-log entry. */
+export function useUndoProposal(kind: Proposal['kind']) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: UndoProposalInput) => window.api.chat.undoProposal(input),
+    onSuccess: (message) => applyProposalResult(queryClient, message, kind),
+    onError: (error) => toast(ipcErrorMessage(error))
   })
 }
