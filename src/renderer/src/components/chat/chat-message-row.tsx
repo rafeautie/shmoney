@@ -1,16 +1,15 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Loading03Icon, SparklesIcon, Target02Icon } from '@hugeicons/core-free-icons'
+import { Target02Icon } from '@hugeicons/core-free-icons'
 import { messageText, type ChatMessage, type StreamingChatPart } from '@shared/chat'
 import type { ActiveReply } from '@/lib/chat'
-import { useLlmStatus } from '@/lib/llm'
 import { Badge } from '@/components/ui/badge'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
-import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
 import { AssistantBubble } from '@/components/chat/assistant-bubble'
 import { ThoughtChain, type ChainPart } from '@/components/chat/thought-chain'
+import { GeneratingMark } from '@/components/chat/generating-mark'
 
 /**
  * An assistant turn's parts, strictly in order, nothing held back: chains of
@@ -42,6 +41,10 @@ function Parts({
   /** the message the parts belong to, once it's settled; proposals address it */
   messageId?: number
 }) {
+  // nothing streamed yet: an empty live chain is the waiting status line, keyed
+  // as the first run's chain so a leading thought takes it over in place
+  if (streaming && parts.length === 0) return [<ThoughtChain key="chain-0" parts={[]} streaming />]
+
   const lastIndex = parts.length - 1
   const nodes: ReactNode[] = []
   let run: ChainPart[] = []
@@ -99,35 +102,6 @@ function queriedGoals(parts: StreamingChatPart[]): boolean {
   })
 }
 
-/** The turn is accepted but nothing has streamed yet. */
-function WaitingMarker() {
-  // While a waiting turn has no chunk yet, the model is "loading" whenever it
-  // isn't confirmed in memory — not only during the brief 'loading' window.
-  // The status push that flips 'downloaded'→'loading' lands a beat after the
-  // turn starts, so gating on 'loading' alone would flash "Thinking…" for that
-  // beat before "Loading model…". Reading live status here (as LlmStatusBadge
-  // does) keeps this in step with the worker without prop drilling.
-  const loading = useLlmStatus().data?.runtime !== 'ready'
-  return (
-    // keyed remounts fade each marker state in gently: waiting marker →
-    // first content, and the label flips inside. The fade lives on a wrapper
-    // because animate-in and the marker's own animate-shimmer would fight over
-    // `animation`
-    <div key={loading ? 'loading' : 'thinking'} className="animate-in fade-in-0 duration-300">
-      <Marker role="status" className="w-fit animate-shimmer">
-        <MarkerIcon>
-          {loading ? (
-            <HugeiconsIcon icon={Loading03Icon} strokeWidth={2} className="animate-spin" />
-          ) : (
-            <HugeiconsIcon icon={SparklesIcon} strokeWidth={2} />
-          )}
-        </MarkerIcon>
-        <MarkerContent>{loading ? 'Loading model…' : 'Thinking…'}</MarkerContent>
-      </Marker>
-    </div>
-  )
-}
-
 /**
  * One message row: a user bubble, an error bubble, or an assistant turn. The
  * same component renders a turn live and settled; it takes its items from the
@@ -175,12 +149,10 @@ export function ChatMessageRow({
     ? (reply?.parts ?? []).filter((part) => part !== undefined)
     : message.parts
 
-  if (streaming && parts.length === 0) return <WaitingMarker />
-
   return (
-    // the fade-in only runs on mount, i.e. when the first part replaces the
-    // waiting marker; dropping the class on settle removes an animation rather
-    // than starting one, so a landing turn doesn't flash
+    // the fade-in only runs on mount, i.e. when the turn is accepted; dropping
+    // the class on settle removes an animation rather than starting one, so a
+    // landing turn doesn't flash
     <Message className={streaming ? 'animate-in fade-in-0 duration-300' : undefined}>
       <MessageContent>
         <Parts
@@ -199,6 +171,7 @@ export function ChatMessageRow({
             Goals
           </Badge>
         )}
+        <GeneratingMark active={streaming && parts.length > 0} />
         {message.status === 'interrupted' && <MessageFooter>Stopped generating</MessageFooter>}
       </MessageContent>
     </Message>

@@ -206,6 +206,24 @@
   }
 }
 
+/* The generating mark breathes: a slow swell and twist while a reply streams. */
+@theme {
+  --animate-sparkle: sparkle 1.8s ease-in-out infinite;
+
+  @keyframes sparkle {
+    0%,
+    100% {
+      transform: scale(0.8) rotate(0deg);
+      opacity: 0.55;
+    }
+
+    50% {
+      transform: scale(1.05) rotate(25deg);
+      opacity: 1;
+    }
+  }
+}
+
 /* Type keeps the sizes the old 17px root produced, but the root itself is
  * 16px so every 0.25rem spacing step lands on whole pixels. At a 17px root,
  * h-7 buttons were 29.75px tall and icons 14.875px; dpr-1 paint snapped each

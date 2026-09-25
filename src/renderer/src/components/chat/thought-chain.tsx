@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import {
   Analytics01Icon,
@@ -6,7 +6,8 @@ import {
   BrainIcon,
   Calculator01Icon,
   Calendar03Icon,
-  DatabaseIcon
+  DatabaseIcon,
+  Loading03Icon
 } from '@hugeicons/core-free-icons'
 import {
   ACTION_TOOL_NAMES,
@@ -17,6 +18,7 @@ import {
   type StreamingChatPart
 } from '@shared/chat'
 import { cn } from '@/lib/utils'
+import { useLlmStatus } from '@/lib/llm'
 import { PENDING_LABELS, actionToolLabel, analysisToolLabel } from '@/lib/chat-tools'
 import { CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
@@ -238,16 +240,128 @@ function proposalDeliverable(
   return <ProposalCard display={part.display} target={target} />
 }
 
+/** what the chain's one status line shows; a new key is a new step */
+interface HeaderView {
+  key: string
+  icon: IconSvgElement
+  label: string
+  active: boolean
+  failed: boolean
+  spin?: boolean
+  toolCount?: number
+}
+
+/** the status line for a run: waiting, the in-flight step, or the settled summary */
+function headerView(
+  steps: StepView[],
+  parts: ChainPart[],
+  streaming: boolean,
+  modelReady: boolean
+): HeaderView | null {
+  if (steps.length === 0) {
+    if (!streaming) return null
+    // the same key as a first reasoning step, so its timer carries on from here
+    return modelReady
+      ? { key: '0:Thinking…', icon: BrainIcon, label: 'Thinking…', active: true, failed: false }
+      : {
+          key: '0:Loading model…',
+          icon: Loading03Icon,
+          label: 'Loading model…',
+          active: true,
+          failed: false,
+          spin: true
+        }
+  }
+  if (streaming) {
+    const last = steps[steps.length - 1]
+    return {
+      key: `${steps.length - 1}:${last.label}`,
+      icon: last.kind === 'tool' ? last.icon : BrainIcon,
+      label: last.label,
+      active: last.active,
+      failed: last.kind === 'tool' && last.failed
+    }
+  }
+  const tools = steps.filter((s): s is Extract<StepView, { kind: 'tool' }> => s.kind === 'tool')
+  return {
+    key: 'summary',
+    icon: BrainIcon,
+    label: `Thought for ${formatThoughtDuration(parts.reduce((sum, p) => sum + stepDurationMs(p), 0))}`,
+    active: false,
+    // the run's last tool call, for the failed-at-a-glance signal
+    failed: tools[tools.length - 1]?.failed ?? false,
+    toolCount: tools.length
+  }
+}
+
+/** a label stays up at least this long, so quick tool calls don't flicker past */
+const MIN_DWELL_MS = 1000
+
 /**
- * A turn's chain of thought as one collapsible. While the run is live the
- * header tracks the in-flight step — the thought or tool call happening now —
- * so tool calls surface as they run. Once the run settles it collapses to a
- * summary of the whole section: how long it took (thinking and tool calls
- * alike) and how many calls ran, e.g. "Thought for 6s · 3 calls". Expanded it
- * lays every step on a rail: thoughts as quote-bar text, tool calls as an icon
- * beside their own expandable input/output card. The user's toggle always wins.
- * Chart and proposal deliverables follow the chain, still visible when it's
- * collapsed, since a chart or a change to approve is the answer, not a step.
+ * The header view to draw: switches to a new key no sooner than MIN_DWELL_MS
+ * after the last switch, skipping steps that came and went meanwhile. The
+ * start time is when the step began, not when it got its turn on screen, so
+ * the elapsed timer stays honest.
+ */
+function useDwellingHeader(target: HeaderView | null) {
+  const [shown, setShown] = useState(() => target && { ...target, startedAt: Date.now() })
+  const [initialKey] = useState(target?.key)
+  const latest = useRef(target)
+  const shownAt = useRef(0)
+  useEffect(() => {
+    latest.current = target
+  })
+  const key = target?.key
+  useEffect(() => {
+    if (key === undefined) return
+    const startedAt = Date.now()
+    const wait = Math.max(0, MIN_DWELL_MS - (startedAt - shownAt.current))
+    const timer = setTimeout(() => {
+      const next = latest.current
+      if (!next || next.key !== key) return
+      shownAt.current = Date.now()
+      setShown((prev) => (prev?.key === key ? prev : { ...next, startedAt }))
+    }, wait)
+    return () => clearTimeout(timer)
+  }, [key])
+  if (!target || !shown) return null
+  // same step: take its live fields (a call can fail in place) but keep the start
+  const view = shown.key === target.key ? { ...target, startedAt: shown.startedAt } : shown
+  return { ...view, animate: view.key !== initialKey }
+}
+
+/**
+ * Wall-clock ms, ticking only while a live timer needs it. A new step reads
+ * the clock at once: after an idle stretch the last tick is stale, and the
+ * timer would jump when it caught up.
+ */
+function useNow(ticking: boolean, step: string | undefined) {
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    if (!ticking) return
+    const tick = () => setNow(Date.now())
+    const first = setTimeout(tick, 0)
+    const id = setInterval(tick, 250)
+    return () => {
+      clearTimeout(first)
+      clearInterval(id)
+    }
+  }, [ticking, step])
+  return now
+}
+
+/**
+ * A turn's chain of thought as one collapsible, and the turn's one status line
+ * from send to settle. Before anything streams it stands in as the waiting
+ * state ("Loading model…", "Thinking…"); while the run is live it tracks the
+ * in-flight step with a per-step elapsed timer, sliding each new step in; once
+ * the run settles it becomes a summary of the whole section: how long it took
+ * (thinking and tool calls alike) and how many calls ran, e.g. "Thought for 6s
+ * · 3 calls". Expanded it lays every step on a rail: thoughts as quote-bar
+ * text, tool calls as an icon beside their own expandable input/output card.
+ * The user's toggle always wins. Chart and proposal deliverables follow the
+ * chain, still visible when it's collapsed, since a chart or a change to
+ * approve is the answer, not a step.
  */
 export function ThoughtChain({
   parts,
@@ -267,51 +381,62 @@ export function ThoughtChain({
 }) {
   const [userOpen, setUserOpen] = useState<boolean | null>(null)
   const open = userOpen ?? false
+  // before the first chunk the model counts as loading whenever it isn't
+  // confirmed in memory: the 'loading' push lands a beat after the turn starts
+  const modelReady = useLlmStatus().data?.runtime === 'ready'
 
   const steps = parts.map(toStepView).filter((s): s is StepView => s !== null)
-  if (steps.length === 0) return null
+  const header = useDwellingHeader(headerView(steps, parts, streaming, modelReady))
+  const now = useNow(header?.active ?? false, header?.key)
+  if (!header) return null
 
-  const toolCount = steps.filter((s) => s.kind === 'tool').length
-  const last = steps[steps.length - 1]
-  // the run's last tool call, for the failed-at-a-glance signal on the summary
-  const lastTool = [...steps]
-    .reverse()
-    .find((s): s is Extract<StepView, { kind: 'tool' }> => s.kind === 'tool')
-
-  // Live, the header mirrors the in-flight step (the current tool call or
-  // thought); settled, it becomes the summary — one duration for the whole
-  // section, tool time included, under the chain-of-thought brain.
-  const headerLabel = streaming
-    ? last.label
-    : `Thought for ${formatThoughtDuration(parts.reduce((sum, p) => sum + stepDurationMs(p), 0))}`
-  const headerIcon = streaming && last.kind === 'tool' ? last.icon : BrainIcon
-  const headerActive = streaming && last.active
-  const headerFailed = streaming ? last.kind === 'tool' && last.failed : (lastTool?.failed ?? false)
+  const elapsedMs = now - header.startedAt
+  const showTimer = header.active && elapsedMs >= 1000
 
   return (
     <>
-      <ChainOfThought open={open} onOpenChange={setUserOpen}>
+      <ChainOfThought open={open} onOpenChange={setUserOpen} disabled={steps.length === 0}>
         <CollapsibleTrigger
           className={cn(
-            'group/cot flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground',
-            headerActive && 'animate-shimmer',
-            headerFailed && 'text-destructive hover:text-destructive'
+            'group/cot flex w-fit items-center gap-1.5 text-xs text-muted-foreground not-disabled:hover:text-foreground',
+            header.failed && 'text-destructive not-disabled:hover:text-destructive'
           )}
         >
-          <HugeiconsIcon icon={headerIcon} strokeWidth={2} className="size-3.5" />
-          <span className="text-left">{headerLabel}</span>
-          {/* the call count belongs to the settled summary; while streaming the
-              header is tracking the in-flight step, not tallying */}
-          {!streaming && toolCount > 0 && (
+          {/* keyed so each new step slides in; the shimmer sits on an inner
+              span because both animations would claim `animation` */}
+          <span
+            key={header.key}
+            className={cn(
+              'flex items-center',
+              header.animate && 'animate-in duration-300 fade-in-0 slide-in-from-bottom-1'
+            )}
+          >
+            <span className={cn('flex items-center gap-1.5', header.active && 'animate-shimmer')}>
+              <HugeiconsIcon
+                icon={header.icon}
+                strokeWidth={2}
+                className={cn('size-3.5', header.spin && 'animate-spin')}
+              />
+              <span className="text-left">
+                {showTimer ? header.label.replace(/…$/, '') : header.label}
+                {showTimer && (
+                  <span className="tabular-nums"> · {formatThoughtDuration(elapsedMs)}</span>
+                )}
+              </span>
+            </span>
+          </span>
+          {!!header.toolCount && (
             <span className="opacity-70">
-              · {toolCount} call{toolCount === 1 ? '' : 's'}
+              · {header.toolCount} call{header.toolCount === 1 ? '' : 's'}
             </span>
           )}
-          <HugeiconsIcon
-            icon={ArrowRight01Icon}
-            strokeWidth={2}
-            className="-ml-0.5 size-3.5 group-data-panel-open/cot:rotate-90"
-          />
+          {steps.length > 0 && (
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              strokeWidth={2}
+              className="-ml-0.5 size-3.5 group-data-panel-open/cot:rotate-90"
+            />
+          )}
         </CollapsibleTrigger>
         <ChainOfThoughtContent>
           {steps.map((step, i) =>
