@@ -71,7 +71,15 @@ Build drag-and-drop dashboards from chart, table, and stat widgets with saved fi
 
 ### Chat with your finances <sup>experimental</sup>
 
-Ask plain-language questions and the local model answers with read-only queries and charts, optionally scoped to one account. History is stored locally and nothing is sent anywhere.
+Ask plain-language questions and get answers with charts, optionally scoped to one account. The local model calls purpose-built tools that do the math in code, so the figures are exact rather than guessed:
+
+- **Spending and income** by category, merchant, or period, with fair comparisons of this month against the last.
+- **Budgets, goals, and balances**: what is left, what is on pace, and when you will reach a target.
+- **Subscriptions and bills**, with the next charge date and any price increases.
+- **What-if scenarios** like "what if I cut dining in half", including how the change moves a goal's finish date.
+- **Anything unusual**: possible duplicate charges, new merchants, spending spikes, and goals falling behind.
+
+Ask it to recategorize transactions, set a budget, or adjust a goal and it proposes the change as a card for you to apply, with undo. History is stored locally and nothing is sent anywhere.
 
 <table>
   <tr>
