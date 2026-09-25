@@ -64,13 +64,12 @@ export function ConversationRow({
         // button's hover look, so it doesn't flicker off under the action
         className="group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground"
       >
+        <StatusDot
+          tone={
+            dot === null ? null : dot === 'busy' ? 'busy' : dot === 'failed' ? 'attention' : 'info'
+          }
+        />
         <span className="truncate">{conversation.title ?? 'Untitled'}</span>
-        {dot && (
-          <StatusDot
-            tone={dot === 'busy' ? 'busy' : dot === 'failed' ? 'attention' : 'info'}
-            className="ml-auto"
-          />
-        )}
       </SidebarMenuButton>
       <DropdownMenu>
         <DropdownMenuTrigger
