@@ -31,6 +31,10 @@ const SCALE = 2
 // the Windows 11 window corner, in CSS pixels
 const RADIUS = 8
 const WEB_WIDTHS = [640, 960, 1280, 1920]
+const CORNER_MASK = Buffer.from(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${VIEWPORT.width * SCALE}" height="${VIEWPORT.height * SCALE}">` +
+    `<rect width="100%" height="100%" rx="${RADIUS * SCALE}" /></svg>`
+)
 
 const server = await preview({ configFile: 'vite.demo.config.ts', preview: { port: 0 } })
 const base = server.resolvedUrls.local[0]
@@ -65,12 +69,15 @@ try {
     }
     // chart entry animations and lazy route chunks settle well inside this
     await page.waitForTimeout(1500)
-    // rounded corners, transparent outside them, like a real window
-    await page.addStyleTag({
-      content: `html { clip-path: inset(0 round ${RADIUS}px); background: transparent !important; }`
-    })
-
-    const png = await page.screenshot({ omitBackground: true, animations: 'disabled' })
+    const shot = await page.screenshot({ animations: 'disabled' })
+    // rounded corners, transparent outside them, like a real window; masked
+    // here because a CSS clip-path on the root misses composited layers like
+    // the page's scroll area, leaving the right-hand corners square
+    const png = await sharp(shot)
+      .ensureAlpha()
+      .composite([{ input: CORNER_MASK, blend: 'dest-in' }])
+      .png()
+      .toBuffer()
     writeFileSync(join(outDir, `${screen.name}.png`), png)
 
     if (values.web) {

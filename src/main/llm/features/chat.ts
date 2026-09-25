@@ -569,7 +569,10 @@ export function toolDocsChars(vocab: ToolVocab): number {
   return JSON.stringify(schemas).length + FIXED_TOOL_DOCS_CHARS
 }
 
-function goalInputs(accountId: number | null): { rows: GoalTableRows; pace: GoalPaceInput[] } {
+export function goalInputs(accountId: number | null): {
+  rows: GoalTableRows
+  pace: GoalPaceInput[]
+} {
   const summaries = scopedGoals(accountId)
   if (summaries.length === 0) return { rows: { goals: [], history: [] }, pace: [] }
   // what update_goal and what_if rerun the Goals page's pace math with
