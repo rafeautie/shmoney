@@ -18,7 +18,7 @@ Open a [GitHub issue](https://github.com/rafeautie/shmoney/issues) describing th
 
 ## Running the app locally
 
-You're welcome to fork the repo and run or modify the app for your own use, subject to the [PolyForm Noncommercial License 1.0.0](LICENSE.md). You need Node.js 22+ and npm. Native modules (better-sqlite3, node-llama-cpp) are rebuilt for Electron automatically on install.
+You're welcome to fork the repo and run or modify the app, subject to the [GNU Affero General Public License v3.0](LICENSE). You need Node.js 22+ and npm. Native modules (better-sqlite3, node-llama-cpp) are rebuilt for Electron automatically on install.
 
 ```bash
 git clone https://github.com/rafeautie/shmoney.git

@@ -134,4 +134,4 @@ Bug reports and feature requests are welcome via [GitHub issues](https://github.
 
 ## License
 
-Source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE.md): free to use, modify, and share for noncommercial purposes. For a commercial license, open an issue. The shmoney name and logo are not covered by the license; forks and derived works must use their own.
+Free and open source under the [GNU Affero General Public License v3.0](LICENSE). You can use, modify, and share shmoney, commercially too; if you distribute a modified version or run one as a network service, you must publish its source under the same license. Releases up to and including 0.4.1 remain under the PolyForm Noncommercial License 1.0.0 they shipped with. The shmoney name and logo are not covered by the license; forks and derived works must use their own.
