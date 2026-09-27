@@ -5,6 +5,9 @@
 //   npm run build:demo && npm run screenshots                  -> docs/screenshots/*.png
 //   npm run screenshots -- --out out/demo/screenshots --web    -> + AVIF/WebP for the web
 //
+// Also assembles the README's animated tour and the social preview card from
+// the same shots.
+//
 // Drives the installed Chrome (SCREENSHOT_BROWSER=msedge for Edge) through
 // playwright-core, so there is no browser download.
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -13,6 +16,7 @@ import { parseArgs } from 'node:util'
 import { chromium } from 'playwright-core'
 import sharp from 'sharp'
 import { preview } from 'vite'
+import { socialCard } from './social-card.mjs'
 
 const { values } = parseArgs({
   options: {
@@ -35,6 +39,42 @@ const CORNER_MASK = Buffer.from(
   `<svg xmlns="http://www.w3.org/2000/svg" width="${VIEWPORT.width * SCALE}" height="${VIEWPORT.height * SCALE}">` +
     `<rect width="100%" height="100%" rx="${RADIUS * SCALE}" /></svg>`
 )
+// the README hero: the core screens in turn, ending on chat
+const TOUR = ['transactions', 'budget', 'goals', 'report-detail', 'chat']
+const TOUR_HOLD_MS = 2500
+const TOUR_FADE_FRAMES = 6
+const TOUR_FADE_MS = 50
+
+// crossfades each screen into the next, looping back to the first
+async function tour(pngs) {
+  const frames = await Promise.all(
+    pngs.map((png) =>
+      sharp(png).resize({ width: VIEWPORT.width }).raw().toBuffer({ resolveWithObject: true })
+    )
+  )
+  const { info } = frames[0]
+  const raw = { width: info.width, height: info.height, channels: info.channels }
+  const out = []
+  const delay = []
+  frames.forEach(({ data: from }, i) => {
+    out.push(from)
+    delay.push(TOUR_HOLD_MS)
+    const to = frames[(i + 1) % frames.length].data
+    for (let step = 1; step <= TOUR_FADE_FRAMES; step++) {
+      const t = step / (TOUR_FADE_FRAMES + 1)
+      const mixed = Buffer.alloc(from.length)
+      for (let p = 0; p < from.length; p++) mixed[p] = from[p] + (to[p] - from[p]) * t
+      out.push(mixed)
+      delay.push(TOUR_FADE_MS)
+    }
+  })
+  const inputs = await Promise.all(
+    out.map((data) => sharp(data, { raw }).png({ compressionLevel: 0 }).toBuffer())
+  )
+  return sharp(inputs, { join: { animated: true } })
+    .webp({ quality: 75, delay, loop: 0 })
+    .toBuffer()
+}
 
 const server = await preview({ configFile: 'vite.demo.config.ts', preview: { port: 0 } })
 const base = server.resolvedUrls.local[0]
@@ -49,6 +89,7 @@ try {
     reducedMotion: 'reduce'
   })
   const manifest = []
+  const shots = new Map()
 
   for (const screen of screens) {
     if (values.only && screen.name !== values.only) continue
@@ -79,6 +120,7 @@ try {
       .png()
       .toBuffer()
     writeFileSync(join(outDir, `${screen.name}.png`), png)
+    shots.set(screen.name, png)
 
     if (values.web) {
       for (const width of WEB_WIDTHS) {
@@ -101,6 +143,16 @@ try {
     })
     await page.close()
     process.stdout.write(`shot ${screen.name}\n`)
+  }
+
+  if (TOUR.every((name) => shots.has(name))) {
+    writeFileSync(join(outDir, 'tour.webp'), await tour(TOUR.map((name) => shots.get(name))))
+    process.stdout.write(`shot tour\n`)
+  }
+  // GitHub's social preview (uploaded by hand) and rafe.dev's og:image
+  if (shots.has('chat')) {
+    writeFileSync(join(outDir, 'social.png'), await socialCard(browser, shots.get('chat')))
+    process.stdout.write(`shot social\n`)
   }
 
   if (values.web) {
