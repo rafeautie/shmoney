@@ -45,6 +45,13 @@ export default tseslint.config(
     }
   },
   {
+    // plain JS scripts have no return type annotations to write
+    files: ['**/*.mjs'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off'
+    }
+  },
+  {
     // TanStack Router route files pass their component via `component:` rather than
     // exporting it directly, which this rule's static analysis can't follow.
     files: ['src/renderer/src/routes/**/*.tsx'],

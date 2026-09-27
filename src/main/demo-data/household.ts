@@ -409,7 +409,7 @@ export const household: DatasetDefinition = {
         const lowest = facts.lowest_complete_month as { month: string; net: number } | undefined
         turn.say(
           [
-            `Over the last 12 complete months you kept ${usd(Number(facts.total_net ?? 0))} after spending, ${facts.savings_rate_percent ?? 0}% of what came in, or about ${usd(Number(facts.average_per_complete_month ?? 0))} a month.`,
+            `Over the last 12 months you kept ${usd(Number(facts.total_net ?? 0))} after spending, ${facts.savings_rate_percent ?? 0}% of what came in. A complete month left about ${usd(Number(facts.average_per_complete_month ?? 0))}.`,
             '',
             highest && lowest
               ? `Your best month was **${highest.month}** at ${usd(highest.net)}, and the tightest was **${lowest.month}** at ${usd(lowest.net)}.`

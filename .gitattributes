@@ -3,5 +3,6 @@
 
 # Binary assets
 *.png binary
+*.webp binary
 *.ico binary
 *.icns binary
