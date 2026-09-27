@@ -2,16 +2,8 @@
   <img src="docs/logo.png" width="120" alt="shmoney logo" />
 </p>
 
-<h3 align="center" font=>shmoney</h3>
-<h4 align="center" font=>Private first. Local first. Personal first.</h4>
-
-<br>
-
-<p align="center">
-  <img alt="badge" src="https://shieldcn.dev/badge/SQLite.svg?size=xs&amp;font=geist&amp;logo=sqlite&amp;logoColor=ffffff&amp;color=1a493b&amp;gap=7">
-  <picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/Gemma%204.svg?size=xs&amp;theme=blue&amp;font=geist&amp;logo=ri%3AFaGoogle&amp;logoColor=ffffff&amp;gap=7&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/badge/Gemma%204.svg?size=xs&amp;theme=blue&amp;font=geist&amp;logo=ri%3AFaGoogle&amp;logoColor=ffffff&amp;gap=7&amp;mode=light"></picture>
-  <picture><source media="(prefers-color-scheme: dark)" srcset="https://shieldcn.dev/badge/Secure%20&amp;%20Private.svg?size=xs&amp;theme=rose&amp;font=geist&amp;logo=lu%3ALock&amp;logoColor=ffffff&amp;gap=8&amp;mode=dark"><img alt="badge" src="https://shieldcn.dev/badge/Secure%20&amp;%20Private.svg?size=xs&amp;theme=rose&amp;font=geist&amp;logo=lu%3ALock&amp;logoColor=ffffff&amp;gap=8&amp;mode=light"></picture>
-</p>
+<h3 align="center">shmoney</h3>
+<h4 align="center">Private first. Local first. Personal first.</h4>
 
 <p align="center">
   <img alt="badge" src="https://shieldcn.dev/badge/Windows.svg?variant=destructive&amp;size=xs&amp;font=geist&amp;split=true&amp;logo=ri%3AFaWindows&amp;logoColor=3f89ff&amp;valueColor=ffffff&amp;labelTextColor=f8f8f8&amp;gap=0">
@@ -25,14 +17,18 @@
 </p>
 
 <p align="center">
-  <a href="https://rafe.dev/shmoney"><b>Try the live demo</b></a>
+  <b>Personal finance that never leaves your computer.</b><br>
+  Accounts, spending, budgets, goals, and investments in one SQLite file on your own machine.<br>
+  No cloud backend, no account to sign up for, no telemetry. Even the AI runs on your device.
 </p>
 
-# shmoney
+<p align="center">
+  <a href="https://rafe.dev/shmoney"><b>Try the live demo</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/rafeautie/shmoney/releases/latest"><b>Download</b></a>
+</p>
 
-**Personal finance that never leaves your computer.** shmoney tracks your accounts, spending, budgets, goals, and investments in a single SQLite file on your own machine. No cloud backend, no account to sign up for, no telemetry. Even the AI runs on your device.
-
-<img src="docs/screenshots/accounts.png" alt="Accounts page showing balances and net worth" />
+<img src="docs/screenshots/tour.webp" alt="A tour of shmoney: transactions, envelope budget, savings goals, a report dashboard, and the on-device chat answering with a chart" />
 
 ## Why shmoney
 
@@ -98,6 +94,8 @@ Every change is recorded in the Activity log and can be reversed, even after a r
 
 Holdings with market value and cost basis, plus net worth broken out by currency.
 
+<img src="docs/screenshots/accounts.png" alt="Accounts page showing balances and net worth" />
+
 <details>
 <summary>More screenshots</summary>
 <br>
@@ -110,6 +108,14 @@ Holdings with market value and cost basis, plus net worth broken out by currency
 
 Download the latest build for Windows, macOS, or Linux from [Releases](https://github.com/rafeautie/shmoney/releases), or [try the live demo](https://rafe.dev/shmoney) with sample data first. Nothing in the demo is uploaded or saved.
 
+### First launch
+
+The builds are not signed with a paid developer certificate yet, so your OS asks you to confirm the first time you open shmoney:
+
+- **macOS:** open shmoney once and close the warning, then go to **System Settings → Privacy & Security** and click **Open Anyway**. Or run `xattr -dr com.apple.quarantine /Applications/shmoney.app` in Terminal.
+- **Windows:** if SmartScreen says it protected your PC, click **More info → Run anyway**.
+- **Linux:** install the `.deb`, or make the AppImage executable with `chmod +x shmoney-*.AppImage`.
+
 **Coming soon:** European bank sync alongside SimpleFIN.
 
 ## Privacy
@@ -120,7 +126,7 @@ Download the latest build for Windows, macOS, or Linux from [Releases](https://g
 
 ## Status
 
-shmoney is under active development and has not reached a stable release; the database schema may change between versions.
+shmoney is pre-1.0 and under active development, so screens and features still change between versions. Updates migrate your database automatically when shmoney starts. Migrations only run forward, so copy the database file first if you might want to go back to an older version.
 
 ## Contributing
 
