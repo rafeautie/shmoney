@@ -7,6 +7,7 @@ export const SETTINGS_SECTIONS = [
   'categories',
   'rules',
   'ai',
+  'ai-usage',
   'storage',
   'about'
 ] as const

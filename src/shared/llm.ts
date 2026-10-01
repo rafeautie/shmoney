@@ -240,6 +240,107 @@ export interface CategorizeProgress {
   total: number
 }
 
+// ---------- generation stats ----------
+// Measured in the worker for every inference request: streamed live during a
+// chat turn, persisted on the assistant row, and logged per request for the
+// settings usage page. Rates are derived (generationRates), never stored, so
+// every surface computes them the same way.
+
+/** the inference features usage is attributed to */
+export type LlmFeature = 'chat' | 'categorize' | 'ruleTerm'
+
+export const LLM_FEATURES: readonly LlmFeature[] = ['chat', 'categorize', 'ruleTerm']
+
+export const LLM_FEATURE_LABELS: Record<LlmFeature, string> = {
+  chat: 'Chat',
+  categorize: 'Auto-categorize',
+  ruleTerm: 'Rule suggestions'
+}
+
+export type GenerationStopReason = 'endOfTurn' | 'maxTokens' | 'aborted' | 'error' | 'other'
+
+export interface GenerationStats {
+  modelId: ModelId
+  /** prompt tokens the model evaluated; a prefix reused from the KV cache isn't counted */
+  inputTokens: number
+  /** tokens generated, thinking and tool calls included */
+  outputTokens: number
+  /** the output tokens timed inside decodeMs: the generation speed's numerator */
+  decodeTokens: number
+  /** time spent generating, excluding prompt evaluation and tool runs */
+  decodeMs: number
+  /** request start to the first generated token; null when nothing was generated */
+  ttftMs: number | null
+  /** time spent evaluating prompt tokens (the prompt, then each tool result) */
+  prefillMs: number
+  /** time the turn's tool calls spent running */
+  toolMs: number
+  /** request start to finish, model load excluded */
+  totalMs: number
+  /** set when this request had to load the model (or create its context) first */
+  loadMs: number | null
+  /** tokens occupying the context window when the request ended */
+  contextTokens: number
+  contextSize: number
+  /** null while the request is still running */
+  stopReason: GenerationStopReason | null
+}
+
+// below this a span is too short to divide by without wild rates
+const MIN_RATE_SPAN_MS = 50
+
+function rate(tokens: number, ms: number): number | null {
+  return tokens > 0 && ms >= MIN_RATE_SPAN_MS ? (tokens * 1000) / ms : null
+}
+
+/** tokens per second for generation (decode) and prompt evaluation (prefill) */
+export function generationRates(stats: {
+  inputTokens: number
+  decodeTokens: number
+  decodeMs: number
+  prefillMs: number
+}): { decodeTps: number | null; prefillTps: number | null } {
+  return {
+    decodeTps: rate(stats.decodeTokens, stats.decodeMs),
+    prefillTps: rate(stats.inputTokens, stats.prefillMs)
+  }
+}
+
+/** summed usage over a set of requests; averages derive from the sums */
+export interface LlmUsageTotals {
+  requests: number
+  inputTokens: number
+  outputTokens: number
+  decodeTokens: number
+  decodeMs: number
+  prefillMs: number
+  totalMs: number
+  /** sum and count of time to first token, over requests that generated anything */
+  ttftMs: number
+  ttftCount: number
+  /** requests that had to load the model first, and the time those loads took */
+  loads: number
+  loadMs: number
+  interrupted: number
+  errors: number
+}
+
+export interface LlmUsageSummary {
+  /** the reset point; usage before it is excluded. null = never reset */
+  since: number | null
+  /** the oldest request counted, null when there is none */
+  firstAt: number | null
+  totals: LlmUsageTotals
+  /** model ids are kept as stored, so a model since dropped from the registry still lists */
+  byModel: (LlmUsageTotals & { modelId: string })[]
+  byFeature: (LlmUsageTotals & { feature: LlmFeature })[]
+  /** tokens processed (input + output) per local 'YYYY-MM-DD' day and feature, over
+   * the last LLM_USAGE_DAILY_DAYS days; days without usage are absent */
+  daily: { day: string; feature: LlmFeature; tokens: number }[]
+}
+
+export const LLM_USAGE_DAILY_DAYS = 30
+
 // ---------- IPC ----------
 
 // load/unload are deliberately absent: the core loads on first generate and
@@ -254,7 +355,9 @@ export const LLM_IPC = {
   selectModel: 'llm:selectModel',
   categorize: 'llm:categorize',
   cancelCategorize: 'llm:cancelCategorize',
+  getUsage: 'llm:getUsage',
   statusChanged: 'llm:statusChanged',
+  usageChanged: 'llm:usageChanged',
   downloadProgress: 'llm:downloadProgress',
   categorizeProgress: 'llm:categorizeProgress'
 } as const

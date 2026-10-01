@@ -11,6 +11,7 @@ import {
   type StreamingChatPart,
   type UndoProposalInput
 } from '@shared/chat'
+import type { GenerationStats } from '@shared/llm'
 import { ipcErrorMessage } from '@/lib/utils'
 
 export const CHAT_CONVERSATIONS_KEY = ['chat', 'conversations'] as const
@@ -135,11 +136,13 @@ export function useRenameConversation() {
 export interface ActiveReply {
   conversationId: number
   parts: StreamingChatPart[]
+  /** the latest usage snapshot; null until the worker reports one */
+  stats: GenerationStats | null
 }
 
 /** a reply entry that hasn't streamed anything yet */
 function emptyReply(conversationId: number): ActiveReply {
-  return { conversationId, parts: [] }
+  return { conversationId, parts: [], stats: null }
 }
 
 /**
@@ -167,6 +170,13 @@ export function useStreamingReply(): {
         return { ...base, parts }
       })
     })
+    const offStats = window.api.chat.onStats(({ conversationId, stats }) => {
+      setReply((prev) => {
+        const base =
+          prev && prev.conversationId === conversationId ? prev : emptyReply(conversationId)
+        return { ...base, stats }
+      })
+    })
     const offDone = window.api.chat.onMessageDone(({ conversationId, message }) => {
       setReply(null)
       // the reply settles into its placeholder row in place — same id, same
@@ -183,6 +193,7 @@ export function useStreamingReply(): {
     })
     return () => {
       offPart()
+      offStats()
       offDone()
     }
   }, [queryClient])

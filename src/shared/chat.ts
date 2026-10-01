@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { GenerationStats } from './llm'
 
 // Chat with the local model: multiple conversations, each a persisted message
 // history. Sending with a null conversationId creates the conversation
@@ -350,6 +351,9 @@ export interface ChatMessage {
   errorMessage: string | null
   /** assistant rows: the scope this turn ran under; null on user rows and pre-scope history */
   scope: ChatTurnScope | null
+  /** assistant rows: how the reply was generated (speed, tokens); null on user
+   * rows, errors, and history from before stats were kept */
+  stats: GenerationStats | null
   /** unix milliseconds */
   createdAt: number
 }
@@ -445,6 +449,12 @@ export interface ChatPartEvent {
   part: StreamingChatPart
 }
 
+/** a live usage snapshot of the reply streaming in */
+export interface ChatStatsEvent {
+  conversationId: number
+  stats: GenerationStats
+}
+
 /** the assistant row is finalized (complete, interrupted, or errored) */
 export interface ChatMessageDoneEvent {
   conversationId: number
@@ -484,5 +494,6 @@ export const CHAT_IPC = {
   undoProposal: 'chat:undoProposal',
   // main → renderer push events
   part: 'chat:part',
+  stats: 'chat:stats',
   messageDone: 'chat:messageDone'
 } as const

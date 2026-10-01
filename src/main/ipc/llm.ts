@@ -1,13 +1,16 @@
 import { ipcMain } from 'electron'
+import { z } from 'zod'
 import { categorizeScopeSchema } from '@shared/ipc'
 import { llmManager } from '../llm/manager'
 import { categorizeTransactions, cancelCategorize } from '../llm/features/categorize'
+import { getUsageSummary } from '../llm/usage'
 import {
   LLM_IPC,
   modelIdSchema,
   type CategorizeResult,
   type HardwareInfo,
   type LlmStatus,
+  type LlmUsageSummary,
   type ModelDiskSizes
 } from '@shared/llm'
 
@@ -42,4 +45,10 @@ export function registerLlmIpc(): void {
   )
 
   ipcMain.handle(LLM_IPC.cancelCategorize, (): void => cancelCategorize())
+
+  // the renderer passes its llmUsageSince setting, so a reset counts from the
+  // value it just wrote rather than racing that write
+  ipcMain.handle(LLM_IPC.getUsage, (_event, since: unknown): LlmUsageSummary =>
+    getUsageSummary(z.number().nullable().parse(since))
+  )
 }

@@ -32,7 +32,9 @@ export const settingSchemas = {
   // how the Goals page lists goals: editable cards or one row each
   goalsView: z.enum(['cards', 'table']),
   // the same choice for the Budget page's envelopes
-  budgetView: z.enum(['cards', 'table'])
+  budgetView: z.enum(['cards', 'table']),
+  // AI usage stats count from here (unix ms); resetting moves it, rows stay
+  llmUsageSince: z.number().nullable()
 }
 
 export type SettingKey = keyof typeof settingSchemas
@@ -53,7 +55,8 @@ export const SETTINGS_DEFAULTS: Settings = {
   activitySeenAt: null,
   goalsView: 'cards',
   // the envelope table is what the page has always opened as
-  budgetView: 'table'
+  budgetView: 'table',
+  llmUsageSince: null
 }
 
 export const SETTINGS_IPC = {

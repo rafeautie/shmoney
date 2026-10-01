@@ -28,6 +28,8 @@ import {
   CHAT_CONTEXT_SIZE,
   GENERATE_CONTEXT_SIZE,
   LLM_MODELS,
+  type GenerationStats,
+  type GenerationStopReason,
   type LlmModel,
   type ModelId,
   type ModelStage,
@@ -50,6 +52,7 @@ import type {
   WorkerMessage
 } from './protocol'
 import { createTurnLog, type TurnLog } from './turn-log'
+import { createUsageMeter, type UsageMeter } from './usage-meter'
 import {
   GOAL_HISTORY_INSERT_SQL,
   GOAL_INSERT_SQL,
@@ -187,6 +190,10 @@ const activeDownloads = new Map<ModelId, { abortController: AbortController; can
 
 // the controller for the generate currently running, so abortGenerate can stop it
 let activeGeneration: AbortController | null = null
+
+// time spent loading the model or creating a context since the last request,
+// charged to the next request's stats as its loadMs
+let pendingLoadMs: number | null = null
 
 // the chat query tool's own connection to the app database, opened lazily on
 // the first chat turn. It reads the same WAL file main writes; writes are
@@ -414,6 +421,7 @@ async function handleLoad(modelId: ModelId): Promise<null> {
   }
 
   postRuntime('loading')
+  const loadStarted = Date.now()
   try {
     const llamaInstance = await ensureLlama()
     const llamaModel = await llamaInstance.loadModel({ modelPath: filePath })
@@ -423,6 +431,7 @@ async function handleLoad(modelId: ModelId): Promise<null> {
       chatWrapper: chatWrapperFor(model, 'generate')
     })
     loaded = { modelId, model: llamaModel, context, session }
+    pendingLoadMs = Date.now() - loadStarted
     postRuntime('ready')
     return null
   } catch (err) {
@@ -463,7 +472,53 @@ async function grammarFor(schema: object): Promise<Awaited<ReturnType<typeof com
   return grammar
 }
 
-async function handleGenerate(prompt: string, schema?: object): Promise<unknown> {
+/** a usage meter over the session's sequence, charging it any pending load time */
+function meterFor(session: LlamaChatSession, modelId: ModelId): UsageMeter {
+  const sequence = session.sequence
+  const startTokens = sequence.tokenMeter.getState()
+  const loadMs = pendingLoadMs
+  pendingLoadMs = null
+  return createUsageMeter({
+    modelId,
+    now: Date.now,
+    readTokens: () => {
+      const used = sequence.tokenMeter.diff(startTokens)
+      return { inputTokens: used.usedInputTokens, outputTokens: used.usedOutputTokens }
+    },
+    readContext: () => ({
+      contextTokens: sequence.nextTokenIndex,
+      contextSize: sequence.context.contextSize
+    }),
+    loadMs
+  })
+}
+
+type LibraryStopReason = Awaited<ReturnType<LlamaChatSession['promptWithMeta']>>['stopReason']
+
+function stopReasonOf(reason: LibraryStopReason): GenerationStopReason {
+  switch (reason) {
+    case 'eogToken':
+    case 'stopGenerationTrigger':
+    case 'customStopTrigger':
+      return 'endOfTurn'
+    case 'maxTokens':
+      return 'maxTokens'
+    case 'abort':
+      return 'aborted'
+    default:
+      return 'other'
+  }
+}
+
+// live chat stats are snapshots; a few a second is plenty for a ticking readout
+const STATS_INTERVAL_MS = 250
+
+/** a request ended: hand its stats to the manager, which logs them */
+function postFinalStats(id: number, stats: GenerationStats): void {
+  post({ event: 'stats', id, stats, final: true })
+}
+
+async function handleGenerate(id: number, prompt: string, schema?: object): Promise<unknown> {
   if (!loaded) throw new Error('No model loaded')
   loaded.session.resetChatHistory()
 
@@ -471,14 +526,24 @@ async function handleGenerate(prompt: string, schema?: object): Promise<unknown>
   // rejected generate reply; resetChatHistory above clears any half-done state
   const controller = new AbortController()
   activeGeneration = controller
+  const meter = meterFor(loaded.session, loaded.modelId)
+  let stopReason: GenerationStopReason = 'error'
   try {
-    if (!schema) return await loaded.session.prompt(prompt, { signal: controller.signal })
     // Constrain decoding to the JSON schema so the response is always parseable.
-    const grammar = await grammarFor(schema)
-    const result = await loaded.session.prompt(prompt, { grammar, signal: controller.signal })
-    return grammar.parse(result)
+    const grammar = schema ? await grammarFor(schema) : undefined
+    const result = await loaded.session.promptWithMeta(prompt, {
+      grammar,
+      signal: controller.signal,
+      onResponseChunk: () => meter.sample()
+    })
+    stopReason = stopReasonOf(result.stopReason)
+    return grammar ? grammar.parse(result.responseText) : result.responseText
+  } catch (err) {
+    if (controller.signal.aborted) stopReason = 'aborted'
+    throw err
   } finally {
     if (activeGeneration === controller) activeGeneration = null
+    postFinalStats(id, meter.finish(stopReason))
   }
 }
 
@@ -490,6 +555,7 @@ function handleAbortGenerate(): null {
 async function ensureChatSession(): Promise<LlamaChatSession> {
   if (!loaded) throw new Error('No model loaded')
   if (chatLoaded) return chatLoaded.session
+  const started = Date.now()
   const context = await loaded.model.createContext({ contextSize: CHAT_CONTEXT_SIZE })
   const { tokenizer } = loaded.model
   const session = new LlamaChatSession({
@@ -509,6 +575,7 @@ async function ensureChatSession(): Promise<LlamaChatSession> {
     }
   })
   chatLoaded = { context, session }
+  pendingLoadMs = (pendingLoadMs ?? 0) + Date.now() - started
   return session
 }
 
@@ -785,6 +852,30 @@ function chatFunctions(ctx: {
   return functions
 }
 
+/** generation stops while a handler runs; time it as tool time, not decode */
+function meteredFunctions(
+  functions: ChatSessionModelFunctions,
+  usage: UsageMeter
+): ChatSessionModelFunctions {
+  return Object.fromEntries(
+    Object.entries(functions).map(([name, fn]) => [
+      name,
+      {
+        ...fn,
+        async handler(params: unknown) {
+          usage.pause()
+          const started = Date.now()
+          try {
+            return await fn.handler(params as never)
+          } finally {
+            usage.addToolMs(Date.now() - started)
+          }
+        }
+      }
+    ])
+  )
+}
+
 async function handleChat(
   id: number,
   history: ChatHistoryItem[],
@@ -798,6 +889,8 @@ async function handleChat(
   // that lands while the chat context is still being created isn't lost
   const controller = new AbortController()
   activeGeneration = controller
+  let meter: UsageMeter | null = null
+  let stopReason: GenerationStopReason = 'error'
   try {
     const session = await ensureChatSession()
     if (controller.signal.aborted) return { parts: [], interrupted: true }
@@ -832,13 +925,27 @@ async function handleChat(
     // wall-clock when the tool call being written opened; each handler reads the
     // span up to its own settle, so the chain of thought can total tool time
     let openedCallAt: number | null = null
-    const functions = chatFunctions({
-      turn,
-      currency,
-      state,
-      analysis,
-      callDurationMs: () => (openedCallAt === null ? 0 : Date.now() - openedCallAt)
-    })
+    // ensureChatSession resolved, so the model it belongs to is loaded
+    const usage = meterFor(session, (loaded as LoadedModel).modelId)
+    meter = usage
+    const functions = meteredFunctions(
+      chatFunctions({
+        turn,
+        currency,
+        state,
+        analysis,
+        callDurationMs: () => (openedCallAt === null ? 0 : Date.now() - openedCallAt)
+      }),
+      usage
+    )
+    let statsPostedAt = 0
+    const sample = (): void => {
+      usage.sample()
+      const now = Date.now()
+      if (now - statsPostedAt < STATS_INTERVAL_MS) return
+      statsPostedAt = now
+      post({ event: 'stats', id, stats: usage.snapshot(), final: false })
+    }
 
     // the whole prior conversation is replaced per turn (stateless worker: the
     // feature owns history in the DB), so switching conversations needs nothing.
@@ -863,7 +970,7 @@ async function handleChat(
     let openedCallIndex: number | null = null
     // stopOnAbortSignal makes an abort return the text generated so far
     // instead of throwing, so a stopped reply still reaches the DB
-    const text = await session.prompt(prompt, {
+    const { responseText: text, stopReason: libraryStop } = await session.promptWithMeta(prompt, {
       signal: controller.signal,
       stopOnAbortSignal: true,
       functions,
@@ -871,6 +978,7 @@ async function handleChat(
       // the transcript's card order trivially aligned
       maxParallelFunctionCalls: 1,
       onFunctionCallParamsChunk: (chunk) => {
+        sample()
         if (chunk.callIndex !== openedCallIndex) {
           openedCallIndex = chunk.callIndex
           openedCallAt = Date.now()
@@ -878,6 +986,7 @@ async function handleChat(
         }
       },
       onResponseChunk: (chunk) => {
+        sample()
         if (chunk.type === 'segment') {
           if (chunk.segmentStartTime) segmentStart = chunk.segmentStartTime.getTime()
           if (chunk.text) turn.reasoningChunk(chunk.text)
@@ -893,13 +1002,18 @@ async function handleChat(
     // an abort mid-thought leaves the segment open; close it timed until now,
     // so a stopped turn still persists that thought
     if (segmentStart !== null) turn.closeReasoning(Date.now() - segmentStart)
+    stopReason = stopReasonOf(libraryStop)
     return {
       ...turn.finish(text, controller.signal.aborted),
       historyDropped: history.length - 1 - shiftTurn.olderKept
     }
+  } catch (err) {
+    if (controller.signal.aborted) stopReason = 'aborted'
+    throw err
   } finally {
     shiftTurn = null
     if (activeGeneration === controller) activeGeneration = null
+    if (meter) postFinalStats(id, meter.finish(stopReason))
   }
 }
 
@@ -916,7 +1030,7 @@ async function dispatch(command: WorkerCommand): Promise<unknown> {
     case 'unload':
       return handleUnload()
     case 'generate':
-      return handleGenerate(command.prompt, command.schema)
+      return handleGenerate(command.id, command.prompt, command.schema)
     case 'abortGenerate':
       return handleAbortGenerate()
     case 'chat':
