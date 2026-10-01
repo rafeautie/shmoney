@@ -18,6 +18,7 @@ The README screenshots in `docs/screenshots` are not part of the release; reshoo
 ## Platform notes
 
 - Automatic updates cover Windows and Linux (AppImage and `.deb`, both read `latest-linux.yml`; the `.deb` update asks for an admin password to install).
+- Linux builds on `ubuntu-22.04`, not `ubuntu-latest`: better-sqlite3 is compiled on the runner (with clang 15, since 22.04's gcc can't parse Electron's V8 headers) and needs the runner's glibc or newer, so building on a newer Ubuntu makes the app fail to start on older distros (and fail the AppImage catalog test). Move up only when GitHub retires the 22.04 runner. The AppImage uses the static runtime (`toolsets.appimage` in `electron-builder.yml`), so it doesn't need libfuse2.
 - macOS auto-update requires a code-signed app (Apple Developer ID), which this project doesn't have. Mac builds instead check the latest published GitHub release on the same schedule and, when it's newer and has a `.dmg`, show a **Download update** button on Settings → About (plus the Settings dot) linking to the release page. The dmg is ad-hoc signed so Apple Silicon doesn't report it as damaged; Gatekeeper still warns on first open.
 - Builds are unsigned: SmartScreen warns on the first manually downloaded install, but electron-updater's own downloads update silently afterwards.
 - Windows updates download only changed blocks (blockmap differential), so update downloads are much smaller than the full installer despite the bundled llama binaries.

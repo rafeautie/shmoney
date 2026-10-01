@@ -32,7 +32,9 @@ jobs:
             args: --win
           - os: macos-latest
             args: --mac
-          - os: ubuntu-latest
+          # native modules link against the build host's glibc, so build on
+          # the oldest supported LTS or the app won't start on older distros
+          - os: ubuntu-22.04
             args: --linux
     runs-on: ${{ matrix.os }}
     steps:
@@ -42,6 +44,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      # Electron's V8 headers don't parse with gcc older than 13, and 22.04
+      # tops out at gcc 12; the runner's preinstalled clang 15 handles them
+      - name: Use clang
+        if: runner.os == 'Linux'
+        run: |
+          echo "CC=clang-15" >> "$GITHUB_ENV"
+          echo "CXX=clang++-15" >> "$GITHUB_ENV"
 
       # postinstall runs `electron-builder install-app-deps`, rebuilding
       # better-sqlite3 / node-llama-cpp against the packaged Electron
