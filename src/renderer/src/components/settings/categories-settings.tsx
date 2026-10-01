@@ -6,7 +6,6 @@ import type { Category, CategoryGroup } from '@shared/ipc'
 import { ipcErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Separator } from '@/components/ui/separator'
 import { SettingsGroup, SettingAction, SettingsSection } from './settings-controls'
 import { ConfirmButton } from '@/components/confirm-dialog'
 
@@ -40,24 +39,40 @@ export function CategoriesSettings() {
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <>
-          {categoriesQuery.data?.groups.map((group) => (
-            <div key={group.id} className="space-y-4">
-              <Separator />
-              <GroupSection group={group} />
-            </div>
-          ))}
-          <div className="space-y-4">
-            <Separator />
-            <div className="flex flex-col gap-2">
+          <SettingsGroup>
+            {categoriesQuery.data?.groups.map((group) => (
+              <GroupSection key={group.id} group={group} />
+            ))}
+            <div className="flex flex-col gap-2 px-4 py-3">
               <div className="flex min-h-7 items-center gap-2">
                 <h3 className="text-sm font-medium text-muted-foreground">Ungrouped</h3>
               </div>
               <CategoryList groupId={null} categories={categoriesQuery.data?.ungrouped ?? []} />
             </div>
-          </div>
-          <div className="space-y-4">
-            <Separator />
-            <div className="flex flex-col gap-2">
+            <form
+              className="flex gap-2 px-4 py-3"
+              onSubmit={(event) => {
+                event.preventDefault()
+                createGroup.mutate()
+              }}
+            >
+              <Input
+                value={newGroupName}
+                onChange={(event) => setNewGroupName(event.target.value)}
+                placeholder="New group name"
+                className="max-w-60"
+              />
+              <Button
+                type="submit"
+                variant="outline"
+                disabled={!newGroupName.trim() || createGroup.isPending}
+              >
+                Add group
+              </Button>
+            </form>
+          </SettingsGroup>
+          <SettingsGroup>
+            <div className="flex flex-col gap-2 px-4 py-3">
               <div className="flex min-h-7 items-center gap-2">
                 <h3 className="text-sm font-medium text-muted-foreground">System</h3>
               </div>
@@ -76,31 +91,9 @@ export function CategoriesSettings() {
                 renamed or deleted.
               </p>
             </div>
-          </div>
+          </SettingsGroup>
         </>
       )}
-      <Separator />
-      <form
-        className="flex gap-2"
-        onSubmit={(event) => {
-          event.preventDefault()
-          createGroup.mutate()
-        }}
-      >
-        <Input
-          value={newGroupName}
-          onChange={(event) => setNewGroupName(event.target.value)}
-          placeholder="New group name"
-          className="max-w-60"
-        />
-        <Button
-          type="submit"
-          variant="outline"
-          disabled={!newGroupName.trim() || createGroup.isPending}
-        >
-          Add group
-        </Button>
-      </form>
       {createGroup.isError && (
         <p className="text-sm text-destructive">{ipcErrorMessage(createGroup.error)}</p>
       )}
@@ -150,7 +143,7 @@ function GroupSection({ group }: { group: CategoryGroup }) {
   const error = deleteGroup.error ?? renameGroup.error
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 px-4 py-3">
       <div className="flex min-h-7 items-center gap-2">
         {renameDraft !== null ? (
           <form
