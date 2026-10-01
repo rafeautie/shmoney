@@ -22,6 +22,10 @@ export interface ChatGenerationResult {
   parts: ChatMessagePart[]
   /** true when the turn was aborted; parts hold whatever was generated so far */
   interrupted: boolean
+  /** history items (after the system message) the worker cut so the turn fits
+   * the context, before the reply or while it was written; absent when the
+   * turn never reached the model */
+  historyDropped?: number
 }
 
 export interface TurnLog {

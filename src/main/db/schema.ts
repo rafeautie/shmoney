@@ -328,7 +328,10 @@ export const conversations = sqliteTable('conversations', {
   accountId: integer('account_id').references(() => accounts.id, { onDelete: 'set null' }),
   // newest assistant reply the user has looked at; a later finished reply shows
   // the thread's unread dot
-  seenReplyId: integer('seen_reply_id')
+  seenReplyId: integer('seen_reply_id'),
+  // oldest message the model saw on its latest reply, set when older ones were
+  // cut to fit its context (only the worker can count tokens); null = all fit
+  truncatedBeforeId: integer('truncated_before_id')
 })
 
 export const chatMessages = sqliteTable(

@@ -1,0 +1,1 @@
+ALTER TABLE `conversations` ADD `truncated_before_id` integer;
