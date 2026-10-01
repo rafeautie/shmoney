@@ -20,8 +20,10 @@ import {
   type GbnfJsonObjectSchema,
   type Llama,
   type LlamaModel,
-  type LlamaContext
+  type LlamaContext,
+  type Tokenizer
 } from 'node-llama-cpp'
+import { currentTurnStart, fitHistory, shiftHistory, type MeasureTokens } from './context-fit'
 import {
   CHAT_CONTEXT_SIZE,
   GENERATE_CONTEXT_SIZE,
@@ -155,6 +157,27 @@ interface ChatSessionState {
   session: LlamaChatSession
 }
 let chatLoaded: ChatSessionState | null = null
+
+// the in-flight turn, read by the session's context-shift strategy (fixed at
+// session creation): its tools, so their docs count like LlamaChat counts them,
+// and how many older history items the model still sees after any shift, so
+// the truncation marker lands where the model's view actually ended
+let shiftTurn: { functions: ChatSessionModelFunctions; olderKept: number } | null = null
+
+// room kept free for the reply (thoughts, tool calls and their results) when
+// cutting the replayed history; the shift strategy covers a reply that outgrows it
+const CHAT_REPLY_RESERVE = Math.floor(CHAT_CONTEXT_SIZE / 4)
+
+function measureTokens(
+  chatWrapper: ChatWrapper,
+  tokenizer: Tokenizer,
+  functions: ChatSessionModelFunctions | undefined
+): MeasureTokens {
+  return (chatHistory) =>
+    chatWrapper
+      .generateContextState({ chatHistory, availableFunctions: functions })
+      .contextText.tokenize(tokenizer).length
+}
 
 // in-flight downloads, keyed by model so models can download independently
 // and a cancel targets one. `canceled` lets us tell a user cancel apart from a
@@ -468,9 +491,22 @@ async function ensureChatSession(): Promise<LlamaChatSession> {
   if (!loaded) throw new Error('No model loaded')
   if (chatLoaded) return chatLoaded.session
   const context = await loaded.model.createContext({ contextSize: CHAT_CONTEXT_SIZE })
+  const { tokenizer } = loaded.model
   const session = new LlamaChatSession({
     contextSequence: context.getSequence(),
-    chatWrapper: chatWrapperFor(LLM_MODELS[loaded.modelId], 'chat')
+    chatWrapper: chatWrapperFor(LLM_MODELS[loaded.modelId], 'chat'),
+    contextShift: {
+      strategy: ({ chatHistory, maxTokensCount, chatWrapper }) => {
+        const shifted = shiftHistory(
+          chatHistory,
+          measureTokens(chatWrapper, tokenizer, shiftTurn?.functions),
+          maxTokensCount
+        )
+        if (shiftTurn)
+          shiftTurn.olderKept = Math.min(shiftTurn.olderKept, currentTurnStart(shifted) - 1)
+        return { chatHistory: shifted }
+      }
+    }
   })
   chatLoaded = { context, session }
   return session
@@ -766,9 +802,6 @@ async function handleChat(
     const session = await ensureChatSession()
     if (controller.signal.aborted) return { parts: [], interrupted: true }
     refreshScopeViews(toolScope, goalRows)
-    // the whole prior conversation is replaced per turn (stateless worker: the
-    // feature owns history in the DB), so switching conversations needs nothing
-    session.setChatHistory(history)
 
     // the turn log is the single assembler of the reply (see turn-log.ts):
     // every mutation below reports the changed part as a chatPart patch, and
@@ -807,6 +840,17 @@ async function handleChat(
       callDurationMs: () => (openedCallAt === null ? 0 : Date.now() - openedCallAt)
     })
 
+    // the whole prior conversation is replaced per turn (stateless worker: the
+    // feature owns history in the DB), so switching conversations needs nothing.
+    // Main sends every replayable turn; the cut happens here, in real tokens.
+    const historyDropped = fitHistory(
+      history,
+      prompt,
+      measureTokens(session.chatWrapper, session.model.tokenizer, functions),
+      CHAT_CONTEXT_SIZE - CHAT_REPLY_RESERVE
+    )
+    session.setChatHistory([history[0], ...history.slice(1 + historyDropped)])
+    shiftTurn = { functions, olderKept: history.length - 1 - historyDropped }
     // the chat wrapper routes the model's chain of thought into segments, so
     // prompt() resolves with the answer alone; each segment streams into its
     // own reasoning part, in generation order, so a turn that thinks, calls a
@@ -849,8 +893,12 @@ async function handleChat(
     // an abort mid-thought leaves the segment open; close it timed until now,
     // so a stopped turn still persists that thought
     if (segmentStart !== null) turn.closeReasoning(Date.now() - segmentStart)
-    return turn.finish(text, controller.signal.aborted)
+    return {
+      ...turn.finish(text, controller.signal.aborted),
+      historyDropped: history.length - 1 - shiftTurn.olderKept
+    }
   } finally {
+    shiftTurn = null
     if (activeGeneration === controller) activeGeneration = null
   }
 }

@@ -225,6 +225,13 @@
       "when": 1790220334511,
       "tag": "0031_savings_goals",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1790829946317,
+      "tag": "0032_chat_truncated_before",
+      "breakpoints": true
     }
   ]
 }

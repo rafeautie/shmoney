@@ -10,7 +10,6 @@ import {
   type ChatRole,
   type QueryToolResult
 } from '../../../shared/chat'
-import { CHAT_CONTEXT_SIZE } from '../../../shared/llm'
 import type { PromptDbContext } from './chat'
 
 // chat.ts reaches Electron through these modules (better-sqlite3 won't load
@@ -22,13 +21,10 @@ vi.mock('../../logging', () => ({
 vi.mock('../manager', () => ({ llmManager: {}, sendToRenderer: vi.fn() }))
 vi.mock('../queue', () => ({ enqueueGenerate: vi.fn() }))
 
-const { buildHistory, buildSystemPrompt, historyWindow, lastDataCall, titleFrom } =
+const { buildHistory, buildSystemPrompt, lastDataCall, replayedRows, titleFrom } =
   await import('./chat')
 
 const PROMPT = 'test system prompt'
-// the budget buildHistory trims to: 75% of the chat context, 4 chars per
-// token, minus the system prompt sharing the context
-const BUDGET_CHARS = Math.floor(CHAT_CONTEXT_SIZE * 0.75) * 4 - PROMPT.length
 
 const CTX: PromptDbContext = {
   accounts: [
@@ -368,133 +364,25 @@ describe('buildHistory', () => {
     })
   })
 
-  it('counts query calls against the char budget', () => {
-    const history = buildHistory(
-      [
-        {
-          role: 'assistant',
-          status: 'complete',
-          parts: [callPart('x'.repeat(BUDGET_CHARS)), { type: 'text', text: 'old' }]
-        },
-        row('user', 'newest')
-      ],
-      PROMPT
+  it('replays every replayable row, leaving the cut to the worker', () => {
+    const rows = Array.from({ length: 40 }, (_, i) =>
+      row(i % 2 ? 'assistant' : 'user', 'x'.repeat(5000))
     )
-    expect(history).toEqual([
-      { type: 'system', text: PROMPT },
-      { type: 'user', text: 'newest' }
-    ])
-  })
-
-  it('drops the oldest turns once the char budget is exceeded', () => {
-    const third = Math.ceil(BUDGET_CHARS / 3) + 1 // three rows can't all fit
-    const history = buildHistory(
-      [
-        row('user', 'a'.repeat(third)),
-        row('assistant', 'b'.repeat(third)),
-        row('user', 'c'.repeat(third))
-      ],
-      PROMPT
-    )
-    expect(history).toHaveLength(3) // system + newest two
-    expect(history[1]).toEqual({ type: 'model', response: ['b'.repeat(third)] })
-    expect(history[2]).toEqual({ type: 'user', text: 'c'.repeat(third) })
-  })
-
-  it('stops at the first over-budget row so kept history has no gaps', () => {
-    const history = buildHistory(
-      [
-        row('user', 'tiny'), // would fit, but sits behind the over-budget row
-        row('assistant', 'x'.repeat(BUDGET_CHARS)),
-        row('user', 'newest')
-      ],
-      PROMPT
-    )
-    expect(history).toEqual([
-      { type: 'system', text: PROMPT },
-      { type: 'user', text: 'newest' }
-    ])
+    expect(buildHistory(rows, PROMPT)).toHaveLength(41)
   })
 })
 
-describe('historyWindow', () => {
-  it('reports no truncation while the whole conversation fits', () => {
-    expect(historyWindow([row('user', 'hi'), row('assistant', 'hello')], PROMPT)).toEqual({
-      start: 0,
-      truncated: false
-    })
-  })
-
-  it('points at the oldest kept row once the budget drops older ones', () => {
-    const third = Math.ceil(BUDGET_CHARS / 3) + 1
-    const window = historyWindow(
-      [
-        row('user', 'a'.repeat(third)),
-        row('assistant', 'b'.repeat(third)),
-        row('user', 'c'.repeat(third))
-      ],
-      PROMPT
-    )
-    expect(window).toEqual({ start: 1, truncated: true })
-  })
-
-  it('does not call skipped unreplayable rows truncation', () => {
-    const window = historyWindow([row('assistant', '', 'error'), row('user', 'hi')], PROMPT)
-    expect(window).toEqual({ start: 1, truncated: false })
-  })
-
-  it('costs a chart part at its replayed size, not its display snapshot', () => {
-    // a snapshot bigger than the whole budget must not evict the turn, because
-    // only the spec + ok replay
-    const huge: ChartData = {
-      columns: ['month', 'spending'],
-      rows: [['x'.repeat(BUDGET_CHARS), 1]]
-    }
-    const window = historyWindow(
-      [
-        {
-          role: 'assistant',
-          status: 'complete',
-          parts: [
-            {
-              type: 'functionCall',
-              name: 'chart',
-              args: SPEC,
-              result: { ok: true },
-              display: { data: huge, currency: null, series: ['spending'] },
-              durationMs: 0
-            },
-            { type: 'text', text: 'charted' }
-          ]
-        },
-        row('user', 'next')
-      ],
-      PROMPT
-    )
-    expect(window).toEqual({ start: 0, truncated: false })
-  })
-
-  it('costs a query part at its replayed size, so huge result rows cannot evict the turn', () => {
-    const huge: QueryToolResult = {
-      ok: true,
-      columns: ['blob'],
-      rows: [['x'.repeat(BUDGET_CHARS)]],
-      rowCount: 1,
-      truncated: false,
-      durationMs: 5
-    }
-    const window = historyWindow(
-      [
-        {
-          role: 'assistant',
-          status: 'complete',
-          parts: [callPart('SELECT 1', huge), { type: 'text', text: 'big' }]
-        },
-        row('user', 'next')
-      ],
-      PROMPT
-    )
-    expect(window).toEqual({ start: 0, truncated: false })
+describe('replayedRows', () => {
+  it('lists the rows that become history items, one each, in order', () => {
+    expect(
+      replayedRows([
+        row('user', 'hi'),
+        row('assistant', '', 'error'),
+        row('assistant', ''),
+        row('user', 'again'),
+        row('assistant', 'partial', 'interrupted')
+      ])
+    ).toEqual([0, 3, 4])
   })
 })
 

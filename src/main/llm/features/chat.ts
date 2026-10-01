@@ -1,7 +1,7 @@
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { and, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { ChatHistoryItem, ChatModelResponse } from 'node-llama-cpp'
-import { CHAT_CONTEXT_SIZE, LLM_MODELS } from '@shared/llm'
+import { LLM_MODELS } from '@shared/llm'
 import { GOAL_STATUS_LABELS, type GoalSummary } from '@shared/goals'
 import {
   ACTION_TOOL_NAMES,
@@ -20,13 +20,7 @@ import {
 import type { ChatGenerationResult, ChatSeedCall, ChatToolInputs } from '../protocol'
 import { resolveCurrency } from '../tools/chart-tool'
 import type { GoalTableRows } from '../tools/sql-tool'
-import {
-  actionToolSchemas,
-  analysisToolSchemas,
-  replayView,
-  type GoalPaceInput,
-  type ToolVocab
-} from '../tools/analysis'
+import { replayView, type GoalPaceInput, type ToolVocab } from '../tools/analysis'
 import { getGoalSummaries } from '../../goals/summary'
 import { getGoalSeries } from '../../goals/series'
 import { buildSystemPrompt, type ChatPromptScope, type PromptDbContext } from '../system-prompt'
@@ -47,12 +41,6 @@ import { llmManager, sendToRenderer } from '../manager'
 import { enqueueGenerate } from '../queue'
 
 const log = createLogger('llm')
-
-// history is trimmed to leave the model room to answer: rough 4-chars-per-token
-// estimate, capped well under the chat context so the reply fits; the worker's
-// contextShift is the backstop when the estimate is off
-const HISTORY_TOKEN_BUDGET = Math.floor(CHAT_CONTEXT_SIZE * 0.75)
-const CHARS_PER_TOKEN = 4
 
 // the prompt and its types live in ../system-prompt (which carries the
 // prompt-design notes); re-exported so existing importers of this module keep
@@ -165,56 +153,24 @@ function replayable(row: Pick<ChatMessage, 'role' | 'status' | 'parts'>): Replay
   return items.length > 0 ? items : null
 }
 
-function replayCost(items: ReplayItem[]): number {
-  return items.reduce(
-    (n, item) => n + (item.kind === 'text' ? item.text.length : JSON.stringify(item.call).length),
-    0
-  )
+/** indexes of the rows that become history items, one item each, in order */
+export function replayedRows(rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[]): number[] {
+  return rows.flatMap((row, i) => (replayable(row) ? [i] : []))
 }
 
 /**
- * Where the replay budget (shrunk by the system prompt, which shares the
- * context) cuts the conversation, walking newest-first: start is the index of
- * the oldest row the model still sees. truncated is true only when an older
- * row was dropped for the budget, not merely skipped as unreplayable, and the
- * cut is gapless: everything before start is dropped, even rows that would fit.
- */
-export function historyWindow(
-  rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[],
-  systemPrompt: string,
-  toolDocsChars = 0
-): { start: number; truncated: boolean } {
-  let chars = 0
-  let start = rows.length
-  // the chat wrapper injects the tool descriptions into the system message, so
-  // they share the budget just like the prompt does
-  const budget = HISTORY_TOKEN_BUDGET * CHARS_PER_TOKEN - systemPrompt.length - toolDocsChars
-  for (let i = rows.length - 1; i >= 0; i--) {
-    const replay = replayable(rows[i])
-    if (!replay) continue
-    const cost = replayCost(replay)
-    if (chars + cost > budget) return { start, truncated: true }
-    chars += cost
-    start = i
-  }
-  return { start, truncated: false }
-}
-
-/**
- * Map persisted rows to the model's history: the historyWindow slice (also
- * what the UI's truncation marker reflects), with interrupted partials kept
+ * Map persisted rows to the model's history, with interrupted partials kept
  * (the user saw them) and tool calls as native functionCall entries in their
- * generated position among the text.
+ * generated position among the text. Every replayable row goes; the worker
+ * cuts what doesn't fit, since only it can count tokens.
  */
 export function buildHistory(
   rows: Pick<ChatMessage, 'role' | 'status' | 'parts'>[],
-  systemPrompt: string,
-  toolDocsChars = 0
+  systemPrompt: string
 ): ChatHistoryItem[] {
   const items: ChatHistoryItem[] = []
-  for (let i = historyWindow(rows, systemPrompt, toolDocsChars).start; i < rows.length; i++) {
-    const replay = replayable(rows[i])
-    if (!replay) continue
+  for (const i of replayedRows(rows)) {
+    const replay = replayable(rows[i])!
     if (rows[i].role === 'user') {
       items.push({
         type: 'user',
@@ -355,11 +311,7 @@ export function listConversations(): Conversation[] {
     )
 }
 
-/**
- * A conversation's rows plus where the next turn's replay window starts, so
- * the UI can mark the cut. The window is computed exactly as the next send
- * will: these same rows as prior history under the scope's system prompt.
- */
+/** a conversation's rows plus where its latest reply's history was cut */
 export function listMessages(conversationId: number): ConversationMessages {
   const rows = db
     .select()
@@ -368,21 +320,14 @@ export function listMessages(conversationId: number): ConversationMessages {
     .orderBy(chatMessages.id)
     .all()
   const conversation = db
-    .select({ accountId: conversations.accountId })
+    .select({ truncatedBeforeId: conversations.truncatedBeforeId })
     .from(conversations)
     .where(eq(conversations.id, conversationId))
     .get()
-  const scope = accountScope(conversation?.accountId ?? null)
-  const context = promptDbContext(scope.accountId)
-  const { start, truncated } = historyWindow(
-    rows,
-    buildSystemPrompt(scope, context),
-    toolDocsChars(toolVocab(context, goalNames(scope.accountId)))
-  )
   // ChatMessageRow is structurally a ChatMessage; no mapping needed
   return {
     messages: reconcileProposals(rows),
-    truncatedBeforeId: truncated ? (rows[start]?.id ?? null) : null
+    truncatedBeforeId: conversation?.truncatedBeforeId ?? null
   }
 }
 
@@ -460,7 +405,7 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     context,
     goals.pace.map((goal) => goal.name)
   )
-  const history = buildHistory(priorRows, buildSystemPrompt(scope, context), toolDocsChars(vocab))
+  const history = buildHistory(priorRows, buildSystemPrompt(scope, context))
   const currency = resolveCurrency(context.accounts)
   const goalRows = goals.rows
   const tools: ChatToolInputs = { vocab, goalPace: goals.pace, seed: lastDataCall(priorRows) }
@@ -493,6 +438,9 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     .returning()
     .get()
   touchConversation(conversationRow.id, now)
+  // the row each history item came from, then the new message for a cut that
+  // drops them all
+  const replayIds = [...replayedRows(priorRows).map((i) => priorRows[i].id), userRow.id]
 
   const controller = new AbortController()
   activeChat = controller
@@ -500,6 +448,7 @@ export async function sendChatMessage(input: SendChatInput): Promise<SendChatRes
     conversationId: conversationRow.id,
     assistantMessageId: assistantRow.id,
     history,
+    replayIds,
     prompt: input.text,
     scope,
     currency,
@@ -542,10 +491,6 @@ function scopedGoals(accountId: number | null): GoalSummary[] {
   )
 }
 
-function goalNames(accountId: number | null): string[] {
-  return scopedGoals(accountId).map((goal) => goal.name)
-}
-
 /** the names the typed tools' schemas enumerate this turn */
 function toolVocab(context: PromptDbContext, goals: string[]): ToolVocab {
   return {
@@ -553,20 +498,6 @@ function toolVocab(context: PromptDbContext, goals: string[]): ToolVocab {
     accounts: context.accounts.map((a) => a.name),
     goals
   }
-}
-
-// chart, calc and query ride beside the typed tools with fixed descriptions,
-// so a flat allowance covers them
-const FIXED_TOOL_DOCS_CHARS = 2500
-
-/**
- * What the tool descriptions cost in the context, in the chars the history
- * budget counts. The wrappers render the schemas close to their JSON, so the
- * JSON's length is a fair measure.
- */
-export function toolDocsChars(vocab: ToolVocab): number {
-  const schemas = { ...analysisToolSchemas(vocab), ...actionToolSchemas(vocab) }
-  return JSON.stringify(schemas).length + FIXED_TOOL_DOCS_CHARS
 }
 
 export function goalInputs(accountId: number | null): {
@@ -630,6 +561,7 @@ function launchGeneration(turn: {
   conversationId: number
   assistantMessageId: number
   history: ChatHistoryItem[]
+  replayIds: number[]
   prompt: string
   scope: ChatPromptScope
   currency: string | null
@@ -648,7 +580,17 @@ function launchGeneration(turn: {
       onPart: (index, part) => sendToRenderer(CHAT_IPC.part, { conversationId, index, part })
     })
   )
-    .then((result) => finishTurn(assistantMessageId, result, null))
+    .then((result) => {
+      if (result.historyDropped !== undefined)
+        db.update(conversations)
+          .set({
+            truncatedBeforeId:
+              result.historyDropped > 0 ? turn.replayIds[result.historyDropped] : null
+          })
+          .where(eq(conversations.id, conversationId))
+          .run()
+      finishTurn(assistantMessageId, result, null)
+    })
     .catch((err) => {
       // a stop before the turn ever reached the model (still queued behind
       // another generation) rejects instead of resolving interrupted; that's

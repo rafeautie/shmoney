@@ -113,7 +113,7 @@ export function ChatView({
                   <Marker
                     variant="separator"
                     role="separator"
-                    className="my-2 text-amber-600 before:bg-amber-500/30 after:bg-amber-500/30 dark:text-amber-500"
+                    className="mb-6 text-amber-600 before:bg-amber-500/30 after:bg-amber-500/30 dark:text-amber-500"
                   >
                     <MarkerIcon>
                       <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />
@@ -124,7 +124,7 @@ export function ChatView({
                 {markers.has(message.id) && (
                   // default muted styling: a scope change is context, not a
                   // warning — everything below ran under this scope
-                  <Marker variant="separator" role="separator" className="my-2">
+                  <Marker variant="separator" role="separator" className="mb-6">
                     <MarkerIcon>
                       <HugeiconsIcon icon={Wallet01Icon} strokeWidth={2} />
                     </MarkerIcon>
