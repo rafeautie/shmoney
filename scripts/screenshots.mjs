@@ -71,8 +71,11 @@ async function tour(pngs) {
   const inputs = await Promise.all(
     out.map((data) => sharp(data, { raw }).png({ compressionLevel: 0 }).toBuffer())
   )
+  // near-lossless, not lossy: the lossy animation encoder skips pixels that
+  // changed only slightly between frames, so a crossfade's small steps leave
+  // a ghost of the previous screen burned into the next one
   return sharp(inputs, { join: { animated: true } })
-    .webp({ quality: 75, delay, loop: 0 })
+    .webp({ nearLossless: true, quality: 20, delay, loop: 0 })
     .toBuffer()
 }
 
