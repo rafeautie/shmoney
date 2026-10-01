@@ -19,42 +19,45 @@ export type DistributiveOmit<T, K extends keyof never> = T extends unknown ? Omi
 
 // commands the manager sends to the worker; each carries a numeric id the
 // worker echoes back on its reply so concurrent calls can be correlated.
-// Download/delete/load name the model they act on; generate/chat don't — the
-// manager guarantees the selected model is loaded before dispatching them, and
-// the worker runs whatever is currently in memory.
+// The worker owns which model is in memory: generate and chat name the model
+// they run on, and the worker loads or swaps it inside its serial queue.
 export type WorkerCommand =
   | { id: number; type: 'download'; modelId: ModelId }
   | { id: number; type: 'cancelDownload'; modelId: ModelId }
-  // remove the downloaded file from disk, disposing it first if it's loaded
+  // remove the downloaded file from disk, unloading it first if it's in memory
   | { id: number; type: 'delete'; modelId: ModelId }
-  | { id: number; type: 'load'; modelId: ModelId }
+  // free the model in memory now rather than at idle (a new selection)
   | { id: number; type: 'unload' }
   // the generic inference primitive every LLM feature is built on: a prompt,
   // and an optional JSON schema that constrains decoding to that shape
-  | { id: number; type: 'generate'; prompt: string; schema?: object }
-  // abort the in-flight generate or chat (a generate's promise rejects; a chat
-  // resolves with its partial text and interrupted=true). A separate command
-  // because an AbortSignal can't cross the process boundary.
-  | { id: number; type: 'abortGenerate' }
-  // one conversational turn: replace the chat session's history, then stream
-  // the reply to `prompt` back as chatPart events carrying this command's id.
-  // toolScope narrows what the query tool's scope views expose for this turn.
-  | {
-      id: number
-      type: 'chat'
-      history: ChatHistoryItem[]
-      prompt: string
-      toolScope: ChatToolScope
-      // the scope's single display currency, fixed per turn by the feature
-      // layer; the worker stamps it into chart display payloads so events and
-      // parts carry it from the source. Kept beside toolScope rather than in
-      // it: ChatToolScope belongs to the query tool's view scoping.
-      currency: string | null
-      // the turn's goal tables, worked out by main/goals: the worker has no
-      // route to the main database, and pace has only one implementation
-      goalRows: GoalTableRows
-      tools: ChatToolInputs
-    }
+  | { id: number; type: 'generate'; modelId: ModelId; prompt: string; schema?: object }
+  // abort the generate or chat with id `targetId`, running or still queued (a
+  // generate's promise rejects; a chat resolves with its partial text and
+  // interrupted=true). A separate command because an AbortSignal can't cross
+  // the process boundary.
+  | { id: number; type: 'abort'; targetId: number }
+  | ChatCommand
+
+// one conversational turn: replace the chat session's history, then stream
+// the reply to `prompt` back as chatPart events carrying this command's id.
+// toolScope narrows what the query tool's scope views expose for this turn.
+export interface ChatCommand {
+  id: number
+  type: 'chat'
+  modelId: ModelId
+  history: ChatHistoryItem[]
+  prompt: string
+  toolScope: ChatToolScope
+  // the scope's single display currency, fixed per turn by the feature
+  // layer; the worker stamps it into chart display payloads so events and
+  // parts carry it from the source. Kept beside toolScope rather than in
+  // it: ChatToolScope belongs to the query tool's view scoping.
+  currency: string | null
+  // the turn's goal tables, worked out by main/goals: the worker has no
+  // route to the main database, and pace has only one implementation
+  goalRows: GoalTableRows
+  tools: ChatToolInputs
+}
 
 /** the previous turn's last data call, rerun so follow-ups start from its rows */
 export interface ChatSeedCall {
@@ -90,9 +93,8 @@ export type WorkerMessage =
   // a per-model download/file lifecycle transition (downloading → verifying →
   // downloaded, or notDownloaded/error). The manager writes it into models[id].
   | { event: 'modelStage'; modelId: ModelId; stage: ModelStage; error: string | null }
-  // the loaded (selected) model's in-memory transition; error is set only when
-  // a load fails, and the manager stores it as runtimeError.
-  | { event: 'runtime'; stage: RuntimeStage; error: string | null }
+  // a model's in-memory transition; error is set only when its load failed
+  | { event: 'runtime'; modelId: ModelId; stage: RuntimeStage; error: string | null }
   | { event: 'downloadProgress'; progress: LlmDownloadProgress }
   // one part patch of an in-flight chat, tied to its command id: the full
   // current part at `index`, straight from the worker's TurnLog (the single

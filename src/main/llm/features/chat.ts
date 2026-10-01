@@ -38,7 +38,6 @@ import { transactionDate } from '../../db/expressions'
 import { createLogger } from '../../logging'
 import { reconcileProposals } from '../../ipc/chat-proposals'
 import { llmManager, sendToRenderer } from '../manager'
-import { enqueueGenerate } from '../queue'
 
 const log = createLogger('llm')
 
@@ -197,7 +196,7 @@ export function buildHistory(
 }
 
 // the one in-flight turn's abort controller; chat is single-flight by design
-// (the model serializes on one queue anyway, and a second concurrent turn
+// (the worker runs requests one at a time anyway, and a second concurrent turn
 // would interleave chunks)
 let activeChat: AbortController | null = null
 
@@ -572,8 +571,8 @@ function launchGeneration(turn: {
   const { conversationId, assistantMessageId, controller } = turn
   // the latest snapshot; the final one (sent as the turn ends) is persisted
   let stats: GenerationStats | null = null
-  void enqueueGenerate(() =>
-    llmManager.chat(turn.history, turn.prompt, {
+  void llmManager
+    .chat(turn.history, turn.prompt, {
       signal: controller.signal,
       toolScope: { accountId: turn.scope.accountId },
       currency: turn.currency,
@@ -585,7 +584,6 @@ function launchGeneration(turn: {
         sendToRenderer(CHAT_IPC.stats, { conversationId, stats: next })
       }
     })
-  )
     .then((result) => {
       if (result.historyDropped !== undefined)
         db.update(conversations)
@@ -598,9 +596,8 @@ function launchGeneration(turn: {
       finishTurn(assistantMessageId, result, null, stats)
     })
     .catch((err) => {
-      // a stop before the turn ever reached the model (still queued behind
-      // another generation) rejects instead of resolving interrupted; that's
-      // a stop, not a failure
+      // a stop before the turn was even sent rejects instead of resolving
+      // interrupted; that's a stop, not a failure
       if (controller.signal.aborted)
         return finishTurn(assistantMessageId, { parts: [], interrupted: true }, null, stats)
       // logged serialized, never raw: the error chain can drag the prompt

@@ -5,7 +5,6 @@ import { accounts, categories, transactions } from '../../db/schema'
 import { setCategories } from '../../ipc/transactions'
 import { applyRulesInTx } from '../../ipc/rules'
 import { llmManager, sendToRenderer } from '../manager'
-import { enqueueGenerate } from '../queue'
 import { setTaskbarProgress } from '../../os-shell'
 import { createLogger } from '../../logging'
 import { LLM_IPC, type CategorizeResult } from '@shared/llm'
@@ -163,10 +162,11 @@ export async function categorizeTransactions(
       if (signal.aborted) break // cancelled: stop before starting the next group
       const group = groupList[i]
       try {
-        // queued so a rule-term extraction can never overlap this generation
-        // on the worker's single chat session (see llm/queue.ts)
-        const raw = await enqueueGenerate(() =>
-          llmManager.generate('categorize', buildPrompt(group[0], allCategories), schema, signal)
+        const raw = await llmManager.generate(
+          'categorize',
+          buildPrompt(group[0], allCategories),
+          schema,
+          signal
         )
         const parsed = generatedSchema.safeParse(raw)
         if (parsed.success && categoryIds.has(parsed.data.categoryId)) {

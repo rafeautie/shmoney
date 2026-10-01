@@ -72,11 +72,10 @@ vi.mock('../../logging', () => ({
 vi.mock('../manager', () => ({
   llmManager: {
     getStatus: () => ({ selected: 'e2b', models: { e2b: { stage: 'downloaded' } } }),
-    chat: vi.fn()
+    chat: vi.fn(() => Promise.resolve({ parts: [] }))
   },
   sendToRenderer: vi.fn()
 }))
-vi.mock('../queue', () => ({ enqueueGenerate: vi.fn(() => Promise.resolve({ parts: [] })) }))
 vi.mock('../../goals/summary', () => ({
   getGoalSummaries: vi.fn(() => {
     throw new Error('goal summaries exploded')
