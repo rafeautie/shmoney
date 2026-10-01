@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import {
   AiBrain01Icon,
@@ -72,11 +73,14 @@ export function SettingsDialog(): React.JSX.Element {
   const { section, open, close } = useSettingsDialog()
   const statuses = useSettingsSectionStatuses()
   const active = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]
+  const activeRef = useRef<HTMLButtonElement>(null)
 
   return (
     <Dialog open={section !== undefined} onOpenChange={(next) => !next && close()}>
       <DialogContent
         className="flex h-[min(720px,calc(100vh-4rem))] gap-0 overflow-hidden p-0 sm:max-w-4xl"
+        // base-ui otherwise focuses the first section, even when opened at another
+        initialFocus={activeRef}
         onKeyDown={(event) => {
           // base-ui's escape-to-close does not fire here. Escapes from nested
           // dialogs bubble through the React tree but not the DOM, and inline
@@ -98,6 +102,7 @@ export function SettingsDialog(): React.JSX.Element {
             return (
               <button
                 key={id}
+                ref={id === active.id ? activeRef : undefined}
                 type="button"
                 aria-current={id === active.id ? 'page' : undefined}
                 title={status?.tooltip}
