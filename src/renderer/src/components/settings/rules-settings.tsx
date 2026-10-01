@@ -17,18 +17,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Switch } from '@/components/ui/switch'
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
 import { ConfirmButton } from '@/components/confirm-dialog'
 import { AddRuleButton, RuleEditor } from '@/components/rules/rules-editor'
 import { ApplyRulesButton } from '@/components/rules/rules-preview-dialog'
-import { SettingsGroup, SettingToggle, SettingAction } from './settings-controls'
+import { SettingsGroup, SettingToggle, SettingAction, SettingsSection } from './settings-controls'
 
 const AMT_OP_TEXT: Record<string, string> = {
   eq: 'is',
@@ -130,93 +122,86 @@ export function RulesSettings(): React.JSX.Element {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Rules</CardTitle>
-        <CardDescription>
-          Automatically categorize or flag transactions as they sync. Rules run top to bottom and
-          only fill blanks, unless you choose to override existing categories when applying them
-          manually.
-        </CardDescription>
-        {suggestions.length > 0 && (
-          <CardAction>
-            <Button variant="outline" onClick={() => setSuggestionsOpen(true)}>
-              Suggestions
-              <Badge variant="secondary">{suggestions.length}</Badge>
-            </Button>
-          </CardAction>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Automation options, grouped so they read apart from the rules list */}
-        <SettingsGroup>
-          <SettingToggle
-            label="Apply rules automatically on sync"
-            checked={applyRulesOnSync}
-            onCheckedChange={setApplyRulesOnSync}
-          />
-          <SettingToggle
-            label="Suggest rules from repeated categorizing"
-            checked={ruleSuggestionsEnabled}
-            onCheckedChange={setRuleSuggestionsEnabled}
-          />
-          <SettingAction
-            label="Apply rules now"
-            description="Run your rules against existing transactions, with a preview first."
-          >
-            <ApplyRulesButton disabled={rules.length === 0} />
-          </SettingAction>
-        </SettingsGroup>
+    <SettingsSection
+      title="Rules"
+      description="Automatically categorize or flag transactions as they sync. Rules run top to bottom and only fill blanks, unless you choose to override existing categories when applying them manually."
+      action={
+        suggestions.length > 0 && (
+          <Button variant="outline" onClick={() => setSuggestionsOpen(true)}>
+            Suggestions
+            <Badge variant="secondary">{suggestions.length}</Badge>
+          </Button>
+        )
+      }
+    >
+      {/* Automation options, grouped so they read apart from the rules list */}
+      <SettingsGroup>
+        <SettingToggle
+          label="Apply rules automatically on sync"
+          checked={applyRulesOnSync}
+          onCheckedChange={setApplyRulesOnSync}
+        />
+        <SettingToggle
+          label="Suggest rules from repeated categorizing"
+          checked={ruleSuggestionsEnabled}
+          onCheckedChange={setRuleSuggestionsEnabled}
+        />
+        <SettingAction
+          label="Apply rules now"
+          description="Run your rules against existing transactions, with a preview first."
+        >
+          <ApplyRulesButton disabled={rules.length === 0} />
+        </SettingAction>
+      </SettingsGroup>
 
-        <div className="space-y-3">
-          <h3 className="text-sm font-medium">Your rules</h3>
-          {rulesQuery.isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : rules.length === 0 ? (
-            <Empty className="border border-muted-foreground/30 bg-background">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <HugeiconsIcon icon={Tag01Icon} />
-                </EmptyMedia>
-                <EmptyTitle>No rules yet</EmptyTitle>
-                <EmptyDescription>
-                  Add a rule below to categorize or flag transactions automatically.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            <div className="divide-y rounded-lg border">
-              {rules.map((rule, index) => (
-                <div key={rule.id} className="px-3 py-3">
-                  <RuleRow
-                    rule={rule}
-                    conditionText={describeRule(rule.conditions, accountName)}
-                    actionText={`set category to ${categoryName.get(rule.action.categoryId) ?? 'unknown'}`}
-                    isFirst={index === 0}
-                    isLast={index === rules.length - 1}
-                    onMoveUp={() => move(index, -1)}
-                    onMoveDown={() => move(index, 1)}
-                    onEdit={() => {
-                      setEditingRule(rule)
-                      setEditorOpen(true)
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-          <AddRuleButton />
-        </div>
-
-        {reorder.isError && (
-          <p className="text-sm text-destructive">{ipcErrorMessage(reorder.error)}</p>
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium">Your rules</h3>
+        {rulesQuery.isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : rules.length === 0 ? (
+          <Empty className="border border-muted-foreground/30 bg-background">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HugeiconsIcon icon={Tag01Icon} />
+              </EmptyMedia>
+              <EmptyTitle>No rules yet</EmptyTitle>
+              <EmptyDescription>
+                Add a rule below to categorize or flag transactions automatically.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <div className="divide-y rounded-lg border">
+            {rules.map((rule, index) => (
+              <div key={rule.id} className="px-3 py-3">
+                <RuleRow
+                  rule={rule}
+                  conditionText={describeRule(rule.conditions, accountName)}
+                  actionText={`set category to ${categoryName.get(rule.action.categoryId) ?? 'unknown'}`}
+                  isFirst={index === 0}
+                  isLast={index === rules.length - 1}
+                  onMoveUp={() => move(index, -1)}
+                  onMoveDown={() => move(index, 1)}
+                  onEdit={() => {
+                    setEditingRule(rule)
+                    setEditorOpen(true)
+                  }}
+                />
+              </div>
+            ))}
+          </div>
         )}
-      </CardContent>
+        <AddRuleButton />
+      </div>
+
+      {reorder.isError && (
+        <p className="text-sm text-destructive">{ipcErrorMessage(reorder.error)}</p>
+      )}
 
       {/* editing an existing rule: the trigger is the row's pencil, so the page
           drives the editor itself */}
       <RuleEditor rule={editingRule} open={editorOpen} onOpenChange={setEditorOpen} />
-    </Card>
+    </SettingsSection>
   )
 }
 

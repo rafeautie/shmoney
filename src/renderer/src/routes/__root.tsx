@@ -8,16 +8,21 @@ import { BackgroundNoticesHost } from '@/components/layout/background-notices-ho
 import { ImportFileHost } from '@/components/layout/import-file-host'
 import { Onboarding } from '@/components/layout/onboarding-dialog'
 import { RuleSuggestionsHost } from '@/components/rules/rule-suggestions-host'
+import { SettingsDialog } from '@/components/settings/settings-dialog'
 import { UndoShortcuts } from '@/components/layout/undo-shortcuts'
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar'
 import { Toaster } from '@/components/ui/sonner'
 import { ImportUiProvider } from '@/lib/import-ui'
 import { SuggestionsUiProvider } from '@/lib/suggestions-ui'
 import { useSettings } from '@/lib/settings'
+import { parseSettingsSection, type SettingsSection } from '@/lib/settings-dialog'
 
 // route loaders warm the query cache before their page mounts, so they need the
 // same client the components read from
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  validateSearch: (search: Record<string, unknown>): { settings?: SettingsSection } => ({
+    settings: parseSettingsSection(search.settings)
+  }),
   component: RootComponent
 })
 
@@ -42,6 +47,7 @@ function RootComponent() {
           <AutoSyncHost />
           <BackgroundNoticesHost />
           <RuleSuggestionsHost />
+          <SettingsDialog />
           <ImportFileHost />
           <AppChromeHost />
           <Onboarding />

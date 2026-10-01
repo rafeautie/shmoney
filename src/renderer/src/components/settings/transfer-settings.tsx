@@ -1,29 +1,27 @@
 import { useDetectTransfers } from '@/lib/settings'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { SettingsGroup, SettingToggle } from './settings-controls'
+import { SettingsGroup, SettingToggle, SettingsSection } from './settings-controls'
 
 export function TransferSettings() {
   const { detectTransfers, setDetectTransfers } = useDetectTransfers()
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Transfers</CardTitle>
-        <CardDescription>
+    <SettingsSection
+      title="Transfers"
+      description={
+        <>
           Money moved between your own accounts isn&apos;t income or spending. Detected transfers
           are filed under the Transfers category, which reports exclude by default; review or undo
           them from the Activity page.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <SettingsGroup>
-          <SettingToggle
-            label="Detect transfers between accounts on sync"
-            checked={detectTransfers}
-            onCheckedChange={setDetectTransfers}
-          />
-        </SettingsGroup>
-      </CardContent>
-    </Card>
+        </>
+      }
+    >
+      <SettingsGroup>
+        <SettingToggle
+          label="Detect transfers between accounts on sync"
+          checked={detectTransfers}
+          onCheckedChange={setDetectTransfers}
+        />
+      </SettingsGroup>
+    </SettingsSection>
   )
 }

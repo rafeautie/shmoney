@@ -6,6 +6,7 @@ import { useUnseenActivity } from '@/lib/activity-seen'
 import { useCategorizeRun, useLlmDownloadProgress, useLlmStatus } from '@/lib/llm'
 import { connectionOptions } from '@/lib/queries'
 import { useUpdateState } from '@/lib/updates'
+import type { SettingsSection } from '@/lib/settings-dialog'
 
 // attention: the user needs to act; busy: work in progress; info: something new
 export type DotTone = 'attention' | 'busy' | 'info'
@@ -18,15 +19,34 @@ export interface DotStatus {
 // Each sidebar item's dot. Where several apply, the first listed wins: things
 // the user must fix, then running work, then news.
 
+const TONE_RANK: Record<DotTone, number> = { attention: 0, busy: 1, info: 2 }
+
+/** The settings dialog's per-section dots; the sidebar's Settings item shows the most urgent. */
+export function useSettingsSectionStatuses(): Partial<Record<SettingsSection, DotStatus | null>> {
+  return {
+    connection: useConnectionStatus(),
+    ai: useModelStatus(),
+    about: useUpdateStatus()
+  }
+}
+
 export function useSettingsStatus(): DotStatus | null {
+  const statuses = Object.values(useSettingsSectionStatuses()).filter((s) => s != null)
+  // stable sort keeps section order among equal tones
+  return statuses.sort((a, b) => TONE_RANK[a.tone] - TONE_RANK[b.tone])[0] ?? null
+}
+
+function useConnectionStatus(): DotStatus | null {
   const { data: connection } = useQuery(connectionOptions)
+  return connection && connectionNeedsAttention(connection)
+    ? { tone: 'attention', tooltip: 'SimpleFIN needs your attention' }
+    : null
+}
+
+function useModelStatus(): DotStatus | null {
   const models = useLlmStatus().data?.models
   const progress = useLlmDownloadProgress()
-  const update = useUpdateState().data
 
-  if (connection && connectionNeedsAttention(connection)) {
-    return { tone: 'attention', tooltip: 'SimpleFIN needs your attention' }
-  }
   if (models && MODEL_IDS.some((id) => models[id].stage === 'error')) {
     return { tone: 'attention', tooltip: 'Model download failed' }
   }
@@ -45,6 +65,11 @@ export function useSettingsStatus(): DotStatus | null {
           : `Downloading ${LLM_MODELS[downloading].label}${percent}`
     }
   }
+  return null
+}
+
+function useUpdateStatus(): DotStatus | null {
+  const update = useUpdateState().data
   if (update?.status === 'downloaded') {
     return { tone: 'info', tooltip: 'Update ready, restart to install' }
   }

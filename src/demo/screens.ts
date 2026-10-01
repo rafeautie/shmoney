@@ -22,5 +22,5 @@ export const SCREENS: DemoScreen[] = [
   // the Savings Goals template, the household dataset's third report
   { name: 'savings-goals-report', route: '/reports/3' },
   { name: 'activity', route: '/activity' },
-  { name: 'settings-llm', route: '/settings', scrollTo: 'Local AI model' }
+  { name: 'settings-llm', route: '/accounts?settings=ai' }
 ]

@@ -2,6 +2,35 @@ import { useId } from 'react'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 
+// One titled block within a settings dialog section, with an optional action
+// (e.g. a button) beside the heading.
+export function SettingsSection({
+  title,
+  description,
+  action,
+  children
+}: {
+  title: React.ReactNode
+  description?: React.ReactNode
+  action?: React.ReactNode
+  children?: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <section className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 space-y-1">
+          <h3 className="font-heading text-base font-medium">{title}</h3>
+          {description != null && (
+            <p className="text-xs/relaxed text-muted-foreground">{description}</p>
+          )}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  )
+}
+
 // A bordered, divided container that groups related settings rows so they read as
 // one block. Wrap one or more <SettingToggle>/<SettingAction> rows (used by the
 // rules, transfers, privacy, categories, and LLM cards).

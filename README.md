@@ -80,7 +80,7 @@ Ask it to recategorize transactions, set a budget, or adjust a goal and it propo
 <table>
   <tr>
     <td><img src="docs/screenshots/chat.png" alt="Chat with the on-device model about your finances" /></td>
-    <td><img src="docs/screenshots/settings-llm.png" alt="Settings page for downloading and selecting the local LLM" /></td>
+    <td><img src="docs/screenshots/settings-llm.png" alt="Settings dialog for downloading and selecting the local LLM" /></td>
   </tr>
 </table>
 

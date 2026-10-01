@@ -5,8 +5,10 @@ import { usePrivacy } from '@/lib/settings'
 import { isMac } from '@/lib/platform'
 import { Logo } from '@/components/logo'
 import { NavChat } from './nav-chat'
-import { NavLinkButton, NavMain } from './nav-main'
+import { NavMain } from './nav-main'
+import { NavDot } from './nav-dot'
 import { useSettingsStatus } from '@/lib/nav-status'
+import { useSettingsDialog } from '@/lib/settings-dialog'
 import {
   Sidebar,
   SidebarContent,
@@ -45,7 +47,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
             <PrivacyToggle />
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SettingsLink />
+            <SettingsButton />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
@@ -54,15 +56,21 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
   )
 }
 
-function SettingsLink() {
+function SettingsButton() {
+  const { section, open } = useSettingsDialog()
+  const status = useSettingsStatus()
   return (
-    <NavLinkButton
-      to="/settings"
-      label="Settings"
-      fuzzy={false}
-      icon={Settings01Icon}
-      status={useSettingsStatus()}
-    />
+    <SidebarMenuButton
+      onClick={() => open()}
+      isActive={section !== undefined}
+      tooltip={status ? `Settings: ${status.tooltip}` : 'Settings'}
+    >
+      <span className="relative flex">
+        <HugeiconsIcon icon={Settings01Icon} size={16} />
+        {status && <NavDot tone={status.tone} />}
+      </span>
+      <span>Settings</span>
+    </SidebarMenuButton>
   )
 }
 

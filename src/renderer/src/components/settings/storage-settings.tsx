@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { SettingsSection } from './settings-controls'
 
 // Fixed table→bucket→color mapping so a bucket keeps its color no matter how
 // sizes shift. The bucket order is also the display order; adjacent-color
@@ -110,17 +110,16 @@ export function StorageSettings() {
   const totalBytes = (data?.totalBytes ?? 0) + llmBytes
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Storage</CardTitle>
-        <CardDescription>
-          {llmBytes > 0
-            ? 'Your data lives in one SQLite database file on this device, alongside the downloaded local LLM.'
-            : 'All your data lives in one SQLite database file on this device.'}
-        </CardDescription>
-      </CardHeader>
+    <SettingsSection
+      title="Storage"
+      description={
+        llmBytes > 0
+          ? 'Your data lives in one SQLite database file on this device, alongside the downloaded local LLM.'
+          : 'All your data lives in one SQLite database file on this device.'
+      }
+    >
       {data && (
-        <CardContent className="space-y-3">
+        <div className="space-y-3">
           <p className="text-2xl font-semibold tabular-nums">{formatBytes(totalBytes)}</p>
           <div className="relative">
             <div ref={barRef} className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
@@ -161,8 +160,8 @@ export function StorageSettings() {
               </span>
             ))}
           </div>
-        </CardContent>
+        </div>
       )}
-    </Card>
+    </SettingsSection>
   )
 }

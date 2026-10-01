@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { useSettingsDialog } from '@/lib/settings-dialog'
 
 const APP_NAME = 'shmoney'
 
@@ -10,7 +11,6 @@ const PAGE_TITLES: Record<string, string> = {
   reports: 'Reports',
   activity: 'Activity',
   chat: 'Chat',
-  settings: 'Settings',
   debug: 'Debug'
 }
 
@@ -28,7 +28,13 @@ export function AppChromeHost(): null {
     document.title = page ? `${page} · ${APP_NAME}` : APP_NAME
   }, [pathname])
 
-  useEffect(() => window.api.app.onNavigate((to) => navigate({ to })), [navigate])
+  const { open: openSettings } = useSettingsDialog()
+  useEffect(
+    () =>
+      // settings is a dialog over the current page, not a route
+      window.api.app.onNavigate((to) => (to === '/settings' ? openSettings() : navigate({ to }))),
+    [navigate, openSettings]
+  )
 
   return null
 }

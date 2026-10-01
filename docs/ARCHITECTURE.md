@@ -17,7 +17,7 @@ generation or a llama.cpp crash cannot take down the UI.
 flowchart TB
     subgraph renderer["Renderer (sandboxed, contextIsolation)"]
         direction TB
-        router["TanStack Router<br/>accounts · transactions · budget<br/>reports · chat · activity · settings"]
+        router["TanStack Router<br/>accounts · transactions · budget<br/>reports · chat · activity"]
         rquery["TanStack Query cache<br/>+ push-event subscriptions"]
         router --> rquery
     end

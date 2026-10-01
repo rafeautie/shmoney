@@ -7,8 +7,7 @@ import { ipcErrorMessage } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { SettingsGroup, SettingAction } from './settings-controls'
+import { SettingsGroup, SettingAction, SettingsSection } from './settings-controls'
 import { ConfirmButton } from '@/components/confirm-dialog'
 
 export function CategoriesSettings() {
@@ -33,108 +32,102 @@ export function CategoriesSettings() {
   })
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Categories</CardTitle>
-        <CardDescription>
-          Group your categories and assign them to transactions. Hover a category to rename or
-          delete it.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {categoriesQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : (
-          <>
-            {categoriesQuery.data?.groups.map((group) => (
-              <div key={group.id} className="space-y-4">
-                <Separator className="-mx-(--card-spacing) data-horizontal:w-auto" />
-                <GroupSection group={group} />
-              </div>
-            ))}
-            <div className="space-y-4">
-              <Separator className="-mx-(--card-spacing) data-horizontal:w-auto" />
-              <div className="flex flex-col gap-2">
-                <div className="flex min-h-7 items-center gap-2">
-                  <h3 className="text-sm font-medium text-muted-foreground">Ungrouped</h3>
-                </div>
-                <CategoryList groupId={null} categories={categoriesQuery.data?.ungrouped ?? []} />
-              </div>
+    <SettingsSection
+      title="Categories"
+      description="Group your categories and assign them to transactions. Hover a category to rename or delete it."
+    >
+      {categoriesQuery.isLoading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <>
+          {categoriesQuery.data?.groups.map((group) => (
+            <div key={group.id} className="space-y-4">
+              <Separator />
+              <GroupSection group={group} />
             </div>
-            <div className="space-y-4">
-              <Separator className="-mx-(--card-spacing) data-horizontal:w-auto" />
-              <div className="flex flex-col gap-2">
-                <div className="flex min-h-7 items-center gap-2">
-                  <h3 className="text-sm font-medium text-muted-foreground">System</h3>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {(categoriesQuery.data?.system ?? []).map((category) => (
-                    <span
-                      key={category.id}
-                      className="inline-flex h-7 items-center rounded-md bg-secondary px-2.5 py-1 text-xs text-secondary-foreground"
-                    >
-                      {category.name}
-                    </span>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Used by shmoney for built-in behavior like transfer detection; they can&apos;t be
-                  renamed or deleted.
-                </p>
+          ))}
+          <div className="space-y-4">
+            <Separator />
+            <div className="flex flex-col gap-2">
+              <div className="flex min-h-7 items-center gap-2">
+                <h3 className="text-sm font-medium text-muted-foreground">Ungrouped</h3>
               </div>
+              <CategoryList groupId={null} categories={categoriesQuery.data?.ungrouped ?? []} />
             </div>
-          </>
-        )}
-        <Separator className="-mx-(--card-spacing) data-horizontal:w-auto" />
-        <form
-          className="flex gap-2"
-          onSubmit={(event) => {
-            event.preventDefault()
-            createGroup.mutate()
-          }}
+          </div>
+          <div className="space-y-4">
+            <Separator />
+            <div className="flex flex-col gap-2">
+              <div className="flex min-h-7 items-center gap-2">
+                <h3 className="text-sm font-medium text-muted-foreground">System</h3>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {(categoriesQuery.data?.system ?? []).map((category) => (
+                  <span
+                    key={category.id}
+                    className="inline-flex h-7 items-center rounded-md bg-secondary px-2.5 py-1 text-xs text-secondary-foreground"
+                  >
+                    {category.name}
+                  </span>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Used by shmoney for built-in behavior like transfer detection; they can&apos;t be
+                renamed or deleted.
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+      <Separator />
+      <form
+        className="flex gap-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          createGroup.mutate()
+        }}
+      >
+        <Input
+          value={newGroupName}
+          onChange={(event) => setNewGroupName(event.target.value)}
+          placeholder="New group name"
+          className="max-w-60"
+        />
+        <Button
+          type="submit"
+          variant="outline"
+          disabled={!newGroupName.trim() || createGroup.isPending}
         >
-          <Input
-            value={newGroupName}
-            onChange={(event) => setNewGroupName(event.target.value)}
-            placeholder="New group name"
-            className="max-w-60"
-          />
-          <Button
-            type="submit"
-            variant="outline"
-            disabled={!newGroupName.trim() || createGroup.isPending}
+          Add group
+        </Button>
+      </form>
+      {createGroup.isError && (
+        <p className="text-sm text-destructive">{ipcErrorMessage(createGroup.error)}</p>
+      )}
+      <SettingsGroup>
+        <SettingAction
+          label="Reset to defaults"
+          description="Restore the default groups and categories; transactions in them become Uncategorized. System categories and their transactions are kept."
+        >
+          <ConfirmButton
+            variant="destructive"
+            title="Reset to defaults?"
+            description="This restores the default groups and categories and sets their transactions to Uncategorized. System categories (and the transactions assigned to them) are kept."
+            confirmLabel="Reset"
+            pendingLabel="Resetting…"
+            pending={resetDefaults.isPending}
+            onConfirm={(close) => resetDefaults.mutate(undefined, { onSuccess: close })}
           >
-            Add group
-          </Button>
-        </form>
-        {createGroup.isError && (
-          <p className="text-sm text-destructive">{ipcErrorMessage(createGroup.error)}</p>
-        )}
-        <SettingsGroup>
-          <SettingAction
-            label="Reset to defaults"
-            description="Restore the default groups and categories; transactions in them become Uncategorized. System categories and their transactions are kept."
-          >
-            <ConfirmButton
-              variant="destructive"
-              title="Reset to defaults?"
-              description="This restores the default groups and categories and sets their transactions to Uncategorized. System categories (and the transactions assigned to them) are kept."
-              confirmLabel="Reset"
-              pendingLabel="Resetting…"
-              pending={resetDefaults.isPending}
-              onConfirm={(close) => resetDefaults.mutate(undefined, { onSuccess: close })}
-            >
-              Reset
-            </ConfirmButton>
-          </SettingAction>
-        </SettingsGroup>
-        {resetDefaults.isError && (
-          <p className="text-sm text-destructive">
-            Reset failed: {ipcErrorMessage(resetDefaults.error)}
-          </p>
-        )}
-      </CardContent>
-    </Card>
+            Reset
+          </ConfirmButton>
+        </SettingAction>
+      </SettingsGroup>
+      {resetDefaults.isError && (
+        <p className="text-sm text-destructive">
+          Reset failed: {ipcErrorMessage(resetDefaults.error)}
+        </p>
+      )}
+    </SettingsSection>
   )
 }
 

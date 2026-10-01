@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useSettingsDialog } from '@/lib/settings-dialog'
 import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { BankIcon } from '@hugeicons/core-free-icons'
@@ -169,6 +170,7 @@ function NetWorth() {
 
 function AccountsList() {
   const navigate = useNavigate()
+  const { open: openSettings } = useSettingsDialog()
   const accountsQuery = useQuery(accountsOptions)
 
   // rows arrive ordered by institution then name, so insertion order is stable
@@ -211,8 +213,8 @@ function AccountsList() {
                 <EmptyDescription>Connect SimpleFIN in Settings, then sync.</EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
-                <Button variant="outline" onClick={() => navigate({ to: '/settings' })}>
-                  Go to Settings
+                <Button variant="outline" onClick={() => openSettings('connection')}>
+                  Open Settings
                 </Button>
               </EmptyContent>
             </Empty>
