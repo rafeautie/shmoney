@@ -60,6 +60,9 @@ linux:
   category: Utility
   files:
     - '!node_modules/@node-llama-cpp/{mac-arm64-metal,mac-x64,win-arm64,win-x64,win-x64-cuda,win-x64-cuda-ext,win-x64-vulkan}/**/*'
+    # npm installs the arm prebuilts on x64 hosts too; ${arch} expands per
+    # target (x64, arm64, armv7l), so each build keeps only linux-<arch>*
+    - '!node_modules/@node-llama-cpp/linux-!(${arch}|${arch}-*)/**/*'
 appImage:
   artifactName: ${name}-${version}.${ext}
 # the static AppImage runtime, so the AppImage doesn't need libfuse2 on the host
