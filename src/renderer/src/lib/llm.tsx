@@ -168,7 +168,7 @@ export const CATEGORIZE_MUTATION_KEY = ['llm', 'categorize'] as const
  * (empty scope) every transaction: starts it and reports the result. Applies
  * immediately as one undoable action-log entry — the notification's Review action
  * links to the Activity page, the undo surface. Only one run happens at a time app-wide
- * (see `anyRunning`), since the worker shares a single chat session. Live progress
+ * (see `anyRunning`), since the worker runs one generation at a time. Live progress
  * and cancel come from `useCategorizeRun`.
  */
 export function useAutoCategorize(scope: CategorizeScopeInput): AutoCategorize {

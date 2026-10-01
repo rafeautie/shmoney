@@ -19,7 +19,6 @@ vi.mock('../../logging', () => ({
   createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() })
 }))
 vi.mock('../manager', () => ({ llmManager: {}, sendToRenderer: vi.fn() }))
-vi.mock('../queue', () => ({ enqueueGenerate: vi.fn() }))
 
 const { buildHistory, buildSystemPrompt, lastDataCall, replayedRows, titleFrom } =
   await import('./chat')

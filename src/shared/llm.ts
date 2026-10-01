@@ -137,20 +137,14 @@ export const DEFAULT_MODEL_ID: ModelId = 'qwen35-4b'
 // Qwen3.5 2B stays out: it overflowed the chat context and dropped amount tags.
 export const RECOMMENDATION_ORDER: readonly ModelId[] = ['qwen35-9b', 'qwen35-4b', 'e4b', 'e2b']
 
-// the generate (categorize/extract) context: the models support far more, but
-// a small window bounds KV-cache memory for short prompts
-export const GENERATE_CONTEXT_SIZE = 4096
-
 export const modelIdSchema = z.enum(MODEL_IDS as unknown as [ModelId, ...ModelId[]])
 
-// the chat feature gets its own, larger context (multi-turn conversations need
-// the room; categorize/extract prompts don't), created with the model so GPU
-// layers are fitted around it.
-// 8192 was too tight once the system prompt carried the query recipes: a turn
-// that retries a failed query holds the prompt plus two SQL statements and two
-// capped tool results at once, and context shift can't evict a system message
-// that large, so the turn died with a compression error instead of answering.
-export const CHAT_CONTEXT_SIZE = 12288
+// the loaded model's one context, shared by chat and generate (categorize,
+// extract), which take turns on it. Chat sets the size: 8192 was too tight once
+// the system prompt carried the query recipes, since a turn that retries a
+// failed query holds the prompt plus two SQL statements and two capped tool
+// results at once, and context shift can't evict a system message that large.
+export const CONTEXT_SIZE = 12288
 
 // ---------- hardware ----------
 // Capability is a pure function of the model registry and one number, so it

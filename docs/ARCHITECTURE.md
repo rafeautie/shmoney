@@ -155,9 +155,9 @@ sequenceDiagram
     Note over CH: buildSystemPrompt(scope, dbContext)<br/>buildHistory(): replay window,<br/>reasoning dropped, tool calls kept,<br/>stale query rows replaced with an expiry note
     CH-->>UI: {conversation, userMessage, assistantMessage}<br/>(UI renders the turn immediately)
 
-    CH->>MG: enqueueGenerate(llmManager.chat(history, prompt, {toolScope, currency}))
-    MG->>MG: withModel(): load/swap selected model,<br/>cancel idle-unload timer
-    MG->>WK: postMessage {type:'chat', history, prompt, toolScope, currency}
+    CH->>MG: llmManager.chat(history, prompt, {toolScope, currency})
+    MG->>WK: postMessage {type:'chat', modelId, history, prompt, toolScope, currency}
+    WK->>WK: serial queue: wait for earlier requests,<br/>cancel idle-unload timer, load/swap modelId
     WK->>TDB: refreshScopeViews(scope)<br/>CREATE TEMP VIEW tx/accounts/holdings/budgets/…
     WK->>WK: session.setChatHistory(history)<br/>session.prompt(..., functions, maxParallelFunctionCalls: 1)
 
@@ -181,7 +181,7 @@ sequenceDiagram
     CH->>DB: update assistant row: parts, status<br/>complete / interrupted / error
     CH-->>BR: CHAT_IPC.messageDone {conversationId, message}
     BR-->>UI: settle into the placeholder row (same id),<br/>invalidate to recompute the truncation marker
-    MG->>MG: inFlight = 0 → unload model after 60s idle
+    WK->>WK: queue drained → unload model after 60s idle
 ```
 
 ### Chat structure
@@ -207,14 +207,14 @@ flowchart TB
         ipcchat["ipc/chat.ts<br/>CRUD + zod parsing"]
         feat["llm/features/chat.ts<br/>history window · scope · persistence"]
         prompt["llm/system-prompt.ts<br/>one few-shot prompt"]
-        mgr["llm/manager.ts + queue.ts"]
+        mgr["llm/manager.ts"]
         ipcchat --> feat --> prompt
         feat --> mgr
     end
 
     subgraph wk["Worker"]
         direction TB
-        w["llm/worker.ts"]
+        w["llm/worker.ts<br/>serial queue · worker/runtime.ts · worker/chat-turn.ts"]
         tl["llm/turn-log.ts<br/>the single reply assembler"]
         t1["tools/sql-tool.ts<br/>validate · scope views · shape"]
         t2["tools/chart-tool.ts"]

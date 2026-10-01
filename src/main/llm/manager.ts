@@ -17,7 +17,8 @@ import {
   type LlmStatus,
   type ModelDiskSizes,
   type ModelId,
-  type ModelState
+  type ModelState,
+  type RuntimeStage
 } from '@shared/llm'
 import { db, dbPath } from '../db'
 import { settings } from '../db/schema'
@@ -51,10 +52,6 @@ export function sendToRenderer(channel: string, payload: unknown): void {
   BrowserWindow.getAllWindows()[0]?.webContents.send(channel, payload)
 }
 
-// after the last generate finishes, keep the model in memory this long in case
-// another request follows, then unload to give its RAM back
-const IDLE_UNLOAD_MS = 60_000
-
 // streamed part patches arrive faster than the UI needs paints; coalesce to
 // the latest patch per index so a 20-60 tok/s stream costs ~20 IPC messages a
 // second instead of hundreds
@@ -67,12 +64,15 @@ const PART_FLUSH_MS = 50
 // to the rest of the settings system.
 const SELECTED_MODEL_KEY = 'selectedModel'
 
+type FileStatus = Pick<LlmStatus, 'selected' | 'models'>
+
 class LlmManager {
   private worker: UtilityProcess | null = null
-  private status: LlmStatus | null = null
-  // which model is currently in memory, so an inference for a different
-  // selection triggers a swap and idle-unload bookkeeping targets the right one
-  private loadedModelId: ModelId | null = null
+  // the selection and file states this manager owns
+  private files: FileStatus | null = null
+  // the worker's last report of the model in memory: the worker owns loading,
+  // swapping and idle unload, and this only mirrors what it said
+  private runtime: { modelId: ModelId; stage: RuntimeStage; error: string | null } | null = null
   private nextId = 1
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   // chat streaming: chatPart patches route to their command's handler by id
@@ -81,14 +81,19 @@ class LlmManager {
   // land in the usage log under it; live chat stats route to their handler
   private requestFeatures = new Map<number, LlmFeature>()
   private statsHandlers = new Map<number, (stats: GenerationStats) => void>()
-  private inFlight = 0
-  private idleTimer: ReturnType<typeof setTimeout> | null = null
   // the worker asked to be restarted; done once no command is pending
   private recycleRequested = false
 
   getStatus(): LlmStatus {
-    if (!this.status) this.status = this.computeInitialStatus()
-    return this.status
+    const files = this.getFiles()
+    // runtime describes the selected model; another model's state isn't shown
+    const own = this.runtime?.modelId === files.selected ? this.runtime : null
+    return { ...files, runtime: own?.stage ?? 'unloaded', runtimeError: own?.error ?? null }
+  }
+
+  private getFiles(): FileStatus {
+    this.files ??= this.computeInitialFiles()
+    return this.files
   }
 
   /** On-disk size of each model file in bytes, or null when it isn't downloaded. */
@@ -109,13 +114,13 @@ class LlmManager {
     return getHardwareInfo()
   }
 
-  private computeInitialStatus(): LlmStatus {
+  private computeInitialFiles(): FileStatus {
     const models = {} as Record<ModelId, ModelState>
     for (const id of MODEL_IDS) {
       const downloaded = fs.existsSync(path.join(modelsDir(), LLM_MODELS[id].fileName))
       models[id] = { stage: downloaded ? 'downloaded' : 'notDownloaded', error: null }
     }
-    return { selected: this.readSelected(), models, runtime: 'unloaded', runtimeError: null }
+    return { selected: this.readSelected(), models }
   }
 
   private readSelected(): ModelId {
@@ -160,94 +165,69 @@ class LlmManager {
     await this.send({ type: 'cancelDownload', modelId })
   }
 
-  private async load(modelId: ModelId): Promise<void> {
-    await this.send({ type: 'load', modelId })
-  }
-
-  private async unload(): Promise<void> {
-    await this.send({ type: 'unload' })
-  }
-
-  /** Delete a downloaded model file, unloading it first if it's the one loaded. */
+  /**
+   * Delete a downloaded model file. The worker queues it behind any request in
+   * flight and unloads the model first if it's the one in memory.
+   */
   async deleteModel(modelId: ModelId): Promise<LlmStatus> {
-    if (this.loadedModelId === modelId) {
-      // deleting the loaded model disposes its worker context; refuse while a
-      // turn is mid-flight rather than yanking it out from under the generation
-      if (this.inFlight > 0) {
-        throw new Error(
-          'This model is in use right now. Stop the current chat or categorize before deleting it.'
-        )
-      }
-      this.clearIdleTimer()
-    }
     await this.send({ type: 'delete', modelId })
     return this.getStatus()
   }
 
   /**
-   * Switch which model inference uses. Persists the choice and, if a different
-   * model is currently loaded, unloads it so the next request loads the new
-   * selection — one model in memory at a time. A no-op when already selected.
+   * Switch which model inference uses. Persists the choice and frees the model
+   * in memory if it's another one, so the next request loads the new
+   * selection; the worker runs that unload after any request in flight.
    */
   async selectModel(modelId: ModelId): Promise<LlmStatus> {
-    const status = this.getStatus()
-    if (status.selected === modelId) return status
+    const files = this.getFiles()
+    if (files.selected === modelId) return this.getStatus()
     this.persistSelected(modelId)
-    status.selected = modelId
-    status.runtimeError = null
-    // only swap eagerly when nothing is generating: disposing the loaded
-    // context under an in-flight turn would crash it. With work in flight the
-    // selection still takes effect on the next request, since withModel swaps
-    // whenever the loaded model isn't the selected one.
-    if (this.inFlight === 0 && this.loadedModelId !== null && this.loadedModelId !== modelId) {
-      this.clearIdleTimer()
-      // optimistic so the badge doesn't flash the old model as ready; the
-      // worker's runtime event confirms and clears loadedModelId
-      status.runtime = 'unloaded'
-      void this.unload()
+    files.selected = modelId
+    if (this.worker && this.runtime && this.runtime.stage !== 'unloaded') {
+      this.send({ type: 'unload' }).catch((err) =>
+        log.warn('unload.failed', { error: String(err) })
+      )
     }
     this.pushStatus()
     return this.getStatus()
   }
 
+  /** the selected model, which must be on disk; the worker loads it on demand */
+  private runnableSelection(): ModelId {
+    const { selected, models } = this.getFiles()
+    if (models[selected].stage !== 'downloaded') {
+      throw new Error(`Model is not downloaded (${models[selected].stage})`)
+    }
+    return selected
+  }
+
   /**
-   * Model lifecycle shared by every inference request: ensure the selected
-   * model is the one loaded (loading or swapping as needed), relay `signal` as
-   * an abort command (an AbortSignal can't cross to the worker), and count the
-   * request toward idle unload — once requests stop, the model is unloaded
-   * after {@link IDLE_UNLOAD_MS} to give its RAM back. Features never load or
-   * unload themselves.
+   * Send an inference command, relaying `signal` as an abort of this request
+   * (an AbortSignal can't cross to the worker). Features never load or unload
+   * models: the worker does, and frees the model once requests stop.
    */
-  private async withModel<T>(signal: AbortSignal | undefined, run: () => Promise<T>): Promise<T> {
-    this.clearIdleTimer()
-    const status = this.getStatus()
-    const selected = status.selected
-    if (status.models[selected].stage !== 'downloaded') {
-      throw new Error(`Model is not downloaded (${status.models[selected].stage})`)
+  private async request(
+    id: number,
+    command: DistributiveOmit<WorkerCommand, 'id'>,
+    signal: AbortSignal | undefined
+  ): Promise<unknown> {
+    signal?.throwIfAborted()
+    const onAbort = (): void => {
+      if (this.pending.has(id)) void this.send({ type: 'abort', targetId: id })
     }
-    // load the selected model, or swap to it if a different one is in memory;
-    // load() is a no-op inside the worker when it's already the loaded model
-    if (this.loadedModelId !== selected) {
-      await this.load(selected)
-      this.loadedModelId = selected
-    }
-    const onAbort = (): void => void this.send({ type: 'abortGenerate' })
     signal?.addEventListener('abort', onAbort, { once: true })
-    this.inFlight++
     try {
-      if (signal?.aborted) throw signal.reason // cancelled while the model was loading
-      return await run()
+      return await this.sendWithId(id, command)
     } finally {
       signal?.removeEventListener('abort', onAbort)
-      this.inFlight--
-      if (this.inFlight === 0) this.scheduleIdleUnload()
     }
   }
 
   /**
    * The one inference primitive every LLM feature is built on: hand it a
-   * prompt (and optional JSON schema) and {@link withModel} takes care of the
-   * model lifecycle. An abort rejects the returned promise.
+   * prompt (and optional JSON schema). Requests run one at a time in the
+   * worker, in arrival order. An abort rejects the returned promise.
    */
   async generate(
     feature: LlmFeature,
@@ -255,19 +235,18 @@ class LlmManager {
     schema?: object,
     signal?: AbortSignal
   ): Promise<unknown> {
-    return this.withModel(signal, () => {
-      const id = this.nextId++
-      this.requestFeatures.set(id, feature)
-      return this.sendWithId(id, { type: 'generate', prompt, schema })
-    })
+    const modelId = this.runnableSelection()
+    const id = this.nextId++
+    this.requestFeatures.set(id, feature)
+    return this.request(id, { type: 'generate', modelId, prompt, schema }, signal)
   }
 
   /**
    * One conversational turn: the caller supplies the full prior history (the
    * worker is stateless across turns) and receives the reply streamed through
    * `onPart` as full-part patches in {@link PART_FLUSH_MS} batches, then whole
-   * in the result. Same lifecycle contract as {@link generate} — but an
-   * aborted chat resolves with `interrupted: true` instead of rejecting.
+   * in the result. Same contract as {@link generate}, but an aborted chat
+   * resolves with `interrupted: true` instead of rejecting.
    */
   async chat(
     history: ChatHistoryItem[],
@@ -288,6 +267,7 @@ class LlmManager {
     }
   ): Promise<ChatGenerationResult> {
     const { signal, toolScope, currency, goalRows, tools, onPart, onStats } = opts
+    const modelId = this.runnableSelection()
 
     // register the handler before the command is posted so no early patch can
     // slip past. Each patch carries the full part, so coalescing is just
@@ -318,16 +298,10 @@ class LlmManager {
     this.requestFeatures.set(id, 'chat')
 
     try {
-      const result = await this.withModel(signal, () =>
-        this.sendWithId(id, {
-          type: 'chat',
-          history,
-          prompt,
-          toolScope,
-          currency,
-          goalRows,
-          tools
-        })
+      const result = await this.request(
+        id,
+        { type: 'chat', modelId, history, prompt, toolScope, currency, goalRows, tools },
+        signal
       )
       return result as ChatGenerationResult
     } finally {
@@ -352,21 +326,6 @@ class LlmManager {
     }
   }
 
-  private clearIdleTimer(): void {
-    if (this.idleTimer) {
-      clearTimeout(this.idleTimer)
-      this.idleTimer = null
-    }
-  }
-
-  private scheduleIdleUnload(): void {
-    this.clearIdleTimer()
-    this.idleTimer = setTimeout(() => {
-      this.idleTimer = null
-      if (this.inFlight === 0 && this.getStatus().runtime === 'ready') void this.unload()
-    }, IDLE_UNLOAD_MS)
-  }
-
   private ensureWorker(): UtilityProcess {
     if (this.worker) return this.worker
 
@@ -387,25 +346,17 @@ class LlmManager {
   private handleWorkerMessage(msg: WorkerMessage): void {
     if ('event' in msg) {
       switch (msg.event) {
-        case 'modelStage': {
-          const status = this.getStatus()
-          status.models[msg.modelId] = { stage: msg.stage, error: msg.error }
+        case 'modelStage':
+          this.getFiles().models[msg.modelId] = { stage: msg.stage, error: msg.error }
           // downloading is the only stage with a fraction to show; every other
           // stage means the download is over, one way or another
           if (msg.stage !== 'downloading') setTaskbarProgress(null)
           this.pushStatus()
           break
-        }
-        case 'runtime': {
-          const status = this.getStatus()
-          status.runtime = msg.stage
-          status.runtimeError = msg.error
-          // the model left memory (idle unload, swap, delete, or load failure),
-          // so nothing is loaded until the next request loads the selection
-          if (msg.stage === 'unloaded') this.loadedModelId = null
+        case 'runtime':
+          this.runtime = { modelId: msg.modelId, stage: msg.stage, error: msg.error }
           this.pushStatus()
           break
-        }
         case 'downloadProgress':
           sendToRenderer(LLM_IPC.downloadProgress, msg.progress)
           setTaskbarProgress(msg.progress.downloadedBytes / msg.progress.totalBytes)
@@ -438,15 +389,14 @@ class LlmManager {
   /**
    * Restart the worker it asked for, once no command (a download included) is
    * pending. Detached before the kill, so the next send forks a fresh process
-   * and the old one's exit is ignored; its runtimeError stays for the user.
+   * and the old one's exit is ignored; its load error stays for the user.
    */
   private recycleIfIdle(): void {
     if (!this.recycleRequested || this.pending.size > 0 || !this.worker) return
     const worker = this.worker
     this.worker = null
     this.recycleRequested = false
-    this.loadedModelId = null
-    this.getStatus().runtime = 'unloaded'
+    if (this.runtime) this.runtime = { ...this.runtime, stage: 'unloaded' }
     log.warn('worker.recycle')
     worker.kill()
     this.pushStatus()
@@ -462,11 +412,12 @@ class LlmManager {
     this.pending.clear()
     this.requestFeatures.clear()
     this.worker = null
-    // the worker held the loaded model; it's gone with the process
-    this.loadedModelId = null
-    const status = this.getStatus()
-    status.runtime = 'unloaded'
-    status.runtimeError = code !== 0 ? `Worker exited unexpectedly (code ${code})` : null
+    // the worker held the model in memory; it's gone with the process
+    this.runtime = {
+      modelId: this.runtime?.modelId ?? this.getFiles().selected,
+      stage: 'unloaded',
+      error: code !== 0 ? `The model stopped unexpectedly (code ${code})` : null
+    }
     if (code !== 0) log.error('worker.exit', undefined, { code })
     this.pushStatus()
   }
