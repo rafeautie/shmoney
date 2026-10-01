@@ -33,6 +33,8 @@ win:
   # only the win-* prebuilt binary packages are needed on Windows
   files:
     - '!node_modules/@node-llama-cpp/{linux-arm64,linux-armv7l,linux-riscv64,linux-x64,linux-x64-cuda,linux-x64-cuda-ext,linux-x64-vulkan,mac-arm64-metal,mac-x64}/**/*'
+    # win-arm64 installs on x64 hosts too; keep only this build's win-<arch>*
+    - '!node_modules/@node-llama-cpp/win-!(${arch}|${arch}-*)/**/*'
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}
