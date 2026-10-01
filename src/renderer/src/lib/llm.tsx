@@ -35,6 +35,22 @@ export function useLlmStatus() {
   return query
 }
 
+/** Usage counted from `since` (the llmUsageSince setting); refetches as requests are logged. */
+export function useLlmUsage(since: number | null) {
+  const queryClient = useQueryClient()
+  useEffect(
+    () =>
+      window.api.llm.onUsageChanged(() => {
+        void queryClient.invalidateQueries({ queryKey: ['llm', 'usage'] })
+      }),
+    [queryClient]
+  )
+  return useQuery({
+    queryKey: ['llm', 'usage', since],
+    queryFn: () => window.api.llm.getUsage(since)
+  })
+}
+
 /** Total system RAM, cached for the session (hardware doesn't change). Drives
  * which models are offered and which one is recommended. */
 export function useHardware() {

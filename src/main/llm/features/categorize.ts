@@ -166,7 +166,7 @@ export async function categorizeTransactions(
         // queued so a rule-term extraction can never overlap this generation
         // on the worker's single chat session (see llm/queue.ts)
         const raw = await enqueueGenerate(() =>
-          llmManager.generate(buildPrompt(group[0], allCategories), schema, signal)
+          llmManager.generate('categorize', buildPrompt(group[0], allCategories), schema, signal)
         )
         const parsed = generatedSchema.safeParse(raw)
         if (parsed.success && categoryIds.has(parsed.data.categoryId)) {

@@ -44,6 +44,7 @@ import {
   type HardwareInfo,
   type LlmDownloadProgress,
   type LlmStatus,
+  type LlmUsageSummary,
   type ModelDiskSizes,
   type ModelId
 } from '@shared/llm'
@@ -90,6 +91,7 @@ import {
   CHAT_IPC,
   type ChatMessage,
   type ChatMessageDoneEvent,
+  type ChatStatsEvent,
   type ChatPartEvent,
   type Conversation,
   type ConversationMessages,
@@ -312,6 +314,15 @@ const api = {
       ipcRenderer.invoke(LLM_IPC.categorize, scope ?? {}),
     /** Stop an in-flight categorize after the current row; partial results still apply */
     cancelCategorize: (): Promise<void> => ipcRenderer.invoke(LLM_IPC.cancelCategorize),
+    /** Usage totals for Settings > AI usage, counted from the last reset */
+    getUsage: (since: number | null): Promise<LlmUsageSummary> =>
+      ipcRenderer.invoke(LLM_IPC.getUsage, since),
+    /** fires after each inference request is logged */
+    onUsageChanged: (callback: () => void): (() => void) => {
+      const listener = (): void => callback()
+      ipcRenderer.on(LLM_IPC.usageChanged, listener)
+      return () => ipcRenderer.removeListener(LLM_IPC.usageChanged, listener)
+    },
     onStatusChanged: (callback: (status: LlmStatus) => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent, status: LlmStatus): void =>
         callback(status)
@@ -367,6 +378,12 @@ const api = {
         callback(event)
       ipcRenderer.on(CHAT_IPC.part, listener)
       return () => ipcRenderer.removeListener(CHAT_IPC.part, listener)
+    },
+    onStats: (callback: (event: ChatStatsEvent) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, event: ChatStatsEvent): void =>
+        callback(event)
+      ipcRenderer.on(CHAT_IPC.stats, listener)
+      return () => ipcRenderer.removeListener(CHAT_IPC.stats, listener)
     },
     onMessageDone: (callback: (event: ChatMessageDoneEvent) => void): (() => void) => {
       const listener = (_event: Electron.IpcRendererEvent, event: ChatMessageDoneEvent): void =>

@@ -232,6 +232,13 @@
       "when": 1790829946317,
       "tag": "0032_chat_truncated_before",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1790837332918,
+      "tag": "0033_llm_usage",
+      "breakpoints": true
     }
   ]
 }

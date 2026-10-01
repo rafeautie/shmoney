@@ -1,5 +1,11 @@
 import type { ChartSpec, StreamingChatPart } from '@shared/chat'
-import type { LlmDownloadProgress, ModelId, ModelStage, RuntimeStage } from '@shared/llm'
+import type {
+  GenerationStats,
+  LlmDownloadProgress,
+  ModelId,
+  ModelStage,
+  RuntimeStage
+} from '@shared/llm'
 import type { ChatToolScope, GoalTableRows } from './tools/sql-tool'
 import type { GoalPaceInput, ToolVocab } from './tools/analysis'
 // type-only: erased at compile time, so the manager still never runtime-imports
@@ -93,3 +99,7 @@ export type WorkerMessage =
   // assembler; see turn-log.ts). The feature layer adds the conversation id
   // when forwarding to the renderer.
   | { event: 'chatPart'; id: number; index: number; part: StreamingChatPart }
+  // a generate or chat request's usage, tied to its command id: live snapshots
+  // while a chat streams, then one final snapshot (posted before the reply,
+  // aborted and failed requests included) that the manager logs
+  | { event: 'stats'; id: number; stats: GenerationStats; final: boolean }

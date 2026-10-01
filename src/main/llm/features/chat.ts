@@ -1,7 +1,7 @@
 import { format, startOfMonth, subMonths } from 'date-fns'
 import { and, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { ChatHistoryItem, ChatModelResponse } from 'node-llama-cpp'
-import { LLM_MODELS } from '@shared/llm'
+import { LLM_MODELS, type GenerationStats } from '@shared/llm'
 import { GOAL_STATUS_LABELS, type GoalSummary } from '@shared/goals'
 import {
   ACTION_TOOL_NAMES,
@@ -570,6 +570,8 @@ function launchGeneration(turn: {
   controller: AbortController
 }): void {
   const { conversationId, assistantMessageId, controller } = turn
+  // the latest snapshot; the final one (sent as the turn ends) is persisted
+  let stats: GenerationStats | null = null
   void enqueueGenerate(() =>
     llmManager.chat(turn.history, turn.prompt, {
       signal: controller.signal,
@@ -577,7 +579,11 @@ function launchGeneration(turn: {
       currency: turn.currency,
       goalRows: turn.goalRows,
       tools: turn.tools,
-      onPart: (index, part) => sendToRenderer(CHAT_IPC.part, { conversationId, index, part })
+      onPart: (index, part) => sendToRenderer(CHAT_IPC.part, { conversationId, index, part }),
+      onStats: (next) => {
+        stats = next
+        sendToRenderer(CHAT_IPC.stats, { conversationId, stats: next })
+      }
     })
   )
     .then((result) => {
@@ -589,21 +595,22 @@ function launchGeneration(turn: {
           })
           .where(eq(conversations.id, conversationId))
           .run()
-      finishTurn(assistantMessageId, result, null)
+      finishTurn(assistantMessageId, result, null, stats)
     })
     .catch((err) => {
       // a stop before the turn ever reached the model (still queued behind
       // another generation) rejects instead of resolving interrupted; that's
       // a stop, not a failure
       if (controller.signal.aborted)
-        return finishTurn(assistantMessageId, { parts: [], interrupted: true }, null)
+        return finishTurn(assistantMessageId, { parts: [], interrupted: true }, null, stats)
       // logged serialized, never raw: the error chain can drag the prompt
       // along, and prompts carry the user's private conversation text
       log.error('chat.generation-failed', err)
       return finishTurn(
         assistantMessageId,
         { parts: [], interrupted: false },
-        String((err as Error)?.message ?? err)
+        String((err as Error)?.message ?? err),
+        null
       )
     })
     .finally(() => {
@@ -619,7 +626,8 @@ function launchGeneration(turn: {
 function finishTurn(
   assistantMessageId: number,
   result: ChatGenerationResult,
-  errorMessage: string | null
+  errorMessage: string | null,
+  stats: GenerationStats | null
 ): void {
   const { interrupted } = result
   const now = Date.now()
@@ -631,7 +639,9 @@ function finishTurn(
     .set({
       parts: result.parts,
       status: errorMessage !== null ? 'error' : interrupted ? 'interrupted' : 'complete',
-      errorMessage
+      errorMessage,
+      // a stop can land between live snapshots; only a final one is a settled record
+      stats: stats?.stopReason ? stats : null
     })
     .where(eq(chatMessages.id, assistantMessageId))
     .returning()

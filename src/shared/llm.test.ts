@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   LLM_MODELS,
   MODEL_IDS,
+  generationRates,
   llmSupported,
   modelComfortable,
   modelRunnable,
@@ -57,5 +58,22 @@ describe('model capability gating', () => {
     expect(modelComfortable(LLM_MODELS.e2b, gib(16))).toBe(true)
     expect(modelComfortable(LLM_MODELS.e4b, gib(16))).toBe(false)
     expect(modelComfortable(LLM_MODELS.e4b, gib(32))).toBe(true)
+  })
+})
+
+describe('generation rates', () => {
+  it('derives tokens per second for writing and reading', () => {
+    expect(
+      generationRates({ inputTokens: 3000, decodeTokens: 120, decodeMs: 3000, prefillMs: 1500 })
+    ).toEqual({ decodeTps: 40, prefillTps: 2000 })
+  })
+
+  it('reports no rate for an empty or too-short span', () => {
+    expect(generationRates({ inputTokens: 0, decodeTokens: 0, decodeMs: 0, prefillMs: 0 })).toEqual(
+      { decodeTps: null, prefillTps: null }
+    )
+    expect(
+      generationRates({ inputTokens: 10, decodeTokens: 2, decodeMs: 10, prefillMs: 5 })
+    ).toEqual({ decodeTps: null, prefillTps: null })
   })
 })

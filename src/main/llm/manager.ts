@@ -11,7 +11,9 @@ import {
   modelIdSchema,
   modelRunnable,
   recommendedModelId,
+  type GenerationStats,
   type HardwareInfo,
+  type LlmFeature,
   type LlmStatus,
   type ModelDiskSizes,
   type ModelId,
@@ -22,6 +24,7 @@ import { settings } from '../db/schema'
 import { createLogger } from '../logging'
 import { setTaskbarProgress } from '../os-shell'
 import { getHardwareInfo } from './hardware'
+import { recordUsage } from './usage'
 import type {
   ChatGenerationResult,
   ChatToolInputs,
@@ -74,6 +77,10 @@ class LlmManager {
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   // chat streaming: chatPart patches route to their command's handler by id
   private chatHandlers = new Map<number, (index: number, part: StreamingChatPart) => void>()
+  // which feature each in-flight inference request is for, so its final stats
+  // land in the usage log under it; live chat stats route to their handler
+  private requestFeatures = new Map<number, LlmFeature>()
+  private statsHandlers = new Map<number, (stats: GenerationStats) => void>()
   private inFlight = 0
   private idleTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -240,8 +247,17 @@ class LlmManager {
    * prompt (and optional JSON schema) and {@link withModel} takes care of the
    * model lifecycle. An abort rejects the returned promise.
    */
-  async generate(prompt: string, schema?: object, signal?: AbortSignal): Promise<unknown> {
-    return this.withModel(signal, () => this.send({ type: 'generate', prompt, schema }))
+  async generate(
+    feature: LlmFeature,
+    prompt: string,
+    schema?: object,
+    signal?: AbortSignal
+  ): Promise<unknown> {
+    return this.withModel(signal, () => {
+      const id = this.nextId++
+      this.requestFeatures.set(id, feature)
+      return this.sendWithId(id, { type: 'generate', prompt, schema })
+    })
   }
 
   /**
@@ -265,9 +281,11 @@ class LlmManager {
       /** the typed tools' per-turn names, goal pace inputs and follow-up seed */
       tools: ChatToolInputs
       onPart: (index: number, part: StreamingChatPart) => void
+      /** live usage snapshots, then the final one (stopReason set) as the turn ends */
+      onStats: (stats: GenerationStats) => void
     }
   ): Promise<ChatGenerationResult> {
-    const { signal, toolScope, currency, goalRows, tools, onPart } = opts
+    const { signal, toolScope, currency, goalRows, tools, onPart, onStats } = opts
 
     // register the handler before the command is posted so no early patch can
     // slip past. Each patch carries the full part, so coalescing is just
@@ -275,19 +293,27 @@ class LlmManager {
     // order structurally, with no cross-kind flush rules.
     const id = this.nextId++
     const patches = new Map<number, StreamingChatPart>()
+    // stats are whole snapshots too, so only the latest one matters
+    let stats: GenerationStats | null = null
     let flushTimer: ReturnType<typeof setTimeout> | null = null
     const flush = (): void => {
       if (flushTimer) clearTimeout(flushTimer)
       flushTimer = null
-      if (patches.size === 0) return
       const entries = [...patches.entries()].sort(([a], [b]) => a - b)
       patches.clear()
       for (const [index, part] of entries) onPart(index, part)
+      if (stats) onStats(stats)
+      stats = null
     }
     this.chatHandlers.set(id, (index, part) => {
       patches.set(index, part)
       flushTimer ??= setTimeout(flush, PART_FLUSH_MS)
     })
+    this.statsHandlers.set(id, (next) => {
+      stats = next
+      flushTimer ??= setTimeout(flush, PART_FLUSH_MS)
+    })
+    this.requestFeatures.set(id, 'chat')
 
     try {
       const result = await this.withModel(signal, () =>
@@ -305,6 +331,22 @@ class LlmManager {
     } finally {
       flush() // deliver any buffered tail before callers see the settled promise
       this.chatHandlers.delete(id)
+      this.statsHandlers.delete(id)
+      // a turn stopped before it reached the worker never reports stats
+      this.requestFeatures.delete(id)
+    }
+  }
+
+  private logUsage(id: number, stats: GenerationStats): void {
+    const feature = this.requestFeatures.get(id)
+    if (!feature) return
+    this.requestFeatures.delete(id)
+    try {
+      recordUsage(feature, stats)
+      sendToRenderer(LLM_IPC.usageChanged, null)
+    } catch (err) {
+      // usage is bookkeeping; a failed write must never fail the request
+      log.warn('usage.record-failed', { error: String(err) })
     }
   }
 
@@ -369,9 +411,16 @@ class LlmManager {
         case 'chatPart':
           this.chatHandlers.get(msg.id)?.(msg.index, msg.part)
           break
+        case 'stats':
+          if (msg.final) this.logUsage(msg.id, msg.stats)
+          this.statsHandlers.get(msg.id)?.(msg.stats)
+          break
       }
       return
     }
+    // a generate whose worker reply never carried stats (it failed before
+    // generating) has nothing to log
+    this.requestFeatures.delete(msg.id)
     const pending = this.pending.get(msg.id)
     if (!pending) return
     this.pending.delete(msg.id)
@@ -384,6 +433,7 @@ class LlmManager {
       reject(new Error(`LLM worker exited unexpectedly (code ${code})`))
     }
     this.pending.clear()
+    this.requestFeatures.clear()
     this.worker = null
     // the worker held the loaded model; it's gone with the process
     this.loadedModelId = null

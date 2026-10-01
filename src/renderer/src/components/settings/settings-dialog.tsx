@@ -3,6 +3,7 @@ import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import {
   AiBrain01Icon,
   BankIcon,
+  DashboardSpeed01Icon,
   DatabaseIcon,
   InformationCircleIcon,
   Settings01Icon,
@@ -21,6 +22,7 @@ import { AppearanceSettings } from './appearance-settings'
 import { CategoriesSettings } from './categories-settings'
 import { ConnectionSettings } from './connection-settings'
 import { LlmSettings } from './llm-settings'
+import { LlmUsageSettings } from './llm-usage-settings'
 import { NotificationSettings } from './notification-settings'
 import { PrivacySettings } from './privacy-settings'
 import { RulesSettings } from './rules-settings'
@@ -60,6 +62,12 @@ const SECTIONS: {
   },
   { id: 'rules', label: 'Rules', icon: WorkflowSquare03Icon, content: () => <RulesSettings /> },
   { id: 'ai', label: 'AI model', icon: AiBrain01Icon, content: () => <LlmSettings /> },
+  {
+    id: 'ai-usage',
+    label: 'AI usage',
+    icon: DashboardSpeed01Icon,
+    content: () => <LlmUsageSettings />
+  },
   { id: 'storage', label: 'Storage', icon: DatabaseIcon, content: () => <StorageSettings /> },
   { id: 'about', label: 'About', icon: InformationCircleIcon, content: () => <AboutSettings /> }
 ]

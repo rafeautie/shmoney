@@ -61,7 +61,9 @@ export async function extractRuleTerm(description: string): Promise<string | nul
   const status = llmManager.getStatus()
   if (status.models[status.selected].stage !== 'downloaded') return null
   try {
-    const raw = await enqueueGenerate(() => llmManager.generate(buildPrompt(description), SCHEMA))
+    const raw = await enqueueGenerate(() =>
+      llmManager.generate('ruleTerm', buildPrompt(description), SCHEMA)
+    )
     const parsed = generatedSchema.safeParse(raw)
     if (!parsed.success) return null
     return parsed.data.phrase.trim() || null

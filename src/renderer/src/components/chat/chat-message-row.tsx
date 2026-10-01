@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
 import { AssistantBubble } from '@/components/chat/assistant-bubble'
+import { GenerationStatsLine } from '@/components/chat/generation-stats'
 import { ThoughtChain, type ChainPart } from '@/components/chat/thought-chain'
 
 /**
@@ -147,6 +148,9 @@ export function ChatMessageRow({
   const parts = streaming
     ? (reply?.parts ?? []).filter((part) => part !== undefined)
     : message.parts
+  const stats = streaming ? (reply?.stats ?? null) : message.stats
+  const stopped = message.status === 'interrupted'
+  const showStats = stats !== null && stats.outputTokens > 0
 
   return (
     // the fade-in only runs on mount, i.e. when the turn is accepted; dropping
@@ -170,7 +174,13 @@ export function ChatMessageRow({
             Goals
           </Badge>
         )}
-        {message.status === 'interrupted' && <MessageFooter>Stopped generating</MessageFooter>}
+        {(stopped || showStats) && (
+          <MessageFooter className="gap-1.5">
+            {stopped && <span>Stopped generating</span>}
+            {stopped && showStats && <span aria-hidden>·</span>}
+            {showStats && <GenerationStatsLine stats={stats} />}
+          </MessageFooter>
+        )}
       </MessageContent>
     </Message>
   )

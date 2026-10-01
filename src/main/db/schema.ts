@@ -7,6 +7,7 @@ import type { TransactionFilters } from '../../shared/transaction-filters'
 import type { ActionChange, SfinError } from '../../shared/ipc'
 import type { RuleConditions, RuleAction } from '../../shared/rules'
 import type { ChatMessagePart, ChatMessageStatus, ChatTurnScope } from '../../shared/chat'
+import type { GenerationStats, GenerationStopReason, LlmFeature } from '../../shared/llm'
 
 // holds at most one row: the app supports a single SimpleFIN connection
 export const connections = sqliteTable('connections', {
@@ -353,9 +354,39 @@ export const chatMessages = sqliteTable(
     // the transcript can mark scope changes even after the account is renamed
     // or deleted; null on user rows and rows from before this column existed
     scope: text('scope', { mode: 'json' }).$type<ChatTurnScope | null>(),
+    // the assistant turn's generation stats for its footer; null on user rows
+    // and rows from before this column existed
+    stats: text('stats', { mode: 'json' }).$type<GenerationStats | null>(),
     createdAt: integer('created_at').notNull()
   },
   (t) => [index('chat_messages_conversation_ix').on(t.conversationId, t.id)]
+)
+
+// one row per inference request, read by the AI usage settings page. Apart
+// from chat_messages so usage outlives purged conversations and covers the
+// features that aren't chat. Never deleted: a reset moves the llmUsageSince
+// setting instead.
+export const llmUsage = sqliteTable(
+  'llm_usage',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    // unix milliseconds, when the request ended
+    createdAt: integer('created_at').notNull(),
+    // kept as text, not the ModelId enum, so rows survive a model's removal
+    modelId: text('model_id').notNull(),
+    feature: text('feature').$type<LlmFeature>().notNull(),
+    stopReason: text('stop_reason').$type<GenerationStopReason>().notNull(),
+    inputTokens: integer('input_tokens').notNull(),
+    outputTokens: integer('output_tokens').notNull(),
+    decodeTokens: integer('decode_tokens').notNull(),
+    decodeMs: integer('decode_ms').notNull(),
+    prefillMs: integer('prefill_ms').notNull(),
+    toolMs: integer('tool_ms').notNull(),
+    totalMs: integer('total_ms').notNull(),
+    ttftMs: integer('ttft_ms'),
+    loadMs: integer('load_ms')
+  },
+  (t) => [index('llm_usage_created_ix').on(t.createdAt)]
 )
 
 export type ConnectionRow = typeof connections.$inferSelect
@@ -375,3 +406,4 @@ export type BudgetRow = typeof budgets.$inferSelect
 export type SavingsGoalRow = typeof savingsGoals.$inferSelect
 export type ConversationRow = typeof conversations.$inferSelect
 export type ChatMessageRow = typeof chatMessages.$inferSelect
+export type LlmUsageRow = typeof llmUsage.$inferSelect

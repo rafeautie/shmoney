@@ -10,8 +10,10 @@ import {
   LineChart,
   Pie,
   PieChart,
+  Rectangle,
   XAxis,
-  YAxis
+  YAxis,
+  type BarShapeProps
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { usePrivacy } from '@/lib/settings'
@@ -202,6 +204,8 @@ function ChartNote({ children }: { children: ReactNode }) {
 
 // ---------- line / bar / area ----------
 
+const BAR_TOP_RADIUS: [number, number, number, number] = [2, 2, 0, 0]
+
 function CartesianView({
   kind,
   data,
@@ -230,6 +234,10 @@ function CartesianView({
   // minTickGap={0} on the category axis skips a label only when its row is
   // shorter than the text, which beats piling labels on top of each other
   const horizontal = kind === 'bar' && colorByPoint && singleSeries
+  // per row, the last series with a value: the segment drawn at the top of its stack
+  const stackTops = data.map(
+    (row) => series.findLast((s) => Number(row[s.key] ?? 0) !== 0)?.key ?? null
+  )
 
   const axes = horizontal ? (
     <>
@@ -380,7 +388,18 @@ function CartesianView({
                 dataKey={s.key}
                 fill={`var(--color-${s.key})`}
                 stackId={stacked ? 'stack' : undefined}
-                radius={stacked ? 0 : [2, 2, 0, 0]}
+                radius={stacked ? 0 : BAR_TOP_RADIUS}
+                // in a stack only the segment on top gets the rounded corners
+                shape={
+                  stacked
+                    ? (props: BarShapeProps) => (
+                        <Rectangle
+                          {...props}
+                          radius={stackTops[props.index] === s.key ? BAR_TOP_RADIUS : 0}
+                        />
+                      )
+                    : undefined
+                }
                 isAnimationActive={false}
               />
             ))
