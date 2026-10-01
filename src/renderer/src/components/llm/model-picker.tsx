@@ -16,6 +16,7 @@ import {
 import {
   useHardware,
   useLlmDownloadProgress,
+  useLlmStatus,
   useLlmSupported,
   useModelActions,
   useModelState,
@@ -149,6 +150,7 @@ function ModelRow({
   onDelete: () => void
 }): React.JSX.Element {
   const { stage, error } = useModelState(model.id)
+  const runtimeError = useLlmStatus().data?.runtimeError
   // optimistic while hardware is loading, so a row never flashes disabled
   const runnable = hw ? modelRunnable(model, hw) : true
   const comfortable = hw ? modelComfortable(model, hw) : true
@@ -263,6 +265,9 @@ function ModelRow({
       </div>
 
       {errored && error && <p className="mt-1 pl-7 text-xs text-destructive">{error}</p>}
+      {selected && isDownloaded && runtimeError && (
+        <p className="mt-1 pl-7 text-xs text-destructive">{runtimeError}</p>
+      )}
     </div>
   )
 }

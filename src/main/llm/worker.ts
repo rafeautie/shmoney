@@ -12,6 +12,8 @@ import {
   defineChatSessionFunction,
   LlamaChatSession,
   LlamaLogLevel,
+  DisposedError,
+  InsufficientMemoryError,
   Gemma4ChatWrapper,
   QwenChatWrapper,
   type ChatWrapper,
@@ -141,6 +143,11 @@ async function ensureLlama(): Promise<Llama> {
   return llama
 }
 
+// A load creates the model and every context it will need, or nothing: a
+// context created lazily later can fail mid-conversation on memory the load
+// already handed to GPU layers. Chat runs on its own (larger) context: the
+// generate session resets its history per call, while chat replaces its
+// history per turn, so the two modes can never leak state into each other.
 interface LoadedModel {
   // which registry model is in memory, so a load for a different model swaps it
   // out and delete only disposes when it targets the loaded one
@@ -148,18 +155,26 @@ interface LoadedModel {
   model: LlamaModel
   context: LlamaContext
   session: LlamaChatSession
+  chatContext: LlamaContext
+  chatSession: LlamaChatSession
 }
 let loaded: LoadedModel | null = null
 
-// chat runs on its own (larger) context and session, created lazily on the
-// first chat turn: the shared `generate` session resets its history per call,
-// while chat replaces its history per turn — keeping them separate means the
-// two modes can never leak state into each other
-interface ChatSessionState {
-  context: LlamaContext
-  session: LlamaChatSession
+// node-llama-cpp 3.19 never disposes a context whose creation failed, and that
+// orphan keeps a hold on its model: once it is garbage-collected,
+// model.dispose() never settles and the model is left half-disposed ("Object
+// is disposed" on every later use). A fresh process is the only sure way to
+// give that memory back, so after a failed load or dispose the worker asks the
+// manager to restart it once nothing is in flight.
+let recycleRequested = false
+function requestRecycle(reason: string): void {
+  if (recycleRequested) return
+  recycleRequested = true
+  console.warn(`llm worker recycle requested: ${reason}`)
+  post({ event: 'recycle' })
 }
-let chatLoaded: ChatSessionState | null = null
+
+const DISPOSE_TIMEOUT_MS = 10_000
 
 // the in-flight turn, read by the session's context-shift strategy (fixed at
 // session creation): its tools, so their docs count like LlamaChat counts them,
@@ -315,18 +330,46 @@ async function disposeLoaded(): Promise<void> {
   // the tool connection follows the model's lifecycle: idle unload closes it
   // too, and the next chat turn reopens it
   closeToolDb()
-  if (!loaded) return
+  // detached before any await, so a dispose that throws or hangs can never
+  // leave a half-disposed model looking loaded
+  const target = loaded
+  loaded = null
+  if (!target) return
   // sessions first, then contexts, then the model: on Windows the file stays
   // locked while anything still maps it
-  if (chatLoaded) {
-    chatLoaded.session.dispose()
-    await chatLoaded.context.dispose()
-    chatLoaded = null
+  const dispose = async (): Promise<void> => {
+    target.chatSession.dispose()
+    target.session.dispose()
+    await target.chatContext.dispose()
+    await target.context.dispose()
+    await target.model.dispose()
   }
-  loaded.session.dispose()
-  await loaded.context.dispose()
-  await loaded.model.dispose()
-  loaded = null
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    await Promise.race([
+      dispose(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('timed out')), DISPOSE_TIMEOUT_MS)
+      })
+    ])
+  } catch (err) {
+    requestRecycle(`dispose failed: ${String((err as Error)?.message ?? err)}`)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** a load failure in words the user can act on; the raw error goes to the log */
+function loadErrorMessage(modelId: ModelId, err: unknown): string {
+  const { label } = LLM_MODELS[modelId]
+  const raw = String((err as Error)?.message ?? err)
+  if (
+    err instanceof InsufficientMemoryError ||
+    /failed to create context|out of (device )?memory|failed to allocate/i.test(raw)
+  ) {
+    return `${label} doesn't fit in the memory this computer has free right now. Pick a smaller model in Settings, or close other apps using the graphics card and try again.`
+  }
+  return `${label} couldn't be loaded: ${raw}`
 }
 
 async function handleDownload(modelId: ModelId): Promise<null> {
@@ -424,19 +467,36 @@ async function handleLoad(modelId: ModelId): Promise<null> {
   const loadStarted = Date.now()
   try {
     const llamaInstance = await ensureLlama()
-    const llamaModel = await llamaInstance.loadModel({ modelPath: filePath })
-    const context = await llamaModel.createContext({ contextSize: GENERATE_CONTEXT_SIZE })
-    const session = new LlamaChatSession({
-      contextSequence: context.getSequence(),
-      chatWrapper: chatWrapperFor(model, 'generate')
+    const llamaModel = await llamaInstance.loadModel({
+      modelPath: filePath,
+      // offload only as many layers as leave room for the contexts below;
+      // the default fits a small context and starves the chat one
+      gpuLayers: { fitContext: { contextSize: GENERATE_CONTEXT_SIZE + CHAT_CONTEXT_SIZE } }
     })
-    loaded = { modelId, model: llamaModel, context, session }
+    const context = await llamaModel.createContext({ contextSize: GENERATE_CONTEXT_SIZE })
+    const chatContext = await llamaModel.createContext({ contextSize: CHAT_CONTEXT_SIZE })
+    loaded = {
+      modelId,
+      model: llamaModel,
+      context,
+      session: new LlamaChatSession({
+        contextSequence: context.getSequence(),
+        chatWrapper: chatWrapperFor(model, 'generate')
+      }),
+      chatContext,
+      chatSession: createChatSession(chatContext, llamaModel.tokenizer, model)
+    }
     pendingLoadMs = Date.now() - loadStarted
     postRuntime('ready')
     return null
   } catch (err) {
-    postRuntime('unloaded', String(err))
-    throw err
+    // nothing partial is disposed here: a failed context pins its model (see
+    // requestRecycle), so the fresh process is what frees it
+    console.error(`model load failed: ${String((err as Error)?.stack ?? err)}`)
+    const message = loadErrorMessage(modelId, err)
+    postRuntime('unloaded', message)
+    requestRecycle('load failed')
+    throw new Error(message)
   }
 }
 
@@ -552,15 +612,14 @@ function handleAbortGenerate(): null {
   return null
 }
 
-async function ensureChatSession(): Promise<LlamaChatSession> {
-  if (!loaded) throw new Error('No model loaded')
-  if (chatLoaded) return chatLoaded.session
-  const started = Date.now()
-  const context = await loaded.model.createContext({ contextSize: CHAT_CONTEXT_SIZE })
-  const { tokenizer } = loaded.model
-  const session = new LlamaChatSession({
+function createChatSession(
+  context: LlamaContext,
+  tokenizer: Tokenizer,
+  model: LlmModel
+): LlamaChatSession {
+  return new LlamaChatSession({
     contextSequence: context.getSequence(),
-    chatWrapper: chatWrapperFor(LLM_MODELS[loaded.modelId], 'chat'),
+    chatWrapper: chatWrapperFor(model, 'chat'),
     contextShift: {
       strategy: ({ chatHistory, maxTokensCount, chatWrapper }) => {
         const shifted = shiftHistory(
@@ -574,9 +633,6 @@ async function ensureChatSession(): Promise<LlamaChatSession> {
       }
     }
   })
-  chatLoaded = { context, session }
-  pendingLoadMs = (pendingLoadMs ?? 0) + Date.now() - started
-  return session
 }
 
 // the mutable call bookkeeping the turn's tool handlers share
@@ -892,7 +948,8 @@ async function handleChat(
   let meter: UsageMeter | null = null
   let stopReason: GenerationStopReason = 'error'
   try {
-    const session = await ensureChatSession()
+    if (!loaded) throw new Error('No model loaded')
+    const { chatSession: session, modelId } = loaded
     if (controller.signal.aborted) return { parts: [], interrupted: true }
     refreshScopeViews(toolScope, goalRows)
 
@@ -925,8 +982,7 @@ async function handleChat(
     // wall-clock when the tool call being written opened; each handler reads the
     // span up to its own settle, so the chain of thought can total tool time
     let openedCallAt: number | null = null
-    // ensureChatSession resolved, so the model it belongs to is loaded
-    const usage = meterFor(session, (loaded as LoadedModel).modelId)
+    const usage = meterFor(session, modelId)
     meter = usage
     const functions = meteredFunctions(
       chatFunctions({
@@ -1050,7 +1106,13 @@ process.parentPort.on('message', (e) => {
   const command = e.data as WorkerCommand
   dispatch(command)
     .then((result) => post({ id: command.id, ok: true, result }))
-    .catch((err) =>
+    .catch((err) => {
+      // the load path should make this unreachable; if a disposed object still
+      // surfaces, this process's runtime can't be trusted any more
+      if (err instanceof DisposedError) {
+        requestRecycle(`disposed object used by ${command.type}`)
+        err = new Error('The model stopped unexpectedly. Try again.')
+      }
       post({ id: command.id, ok: false, error: String((err as Error)?.message ?? err) })
-    )
+    })
 })
