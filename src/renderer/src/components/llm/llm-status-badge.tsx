@@ -9,26 +9,30 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
  * (settings card, chat composer) can drop it in.
  */
 export function LlmStatusBadge({ className }: { className?: string }) {
-  const runtime = useLlmStatus().data?.runtime
+  const status = useLlmStatus().data
+  const runtime = status?.runtime
+  const runtimeError = status?.runtimeError
 
   const { dot, label, explanation } =
-    runtime === 'ready'
-      ? {
-          dot: 'bg-emerald-500',
-          label: 'Loaded',
-          explanation: 'The model is in memory and responds right away.'
-        }
-      : runtime === 'loading'
+    runtime === 'unloaded' && runtimeError
+      ? { dot: 'bg-destructive', label: 'Failed to load', explanation: runtimeError }
+      : runtime === 'ready'
         ? {
-            dot: 'bg-amber-500 animate-pulse',
-            label: 'Loading',
-            explanation: 'The model is loading into memory.'
+            dot: 'bg-emerald-500',
+            label: 'Loaded',
+            explanation: 'The model is in memory and responds right away.'
           }
-        : {
-            dot: 'bg-muted-foreground/40',
-            label: 'Not loaded',
-            explanation: 'The model loads into memory when it is first needed.'
-          }
+        : runtime === 'loading'
+          ? {
+              dot: 'bg-amber-500 animate-pulse',
+              label: 'Loading',
+              explanation: 'The model is loading into memory.'
+            }
+          : {
+              dot: 'bg-muted-foreground/40',
+              label: 'Not loaded',
+              explanation: 'The model loads into memory when it is first needed.'
+            }
 
   return (
     <Tooltip>

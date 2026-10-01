@@ -83,6 +83,8 @@ class LlmManager {
   private statsHandlers = new Map<number, (stats: GenerationStats) => void>()
   private inFlight = 0
   private idleTimer: ReturnType<typeof setTimeout> | null = null
+  // the worker asked to be restarted; done once no command is pending
+  private recycleRequested = false
 
   getStatus(): LlmStatus {
     if (!this.status) this.status = this.computeInitialStatus()
@@ -376,7 +378,7 @@ class LlmManager {
     worker.stdout?.on('data', (d) => log.debug('worker.stdout', { line: String(d).trimEnd() }))
     worker.stderr?.on('data', (d) => log.warn('worker.stderr', { line: String(d).trimEnd() }))
     worker.on('message', (msg: WorkerMessage) => this.handleWorkerMessage(msg))
-    worker.on('exit', (code) => this.handleWorkerExit(code))
+    worker.on('exit', (code) => this.handleWorkerExit(worker, code))
 
     this.worker = worker
     return worker
@@ -415,6 +417,10 @@ class LlmManager {
           if (msg.final) this.logUsage(msg.id, msg.stats)
           this.statsHandlers.get(msg.id)?.(msg.stats)
           break
+        case 'recycle':
+          this.recycleRequested = true
+          this.recycleIfIdle()
+          break
       }
       return
     }
@@ -426,9 +432,30 @@ class LlmManager {
     this.pending.delete(msg.id)
     if (msg.ok) pending.resolve(msg.result)
     else pending.reject(new Error(msg.error))
+    this.recycleIfIdle()
   }
 
-  private handleWorkerExit(code: number): void {
+  /**
+   * Restart the worker it asked for, once no command (a download included) is
+   * pending. Detached before the kill, so the next send forks a fresh process
+   * and the old one's exit is ignored; its runtimeError stays for the user.
+   */
+  private recycleIfIdle(): void {
+    if (!this.recycleRequested || this.pending.size > 0 || !this.worker) return
+    const worker = this.worker
+    this.worker = null
+    this.recycleRequested = false
+    this.loadedModelId = null
+    this.getStatus().runtime = 'unloaded'
+    log.warn('worker.recycle')
+    worker.kill()
+    this.pushStatus()
+  }
+
+  private handleWorkerExit(worker: UtilityProcess, code: number): void {
+    // a recycled worker, already replaced
+    if (worker !== this.worker) return
+    this.recycleRequested = false
     for (const { reject } of this.pending.values()) {
       reject(new Error(`LLM worker exited unexpectedly (code ${code})`))
     }

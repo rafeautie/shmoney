@@ -144,8 +144,8 @@ export const GENERATE_CONTEXT_SIZE = 4096
 export const modelIdSchema = z.enum(MODEL_IDS as unknown as [ModelId, ...ModelId[]])
 
 // the chat feature gets its own, larger context (multi-turn conversations need
-// the room; categorize/extract prompts don't), created lazily on first chat
-// turn so the extra KV-cache RAM is only paid while chatting.
+// the room; categorize/extract prompts don't), created with the model so GPU
+// layers are fitted around it.
 // 8192 was too tight once the system prompt carried the query recipes: a turn
 // that retries a failed query holds the prompt plus two SQL statements and two
 // capped tool results at once, and context shift can't evict a system message

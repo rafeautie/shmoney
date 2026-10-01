@@ -103,3 +103,6 @@ export type WorkerMessage =
   // while a chat streams, then one final snapshot (posted before the reply,
   // aborted and failed requests included) that the manager logs
   | { event: 'stats'; id: number; stats: GenerationStats; final: boolean }
+  // the worker can no longer free what it holds (a failed load or dispose);
+  // the manager restarts it once nothing is in flight
+  | { event: 'recycle' }
