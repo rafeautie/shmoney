@@ -270,7 +270,12 @@ export type CategorizeScopeInput = z.infer<typeof categorizeScopeSchema>
 
 // ---------- action log (audit trail + undo/redo) ----------
 
-export type ActionSource = 'user' | 'detector' | 'rule' | 'llm' | 'import'
+// the user first, then everything the app does on its own (the Activity filter order)
+export const ACTION_SOURCES = ['user', 'rule', 'detector', 'llm', 'import'] as const
+export type ActionSource = (typeof ACTION_SOURCES)[number]
+
+/** What opened a run of entries written together. */
+export type ActionRunTrigger = 'sync' | 'import' | 'apply-rules' | 'ai-categorize'
 
 // the numeric transaction columns undo/redo may rewrite. These strings double as
 // the drizzle set-keys in the main-process engine, so they must match schema
@@ -460,7 +465,43 @@ export interface ActionLogEntry {
   label: string
   /** unix millis when undone; null = currently applied */
   undoneAt: number | null
+  /** the run this entry was written in; null when standalone */
+  runId: number | null
   changes: ActionLogChange[]
+}
+
+export interface ActionRun {
+  id: number
+  /** unix milliseconds */
+  createdAt: number
+  trigger: ActionRunTrigger
+  label: string
+}
+
+export const actionLogPageSchema = z.object({
+  /** entries strictly older than this id; omitted = newest */
+  before: idSchema.optional(),
+  source: z.enum(ACTION_SOURCES).optional(),
+  q: z.string().trim().max(200).optional()
+})
+export type ActionLogPageInput = z.infer<typeof actionLogPageSchema>
+
+export interface ActionLogPage {
+  /** newest first; an unfiltered page never splits a run across pages */
+  entries: ActionLogEntry[]
+  /** every run referenced by entries, by id */
+  runs: Record<number, ActionRun>
+  /** cursor for the next page; null at the end of history */
+  nextBefore: number | null
+}
+
+/** Result of undoing or redoing a whole run. */
+export interface RunUndoResult {
+  runId: number
+  /** entries flipped */
+  entries: number
+  /** rows actually changed (0 = fully superseded) */
+  applied: number
 }
 
 /** Result of undo/redo: applied = rows actually changed (0 = fully superseded). */
@@ -528,11 +569,16 @@ export const IPC = {
 } as const
 
 export const ACTION_LOG_IPC = {
-  list: 'actionLog:list',
+  page: 'actionLog:page',
+  // newest automated entry's createdAt, for the Activity nav dot
+  newestAutomatedAt: 'actionLog:newestAutomatedAt',
   // keyboard Ctrl+Z/Y: act on the newest applied / newest undone entry
   undo: 'actionLog:undo',
   redo: 'actionLog:redo',
   // Activity page: act on a specific entry
   undoEntry: 'actionLog:undoEntry',
-  redoEntry: 'actionLog:redoEntry'
+  redoEntry: 'actionLog:redoEntry',
+  // Activity page: every entry a run wrote
+  undoRun: 'actionLog:undoRun',
+  redoRun: 'actionLog:redoRun'
 } as const

@@ -1,0 +1,176 @@
+import { useState, type ReactNode } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { format, isToday } from 'date-fns'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
+import { isSavingsGoalChange, type ActionLogEntry } from '@shared/ipc'
+import { cn, plural } from '@/lib/utils'
+import { isAutomated, SOURCE_CREDIT } from '@/lib/activity-feed'
+import { Button } from '@/components/ui/button'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { ChangeLine } from './change-line'
+import { SourceIcon } from './source-icon'
+
+// a long entry opens on its first lines; the rest are one click away
+const PREVIEW_LINES = 8
+
+function noun(entry: ActionLogEntry): string {
+  const c = entry.changes[0]
+  if (c.field === 'budgetAmount') return 'change'
+  if (c.field === 'conversationTitle' || c.field === 'conversationDeletedAt') return 'conversation'
+  if (c.field === 'savedFilterDeletedAt') return 'saved filter'
+  if (isSavingsGoalChange(c)) return 'savings goal'
+  return 'transaction'
+}
+
+// a rule or detector entry sends every row to one category: name it up front
+function sharedTarget(entry: ActionLogEntry, categoryName: Map<number, string>): string | null {
+  const targets = new Set(
+    entry.changes.map((c) => (c.field === 'categoryId' ? c.after : undefined))
+  )
+  if (targets.size !== 1) return null
+  const [target] = targets
+  return typeof target === 'number' ? (categoryName.get(target) ?? null) : null
+}
+
+function undoneLabel(undoneAt: number): string {
+  const at = new Date(undoneAt)
+  return `Undone ${format(at, isToday(at) ? 'p' : 'MMM d, p')}`
+}
+
+/** The pill that marks an undone entry or run. */
+export function UndoneTag({ children }: { children: ReactNode }) {
+  return (
+    <span className="rounded-full bg-muted px-2 py-0.5 text-[0.6875rem] font-medium whitespace-nowrap text-muted-foreground">
+      {children}
+    </span>
+  )
+}
+
+/** The rounded square that leads every row: what made the change, plus a dot when it's new. */
+export function RowAvatar({
+  children,
+  isNew,
+  solid,
+  small
+}: {
+  children: ReactNode
+  isNew?: boolean
+  solid?: boolean
+  small?: boolean
+}) {
+  return (
+    <span
+      className={cn(
+        'relative grid shrink-0 place-items-center rounded-lg',
+        small ? 'size-6 rounded-md' : 'size-7',
+        solid ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+      )}
+    >
+      {children}
+      {isNew && (
+        <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-amber-500 ring-2 ring-background" />
+      )}
+    </span>
+  )
+}
+
+export function EntryRow({
+  entry,
+  categoryName,
+  nested = false,
+  isNew = false
+}: {
+  entry: ActionLogEntry
+  categoryName: Map<number, string>
+  /** inside a run card: indented, and the card already says what made it */
+  nested?: boolean
+  isNew?: boolean
+}) {
+  const queryClient = useQueryClient()
+  const [showAll, setShowAll] = useState(false)
+  const undone = entry.undoneAt !== null
+  const target = sharedTarget(entry, categoryName)
+  const credit = !nested && isAutomated(entry) ? SOURCE_CREDIT[entry.source] : undefined
+  const lines = showAll ? entry.changes : entry.changes.slice(0, PREVIEW_LINES)
+  const hidden = entry.changes.length - lines.length
+
+  const toggle = useMutation({
+    mutationFn: () =>
+      undone ? window.api.actionLog.redoEntry(entry.id) : window.api.actionLog.undoEntry(entry.id),
+    onSettled: () => queryClient.invalidateQueries()
+  })
+
+  return (
+    <Collapsible className="group/entry bg-background">
+      <div className={cn('group/row flex items-center gap-3 py-2 pr-3', nested ? 'pl-13' : 'pl-3')}>
+        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-3 text-left">
+          <RowAvatar isNew={isNew} small={nested}>
+            <SourceIcon source={entry.source} size={nested ? 13 : 15} />
+          </RowAvatar>
+          <div className="min-w-0">
+            <div
+              className={cn(
+                'truncate text-sm font-medium',
+                undone && 'text-muted-foreground line-through'
+              )}
+            >
+              {entry.label}
+            </div>
+            <div className="truncate text-xs text-muted-foreground">
+              {format(new Date(entry.createdAt), 'p')} · {plural(entry.changes.length, noun(entry))}
+              {target && (
+                <>
+                  {' '}
+                  · to <span className="font-medium text-foreground">{target}</span>
+                </>
+              )}
+              {credit && ` · ${credit}`}
+            </div>
+          </div>
+        </CollapsibleTrigger>
+        <div
+          className={cn(
+            'flex shrink-0 items-center gap-2 transition-opacity',
+            !undone && 'opacity-0 group-focus-within/row:opacity-100 group-hover/row:opacity-100'
+          )}
+        >
+          {undone && <UndoneTag>{undoneLabel(entry.undoneAt!)}</UndoneTag>}
+          <Button variant="outline" disabled={toggle.isPending} onClick={() => toggle.mutate()}>
+            {undone ? 'Redo' : 'Undo'}
+          </Button>
+        </div>
+        <CollapsibleTrigger aria-label="Show changes">
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            size={14}
+            className="shrink-0 text-muted-foreground transition-transform group-data-open/entry:rotate-180"
+          />
+        </CollapsibleTrigger>
+      </div>
+
+      <CollapsibleContent
+        className={cn('border-t bg-muted/40 pr-3 pb-1', nested ? 'pl-22' : 'pl-13')}
+      >
+        {lines.map((change, i) => (
+          <ChangeLine
+            key={i}
+            change={change}
+            categoryName={categoryName}
+            className={cn(i > 0 && 'border-t border-dashed')}
+          />
+        ))}
+        {hidden > 0 && (
+          <Button
+            variant="link"
+            size="sm"
+            className="-ml-2 text-muted-foreground"
+            onClick={() => setShowAll(true)}
+          >
+            Show {hidden} more
+          </Button>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}

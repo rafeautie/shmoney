@@ -16,7 +16,7 @@ import { IMPORT_ID_PREFIX, matchImportedRows } from '../import/dedupe'
 import { balanceDeltaWhere, withDerivedBalance } from '../accounts/balance'
 import { transactionDate } from '../db/expressions'
 import { transactionsPage, transactionSums } from './transactions-page'
-import { recordAction } from './action-log'
+import { inRun, newRun, recordAction } from './action-log'
 import { applyRulesInTx } from './rules'
 import { pruneOrphanedSuggestions } from './rule-suggestions'
 import { detectTransferPairs, TRANSFER_WINDOW_SECONDS } from '../transfers'
@@ -235,133 +235,137 @@ export async function syncConnection(): Promise<SyncResult> {
   const detectEnabled = detectTransfersEnabled()
   const rulesEnabled = applyRulesOnSyncEnabled()
 
-  const result = db.transaction((tx) => {
-    let matchedImports = 0
-    for (const account of payload.accounts) {
-      const identity = {
-        connectionId: row.id,
-        simplefinId: account.id,
-        institutionName: account.conn_id
-          ? (institutionByConnId.get(account.conn_id) ?? null)
-          : null,
-        name: account.name,
-        currency: account.currency
+  const result = inRun(newRun('sync', 'Sync with SimpleFIN'), () =>
+    db.transaction((tx) => {
+      let matchedImports = 0
+      for (const account of payload.accounts) {
+        const identity = {
+          connectionId: row.id,
+          simplefinId: account.id,
+          institutionName: account.conn_id
+            ? (institutionByConnId.get(account.conn_id) ?? null)
+            : null,
+          name: account.name,
+          currency: account.currency
+        }
+        // A bridge that reports no balance leaves the anchor alone rather than
+        // zeroing it, so an existing account keeps the last real figure and only
+        // its delta moves. A brand-new one starts at 0 anchored at the epoch,
+        // where the derived balance is just the sum of everything we hold — the
+        // best available guess — and self-corrects on the first sync that does
+        // report a balance.
+        const anchor =
+          account.balance === undefined
+            ? null
+            : {
+                balance: parseAmount(account.balance),
+                availableBalance: account['available-balance']
+                  ? parseAmount(account['available-balance'])
+                  : null,
+                balanceDate: account['balance-date']
+              }
+        if (!anchor) log.warn('accounts.noBalance', { simplefinId: account.id })
+        const [accountRow] = tx
+          .insert(accounts)
+          .values({ ...identity, ...(anchor ?? { balance: 0, balanceDate: 0 }) })
+          .onConflictDoUpdate({
+            target: [accounts.connectionId, accounts.simplefinId],
+            // omitting the balance columns is what preserves the existing anchor
+            set: { ...identity, ...anchor }
+          })
+          .returning()
+          .all()
+
+        // pending transaction ids aren't stable once they post; drop and re-add
+        tx.delete(transactions)
+          .where(and(eq(transactions.accountId, accountRow.id), eq(transactions.pending, true)))
+          .run()
+
+        // Adopt rows the user imported by hand before the bank reported them.
+        // Imported ids are namespaced, so the upsert below can't recognise those
+        // rows and would leave a second copy of every one. Runs after the pending
+        // sweep so its deletes can't strand a claim on a row that no longer exists.
+        const claims = claimImportedRows(tx, accountRow.id, account.transactions)
+        matchedImports += claims.size
+
+        for (const txn of account.transactions) {
+          // txnValues must never include categoryId or deletedAt: the upsert below
+          // reuses it as the conflict `set`, and user edits/deletes live in those
+          // columns — including them would wipe the edits on every sync
+          const txnValues = {
+            accountId: accountRow.id,
+            simplefinId: txn.id,
+            posted: txn.posted,
+            amount: parseAmount(txn.amount),
+            description: txn.description,
+            pending: txn.pending ?? false,
+            transactedAt: txn.transacted_at ?? null
+          }
+          // a claimed row becomes this transaction in place, by id: it keeps the
+          // category, the edits and the action-log history already pointing at it,
+          // and takes the bank's id so every later sync updates it through the
+          // ordinary upsert. txnValues writes no user-owned column, as above.
+          const claimed = claims.get(txn.id)
+          if (claimed !== undefined) {
+            tx.update(transactions).set(txnValues).where(eq(transactions.id, claimed)).run()
+            continue
+          }
+
+          tx.insert(transactions)
+            .values(txnValues)
+            .onConflictDoUpdate({
+              target: [transactions.accountId, transactions.simplefinId],
+              set: txnValues
+            })
+            .run()
+        }
+
+        // holdings carry no user-owned columns, so replace the whole set per account:
+        // this also drops positions the account no longer reports (e.g. sold)
+        tx.delete(holdings).where(eq(holdings.accountId, accountRow.id)).run()
+        for (const holding of account.holdings) {
+          tx.insert(holdings)
+            .values({
+              accountId: accountRow.id,
+              simplefinId: holding.id,
+              symbol: holding.symbol,
+              description: holding.description,
+              currency: holding.currency,
+              shares: holding.shares,
+              marketValue: parseAmount(holding.market_value),
+              costBasis: parseAmount(holding.cost_basis),
+              purchasePrice: parseAmount(holding.purchase_price),
+              createdAt: holding.created
+            })
+            .run()
+        }
       }
-      // A bridge that reports no balance leaves the anchor alone rather than
-      // zeroing it, so an existing account keeps the last real figure and only
-      // its delta moves. A brand-new one starts at 0 anchored at the epoch,
-      // where the derived balance is just the sum of everything we hold — the
-      // best available guess — and self-corrects on the first sync that does
-      // report a balance.
-      const anchor =
-        account.balance === undefined
-          ? null
-          : {
-              balance: parseAmount(account.balance),
-              availableBalance: account['available-balance']
-                ? parseAmount(account['available-balance'])
-                : null,
-              balanceDate: account['balance-date']
-            }
-      if (!anchor) log.warn('accounts.noBalance', { simplefinId: account.id })
-      const [accountRow] = tx
-        .insert(accounts)
-        .values({ ...identity, ...(anchor ?? { balance: 0, balanceDate: 0 }) })
-        .onConflictDoUpdate({
-          target: [accounts.connectionId, accounts.simplefinId],
-          // omitting the balance columns is what preserves the existing anchor
-          set: { ...identity, ...anchor }
-        })
+
+      const detectedTransfers = detectEnabled ? detectAndMarkTransfersInTx(tx) : 0
+
+      // apply user rules over what's left. The detector runs first (structural,
+      // high-confidence pairs); rules fill the remaining untouched rows. Like the
+      // detector, each firing rule logs its own action_log entry, so it's undoable.
+      let rulesApplied = 0
+      if (rulesEnabled) {
+        rulesApplied = applyRulesInTx(tx).categorized
+      }
+
+      // persist this sync's errlist so the connection card can surface it; a clean
+      // sync writes null, clearing warnings once the underlying issue is resolved
+      const lastSyncErrors =
+        payload.errlist.length > 0
+          ? payload.errlist.map((e) => ({ code: e.code, msg: e.msg }))
+          : null
+      const [updated] = tx
+        .update(connections)
+        .set({ lastSyncedAt: now, lastSyncErrors, lastSyncFailedAt: null, lastSyncFailure: null })
+        .where(eq(connections.id, row.id))
         .returning()
         .all()
-
-      // pending transaction ids aren't stable once they post; drop and re-add
-      tx.delete(transactions)
-        .where(and(eq(transactions.accountId, accountRow.id), eq(transactions.pending, true)))
-        .run()
-
-      // Adopt rows the user imported by hand before the bank reported them.
-      // Imported ids are namespaced, so the upsert below can't recognise those
-      // rows and would leave a second copy of every one. Runs after the pending
-      // sweep so its deletes can't strand a claim on a row that no longer exists.
-      const claims = claimImportedRows(tx, accountRow.id, account.transactions)
-      matchedImports += claims.size
-
-      for (const txn of account.transactions) {
-        // txnValues must never include categoryId or deletedAt: the upsert below
-        // reuses it as the conflict `set`, and user edits/deletes live in those
-        // columns — including them would wipe the edits on every sync
-        const txnValues = {
-          accountId: accountRow.id,
-          simplefinId: txn.id,
-          posted: txn.posted,
-          amount: parseAmount(txn.amount),
-          description: txn.description,
-          pending: txn.pending ?? false,
-          transactedAt: txn.transacted_at ?? null
-        }
-        // a claimed row becomes this transaction in place, by id: it keeps the
-        // category, the edits and the action-log history already pointing at it,
-        // and takes the bank's id so every later sync updates it through the
-        // ordinary upsert. txnValues writes no user-owned column, as above.
-        const claimed = claims.get(txn.id)
-        if (claimed !== undefined) {
-          tx.update(transactions).set(txnValues).where(eq(transactions.id, claimed)).run()
-          continue
-        }
-
-        tx.insert(transactions)
-          .values(txnValues)
-          .onConflictDoUpdate({
-            target: [transactions.accountId, transactions.simplefinId],
-            set: txnValues
-          })
-          .run()
-      }
-
-      // holdings carry no user-owned columns, so replace the whole set per account:
-      // this also drops positions the account no longer reports (e.g. sold)
-      tx.delete(holdings).where(eq(holdings.accountId, accountRow.id)).run()
-      for (const holding of account.holdings) {
-        tx.insert(holdings)
-          .values({
-            accountId: accountRow.id,
-            simplefinId: holding.id,
-            symbol: holding.symbol,
-            description: holding.description,
-            currency: holding.currency,
-            shares: holding.shares,
-            marketValue: parseAmount(holding.market_value),
-            costBasis: parseAmount(holding.cost_basis),
-            purchasePrice: parseAmount(holding.purchase_price),
-            createdAt: holding.created
-          })
-          .run()
-      }
-    }
-
-    const detectedTransfers = detectEnabled ? detectAndMarkTransfersInTx(tx) : 0
-
-    // apply user rules over what's left. The detector runs first (structural,
-    // high-confidence pairs); rules fill the remaining untouched rows. Like the
-    // detector, each firing rule logs its own action_log entry, so it's undoable.
-    let rulesApplied = 0
-    if (rulesEnabled) {
-      rulesApplied = applyRulesInTx(tx).categorized
-    }
-
-    // persist this sync's errlist so the connection card can surface it; a clean
-    // sync writes null, clearing warnings once the underlying issue is resolved
-    const lastSyncErrors =
-      payload.errlist.length > 0 ? payload.errlist.map((e) => ({ code: e.code, msg: e.msg })) : null
-    const [updated] = tx
-      .update(connections)
-      .set({ lastSyncedAt: now, lastSyncErrors, lastSyncFailedAt: null, lastSyncFailure: null })
-      .where(eq(connections.id, row.id))
-      .returning()
-      .all()
-    return { updated, detectedTransfers, rulesApplied, matchedImports }
-  })
+      return { updated, detectedTransfers, rulesApplied, matchedImports }
+    })
+  )
 
   // counts and codes only; the payload itself never gets logged
   log.info('sync.complete', {

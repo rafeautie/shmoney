@@ -1,73 +1,97 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { format, isToday, isYesterday } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon, Clock01Icon } from '@hugeicons/core-free-icons'
-import { isSavingsGoalChange, type ActionLogChange, type ActionLogEntry } from '@shared/ipc'
-import { groupSuggestions, type RuleSuggestion } from '@shared/rule-suggestions'
-import { cn, plural } from '@/lib/utils'
-import { actionLogOptions } from '@/lib/queries'
+import { Clock01Icon, SearchRemoveIcon } from '@hugeicons/core-free-icons'
+import { ACTION_SOURCES, type ActionRun, type ActionSource } from '@shared/ipc'
+import type { Settings } from '@shared/settings'
+import { cn } from '@/lib/utils'
+import { activityOptions } from '@/lib/queries'
+import { SETTINGS_QUERY_KEY, useSettings } from '@/lib/settings'
 import { useMarkActivitySeen, useRuleSuggestions } from '@/lib/activity-seen'
-import { formatBucketLabel } from '@/lib/format-date'
+import { buildFeed, itemIsNew, SOURCE_LABELS, type FeedItem } from '@/lib/activity-feed'
 import { Page } from '@/components/page'
-import { EntrySourceIcon } from '@/components/transactions/entry-source-icon'
-import { SuggestionGroupRow } from '@/components/rules/suggestion-group-row'
-import { Amount } from '@/components/amount'
-import { Badge } from '@/components/ui/badge'
+import { EntryRow } from '@/components/activity/entry-row'
+import { RunCard } from '@/components/activity/run-card'
+import { SuggestionsQueue } from '@/components/activity/suggestions-queue'
+import { SourceIcon } from '@/components/activity/source-icon'
+import { FilterSearchInput } from '@/components/transactions/filter-search-input'
 import { Button } from '@/components/ui/button'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table'
 
 export const Route = createFileRoute('/activity')({
-  loader: ({ context }) => context.queryClient.ensureQueryData(actionLogOptions),
+  loader: ({ context }) => {
+    const settings = context.queryClient.getQueryData<Settings>(SETTINGS_QUERY_KEY)
+    return context.queryClient.ensureInfiniteQueryData(
+      activityOptions({ source: settings?.activitySource ?? null, q: '' })
+    )
+  },
   component: ActivityPage
 })
 
-function goalChangeText(
-  change: Extract<ActionLogChange, { goalId: number; name: string }>
-): ReactNode {
-  switch (change.field) {
-    case 'savingsGoalDeletedAt':
-      return change.name
-    case 'savingsGoalTargetAmount':
-      return (
-        <>
-          {change.name}: target{' '}
-          <Amount value={change.before} currency={change.currency} colored={false} /> to{' '}
-          <Amount value={change.after} currency={change.currency} colored={false} />
-        </>
-      )
-    case 'savingsGoalTargetDate':
-      return `${change.name}: target date ${change.before ?? 'none'} to ${change.after ?? 'none'}`
-    case 'savingsGoalArchivedAt':
-      return `${change.name}: ${change.after === null ? 'unarchived' : 'archived'}`
-  }
+function DayHeading({ date }: { date: Date }) {
+  const relative = isToday(date) ? 'Today' : isYesterday(date) ? 'Yesterday' : null
+  return (
+    <h3 className="flex items-baseline gap-2 text-sm font-semibold tracking-tight">
+      {relative ?? format(date, 'EEEE, MMM d, yyyy')}
+      {relative && (
+        <span className="text-xs font-normal text-muted-foreground">
+          {format(date, 'EEEE, MMM d')}
+        </span>
+      )}
+    </h3>
+  )
 }
 
-function dayLabel(ms: number): string {
-  const date = new Date(ms)
-  if (isToday(date)) return 'Today'
-  if (isYesterday(date)) return 'Yesterday'
-  return format(date, 'EEEE, MMM d, yyyy')
+function FilterChip({
+  pressed,
+  onClick,
+  children
+}: {
+  pressed: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <Button
+      variant={pressed ? 'default' : 'outline'}
+      aria-pressed={pressed}
+      className="gap-1.5 rounded-full font-normal [&_svg:not([class*='size-'])]:size-[13px]"
+      onClick={onClick}
+    >
+      {children}
+    </Button>
+  )
 }
 
 function ActivityPage() {
-  const query = useQuery(actionLogOptions)
-  const entries = query.data ?? []
+  const { settings, setSetting } = useSettings()
+  const source = settings.activitySource
+  const [q, setQ] = useState('')
+  const filtered = source !== null || q !== ''
 
-  const suggestionsQuery = useRuleSuggestions()
-  const suggestions = suggestionsQuery.data ?? []
-  useMarkActivitySeen(query.data, suggestionsQuery.data)
+  // read before useMarkActivitySeen moves it, so this visit can still show what's new
+  const [seenAtOnOpen] = useState(settings.activitySeenAt)
+  useMarkActivitySeen()
+
+  const query = useInfiniteQuery({
+    ...activityOptions({ source, q }),
+    placeholderData: keepPreviousData
+  })
+  const entries = useMemo(() => query.data?.pages.flatMap((p) => p.entries) ?? [], [query.data])
+  const runs = useMemo(
+    () =>
+      Object.assign({}, ...(query.data?.pages.map((p) => p.runs) ?? [])) as Record<
+        number,
+        ActionRun
+      >,
+    [query.data]
+  )
+  const days = useMemo(() => buildFeed(entries, runs, !filtered), [entries, runs, filtered])
+
+  const suggestions = useRuleSuggestions().data ?? []
 
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
@@ -78,29 +102,67 @@ function ActivityPage() {
     const data = categoriesQuery.data
     if (data) {
       for (const group of data.groups) for (const c of group.categories) map.set(c.id, c.name)
-      for (const c of data.ungrouped) map.set(c.id, c.name)
+      for (const c of [...data.ungrouped, ...data.system]) map.set(c.id, c.name)
     }
     return map
   }, [categoriesQuery.data])
 
-  // entries arrive newest-first; collapse runs of the same calendar day
-  const groups: { label: string; entries: ActionLogEntry[] }[] = []
-  for (const entry of entries) {
-    const label = dayLabel(entry.createdAt)
-    const last = groups.at(-1)
-    if (last && last.label === label) last.entries.push(entry)
-    else groups.push({ label, entries: [entry] })
+  const setSource = (next: ActionSource | null) => setSetting('activitySource', next)
+  const clearFilters = () => {
+    setSource(null)
+    setQ('')
   }
+
+  const renderItem = (item: FeedItem, isNew: boolean) =>
+    item.kind === 'run' ? (
+      <RunCard
+        key={`run:${item.run.id}`}
+        run={item.run}
+        entries={item.entries}
+        categoryName={categoryName}
+        isNew={isNew}
+      />
+    ) : (
+      <EntryRow key={item.entry.id} entry={item.entry} categoryName={categoryName} isNew={isNew} />
+    )
+
+  // the feed is newest first, so what's new is a prefix: one divider above it,
+  // and a fresh box below it where the already-seen items start
+  let dividerShown = false
 
   return (
     <Page className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">Activity</h2>
         <p className="text-muted-foreground">
-          Rule suggestions to review, then a permanent history of every change to your transactions,
-          budgets, chats, and saved filters, manual or automatic. Undo or redo any change.
+          Every change to your money, by you or by shmoney. Undo anything.
         </p>
       </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterChip pressed={source === null} onClick={() => setSource(null)}>
+          All
+        </FilterChip>
+        {ACTION_SOURCES.map((s, i) => (
+          <Fragment key={s}>
+            {/* the user's own changes first, then everything shmoney did */}
+            {i === 1 && <span className="mx-0.5 h-[18px] w-px bg-border" />}
+            <FilterChip pressed={source === s} onClick={() => setSource(s)}>
+              <SourceIcon source={s} size={13} />
+              {SOURCE_LABELS[s]}
+            </FilterChip>
+          </Fragment>
+        ))}
+        <div className="ml-auto">
+          <FilterSearchInput
+            value={q || undefined}
+            onChange={(v) => setQ(v ?? '')}
+            placeholder="Search activity..."
+          />
+        </div>
+      </div>
+
+      {!filtered && suggestions.length > 0 && <SuggestionsQueue suggestions={suggestions} />}
 
       {query.isLoading ? (
         <div className="space-y-2">
@@ -108,289 +170,81 @@ function ActivityPage() {
             <Skeleton key={i} className="h-14 w-full" />
           ))}
         </div>
+      ) : days.length === 0 ? (
+        filtered ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HugeiconsIcon icon={SearchRemoveIcon} />
+              </EmptyMedia>
+              <EmptyTitle>Nothing matches</EmptyTitle>
+              <EmptyDescription>No activity fits this filter.</EmptyDescription>
+            </EmptyHeader>
+            <Button variant="outline" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          </Empty>
+        ) : (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HugeiconsIcon icon={Clock01Icon} />
+              </EmptyMedia>
+              <EmptyTitle>No activity yet</EmptyTitle>
+              <EmptyDescription>
+                Categorizing, deleting, or marking transfers shows up here.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )
       ) : (
-        <div className="space-y-6">
-          {/* dismissible items live here, apart from the history: dismissing or
-              accepting a suggestion must never erase anything below */}
-          {suggestions.length > 0 && <SuggestionsSection suggestions={suggestions} />}
-
-          {entries.length === 0 ? (
-            <Empty className="border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <HugeiconsIcon icon={Clock01Icon} />
-                </EmptyMedia>
-                <EmptyTitle>No activity yet</EmptyTitle>
-                <EmptyDescription>
-                  Categorizing, deleting, or marking transfers shows up here.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            groups.map((group) => (
-              <div key={group.label} className="space-y-2">
-                <h3 className="text-base font-semibold tracking-tight">{group.label}</h3>
-                <div className="divide-y overflow-hidden rounded-lg border">
-                  {group.entries.map((entry) => (
-                    <EntryRow key={entry.id} entry={entry} categoryName={categoryName} />
-                  ))}
-                </div>
+        <div className={cn('space-y-6', query.isPlaceholderData && 'opacity-60')}>
+          {days.map((day) => {
+            // split the day into boxes where new gives way to seen
+            const segments: { isNew: boolean; items: FeedItem[] }[] = []
+            for (const item of day.items) {
+              const isNew = itemIsNew(item, seenAtOnOpen)
+              const last = segments.at(-1)
+              if (last && last.isNew === isNew) last.items.push(item)
+              else segments.push({ isNew, items: [item] })
+            }
+            return (
+              <div key={day.date.toDateString()} className="space-y-2">
+                <DayHeading date={day.date} />
+                {segments.map((segment, i) => {
+                  const divider = segment.isNew && !dividerShown
+                  if (divider) dividerShown = true
+                  return (
+                    <Fragment key={i}>
+                      {divider && (
+                        <div className="flex items-center gap-2 text-xs font-medium text-amber-600 dark:text-amber-400">
+                          <span className="h-px flex-1 bg-current opacity-40" />
+                          New since your last visit
+                          <span className="h-px flex-1 bg-current opacity-40" />
+                        </div>
+                      )}
+                      <div className="divide-y overflow-hidden rounded-lg border">
+                        {segment.items.map((item) => renderItem(item, segment.isNew))}
+                      </div>
+                    </Fragment>
+                  )
+                })}
               </div>
-            ))
+            )
+          })}
+          {query.hasNextPage && (
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                disabled={query.isFetchingNextPage}
+                onClick={() => void query.fetchNextPage()}
+              >
+                {query.isFetchingNextPage ? 'Loading...' : 'Load older activity'}
+              </Button>
+            </div>
           )}
         </div>
       )}
     </Page>
-  )
-}
-
-// The Suggestions section: when the list runs long it's capped, with a bottom
-// fade and a Show more button that expands it in place.
-function SuggestionsSection({ suggestions }: { suggestions: RuleSuggestion[] }) {
-  const [expanded, setExpanded] = useState(false)
-  const [overflowing, setOverflowing] = useState(false)
-
-  return (
-    <div className="space-y-2">
-      <h3 className="text-base font-semibold tracking-tight">Suggestions</h3>
-      <div className="relative">
-        {/* the inline ref re-measures every commit (data changes, expand);
-            setState bails out when the value is unchanged */}
-        <div
-          ref={(el) => {
-            if (el) setOverflowing(el.scrollHeight > el.clientHeight + 1)
-          }}
-          className={cn('space-y-2', !expanded && 'max-h-64 overflow-hidden')}
-        >
-          {/* each group is its own bordered settings-style block */}
-          {groupSuggestions(suggestions).map((group) => (
-            <SuggestionGroupRow key={group.categoryId} group={group} />
-          ))}
-        </div>
-        {!expanded && overflowing && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 flex h-24 items-end justify-center bg-linear-to-t from-background to-transparent">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="pointer-events-auto"
-              onClick={() => setExpanded(true)}
-            >
-              Show more suggestions
-            </Button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function EntryRow({
-  entry,
-  categoryName
-}: {
-  entry: ActionLogEntry
-  categoryName: Map<number, string>
-}) {
-  const queryClient = useQueryClient()
-  const undone = entry.undoneAt !== null
-  // both the transfer detector and rules are automated (non-user) changes
-  const isAutomated = entry.source !== 'user'
-  // category-set entries (manual, rule, or auto) show which category each row got
-  const isCategoryEntry = entry.changes.some((c) => c.field === 'categoryId')
-  // envelope fill entries: one change per (category, month), no transaction context
-  const isBudgetEntry = entry.changes.some((c) => c.field === 'budgetAmount')
-  // conversation rename/delete entries: no transaction or budget context
-  const isConversationEntry = entry.changes.some(
-    (c) => c.field === 'conversationTitle' || c.field === 'conversationDeletedAt'
-  )
-  // saved-filter deletes: likewise contextless, they just name the preset
-  const isSavedFilterEntry = entry.changes.some((c) => c.field === 'savedFilterDeletedAt')
-  const isGoalEntry = entry.changes.some(isSavingsGoalChange)
-
-  const toggle = useMutation({
-    mutationFn: () =>
-      undone ? window.api.actionLog.redoEntry(entry.id) : window.api.actionLog.undoEntry(entry.id),
-    onSettled: () => queryClient.invalidateQueries()
-  })
-
-  return (
-    <Collapsible className={cn('group/entry bg-background px-3 py-2.5', undone && 'opacity-60')}>
-      <div className="flex items-center gap-3">
-        <EntrySourceIcon
-          source={entry.source}
-          size={18}
-          className="shrink-0 text-muted-foreground"
-        />
-        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 text-left">
-          <div className="min-w-0">
-            <div className={cn('truncate text-sm font-medium', undone && 'line-through')}>
-              {entry.label}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {format(new Date(entry.createdAt), 'p')} ·{' '}
-              {plural(
-                entry.changes.length,
-                isBudgetEntry
-                  ? 'change'
-                  : isConversationEntry
-                    ? 'conversation'
-                    : isSavedFilterEntry
-                      ? 'saved filter'
-                      : isGoalEntry
-                        ? 'savings goal'
-                        : 'transaction'
-              )}
-            </div>
-          </div>
-        </CollapsibleTrigger>
-        {isAutomated && (
-          <Badge variant="secondary">
-            {entry.source === 'rule' ? 'Rule' : entry.source === 'import' ? 'Import' : 'Auto'}
-          </Badge>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={toggle.isPending}
-          onClick={() => toggle.mutate()}
-        >
-          {undone ? 'Redo' : 'Undo'}
-        </Button>
-        <CollapsibleTrigger>
-          <HugeiconsIcon
-            icon={ArrowDown01Icon}
-            size={14}
-            className="ml-auto shrink-0 text-muted-foreground transition-transform group-data-open/entry:rotate-180"
-          />
-        </CollapsibleTrigger>
-      </div>
-
-      <CollapsibleContent className="-mx-3 -mb-2.5 mt-2 border-t">
-        <Table className="[&_td:first-child]:pl-3 [&_th:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:last-child]:pr-3 [&_td]:h-auto [&_td]:py-1 [&_th]:h-auto [&_th]:py-1">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="font-normal text-muted-foreground">Date</TableHead>
-              <TableHead className="font-normal text-muted-foreground">Account</TableHead>
-              <TableHead className="w-full font-normal text-muted-foreground">
-                Description
-              </TableHead>
-              <TableHead className="text-right font-normal text-muted-foreground">Amount</TableHead>
-              {isCategoryEntry && (
-                <TableHead className="font-normal text-muted-foreground">Category</TableHead>
-              )}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {entry.changes.map((change) =>
-              change.field === 'budgetAmount' ? (
-                <TableRow
-                  key={`${change.categoryId}:${change.month}`}
-                  className="hover:bg-transparent"
-                >
-                  <TableCell className="text-muted-foreground">
-                    {formatBucketLabel(change.month)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">—</TableCell>
-                  <TableCell className="w-full max-w-0 truncate">
-                    {change.categoryName !== null ? (
-                      `${change.categoryName} envelope`
-                    ) : (
-                      <span className="text-muted-foreground italic">
-                        Category no longer exists
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {change.after !== null ? (
-                      <Amount value={change.after} currency={change.currency} colored={false} />
-                    ) : (
-                      <span className="text-muted-foreground">Removed</span>
-                    )}
-                  </TableCell>
-                  {isCategoryEntry && <TableCell />}
-                </TableRow>
-              ) : change.field === 'conversationTitle' ||
-                change.field === 'conversationDeletedAt' ? (
-                <TableRow
-                  key={`conversation:${change.conversationId}`}
-                  className="hover:bg-transparent"
-                >
-                  <TableCell className="text-muted-foreground">—</TableCell>
-                  <TableCell className="text-muted-foreground">—</TableCell>
-                  <TableCell className="w-full max-w-0 truncate">
-                    {change.field === 'conversationTitle'
-                      ? `Renamed "${change.before ?? 'Untitled'}" to "${change.after}"`
-                      : (change.title ?? 'Untitled conversation')}
-                  </TableCell>
-                  <TableCell />
-                  {isCategoryEntry && <TableCell />}
-                </TableRow>
-              ) : isSavingsGoalChange(change) ? (
-                <TableRow
-                  key={`savings-goal:${change.goalId}:${change.field}`}
-                  className="hover:bg-transparent"
-                >
-                  <TableCell className="text-muted-foreground">—</TableCell>
-                  <TableCell className="text-muted-foreground">—</TableCell>
-                  <TableCell className="w-full max-w-0 truncate">
-                    {goalChangeText(change)}
-                  </TableCell>
-                  <TableCell />
-                  {isCategoryEntry && <TableCell />}
-                </TableRow>
-              ) : change.field === 'savedFilterDeletedAt' ? (
-                <TableRow
-                  key={`saved-filter:${change.savedFilterId}`}
-                  className="hover:bg-transparent"
-                >
-                  <TableCell className="text-muted-foreground">—</TableCell>
-                  <TableCell className="text-muted-foreground">—</TableCell>
-                  <TableCell className="w-full max-w-0 truncate">{change.name}</TableCell>
-                  <TableCell />
-                  {isCategoryEntry && <TableCell />}
-                </TableRow>
-              ) : (
-                <TableRow key={change.transactionId} className="hover:bg-transparent">
-                  {change.description === null ? (
-                    <TableCell
-                      colSpan={isCategoryEntry ? 5 : 4}
-                      className="text-muted-foreground italic"
-                    >
-                      Transaction no longer exists
-                    </TableCell>
-                  ) : (
-                    <>
-                      <TableCell className="text-muted-foreground">
-                        {change.date ? format(new Date(change.date * 1000), 'MMM d, yyyy') : '—'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{change.accountName}</TableCell>
-                      <TableCell className="w-full max-w-0 truncate">
-                        {change.description}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {change.amount !== null && change.currency && (
-                          <Amount value={change.amount} currency={change.currency} />
-                        )}
-                      </TableCell>
-                      {isCategoryEntry && (
-                        <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {/* mixed edit entries carry non-category changes too; only
-                              categoryId rows show a category */}
-                          {change.field !== 'categoryId'
-                            ? null
-                            : typeof change.after === 'number'
-                              ? (categoryName.get(change.after) ?? 'Unknown category')
-                              : 'Uncategorized'}
-                        </TableCell>
-                      )}
-                    </>
-                  )}
-                </TableRow>
-              )
-            )}
-          </TableBody>
-        </Table>
-      </CollapsibleContent>
-    </Collapsible>
   )
 }

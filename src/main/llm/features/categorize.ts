@@ -4,6 +4,7 @@ import { db } from '../../db'
 import { accounts, categories, transactions } from '../../db/schema'
 import { setCategories } from '../../ipc/transactions'
 import { applyRulesInTx } from '../../ipc/rules'
+import { inRun, newRun } from '../../ipc/action-log'
 import { llmManager, sendToRenderer } from '../manager'
 import { setTaskbarProgress } from '../../os-shell'
 import { createLogger } from '../../logging'
@@ -114,7 +115,9 @@ export async function categorizeTransactions(
   // fill-empty semantics and undoable 'rule' action-log entries as sync/manual
   // apply; a rule that categorizes a row drops it from the eligible set
   // selected below.
-  const ruleResult = db.transaction((tx) => applyRulesInTx(tx, { scope }))
+  // the rule pre-pass and the model's entry form one run across the awaits
+  const run = newRun('ai-categorize', 'AI categorization')
+  const ruleResult = inRun(run, () => db.transaction((tx) => applyRulesInTx(tx, { scope })))
 
   const eligible = db
     .select({
@@ -187,7 +190,8 @@ export async function categorizeTransactions(
 
     // apply whatever the model categorized before a cancel, as one undoable
     // entry; the count also includes rows the rules pre-pass settled
-    const llmCategorized = changes.length > 0 ? setCategories({ changes, source: 'llm' }) : 0
+    const llmCategorized =
+      changes.length > 0 ? inRun(run, () => setCategories({ changes, source: 'llm' })) : 0
     return { categorized: ruleResult.categorized + llmCategorized, cancelled: signal.aborted }
   } finally {
     if (activeRun === abortController) activeRun = null

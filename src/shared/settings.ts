@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ACTION_SOURCES } from './ipc'
 
 // one entry per user preference; adding a setting = a line here + a default below
 export const settingSchemas = {
@@ -29,6 +30,8 @@ export const settingSchemas = {
   onboardingComplete: z.boolean(),
   // newest automated Activity entry the user has seen; drives the Activity nav dot
   activitySeenAt: z.number().nullable(),
+  // the Activity page's source filter; null = everything
+  activitySource: z.enum(ACTION_SOURCES).nullable(),
   // how the Goals page lists goals: editable cards or one row each
   goalsView: z.enum(['cards', 'table']),
   // the same choice for the Budget page's envelopes
@@ -53,6 +56,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   ruleSuggestionsEnabled: true,
   onboardingComplete: false,
   activitySeenAt: null,
+  activitySource: null,
   goalsView: 'cards',
   // the envelope table is what the page has always opened as
   budgetView: 'table',

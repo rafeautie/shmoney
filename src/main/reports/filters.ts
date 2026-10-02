@@ -8,7 +8,7 @@ import { notOpeningSql, notTransferSql } from '../db/system-categories'
 import { transactionDate } from '../db/expressions'
 import type { ResolvedFilters } from '@shared/reports'
 
-function escapeLike(term: string): string {
+export function escapeLike(term: string): string {
   return term.replace(/[\\%_]/g, (c) => `\\${c}`)
 }
 

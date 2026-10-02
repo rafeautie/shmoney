@@ -3,7 +3,9 @@ import {
   ACTION_LOG_IPC,
   IPC,
   type Account,
-  type ActionLogEntry,
+  type ActionLogPage,
+  type ActionLogPageInput,
+  type RunUndoResult,
   type CategorizeScopeInput,
   type CategoriesList,
   type Category,
@@ -161,7 +163,14 @@ const api = {
       ipcRenderer.invoke(IPC.transactionsUpdate, input)
   },
   actionLog: {
-    list: (): Promise<ActionLogEntry[]> => ipcRenderer.invoke(ACTION_LOG_IPC.list),
+    page: (input: ActionLogPageInput = {}): Promise<ActionLogPage> =>
+      ipcRenderer.invoke(ACTION_LOG_IPC.page, input),
+    newestAutomatedAt: (): Promise<number | null> =>
+      ipcRenderer.invoke(ACTION_LOG_IPC.newestAutomatedAt),
+    undoRun: (runId: number): Promise<RunUndoResult> =>
+      ipcRenderer.invoke(ACTION_LOG_IPC.undoRun, runId),
+    redoRun: (runId: number): Promise<RunUndoResult> =>
+      ipcRenderer.invoke(ACTION_LOG_IPC.redoRun, runId),
     /** Undo your newest action from this session; null if there's nothing to undo */
     undo: (): Promise<UndoResult | null> => ipcRenderer.invoke(ACTION_LOG_IPC.undo),
     /** Redo your most recently undone action from this session; null if nothing to redo */

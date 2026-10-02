@@ -1,10 +1,24 @@
 import { ipcMain } from 'electron'
-import { and, desc, eq, gt, inArray, isNotNull, isNull, lt, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  ne,
+  sql,
+  type SQL
+} from 'drizzle-orm'
 import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { db } from '../db'
 import {
   accounts,
   actionLog,
+  actionRuns,
   budgets,
   categories,
   conversations,
@@ -15,20 +29,27 @@ import {
 import { dominantCurrency } from '../budgets/summary'
 import { createLogger } from '../logging'
 import { transactionDate } from '../db/expressions'
+import { escapeLike } from '../reports/filters'
 import {
   ACTION_LOG_IPC,
+  actionLogPageSchema,
   idSchema,
   isSavingsGoalChange,
   isTransactionChange,
   type ActionChange,
   type ActionField,
   type ActionLogEntry,
+  type ActionLogPage,
+  type ActionLogPageInput,
+  type ActionRun,
+  type ActionRunTrigger,
   type ActionSource,
   type BudgetActionChange,
   type ConversationActionChange,
   type SavedFilterActionChange,
   type SavingsGoalActionChange,
   type TransactionActionChange,
+  type RunUndoResult,
   type UndoResult
 } from '@shared/ipc'
 
@@ -53,9 +74,8 @@ const EDITABLE_FIELDS = {
   posted: transactions.posted
 } as const
 
-// how many recent entries the Activity page shows (undo/redo still reach older
-// rows by id; this only bounds the list payload)
-const LIST_LIMIT = 200
+// entries per Activity page; an unfiltered page may run over to finish a run
+const PAGE_SIZE = 100
 
 // applied entries (undoneAt null) are the permanent Activity history and are
 // never purged. An entry the user undid and left undone, though, is dead weight
@@ -69,6 +89,34 @@ const UNDONE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 // the IPC is registered at startup.
 let sessionBaselineId = 0
 
+/** One trigger's entries, grouped on the Activity page. See inRun. */
+export interface Run {
+  trigger: ActionRunTrigger
+  label: string
+  /** the action_runs row, created with the run's first entry */
+  id: number | null
+}
+
+export function newRun(trigger: ActionRunTrigger, label: string): Run {
+  return { trigger, label, id: null }
+}
+
+// Set only for the synchronous span of inRun, so no unrelated entry can land in
+// it. A trigger whose work straddles an await (AI categorize) calls inRun once
+// per synchronous part with the same Run.
+let activeRun: Run | null = null
+
+/** Record every entry fn writes into run. The run row appears with the first entry, so a no-op trigger leaves none. */
+export function inRun<T>(run: Run, fn: () => T): T {
+  const outer = activeRun
+  activeRun = run
+  try {
+    return fn()
+  } finally {
+    activeRun = outer
+  }
+}
+
 /**
  * Append an entry to the audit log within an existing transaction. Callers pass
  * only the changes that actually altered a row, so an entry always has effect.
@@ -78,13 +126,23 @@ export function recordAction(
   tx: Tx,
   entry: { source: ActionSource; label: string; changes: ActionChange[] }
 ): number {
+  const now = Date.now()
+  const run = activeRun
+  if (run && run.id === null) {
+    run.id = tx
+      .insert(actionRuns)
+      .values({ createdAt: now, trigger: run.trigger, label: run.label })
+      .returning({ id: actionRuns.id })
+      .get().id
+  }
   const row = tx
     .insert(actionLog)
     .values({
-      createdAt: Date.now(),
+      createdAt: now,
       source: entry.source,
       label: entry.label,
-      changes: entry.changes
+      changes: entry.changes,
+      runId: run?.id ?? null
     })
     .returning({ id: actionLog.id })
     .get()
@@ -321,6 +379,27 @@ export function undoAction(entryId: number, runner: Runner = db): UndoResult {
   return applyEntry(entryId, 'undo', runner)
 }
 
+// a run's entries in one transaction: undo the applied ones newest first, redo
+// the undone ones oldest first, so each lands on the state it was recorded over
+function applyRun(runId: number, direction: 'undo' | 'redo'): RunUndoResult {
+  return db.transaction((tx) => {
+    const ids = tx
+      .select({ id: actionLog.id })
+      .from(actionLog)
+      .where(
+        and(
+          eq(actionLog.runId, runId),
+          direction === 'undo' ? isNull(actionLog.undoneAt) : isNotNull(actionLog.undoneAt)
+        )
+      )
+      .orderBy(direction === 'undo' ? desc(actionLog.id) : asc(actionLog.id))
+      .all()
+    let applied = 0
+    for (const { id } of ids) applied += applyEntry(id, direction, tx).applied
+    return { runId, entries: ids.length, applied }
+  })
+}
+
 // Ctrl+Z / Ctrl+Y are deliberately narrow: they reach only your own actions
 // (source 'user') from the current session (id past the launch baseline), so a
 // stray keystroke on any page can't rewind automated changes or a previous
@@ -353,11 +432,10 @@ function redoNewest(): UndoResult | null {
   return entry ? applyEntry(entry.id, 'redo') : null
 }
 
-// the most recent entries, each change joined to its current context: a
-// transaction change to its transaction (null when later removed, e.g. on
-// disconnect), a budget change to its category name
-function listEntries(): ActionLogEntry[] {
-  const rows = db.select().from(actionLog).orderBy(desc(actionLog.id)).limit(LIST_LIMIT).all()
+// each change joined to its current context: a transaction change to its
+// transaction (null when later removed, e.g. on disconnect), a budget change to
+// its category name
+function enrich(rows: (typeof actionLog.$inferSelect)[]): ActionLogEntry[] {
   const allChanges = rows.flatMap((r) => r.changes)
   const txIds = [...new Set(allChanges.filter(isTransactionChange).map((c) => c.transactionId))]
   const context = txIds.length
@@ -401,6 +479,7 @@ function listEntries(): ActionLogEntry[] {
     source: row.source as ActionSource,
     label: row.label,
     undoneAt: row.undoneAt,
+    runId: row.runId,
     changes: row.changes.map((change) => {
       if (change.field === 'budgetAmount') {
         return { ...change, categoryName: catById.get(change.categoryId) ?? null, currency }
@@ -433,6 +512,78 @@ function listEntries(): ActionLogEntry[] {
   }))
 }
 
+// search covers the label, the names and titles changes carry with them, and
+// the current description of every transaction an entry touched
+function searchWhere(q: string): SQL {
+  const term = '%' + escapeLike(q) + '%'
+  return sql`(${actionLog.label} like ${term} escape '\\' or exists (
+    select 1 from json_each(${actionLog.changes}) j
+    left join ${transactions} t on t.id = json_extract(j.value, '$.transactionId')
+    where coalesce(json_extract(j.value, '$.name'), json_extract(j.value, '$.title'), t.description, '')
+      like ${term} escape '\\'
+  ))`
+}
+
+function listPage({ before, source, q }: ActionLogPageInput): ActionLogPage {
+  const filtered = source !== undefined || !!q
+  const where = and(
+    before !== undefined ? lt(actionLog.id, before) : undefined,
+    source ? eq(actionLog.source, source) : undefined,
+    q ? searchWhere(q) : undefined
+  )
+  const rows = db
+    .select()
+    .from(actionLog)
+    .where(where)
+    .orderBy(desc(actionLog.id))
+    .limit(PAGE_SIZE + 1)
+    .all()
+  let hasMore = rows.length > PAGE_SIZE
+  rows.length = Math.min(rows.length, PAGE_SIZE)
+
+  // an unfiltered page shows runs as cards, so finish the last one here rather
+  // than splitting it across a Load older
+  const last = rows.at(-1)
+  if (!filtered && hasMore && last?.runId != null) {
+    rows.push(
+      ...db
+        .select()
+        .from(actionLog)
+        .where(and(eq(actionLog.runId, last.runId), lt(actionLog.id, last.id)))
+        .orderBy(desc(actionLog.id))
+        .all()
+    )
+    hasMore = !!db
+      .select({ id: actionLog.id })
+      .from(actionLog)
+      .where(lt(actionLog.id, rows.at(-1)!.id))
+      .limit(1)
+      .get()
+  }
+
+  const runIds = [...new Set(rows.map((r) => r.runId).filter((id): id is number => id !== null))]
+  const runs: Record<number, ActionRun> = {}
+  if (runIds.length) {
+    for (const run of db.select().from(actionRuns).where(inArray(actionRuns.id, runIds)).all()) {
+      runs[run.id] = run
+    }
+  }
+  return { entries: enrich(rows), runs, nextBefore: hasMore ? rows.at(-1)!.id : null }
+}
+
+// what the Activity nav dot compares against: the app's own changes, never the
+// user's edits or the imports they started
+function newestAutomatedAt(): number | null {
+  const row = db
+    .select({ createdAt: actionLog.createdAt })
+    .from(actionLog)
+    .where(and(ne(actionLog.source, 'user'), ne(actionLog.source, 'import')))
+    .orderBy(desc(actionLog.id))
+    .limit(1)
+    .get()
+  return row?.createdAt ?? null
+}
+
 // compact the log at startup: drop entries that have sat undone longer than the
 // retention window. Applied history stays intact — only abandoned undos go.
 function purgeStaleUndoneEntries(): void {
@@ -441,6 +592,10 @@ function purgeStaleUndoneEntries(): void {
     .delete(actionLog)
     .where(and(isNotNull(actionLog.undoneAt), lt(actionLog.undoneAt, cutoff)))
     .run().changes
+  // and the runs that leaves with no entries
+  db.delete(actionRuns)
+    .where(sql`not exists (select 1 from ${actionLog} where ${actionLog.runId} = ${actionRuns.id})`)
+    .run()
   if (removed > 0) log.info('action-log.purged-stale-undone', { count: removed })
 }
 
@@ -457,7 +612,10 @@ export function registerActionLogIpc(): void {
     .get()
   sessionBaselineId = newest?.id ?? 0
 
-  ipcMain.handle(ACTION_LOG_IPC.list, () => listEntries())
+  ipcMain.handle(ACTION_LOG_IPC.page, (_event, input: unknown) =>
+    listPage(actionLogPageSchema.parse(input ?? {}))
+  )
+  ipcMain.handle(ACTION_LOG_IPC.newestAutomatedAt, () => newestAutomatedAt())
   ipcMain.handle(ACTION_LOG_IPC.undo, () => undoNewest())
   ipcMain.handle(ACTION_LOG_IPC.redo, () => redoNewest())
   ipcMain.handle(ACTION_LOG_IPC.undoEntry, (_event, input: unknown) =>
@@ -465,5 +623,11 @@ export function registerActionLogIpc(): void {
   )
   ipcMain.handle(ACTION_LOG_IPC.redoEntry, (_event, input: unknown) =>
     applyEntry(idSchema.parse(input), 'redo')
+  )
+  ipcMain.handle(ACTION_LOG_IPC.undoRun, (_event, input: unknown) =>
+    applyRun(idSchema.parse(input), 'undo')
+  )
+  ipcMain.handle(ACTION_LOG_IPC.redoRun, (_event, input: unknown) =>
+    applyRun(idSchema.parse(input), 'redo')
   )
 }
