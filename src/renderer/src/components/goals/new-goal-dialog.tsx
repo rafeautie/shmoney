@@ -230,14 +230,7 @@ function DayPicker({
     // modal, like every popover in a dialog: the popup portals outside the
     // DialogContent and the dialog's scroll lock would otherwise swallow it
     <Popover modal open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            variant="outline"
-            className="w-full justify-between border-input bg-input/20 font-normal"
-          />
-        }
-      >
+      <PopoverTrigger render={<Button variant="field" className="w-full justify-between" />}>
         <span className={cn(!day && 'text-muted-foreground')}>{day ?? placeholder}</span>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

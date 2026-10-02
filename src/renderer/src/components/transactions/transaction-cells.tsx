@@ -276,14 +276,7 @@ export function TransactionCreateRow({
       <TableCell />
       <TableCell>
         <Popover open={dateOpen} onOpenChange={setDateOpen}>
-          <PopoverTrigger
-            render={
-              <Button
-                variant="outline"
-                className="border-input bg-input/20 font-normal whitespace-nowrap"
-              />
-            }
-          >
+          <PopoverTrigger render={<Button variant="field" className="whitespace-nowrap" />}>
             {format(date, 'MMM d, yyyy')}
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
@@ -319,11 +312,8 @@ export function TransactionCreateRow({
           <PopoverTrigger
             render={
               <Button
-                variant="outline"
-                className={cn(
-                  'border-input bg-input/20 font-normal whitespace-nowrap',
-                  !categoryName && 'text-muted-foreground'
-                )}
+                variant="field"
+                className={cn('whitespace-nowrap', !categoryName && 'text-muted-foreground')}
               />
             }
           >

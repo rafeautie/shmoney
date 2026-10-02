@@ -3,23 +3,28 @@ import { cva, type VariantProps } from 'class-variance-authority'
 
 import { cn } from '@/lib/utils'
 
+// The background and border live on a ::before shell so a press can shrink
+// the shell alone; the label, icons and focus ring stay put.
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-[6px] border border-transparent bg-clip-padding text-xs/relaxed font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow,opacity,scale] duration-[250ms,250ms,250ms,250ms,250ms,100ms] outline-none select-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 active:not-aria-[haspopup]:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button relative isolate inline-flex shrink-0 items-center justify-center rounded-[6px] border border-transparent text-xs/relaxed font-medium whitespace-nowrap transition-[color,box-shadow,opacity] duration-[250ms] outline-none select-none before:absolute before:-inset-px before:-z-10 before:rounded-[inherit] before:border before:border-transparent before:transition-[background-color,border-color,box-shadow,scale] before:duration-[250ms,250ms,250ms,100ms] focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:before:border-ring active:not-aria-[haspopup]:before:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 aria-invalid:ring-2 aria-invalid:ring-destructive/20 aria-invalid:before:border-destructive dark:aria-invalid:ring-destructive/40 dark:aria-invalid:before:border-destructive/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground hover:bg-primary/80',
+        default: 'text-primary-foreground before:bg-primary hover:before:bg-primary/80',
         outline:
-          'border-border hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground',
+          'before:border-border hover:text-foreground hover:before:bg-muted aria-expanded:text-foreground aria-expanded:before:bg-muted',
+        // an input-styled trigger (pickers, date ranges) that sits beside real fields
+        field:
+          'font-normal before:border-input before:bg-input/20 hover:text-foreground hover:before:bg-muted aria-expanded:text-foreground aria-expanded:before:bg-muted',
         secondary:
-          'bg-secondary text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:bg-secondary aria-expanded:text-secondary-foreground',
+          'text-secondary-foreground before:bg-secondary hover:before:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)] aria-expanded:text-secondary-foreground aria-expanded:before:bg-secondary',
         ghost:
-          'hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50',
+          'hover:text-foreground hover:before:bg-muted aria-expanded:text-foreground aria-expanded:before:bg-muted dark:hover:before:bg-muted/50',
         // an editable table value: hover tints, and the cell whose editor is
         // open lifts so it reads as attached to its popover
-        cell: 'font-normal not-aria-expanded:hover:bg-muted not-aria-expanded:hover:text-foreground aria-expanded:lifted aria-expanded:text-foreground dark:not-aria-expanded:hover:bg-muted/50',
+        cell: 'font-normal not-aria-expanded:hover:text-foreground not-aria-expanded:hover:before:bg-muted aria-expanded:text-foreground aria-expanded:before:lifted dark:not-aria-expanded:hover:before:bg-muted/50',
         destructive:
-          'bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40',
+          'text-destructive before:bg-destructive/10 hover:before:bg-destructive/20 focus-visible:ring-destructive/20 focus-visible:before:border-destructive/40 dark:before:bg-destructive/20 dark:hover:before:bg-destructive/30 dark:focus-visible:ring-destructive/40',
         link: 'text-primary underline-offset-4 hover:underline'
       },
       size: {

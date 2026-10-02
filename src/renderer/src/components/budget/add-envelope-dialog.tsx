@@ -110,12 +110,7 @@ export function AddEnvelopeDialog({
                 dialog's scroll lock would otherwise swallow wheel events over the list */}
             <Popover modal open={pickerOpen} onOpenChange={setPickerOpen}>
               <PopoverTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    className="w-full justify-between border-input bg-input/20 font-normal"
-                  />
-                }
+                render={<Button variant="field" className="w-full justify-between" />}
               >
                 <span className={cn(!category && 'text-muted-foreground')}>
                   {category?.name ?? 'Pick a category...'}
