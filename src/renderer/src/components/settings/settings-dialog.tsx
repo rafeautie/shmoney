@@ -116,8 +116,8 @@ export function SettingsDialog(): React.JSX.Element {
                 title={status?.tooltip}
                 onClick={() => open(id)}
                 className={cn(
-                  'flex h-8 items-center gap-[9px] rounded-[6px] px-2 py-1.5 text-left text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
-                  id === active.id && 'bg-muted font-medium'
+                  'flex h-8 items-center gap-[9px] rounded-[6px] px-2 py-1.5 text-left text-xs outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/50',
+                  id === active.id && 'bg-sidebar-accent'
                 )}
               >
                 <HugeiconsIcon icon={icon} size={16} />
