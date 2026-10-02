@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import type { DateRange as DayRange } from 'react-day-picker'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import type { DateRange } from '@shared/reports'
 import { cn, currencySymbol } from '@/lib/utils'
 import { useAccountCurrency } from '@/lib/currency'
@@ -229,13 +229,14 @@ export function AccountsControl({
           <CommandList>
             <CommandEmpty>No accounts found.</CommandEmpty>
             <CommandGroup>
-              <CommandItem value="all-accounts" onSelect={() => onChange(undefined)}>
+              <CommandItem
+                value="all-accounts"
+                onSelect={() => onChange(undefined)}
+                checked={value === undefined}
+              >
                 <span className={cn(value !== undefined && 'text-muted-foreground')}>
                   All accounts
                 </span>
-                {value === undefined && (
-                  <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                )}
               </CommandItem>
             </CommandGroup>
             <CommandGroup>
@@ -244,11 +245,9 @@ export function AccountsControl({
                   key={account.id}
                   value={`${account.institutionName ?? ''} ${account.name}`}
                   onSelect={() => toggle(account.id)}
+                  checked={selected.has(account.id)}
                 >
                   <span className="truncate">{account.name}</span>
-                  {selected.has(account.id) && (
-                    <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                  )}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -304,22 +303,25 @@ export function GoalsControl({
           <CommandList>
             <CommandEmpty>No goals found.</CommandEmpty>
             <CommandGroup>
-              <CommandItem value="all-goals" onSelect={() => onChange(undefined)}>
+              <CommandItem
+                value="all-goals"
+                onSelect={() => onChange(undefined)}
+                checked={value === undefined}
+              >
                 <span className={cn(value !== undefined && 'text-muted-foreground')}>
                   All active goals
                 </span>
-                {value === undefined && (
-                  <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                )}
               </CommandItem>
             </CommandGroup>
             <CommandGroup>
               {goals.map((goal) => (
-                <CommandItem key={goal.id} value={goal.name} onSelect={() => toggle(goal.id)}>
+                <CommandItem
+                  key={goal.id}
+                  value={goal.name}
+                  onSelect={() => toggle(goal.id)}
+                  checked={selected.has(goal.id)}
+                >
                   <span className="truncate">{goal.name}</span>
-                  {selected.has(goal.id) && (
-                    <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                  )}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -408,18 +410,16 @@ export function CategoriesControl({
                 onSelect={() =>
                   onChange({ categoryIds: undefined, includeUncategorized: undefined })
                 }
+                checked={allSelected}
               >
                 <span className={cn(!allSelected && 'text-muted-foreground')}>All categories</span>
-                {allSelected && <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />}
               </CommandItem>
               <CommandItem
                 value="uncategorized"
                 onSelect={() => emit(selected, !value.includeUncategorized)}
+                checked={value.includeUncategorized}
               >
                 <span className="text-muted-foreground">Uncategorized</span>
-                {value.includeUncategorized && (
-                  <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                )}
               </CommandItem>
             </CommandGroup>
             {data?.groups.map((group) => {
@@ -430,20 +430,18 @@ export function CategoriesControl({
                   <CommandItem
                     value={`${group.name} (whole group)`}
                     onSelect={() => toggleGroup(groupIds)}
+                    checked={allIn}
                   >
                     <span className="font-medium">All {group.name}</span>
-                    {allIn && <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />}
                   </CommandItem>
                   {group.categories.map((category) => (
                     <CommandItem
                       key={category.id}
                       value={`${group.name} ${category.name}`}
                       onSelect={() => toggle(category.id)}
+                      checked={selected.has(category.id)}
                     >
                       {category.name}
-                      {selected.has(category.id) && (
-                        <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                      )}
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -456,11 +454,9 @@ export function CategoriesControl({
                     key={category.id}
                     value={`Ungrouped ${category.name}`}
                     onSelect={() => toggle(category.id)}
+                    checked={selected.has(category.id)}
                   >
                     {category.name}
-                    {selected.has(category.id) && (
-                      <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                    )}
                   </CommandItem>
                 ))}
               </CommandGroup>
@@ -472,11 +468,9 @@ export function CategoriesControl({
                     key={category.id}
                     value={`System ${category.name}`}
                     onSelect={() => toggle(category.id)}
+                    checked={selected.has(category.id)}
                   >
                     {category.name}
-                    {selected.has(category.id) && (
-                      <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                    )}
                   </CommandItem>
                 ))}
               </CommandGroup>

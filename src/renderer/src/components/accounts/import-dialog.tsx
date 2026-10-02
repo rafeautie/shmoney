@@ -10,7 +10,7 @@ import {
   type PickFileResult
 } from '@shared/import'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { FileImportIcon, Tick02Icon, UnfoldMoreIcon } from '@hugeicons/core-free-icons'
+import { FileImportIcon, UnfoldMoreIcon } from '@hugeicons/core-free-icons'
 import { data as currencyData } from 'currency-codes'
 import { useImportUi } from '@/lib/import-ui'
 import { cn, currencySymbol, ipcErrorMessage, plural, TABLE_BLEED } from '@/lib/utils'
@@ -505,12 +505,10 @@ function CurrencySelect({
                     onChange(c.code)
                     setOpen(false)
                   }}
+                  checked={value === c.code}
                 >
                   {c.code}
                   <span className="truncate text-muted-foreground">{c.currency}</span>
-                  {value === c.code && (
-                    <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                  )}
                 </CommandItem>
               ))}
             </CommandGroup>

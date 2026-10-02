@@ -103,8 +103,8 @@ export function SettingsDialog(): React.JSX.Element {
           }
         }}
       >
-        <nav className="flex w-48 shrink-0 flex-col gap-0.5 border-r bg-muted/40 p-2">
-          <DialogTitle className="px-2 pt-1 pb-2">Settings</DialogTitle>
+        <nav className="flex w-48 shrink-0 flex-col gap-0.5 border-r bg-tray px-2.5 py-4.5">
+          <DialogTitle className="px-2 pb-2.5">Settings</DialogTitle>
           {SECTIONS.map(({ id, label, icon }) => {
             const status = statuses[id]
             return (
@@ -116,8 +116,8 @@ export function SettingsDialog(): React.JSX.Element {
                 title={status?.tooltip}
                 onClick={() => open(id)}
                 className={cn(
-                  'flex h-8 items-center gap-2 rounded-md px-2 text-left text-xs outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring/50',
-                  id === active.id && 'bg-muted font-medium'
+                  'flex h-8 items-center gap-[9px] rounded-[6px] px-2 py-1.5 text-left text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [&>svg]:text-muted-foreground',
+                  id === active.id ? 'lifted font-medium' : 'hover:bg-tray-hover'
                 )}
               >
                 <HugeiconsIcon icon={icon} size={16} />

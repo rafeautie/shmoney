@@ -85,9 +85,9 @@ export function EditableTextCell({ transaction }: { transaction: Transaction }) 
 
   return (
     <Button
-      variant="ghost"
+      variant="cell"
       size="sm"
-      className="-ml-2 w-full min-w-0 justify-start font-normal"
+      className="-ml-2 w-full min-w-0 justify-start"
       onClick={() => setDraft(transaction.description)}
     >
       {display}
@@ -147,9 +147,9 @@ export function EditableAmountCell({ transaction }: { transaction: Transaction }
   return (
     <div className="text-right">
       <Button
-        variant="ghost"
+        variant="cell"
         size="sm"
-        className="-mr-2 font-normal"
+        className="-mr-2"
         onClick={() => setDraft(String(transaction.amount / 1000))}
       >
         {display}
@@ -171,9 +171,7 @@ export function EditableDateCell({ transaction }: { transaction: Transaction }) 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        render={
-          <Button variant="ghost" size="sm" className="-ml-2 font-normal whitespace-nowrap" />
-        }
+        render={<Button variant="cell" size="sm" className="-ml-2 whitespace-nowrap" />}
       >
         {label}
       </PopoverTrigger>
@@ -273,14 +271,17 @@ export function TransactionCreateRow({
   }
 
   return (
-    <TableRow className="bg-muted/30 hover:bg-muted/30" onKeyDown={onKeyDown}>
+    <TableRow className="bg-tray hover:bg-tray" onKeyDown={onKeyDown}>
       {/* aligns with the selection checkbox column */}
       <TableCell />
       <TableCell>
         <Popover open={dateOpen} onOpenChange={setDateOpen}>
           <PopoverTrigger
             render={
-              <Button variant="ghost" size="sm" className="-ml-2 font-normal whitespace-nowrap" />
+              <Button
+                variant="outline"
+                className="border-input bg-input/20 font-normal whitespace-nowrap"
+              />
             }
           >
             {format(date, 'MMM d, yyyy')}
@@ -318,9 +319,11 @@ export function TransactionCreateRow({
           <PopoverTrigger
             render={
               <Button
-                variant="ghost"
-                size="sm"
-                className={cn('-ml-2 font-normal', !categoryName && 'text-muted-foreground')}
+                variant="outline"
+                className={cn(
+                  'border-input bg-input/20 font-normal whitespace-nowrap',
+                  !categoryName && 'text-muted-foreground'
+                )}
               />
             }
           >

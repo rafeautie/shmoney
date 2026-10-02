@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon, Tick02Icon, Wallet01Icon } from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon, Wallet01Icon } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
 import {
   Command,
@@ -64,11 +64,12 @@ export function ChatScopeSelect({
           <CommandList>
             <CommandEmpty>No accounts found.</CommandEmpty>
             <CommandGroup>
-              <CommandItem value="all-accounts" onSelect={() => pick(null)}>
+              <CommandItem
+                value="all-accounts"
+                onSelect={() => pick(null)}
+                checked={value === null}
+              >
                 <span className={cn(value !== null && 'text-muted-foreground')}>All accounts</span>
-                {value === null && (
-                  <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                )}
               </CommandItem>
             </CommandGroup>
             <CommandGroup>
@@ -77,11 +78,9 @@ export function ChatScopeSelect({
                   key={account.id}
                   value={`${account.institutionName ?? ''} ${account.name}`}
                   onSelect={() => pick(account.id)}
+                  checked={value === account.id}
                 >
                   <span className="truncate">{account.name}</span>
-                  {value === account.id && (
-                    <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                  )}
                 </CommandItem>
               ))}
             </CommandGroup>

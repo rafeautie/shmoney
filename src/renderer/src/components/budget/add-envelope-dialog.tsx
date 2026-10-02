@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import type { Category } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import {
@@ -134,11 +134,9 @@ export function AddEnvelopeDialog({
                             key={c.id}
                             value={`${group.name} ${c.name}`}
                             onSelect={() => pick(c)}
+                            checked={category?.id === c.id}
                           >
                             <span className="truncate">{c.name}</span>
-                            {category?.id === c.id && (
-                              <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                            )}
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -146,11 +144,13 @@ export function AddEnvelopeDialog({
                     {ungrouped.length > 0 && (
                       <CommandGroup heading="Other">
                         {ungrouped.map((c) => (
-                          <CommandItem key={c.id} value={c.name} onSelect={() => pick(c)}>
+                          <CommandItem
+                            key={c.id}
+                            value={c.name}
+                            onSelect={() => pick(c)}
+                            checked={category?.id === c.id}
+                          >
                             <span className="truncate">{c.name}</span>
-                            {category?.id === c.id && (
-                              <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                            )}
                           </CommandItem>
                         ))}
                       </CommandGroup>
