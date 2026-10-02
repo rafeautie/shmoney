@@ -8,7 +8,7 @@
  * and --muted-foreground in renderer/src/assets/main.css. Change them together.
  */
 export const THEME_CHROME = {
-  light: { background: '#ffffff', symbol: '#737373' },
+  light: { background: '#ffffff', symbol: '#696969' },
   dark: { background: '#0a0a0a', symbol: '#a1a1a1' }
 } as const
 
