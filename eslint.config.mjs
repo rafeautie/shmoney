@@ -26,8 +26,8 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs['recommended-latest'].rules,
       ...reactRefresh.configs.vite.rules,
-      // TanStack Table/Router hooks intentionally return stable function references;
-      // this rule assumes React Compiler memoization, which this project doesn't use.
+      // flags components the React Compiler skips (e.g. ones calling useReactTable);
+      // skipping them is the correct outcome, so the warning is noise
       'react-hooks/incompatible-library': 'off',
       'react-refresh/only-export-components': [
         'warn',
