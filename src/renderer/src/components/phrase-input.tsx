@@ -154,7 +154,7 @@ function PhraseChip({
             aria-label={`Edit phrase ${phrase}`}
             onClick={() => setEditing(phrase)}
           >
-            <HugeiconsIcon icon={PencilEdit02Icon} className="size-3" />
+            <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
           </Button>
           <Button
             type="button"
@@ -163,7 +163,7 @@ function PhraseChip({
             aria-label={`Delete phrase ${phrase}`}
             onClick={onDelete}
           >
-            <HugeiconsIcon icon={Delete02Icon} className="size-3" />
+            <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
           </Button>
         </span>
       </span>

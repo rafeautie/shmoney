@@ -334,7 +334,7 @@ function CategoryChip({ category }: { category: Category }) {
               setMode('edit')
             }}
           >
-            <HugeiconsIcon icon={PencilEdit02Icon} className="size-3" />
+            <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
           </Button>
           <ConfirmButton
             variant="ghost"
@@ -349,7 +349,7 @@ function CategoryChip({ category }: { category: Category }) {
             pendingLabel="Deleting…"
             onConfirm={(close) => deleteCategory.mutate(undefined, { onSuccess: close })}
           >
-            <HugeiconsIcon icon={Delete02Icon} className="size-3" />
+            <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
           </ConfirmButton>
         </span>
       </span>
