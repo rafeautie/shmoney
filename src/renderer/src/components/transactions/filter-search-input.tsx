@@ -6,10 +6,12 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 /** Broad search box: debounced while typing so each keystroke doesn't hit SQL */
 export function FilterSearchInput({
   value,
-  onChange
+  onChange,
+  placeholder = 'Search transactions...'
 }: {
   value: string | undefined
   onChange: (value: string | undefined) => void
+  placeholder?: string
 }) {
   const [text, setText] = useState(value ?? '')
 
@@ -36,7 +38,7 @@ export function FilterSearchInput({
         <HugeiconsIcon icon={Search01Icon} size={14} />
       </InputGroupAddon>
       <InputGroupInput
-        placeholder="Search transactions..."
+        placeholder={placeholder}
         value={text}
         onChange={(e) => setText(e.target.value)}
       />

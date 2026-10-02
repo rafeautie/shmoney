@@ -1,4 +1,5 @@
-import { queryOptions } from '@tanstack/react-query'
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query'
+import type { ActionSource } from '@shared/ipc'
 
 /**
  * The query each page needs before it can render anything. Shared so a route
@@ -31,10 +32,18 @@ export const reportOptions = (id: number) =>
     queryFn: () => window.api.reports.get(id)
   })
 
-export const actionLogOptions = queryOptions({
-  queryKey: ['actionLog'],
-  queryFn: () => window.api.actionLog.list()
-})
+export const activityOptions = (filter: { source: ActionSource | null; q: string }) =>
+  infiniteQueryOptions({
+    queryKey: ['actionLog', 'page', filter],
+    queryFn: ({ pageParam }) =>
+      window.api.actionLog.page({
+        before: pageParam,
+        source: filter.source ?? undefined,
+        q: filter.q || undefined
+      }),
+    initialPageParam: undefined as number | undefined,
+    getNextPageParam: (last) => last.nextBefore ?? undefined
+  })
 
 export const connectionOptions = queryOptions({
   queryKey: ['connection'],

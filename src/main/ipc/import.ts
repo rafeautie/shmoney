@@ -16,7 +16,7 @@ import {
   detectTransfersEnabled
 } from './connections'
 import { applyRulesInTx } from './rules'
-import { recordAction } from './action-log'
+import { inRun, newRun, recordAction } from './action-log'
 import { createLogger } from '../logging'
 import {
   IMPORT_IPC,
@@ -117,128 +117,130 @@ export function registerImportIpc(): void {
     const detectEnabled = detectTransfersEnabled()
     const rulesEnabled = applyRulesOnSyncEnabled()
 
-    const result = db.transaction((tx) => {
-      let accountId: number
-      let accountName: string
-      if ('accountId' in target) {
-        const account = tx
-          .select({ id: accounts.id, name: accounts.name })
-          .from(accounts)
-          .where(eq(accounts.id, target.accountId))
-          .get()
-        if (!account) throw new Error('Account not found')
-        accountId = account.id
-        accountName = account.name
-      } else {
-        // null connectionId/simplefinId marks the account as manual: sync
-        // never touches it and disconnect's cascade leaves it alone.
-        // A manual account carries no anchor — it has complete history by
-        // construction, so its balance is just the sum of its transactions and
-        // the opening balance is the first of them (see main/accounts/balance.ts)
-        const account = tx
-          .insert(accounts)
-          .values({
-            connectionId: null,
-            simplefinId: null,
-            institutionName: null,
-            name: target.newAccount.name,
-            currency: target.newAccount.currency,
-            balance: 0,
-            balanceDate: 0
-          })
-          .returning({ id: accounts.id, name: accounts.name })
-          .get()
-        accountId = account.id
-        accountName = account.name
+    const result = inRun(newRun('import', 'Import from file'), () =>
+      db.transaction((tx) => {
+        let accountId: number
+        let accountName: string
+        if ('accountId' in target) {
+          const account = tx
+            .select({ id: accounts.id, name: accounts.name })
+            .from(accounts)
+            .where(eq(accounts.id, target.accountId))
+            .get()
+          if (!account) throw new Error('Account not found')
+          accountId = account.id
+          accountName = account.name
+        } else {
+          // null connectionId/simplefinId marks the account as manual: sync
+          // never touches it and disconnect's cascade leaves it alone.
+          // A manual account carries no anchor — it has complete history by
+          // construction, so its balance is just the sum of its transactions and
+          // the opening balance is the first of them (see main/accounts/balance.ts)
+          const account = tx
+            .insert(accounts)
+            .values({
+              connectionId: null,
+              simplefinId: null,
+              institutionName: null,
+              name: target.newAccount.name,
+              currency: target.newAccount.currency,
+              balance: 0,
+              balanceDate: 0
+            })
+            .returning({ id: accounts.id, name: accounts.name })
+            .get()
+          accountId = account.id
+          accountName = account.name
 
-        const opening = target.newAccount.balance ?? 0
-        if (opening !== 0) {
-          // a day before the earliest imported row, so it sorts first. It's an
-          // ordinary transaction from here on: editable, deletable, undoable.
-          const earliest = Math.min(...rows.map((r) => r.posted))
-          tx.insert(transactions)
+          const opening = target.newAccount.balance ?? 0
+          if (opening !== 0) {
+            // a day before the earliest imported row, so it sorts first. It's an
+            // ordinary transaction from here on: editable, deletable, undoable.
+            const earliest = Math.min(...rows.map((r) => r.posted))
+            tx.insert(transactions)
+              .values({
+                accountId,
+                simplefinId: `manual:opening:${accountId}`,
+                posted: earliest - 86400,
+                amount: opening,
+                description: 'Starting balance',
+                categoryId: systemCategoryIdSql('opening'),
+                pending: false
+              })
+              .run()
+          }
+        }
+
+        // never writes categoryId, and never updates a live row: an import must
+        // not clobber one. A soft-deleted row holding the key is different — it is
+        // an undone import or a deleted transaction, and the unique index would
+        // otherwise make it unimportable forever — so un-delete it in place,
+        // leaving its own columns (a since-edited amount, a category) alone
+        const insertedIds: number[] = []
+        for (const row of rows) {
+          const inserted = tx
+            .insert(transactions)
             .values({
               accountId,
-              simplefinId: `manual:opening:${accountId}`,
-              posted: earliest - 86400,
-              amount: opening,
-              description: 'Starting balance',
-              categoryId: systemCategoryIdSql('opening'),
+              simplefinId: row.externalId,
+              posted: row.posted,
+              amount: row.amount,
+              description: row.description,
               pending: false
             })
-            .run()
-        }
-      }
-
-      // never writes categoryId, and never updates a live row: an import must
-      // not clobber one. A soft-deleted row holding the key is different — it is
-      // an undone import or a deleted transaction, and the unique index would
-      // otherwise make it unimportable forever — so un-delete it in place,
-      // leaving its own columns (a since-edited amount, a category) alone
-      const insertedIds: number[] = []
-      for (const row of rows) {
-        const inserted = tx
-          .insert(transactions)
-          .values({
-            accountId,
-            simplefinId: row.externalId,
-            posted: row.posted,
-            amount: row.amount,
-            description: row.description,
-            pending: false
-          })
-          .onConflictDoNothing({ target: [transactions.accountId, transactions.simplefinId] })
-          .returning({ id: transactions.id })
-          .get()
-        if (inserted) {
-          insertedIds.push(inserted.id)
-          continue
-        }
-        const restored = tx
-          .update(transactions)
-          .set({ deletedAt: null })
-          .where(
-            and(
-              eq(transactions.accountId, accountId),
-              eq(transactions.simplefinId, row.externalId),
-              isNotNull(transactions.deletedAt)
+            .onConflictDoNothing({ target: [transactions.accountId, transactions.simplefinId] })
+            .returning({ id: transactions.id })
+            .get()
+          if (inserted) {
+            insertedIds.push(inserted.id)
+            continue
+          }
+          const restored = tx
+            .update(transactions)
+            .set({ deletedAt: null })
+            .where(
+              and(
+                eq(transactions.accountId, accountId),
+                eq(transactions.simplefinId, row.externalId),
+                isNotNull(transactions.deletedAt)
+              )
             )
-          )
-          .returning({ id: transactions.id })
-          .get()
-        if (restored) insertedIds.push(restored.id)
-      }
+            .returning({ id: transactions.id })
+            .get()
+          if (restored) insertedIds.push(restored.id)
+        }
 
-      if (insertedIds.length > 0) {
-        // undo soft-deletes exactly these rows (sets deletedAt = `before`,
-        // guarded on it still being null); redo restores them. NOTE: a
-        // SimpleFIN disconnect clears the action log while manual accounts
-        // survive, orphaning this entry — accepted wrinkle.
-        recordAction(tx, {
-          source: 'import',
-          label: `Imported ${insertedIds.length} transaction${insertedIds.length === 1 ? '' : 's'} into ${accountName}`,
-          changes: insertedIds.map((id) => ({
-            transactionId: id,
-            field: 'deletedAt',
-            before: now,
-            after: null
-          }))
-        })
-      }
+        if (insertedIds.length > 0) {
+          // undo soft-deletes exactly these rows (sets deletedAt = `before`,
+          // guarded on it still being null); redo restores them. NOTE: a
+          // SimpleFIN disconnect clears the action log while manual accounts
+          // survive, orphaning this entry — accepted wrinkle.
+          recordAction(tx, {
+            source: 'import',
+            label: `Imported ${insertedIds.length} transaction${insertedIds.length === 1 ? '' : 's'} into ${accountName}`,
+            changes: insertedIds.map((id) => ({
+              transactionId: id,
+              field: 'deletedAt',
+              before: now,
+              after: null
+            }))
+          })
+        }
 
-      const detectedTransfers =
-        insertedIds.length > 0 && detectEnabled ? detectAndMarkTransfersInTx(tx) : 0
-      const rulesApplied =
-        insertedIds.length > 0 && rulesEnabled ? applyRulesInTx(tx).categorized : 0
+        const detectedTransfers =
+          insertedIds.length > 0 && detectEnabled ? detectAndMarkTransfersInTx(tx) : 0
+        const rulesApplied =
+          insertedIds.length > 0 && rulesEnabled ? applyRulesInTx(tx).categorized : 0
 
-      return {
-        accountId,
-        inserted: insertedIds.length,
-        skipped: rows.length - insertedIds.length,
-        detectedTransfers,
-        rulesApplied
-      }
-    })
+        return {
+          accountId,
+          inserted: insertedIds.length,
+          skipped: rows.length - insertedIds.length,
+          detectedTransfers,
+          rulesApplied
+        }
+      })
+    )
 
     // counts only, never file names, row contents, or account names
     log.info('import.complete', {

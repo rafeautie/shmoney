@@ -4,7 +4,7 @@ import { db } from '../db'
 import { accounts, categories, rules, transactions } from '../db/schema'
 import { notOpeningSql, notTransferSql } from '../db/system-categories'
 import type { RuleRow } from '../db/schema'
-import { recordAction } from './action-log'
+import { inRun, newRun, recordAction } from './action-log'
 import { reopenUncoveredAcceptedSuggestions } from './rule-suggestions'
 import { transactionDate } from '../db/expressions'
 import { compileConditions } from '../rules'
@@ -365,6 +365,8 @@ export function registerRulesIpc(): void {
 
   ipcMain.handle(RULES_IPC.apply, (_event, input: unknown): RulesApplyResult => {
     const { overrideCategories } = ruleApplyOptionsSchema.parse(input ?? {})
-    return db.transaction((tx) => applyRulesInTx(tx, { overrideCategories }))
+    return inRun(newRun('apply-rules', 'Apply rules'), () =>
+      db.transaction((tx) => applyRulesInTx(tx, { overrideCategories }))
+    )
   })
 }

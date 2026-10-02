@@ -30,7 +30,7 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.52 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -270,26 +270,26 @@
   }
 }
 
-/* Type keeps the sizes the old 17px root produced, but the root itself is
- * 16px so every 0.25rem spacing step lands on whole pixels. At a 17px root,
- * h-7 buttons were 29.75px tall and icons 14.875px; dpr-1 paint snapped each
- * instance differently, so identical buttons rendered their label a pixel
- * high in one spot and a pixel low in another. Fractional font sizes are
- * fine (glyphs are antialiased curves); fractional boxes are not. Integer
- * line-heights keep stacked text on whole-pixel rows for the same reason. */
+/* Type is pinned in px with a 16px root, so every 0.25rem spacing step lands
+ * on whole pixels. At a 17px root, h-7 buttons were 29.75px tall and icons
+ * 14.875px; dpr-1 paint snapped each instance differently, so identical
+ * buttons rendered their label a pixel high in one spot and a pixel low in
+ * another. Fractional boxes are the problem, not fractional font sizes.
+ * Integer line-heights keep stacked text on whole-pixel rows for the same
+ * reason; they sit near 1.45x, which keeps small text easy to scan. */
 @theme {
-  --text-xs: 12.75px;
-  --text-xs--line-height: 17px;
-  --text-sm: 14.875px;
-  --text-sm--line-height: 21px;
-  --text-base: 17px;
-  --text-base--line-height: 26px;
-  --text-lg: 19.125px;
-  --text-lg--line-height: 30px;
-  --text-2xl: 25.5px;
-  --text-2xl--line-height: 34px;
-  --text-3xl: 31.875px;
-  --text-3xl--line-height: 38px;
+  --text-xs: 13px;
+  --text-xs--line-height: 18px;
+  --text-sm: 15px;
+  --text-sm--line-height: 22px;
+  --text-base: 16px;
+  --text-base--line-height: 22px;
+  --text-lg: 17px;
+  --text-lg--line-height: 25px;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 32px;
+  --text-3xl: 30px;
+  --text-3xl--line-height: 36px;
 }
 
 @layer base {
@@ -299,7 +299,7 @@
 
   body {
     @apply bg-background text-foreground;
-    /* Unclassed text inherited 17px under the old root; keep that size. */
+    /* Unclassed text gets the base size, not the 16px root. */
     font-size: var(--text-base);
     /* Selection follows the native-app convention: the interface itself —
      * headings, labels, buttons, nav, badges — is inert, so a drag across it

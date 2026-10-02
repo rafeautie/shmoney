@@ -11,6 +11,7 @@ import { resetCategoriesToDefaults } from '../db/defaults'
 import {
   accounts,
   actionLog,
+  actionRuns,
   budgets,
   categories,
   chatMessages,
@@ -41,6 +42,7 @@ const DATA_TABLES = [
   chatMessages,
   conversations,
   actionLog,
+  actionRuns,
   ruleSuggestions,
   rules,
   budgets,
@@ -58,6 +60,7 @@ const DATA_TABLE_NAMES = [
   'chat_messages',
   'conversations',
   'action_log',
+  'action_runs',
   'rule_suggestions',
   'rules',
   'budgets',

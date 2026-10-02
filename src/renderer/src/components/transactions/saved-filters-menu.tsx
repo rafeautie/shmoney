@@ -118,8 +118,6 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
             </EmptyHeader>
           </Empty>
         ) : (
-          // pb-px: buttons shift down 1px while pressed (active:translate-y-px),
-          // which would otherwise overflow the container and flash a scrollbar
           <div className="max-h-64 overflow-y-auto p-2">
             {saved.map((filter) => (
               <div key={filter.id} className="group flex items-center gap-1">

@@ -8,7 +8,7 @@ import { SettingAction, SettingsGroup } from '@/components/settings/settings-con
 // The sample description with the rule phrase highlighted in place: what the
 // rule matches on is visible in context at a glance, instead of phrase and
 // sample being described to each other in a sentence.
-function MatchSample({
+export function MatchSample({
   phrase,
   description
 }: {
@@ -39,8 +39,8 @@ function MatchSample({
 }
 
 /**
- * One per-category group of pending rule suggestions, rendered identically in
- * the suggestions dialog and the Activity page as a settings-style block
+ * One per-category group of pending rule suggestions in the suggestions dialog
+ * (Activity lists the same groups compactly), as a settings-style block
  * (SettingsGroup): a header row with the category and the group's actions,
  * then one divided row per match — the raw sample in monospace with the
  * extracted phrase highlighted, and the reach as a right-aligned count.

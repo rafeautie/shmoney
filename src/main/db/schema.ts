@@ -4,7 +4,7 @@ import { sqliteTable, integer, text, uniqueIndex, index, primaryKey } from 'driz
 import type { GoalMode } from '../../shared/goals'
 import type { ReportFilters, WidgetConfig, WidgetType } from '../../shared/reports'
 import type { TransactionFilters } from '../../shared/transaction-filters'
-import type { ActionChange, SfinError } from '../../shared/ipc'
+import type { ActionChange, ActionRunTrigger, SfinError } from '../../shared/ipc'
 import type { RuleConditions, RuleAction } from '../../shared/rules'
 import type { ChatMessagePart, ChatMessageStatus, ChatTurnScope } from '../../shared/chat'
 import type { GenerationStats, GenerationStopReason, LlmFeature } from '../../shared/llm'
@@ -191,19 +191,35 @@ export const settings = sqliteTable('settings', {
 // carries the affected fields' before/after values; undo/redo replay them with
 // compare-and-set so a newer edit is never clobbered. This is the persistent
 // backbone for undo (survives restarts) and the Activity page's history.
-export const actionLog = sqliteTable('action_log', {
+// one trigger (a sync, an import, Apply rules, an AI categorize) that wrote
+// several action_log entries; Activity groups and undoes them together
+export const actionRuns = sqliteTable('action_runs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  // unix milliseconds — finer than the app's usual seconds so ordering among
-  // rapid successive actions (and their undo order) stays unambiguous
+  // unix milliseconds, like action_log
   createdAt: integer('created_at').notNull(),
-  // who caused it: 'user' | 'detector' (later: rule ids)
-  source: text('source').notNull(),
-  // human summary shown in toasts and the Activity list
-  label: text('label').notNull(),
-  changes: text('changes', { mode: 'json' }).$type<ActionChange[]>().notNull(),
-  // unix millis when undone; null = currently applied
-  undoneAt: integer('undone_at')
+  trigger: text('trigger').$type<ActionRunTrigger>().notNull(),
+  label: text('label').notNull()
 })
+
+export const actionLog = sqliteTable(
+  'action_log',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    // unix milliseconds — finer than the app's usual seconds so ordering among
+    // rapid successive actions (and their undo order) stays unambiguous
+    createdAt: integer('created_at').notNull(),
+    // who caused it: an ActionSource
+    source: text('source').notNull(),
+    // human summary shown in toasts and the Activity list
+    label: text('label').notNull(),
+    changes: text('changes', { mode: 'json' }).$type<ActionChange[]>().notNull(),
+    // unix millis when undone; null = currently applied
+    undoneAt: integer('undone_at'),
+    // null for a standalone entry (and everything logged before runs existed)
+    runId: integer('run_id').references(() => actionRuns.id)
+  },
+  (t) => [index('action_log_run_ix').on(t.runId)]
+)
 
 // user-defined "if conditions then action" rules. Applied on sync (after the
 // transfer detector) and via a manual dry-run-then-apply. Like the detector,
