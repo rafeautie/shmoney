@@ -77,7 +77,7 @@ function BudgetPage() {
               disabled={prevDisabled}
               onClick={() => setMonth((m) => shiftMonth(m, -1))}
             >
-              <HugeiconsIcon icon={ArrowLeft01Icon} size={16} />
+              <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
               <span className="sr-only">Previous month</span>
             </Button>
             <span className="w-36 text-center text-sm font-medium">{formatMonthLong(month)}</span>
@@ -87,7 +87,7 @@ function BudgetPage() {
               disabled={nextDisabled}
               onClick={() => setMonth((m) => shiftMonth(m, 1))}
             >
-              <HugeiconsIcon icon={ArrowRight01Icon} size={16} />
+              <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
               <span className="sr-only">Next month</span>
             </Button>
             <ViewToggle view={budgetView} onChange={setBudgetView} />

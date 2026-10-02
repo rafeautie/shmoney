@@ -65,10 +65,10 @@ export function DataTableColumnHeader<TData, TValue>({
     >
       {title}
       <HugeiconsIcon
+        className="size-3.5"
         icon={
           sorted === 'asc' ? ArrowUp01Icon : sorted === 'desc' ? ArrowDown01Icon : ArrowUpDownIcon
         }
-        size={14}
       />
     </Button>
   )

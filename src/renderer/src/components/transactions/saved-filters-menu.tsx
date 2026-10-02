@@ -128,7 +128,7 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
                 >
                   <span className="truncate">{filter.name}</span>
                   {canonical(filter.filters) === canonical(currentFilters) && (
-                    <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
+                    <HugeiconsIcon icon={Tick02Icon} className="size-3.5 ml-auto" />
                   )}
                 </Button>
                 <Button
@@ -138,7 +138,7 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
                   aria-label={`Delete saved filter ${filter.name}`}
                   onClick={() => deleteMutation.mutate({ id: filter.id, name: filter.name })}
                 >
-                  <HugeiconsIcon icon={Delete02Icon} size={14} />
+                  <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
                 </Button>
               </div>
             ))}
