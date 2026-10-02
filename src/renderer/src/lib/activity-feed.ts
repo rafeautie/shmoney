@@ -1,7 +1,7 @@
 import type { ActionLogEntry, ActionRun, ActionSource } from '@shared/ipc'
 import { plural } from './utils'
 
-export type FeedItem =
+type FeedItem =
   | { kind: 'entry'; entry: ActionLogEntry; createdAt: number }
   | { kind: 'run'; run: ActionRun; entries: ActionLogEntry[]; createdAt: number }
 
@@ -54,16 +54,6 @@ export function buildFeed(
     else days.push({ date, items: [item] })
   }
   return days
-}
-
-/** Changes the app made on its own; the user's edits and the imports they start aren't news. */
-export function isAutomated(entry: ActionLogEntry): boolean {
-  return entry.source !== 'user' && entry.source !== 'import'
-}
-
-export function itemIsNew(item: FeedItem, seenAt: number | null): boolean {
-  if (seenAt === null || item.createdAt <= seenAt) return false
-  return item.kind === 'entry' ? isAutomated(item.entry) : item.entries.some(isAutomated)
 }
 
 /** One line on what a run did, e.g. "8 rules categorized 283 transactions · Detected 3 transfers". */

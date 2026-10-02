@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ActionLogEntry, ActionRun, ActionSource } from '@shared/ipc'
-import { buildFeed, itemIsNew, runSummary } from './activity-feed'
+import { buildFeed, runSummary } from './activity-feed'
 
 const day = (d: number, h = 12) => new Date(2026, 8, d, h).getTime()
 
@@ -65,33 +65,6 @@ describe('buildFeed', () => {
   it('renders a one-entry run as a plain row', () => {
     const days = buildFeed([entry(5, 'rule', day(30), 7)], runs, true)
     expect(days[0].items[0].kind).toBe('entry')
-  })
-})
-
-describe('itemIsNew', () => {
-  it('flags only automated items after the last visit', () => {
-    const seen = day(30, 10)
-    expect(
-      itemIsNew(
-        { kind: 'entry', entry: entry(1, 'rule', day(30, 11)), createdAt: day(30, 11) },
-        seen
-      )
-    ).toBe(true)
-    expect(
-      itemIsNew(
-        { kind: 'entry', entry: entry(1, 'user', day(30, 11)), createdAt: day(30, 11) },
-        seen
-      )
-    ).toBe(false)
-    expect(
-      itemIsNew({ kind: 'entry', entry: entry(1, 'rule', day(30, 9)), createdAt: day(30, 9) }, seen)
-    ).toBe(false)
-    expect(
-      itemIsNew(
-        { kind: 'entry', entry: entry(1, 'rule', day(30, 11)), createdAt: day(30, 11) },
-        null
-      )
-    ).toBe(false)
   })
 })
 

@@ -5,7 +5,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import { isSavingsGoalChange, type ActionLogEntry } from '@shared/ipc'
 import { cn, plural } from '@/lib/utils'
-import { isAutomated, SOURCE_CREDIT } from '@/lib/activity-feed'
+import { SOURCE_CREDIT } from '@/lib/activity-feed'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ChangeLine } from './change-line'
@@ -47,30 +47,25 @@ export function UndoneTag({ children }: { children: ReactNode }) {
   )
 }
 
-/** The rounded square that leads every row: what made the change, plus a dot when it's new. */
+/** The rounded square that leads every row: what made the change. */
 export function RowAvatar({
   children,
-  isNew,
   solid,
   small
 }: {
   children: ReactNode
-  isNew?: boolean
   solid?: boolean
   small?: boolean
 }) {
   return (
     <span
       className={cn(
-        'relative grid shrink-0 place-items-center rounded-lg',
+        'grid shrink-0 place-items-center rounded-lg',
         small ? 'size-6 rounded-md' : 'size-7',
         solid ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
       )}
     >
       {children}
-      {isNew && (
-        <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-amber-500 ring-2 ring-background" />
-      )}
     </span>
   )
 }
@@ -78,20 +73,18 @@ export function RowAvatar({
 export function EntryRow({
   entry,
   categoryName,
-  nested = false,
-  isNew = false
+  nested = false
 }: {
   entry: ActionLogEntry
   categoryName: Map<number, string>
   /** inside a run card: indented, and the card already says what made it */
   nested?: boolean
-  isNew?: boolean
 }) {
   const queryClient = useQueryClient()
   const [showAll, setShowAll] = useState(false)
   const undone = entry.undoneAt !== null
   const target = sharedTarget(entry, categoryName)
-  const credit = !nested && isAutomated(entry) ? SOURCE_CREDIT[entry.source] : undefined
+  const credit = nested ? undefined : SOURCE_CREDIT[entry.source]
   const lines = showAll ? entry.changes : entry.changes.slice(0, PREVIEW_LINES)
   const hidden = entry.changes.length - lines.length
 
@@ -105,7 +98,7 @@ export function EntryRow({
     <Collapsible className="group/entry bg-background">
       <div className={cn('group/row flex items-center gap-3 py-2 pr-3', nested ? 'pl-13' : 'pl-3')}>
         <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-3 text-left">
-          <RowAvatar isNew={isNew} small={nested}>
+          <RowAvatar small={nested}>
             <SourceIcon source={entry.source} size={nested ? 13 : 15} />
           </RowAvatar>
           <div className="min-w-0">

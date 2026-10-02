@@ -14,13 +14,11 @@ import { TriggerIcon } from './source-icon'
 export function RunCard({
   run,
   entries,
-  categoryName,
-  isNew
+  categoryName
 }: {
   run: ActionRun
   entries: ActionLogEntry[]
   categoryName: Map<number, string>
-  isNew: boolean
 }) {
   const queryClient = useQueryClient()
   const undoneCount = entries.filter((e) => e.undoneAt !== null).length
@@ -36,7 +34,7 @@ export function RunCard({
     <Collapsible className="group/run bg-background">
       <div className="flex items-center gap-3 py-2 pr-3 pl-3">
         <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-3 text-left">
-          <RowAvatar solid isNew={isNew}>
+          <RowAvatar solid>
             <TriggerIcon trigger={run.trigger} size={15} />
           </RowAvatar>
           <div className="min-w-0">

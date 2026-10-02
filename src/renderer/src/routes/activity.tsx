@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { activityOptions } from '@/lib/queries'
 import { SETTINGS_QUERY_KEY, useSettings } from '@/lib/settings'
 import { useMarkActivitySeen, useRuleSuggestions } from '@/lib/activity-seen'
-import { buildFeed, itemIsNew, SOURCE_LABELS, type FeedItem } from '@/lib/activity-feed'
+import { buildFeed, SOURCE_LABELS } from '@/lib/activity-feed'
 import { Page } from '@/components/page'
 import { EntryRow } from '@/components/activity/entry-row'
 import { RunCard } from '@/components/activity/run-card'
@@ -72,8 +72,6 @@ function ActivityPage() {
   const [q, setQ] = useState('')
   const filtered = source !== null || q !== ''
 
-  // read before useMarkActivitySeen moves it, so this visit can still show what's new
-  const [seenAtOnOpen] = useState(settings.activitySeenAt)
   useMarkActivitySeen()
 
   const query = useInfiniteQuery({
@@ -112,23 +110,6 @@ function ActivityPage() {
     setSource(null)
     setQ('')
   }
-
-  const renderItem = (item: FeedItem, isNew: boolean) =>
-    item.kind === 'run' ? (
-      <RunCard
-        key={`run:${item.run.id}`}
-        run={item.run}
-        entries={item.entries}
-        categoryName={categoryName}
-        isNew={isNew}
-      />
-    ) : (
-      <EntryRow key={item.entry.id} entry={item.entry} categoryName={categoryName} isNew={isNew} />
-    )
-
-  // the feed is newest first, so what's new is a prefix: one divider above it,
-  // and a fresh box below it where the already-seen items start
-  let dividerShown = false
 
   return (
     <Page className="space-y-6">
@@ -199,39 +180,25 @@ function ActivityPage() {
         )
       ) : (
         <div className={cn('space-y-6', query.isPlaceholderData && 'opacity-60')}>
-          {days.map((day) => {
-            // split the day into boxes where new gives way to seen
-            const segments: { isNew: boolean; items: FeedItem[] }[] = []
-            for (const item of day.items) {
-              const isNew = itemIsNew(item, seenAtOnOpen)
-              const last = segments.at(-1)
-              if (last && last.isNew === isNew) last.items.push(item)
-              else segments.push({ isNew, items: [item] })
-            }
-            return (
-              <div key={day.date.toDateString()} className="space-y-2">
-                <DayHeading date={day.date} />
-                {segments.map((segment, i) => {
-                  const divider = segment.isNew && !dividerShown
-                  if (divider) dividerShown = true
-                  return (
-                    <Fragment key={i}>
-                      {divider && (
-                        <div className="flex items-center gap-2 text-xs font-medium text-amber-600 dark:text-amber-400">
-                          <span className="h-px flex-1 bg-current opacity-40" />
-                          New since your last visit
-                          <span className="h-px flex-1 bg-current opacity-40" />
-                        </div>
-                      )}
-                      <div className="divide-y overflow-hidden rounded-lg border">
-                        {segment.items.map((item) => renderItem(item, segment.isNew))}
-                      </div>
-                    </Fragment>
+          {days.map((day) => (
+            <div key={day.date.toDateString()} className="space-y-2">
+              <DayHeading date={day.date} />
+              <div className="divide-y overflow-hidden rounded-lg border">
+                {day.items.map((item) =>
+                  item.kind === 'run' ? (
+                    <RunCard
+                      key={`run:${item.run.id}`}
+                      run={item.run}
+                      entries={item.entries}
+                      categoryName={categoryName}
+                    />
+                  ) : (
+                    <EntryRow key={item.entry.id} entry={item.entry} categoryName={categoryName} />
                   )
-                })}
+                )}
               </div>
-            )
-          })}
+            </div>
+          ))}
           {query.hasNextPage && (
             <div className="flex justify-center">
               <Button
