@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { Command as CommandPrimitive } from 'cmdk'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Search01Icon } from '@hugeicons/core-free-icons'
+import { Search01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -94,16 +94,26 @@ function CommandSeparator({
   )
 }
 
-function CommandItem({ className, ...props }: React.ComponentProps<typeof CommandPrimitive.Item>) {
+/** `checked` marks the item's current value: a trailing tick and medium weight. */
+function CommandItem({
+  className,
+  checked,
+  children,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Item> & { checked?: boolean }) {
   return (
     <CommandPrimitive.Item
       data-slot="command-item"
+      data-checked={checked || undefined}
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex cursor-default items-center gap-[9px] rounded-[6px] px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground data-checked:font-medium [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
         className
       )}
       {...props}
-    />
+    >
+      {children}
+      {checked && <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto text-foreground" />}
+    </CommandPrimitive.Item>
   )
 }
 

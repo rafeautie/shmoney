@@ -1,6 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Tick02Icon } from '@hugeicons/core-free-icons'
 import type { Category } from '@shared/ipc'
 import {
   Command,
@@ -31,11 +29,9 @@ export function CategoryPicker({ selectedCategoryId, disabled, onSelect }: Categ
       value={`${groupName} ${category.name}`}
       disabled={disabled}
       onSelect={() => onSelect(category.id)}
+      checked={selectedCategoryId === category.id}
     >
       {category.name}
-      {selectedCategoryId === category.id && (
-        <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-      )}
     </CommandItem>
   )
 
@@ -45,11 +41,13 @@ export function CategoryPicker({ selectedCategoryId, disabled, onSelect }: Categ
       <CommandList>
         <CommandEmpty>No categories found.</CommandEmpty>
         <CommandGroup>
-          <CommandItem value="Uncategorized" disabled={disabled} onSelect={() => onSelect(null)}>
+          <CommandItem
+            value="Uncategorized"
+            disabled={disabled}
+            onSelect={() => onSelect(null)}
+            checked={selectedCategoryId === null}
+          >
             <span className="text-muted-foreground">Uncategorized</span>
-            {selectedCategoryId === null && (
-              <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-            )}
           </CommandItem>
         </CommandGroup>
         {categoriesQuery.data?.groups.map((group) => (

@@ -122,7 +122,7 @@ export function ChatStarters({
                 type="button"
                 disabled={disabled}
                 onClick={() => onPick(starter.text)}
-                className="flex flex-col items-start gap-3 rounded-xl border bg-card p-3.5 text-left transition-colors hover:border-ring/60 hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                className="flex flex-col items-start gap-3 rounded-xl border bg-card p-3.5 text-left transition-colors hover:border-ring/60 hover:bg-tray focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
               >
                 <span
                   className={cn('flex size-8 items-center justify-center rounded-lg', starter.tone)}

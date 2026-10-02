@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
+import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import {
   Command,
@@ -72,11 +72,13 @@ export function GoalAccountPicker({
           <CommandList>
             <CommandEmpty>No accounts in this currency.</CommandEmpty>
             {pickable.map((account) => (
-              <CommandItem key={account.id} value={account.name} onSelect={() => toggle(account)}>
+              <CommandItem
+                key={account.id}
+                value={account.name}
+                onSelect={() => toggle(account)}
+                checked={selectedIds.includes(account.id)}
+              >
                 <span className="truncate">{account.name}</span>
-                {selectedIds.includes(account.id) && (
-                  <HugeiconsIcon icon={Tick02Icon} size={14} className="ml-auto" />
-                )}
               </CommandItem>
             ))}
           </CommandList>

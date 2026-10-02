@@ -36,12 +36,9 @@ export function CategoryCell({ transaction }: { transaction: Transaction }) {
       <PopoverTrigger
         render={
           <Button
-            variant="ghost"
+            variant="cell"
             size="sm"
-            className={cn(
-              '-ml-2 font-normal',
-              !transaction.categoryName && 'text-muted-foreground'
-            )}
+            className={cn('-ml-2', !transaction.categoryName && 'text-muted-foreground')}
             onClick={(event) => event.stopPropagation()}
           />
         }

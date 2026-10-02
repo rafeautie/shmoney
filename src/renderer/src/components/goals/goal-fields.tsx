@@ -125,9 +125,7 @@ export function TargetDatePicker({ goal }: { goal: GoalSummary }) {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={<Button variant="ghost" size="sm" className="h-7 px-2 font-normal" />}
-      >
+      <PopoverTrigger render={<Button variant="cell" size="sm" className="h-7 px-2" />}>
         {goal.targetDate ? longDay(goal.targetDate) : 'Set a target date'}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="end">

@@ -16,7 +16,7 @@ function SegmentedControl<Value extends string>({
     <RadioGroup
       data-slot="segmented-control"
       className={cn(
-        'inline-flex h-8 w-fit items-center rounded-lg bg-muted p-[3px] text-muted-foreground',
+        'inline-flex h-8 w-fit items-center gap-0.5 rounded-lg bg-tray p-[3px] text-muted-foreground',
         className
       )}
       onValueChange={(value) => onValueChange?.(value as Value)}
@@ -30,7 +30,7 @@ function SegmentedControlItem({ className, ...props }: Radio.Root.Props) {
     <Radio.Root
       data-slot="segmented-control-item"
       className={cn(
-        'inline-flex h-full flex-1 cursor-default items-center justify-center gap-1.5 rounded-md border border-transparent px-2.5 text-xs font-medium whitespace-nowrap outline-none transition-[color,box-shadow] hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 data-checked:bg-background data-checked:text-foreground data-checked:shadow-sm data-disabled:pointer-events-none data-disabled:opacity-50 dark:data-checked:border-input dark:data-checked:bg-input/30 [&_svg]:pointer-events-none [&_svg]:shrink-0',
+        'inline-flex h-full flex-1 cursor-default items-center justify-center gap-1.5 rounded-md border border-transparent px-2.5 text-xs font-medium whitespace-nowrap outline-none transition-[color,background-color,box-shadow] not-data-checked:hover:bg-tray-hover not-data-checked:hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 data-checked:lifted data-checked:text-foreground data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0',
         className
       )}
       {...props}

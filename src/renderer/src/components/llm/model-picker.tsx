@@ -83,7 +83,7 @@ export function ModelPicker({ className }: { className?: string }): React.JSX.El
           <div
             role="radiogroup"
             aria-label={`${MODEL_FAMILIES[family].label} models`}
-            className="divide-y overflow-hidden rounded-lg border"
+            className="grid gap-0.5 rounded-[9px] bg-tray p-1"
           >
             {ids.map((id) => (
               <ModelRow
@@ -190,9 +190,9 @@ function ModelRow({
         }
       }}
       className={cn(
-        'px-3 py-2 text-sm transition-colors outline-none focus-visible:bg-muted/60',
+        'rounded-[6px] px-3 py-2 text-sm transition-[background-color,box-shadow] outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
         runnable ? 'cursor-pointer' : 'cursor-not-allowed opacity-60',
-        selected ? 'bg-primary/5' : runnable && 'hover:bg-muted/40'
+        selected ? 'lifted' : runnable && 'hover:bg-tray-hover'
       )}
     >
       <div className="flex min-h-7 items-center gap-3">

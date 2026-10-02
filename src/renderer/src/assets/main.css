@@ -58,12 +58,17 @@
   /* lime */
   --chart-10: oklch(0.554 0.046 257.417);
   /* slate */
-  --sidebar: oklch(0.97 0 0);
+  /* Lists of choices sit on the tray; the chosen one is lifted onto the page
+   * surface (see the lifted utility). Hover only tints. */
+  --tray: oklch(0.97 0 0);
+  --tray-hover: oklch(0.94 0 0);
+  --lifted: oklch(1 0 0);
+  --sidebar: var(--tray);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.94 0 0);
-  --sidebar-active: oklch(1 0 0);
+  --sidebar-accent: var(--tray-hover);
+  --sidebar-active: var(--lifted);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
@@ -110,12 +115,15 @@
   /* lime */
   --chart-10: oklch(0.704 0.04 256.788);
   /* slate */
-  --sidebar: oklch(0.24 0 0);
+  --tray: oklch(0.24 0 0);
+  --tray-hover: oklch(0.275 0 0);
+  --lifted: oklch(0.165 0 0);
+  --sidebar: var(--tray);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.275 0 0);
-  --sidebar-active: oklch(0.165 0 0);
+  --sidebar-accent: var(--tray-hover);
+  --sidebar-active: var(--lifted);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
@@ -123,6 +131,9 @@
 
 @theme inline {
   --color-background: var(--background);
+  --color-tray: var(--tray);
+  --color-tray-hover: var(--tray-hover);
+  --color-lifted: var(--lifted);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -178,6 +189,13 @@
   syntax: '<percentage>';
   inherits: false;
   initial-value: 45%;
+}
+
+/* The selected item in a tray: the content surface plus a hairline ring that
+ * composes with focus rings. Weight is left to callers, since a bolder label
+ * reflows anything laid out beside it. */
+@utility lifted {
+  @apply bg-lifted shadow-[0_0_0_1px_var(--border)];
 }
 
 @utility animate-shimmer {
