@@ -27,7 +27,7 @@ export function NavDot({ tone }: { tone: DotTone }) {
   return (
     <StatusDot
       tone={tone}
-      className="absolute -top-0.5 -right-0.5 ring-2 ring-sidebar group-[:not([data-active]):hover]/menu-button:ring-sidebar-accent group-data-active/menu-button:ring-sidebar-active"
+      className="absolute -top-0.5 -right-0.5 ring-2 ring-sidebar group-hover/menu-button:ring-sidebar-accent group-data-active/menu-button:ring-sidebar-accent"
     />
   )
 }

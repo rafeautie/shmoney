@@ -62,7 +62,7 @@ export function ConversationRow({
         isActive={active}
         // hover on the whole row (including the three-dots action) keeps the
         // button's hover look, so it doesn't flicker off under the action
-        className="not-data-active:group-hover/menu-item:bg-sidebar-accent not-data-active:group-hover/menu-item:text-sidebar-accent-foreground"
+        className="group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground"
       >
         <StatusDot
           tone={
