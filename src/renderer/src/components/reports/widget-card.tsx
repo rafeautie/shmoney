@@ -92,7 +92,7 @@ export const WidgetCard = memo(function WidgetCard({
                 close()
               }}
             >
-              <HugeiconsIcon icon={Delete02Icon} size={14} />
+              <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
               <span className="sr-only">Delete widget</span>
             </ConfirmButton>
           </div>

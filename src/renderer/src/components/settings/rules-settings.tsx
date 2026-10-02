@@ -252,7 +252,7 @@ function RuleRow({
           aria-label="Move up"
           onClick={onMoveUp}
         >
-          <HugeiconsIcon icon={ArrowUp01Icon} size={14} />
+          <HugeiconsIcon icon={ArrowUp01Icon} className="size-3.5" />
         </Button>
         <Button
           variant="ghost"
@@ -261,7 +261,7 @@ function RuleRow({
           aria-label="Move down"
           onClick={onMoveDown}
         >
-          <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
+          <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5" />
         </Button>
         <Button
           variant="ghost"
@@ -269,7 +269,7 @@ function RuleRow({
           aria-label={`Edit rule ${rule.name}`}
           onClick={onEdit}
         >
-          <HugeiconsIcon icon={PencilEdit02Icon} size={14} />
+          <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
         </Button>
         <ConfirmButton
           variant="ghost"
@@ -281,7 +281,7 @@ function RuleRow({
           pendingLabel="Deleting…"
           onConfirm={(close) => remove.mutate(undefined, { onSuccess: close })}
         >
-          <HugeiconsIcon icon={Delete02Icon} size={14} />
+          <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
         </ConfirmButton>
       </div>
       <Switch

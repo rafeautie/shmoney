@@ -119,14 +119,14 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
               </Button>
             ) : isLast && connected ? null : (
               <Button variant="ghost" disabled={busy} onClick={() => setStep((s) => s - 1)}>
-                <HugeiconsIcon icon={ArrowLeftIcon} size={16} />
+                <HugeiconsIcon icon={ArrowLeftIcon} className="size-4" />
                 Back
               </Button>
             )}
             {!isLast ? (
               <Button onClick={() => setStep((s) => s + 1)}>
                 Next
-                <HugeiconsIcon icon={ArrowRightIcon} size={16} />
+                <HugeiconsIcon icon={ArrowRightIcon} className="size-4" />
               </Button>
             ) : connected ? (
               <Button onClick={viewAccounts}>View accounts</Button>

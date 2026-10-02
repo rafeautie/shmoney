@@ -176,7 +176,7 @@ function GroupSection({ group }: { group: CategoryGroup }) {
               aria-label={`Rename group ${group.name}`}
               onClick={() => setRenameDraft(group.name)}
             >
-              <HugeiconsIcon icon={PencilEdit02Icon} size={14} />
+              <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
             </Button>
             <ConfirmButton
               variant="ghost"
@@ -189,7 +189,7 @@ function GroupSection({ group }: { group: CategoryGroup }) {
               pendingLabel="Deleting…"
               onConfirm={(close) => deleteGroup.mutate(undefined, { onSuccess: close })}
             >
-              <HugeiconsIcon icon={Delete02Icon} size={14} />
+              <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
             </ConfirmButton>
           </>
         )}

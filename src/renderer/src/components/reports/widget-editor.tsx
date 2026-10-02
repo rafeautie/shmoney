@@ -749,7 +749,7 @@ export function AddWidgetButton(
   return (
     <>
       <Button variant="outline" onClick={() => setOpen(true)}>
-        <HugeiconsIcon icon={Add01Icon} size={16} />
+        <HugeiconsIcon icon={Add01Icon} className="size-4" />
         Add widget
       </Button>
       <WidgetEditor {...props} widget={null} open={open} onOpenChange={setOpen} />
