@@ -97,11 +97,7 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button variant="outline" size="lg" className="border-input bg-input/20 font-normal" />
-        }
-      >
+      <PopoverTrigger render={<Button variant="field" size="lg" />}>
         <HugeiconsIcon icon={Bookmark01Icon} size={14} className="text-muted-foreground" />
         Saved
       </PopoverTrigger>

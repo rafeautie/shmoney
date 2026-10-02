@@ -35,11 +35,7 @@ export function MoreFiltersPopover({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button variant="outline" size="lg" className="border-input bg-input/20 font-normal" />
-        }
-      >
+      <PopoverTrigger render={<Button variant="field" size="lg" />}>
         <HugeiconsIcon icon={FilterIcon} size={14} className="text-muted-foreground" />
         More
         {count > 0 && (

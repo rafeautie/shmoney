@@ -132,16 +132,7 @@ export function DateRangeControl({
               setDraft({ from: new Date(value.start * 1000), to: new Date(value.end * 1000) })
           }}
         >
-          <PopoverTrigger
-            render={
-              <Button
-                variant="outline"
-                size="lg"
-                disabled={disabled}
-                className="border-input bg-input/20 font-normal"
-              />
-            }
-          >
+          <PopoverTrigger render={<Button variant="field" size="lg" disabled={disabled} />}>
             {format(new Date(value.start * 1000), 'MMM d, yyyy')} –{' '}
             {format(new Date(value.end * 1000), 'MMM d, yyyy')}
           </PopoverTrigger>
@@ -210,16 +201,7 @@ export function AccountsControl({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            variant="outline"
-            size="lg"
-            disabled={disabled}
-            className="border-input bg-input/20 font-normal"
-          />
-        }
-      >
+      <PopoverTrigger render={<Button variant="field" size="lg" disabled={disabled} />}>
         {label}
         <HugeiconsIcon icon={ArrowDown01Icon} size={14} className="text-muted-foreground" />
       </PopoverTrigger>
@@ -289,11 +271,7 @@ export function GoalsControl({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button variant="outline" size="lg" className="border-input bg-input/20 font-normal" />
-        }
-      >
+      <PopoverTrigger render={<Button variant="field" size="lg" />}>
         {label}
         <HugeiconsIcon icon={ArrowDown01Icon} size={14} className="text-muted-foreground" />
       </PopoverTrigger>
@@ -386,16 +364,7 @@ export function CategoriesControl({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            variant="outline"
-            size="lg"
-            disabled={disabled}
-            className="border-input bg-input/20 font-normal"
-          />
-        }
-      >
+      <PopoverTrigger render={<Button variant="field" size="lg" disabled={disabled} />}>
         {label}
         <HugeiconsIcon icon={ArrowDown01Icon} size={14} className="text-muted-foreground" />
       </PopoverTrigger>
