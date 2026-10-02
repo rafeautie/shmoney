@@ -23,5 +23,11 @@ export function StatusDot({ tone, className }: { tone: DotTone | null; className
 
 /** Status dot pinned to a sidebar icon's corner, so it shows with the sidebar collapsed. */
 export function NavDot({ tone }: { tone: DotTone }) {
-  return <StatusDot tone={tone} className="absolute -top-0.5 -right-0.5 ring-2 ring-sidebar" />
+  // the cut-out ring tracks the row's own fill so it never shows as a halo
+  return (
+    <StatusDot
+      tone={tone}
+      className="absolute -top-0.5 -right-0.5 ring-2 ring-sidebar group-[:not([data-active]):hover]/menu-button:ring-sidebar-accent group-data-active/menu-button:ring-sidebar-active"
+    />
+  )
 }
