@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
@@ -145,40 +145,69 @@ function emptyReply(conversationId: number): ActiveReply {
   return { conversationId, parts: [], stats: null }
 }
 
+// The live reply lives outside React state so a patch re-renders only the
+// streaming row (useActiveReply), never the page, the composer or settled
+// rows. Patches apply to `working` at once and publish at most once a frame.
+let working: ActiveReply | null = null
+let published: ActiveReply | null = null
+let frame = 0
+const listeners = new Set<() => void>()
+
+function publish(): void {
+  cancelAnimationFrame(frame)
+  frame = 0
+  published = working
+  listeners.forEach((listener) => listener())
+}
+
+function subscribeReply(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+/** the streamed reply when it belongs to this conversation; null otherwise (or for null) */
+export function useActiveReply(conversationId: number | null): ActiveReply | null {
+  return useSyncExternalStore(subscribeReply, () =>
+    conversationId !== null && published?.conversationId === conversationId ? published : null
+  )
+}
+
+/** the conversation a reply is streaming into, if any; changes only per turn */
+export function useStreamingConversationId(): number | null {
+  return useSyncExternalStore(subscribeReply, () => published?.conversationId ?? null)
+}
+
 /**
- * The reply currently streaming in (any conversation), applied from the chat
- * part-patch events. Call startReply once a send is accepted so the waiting
+ * Applies the chat part-patch events to the live reply (any conversation)
+ * while mounted. Call startReply once a send is accepted so the waiting
  * marker shows before the first token; the messageDone event settles the
  * reply into its placeholder row in the cache and clears the entry.
  */
-export function useStreamingReply(): {
-  reply: ActiveReply | null
-  startReply: (conversationId: number) => void
-} {
+export function useStreamingReply(): { startReply: (conversationId: number) => void } {
   const queryClient = useQueryClient()
-  const [reply, setReply] = useState<ActiveReply | null>(null)
 
   useEffect(() => {
-    const offPart = window.api.chat.onPart(({ conversationId, index, part }) => {
-      setReply((prev) => {
-        // a conversation reopened mid-turn has no entry yet; an event for
-        // another conversation replaces the stale entry (chat is single-flight)
-        const base =
-          prev && prev.conversationId === conversationId ? prev : emptyReply(conversationId)
+    // a conversation reopened mid-turn has no entry yet; an event for another
+    // conversation replaces the stale entry (chat is single-flight)
+    const patch = (conversationId: number, update: (base: ActiveReply) => ActiveReply) => {
+      const base =
+        working && working.conversationId === conversationId ? working : emptyReply(conversationId)
+      working = update(base)
+      frame ||= requestAnimationFrame(publish)
+    }
+    const offPart = window.api.chat.onPart(({ conversationId, index, part }) =>
+      patch(conversationId, (base) => {
         const parts = [...base.parts]
         parts[index] = part
         return { ...base, parts }
       })
-    })
-    const offStats = window.api.chat.onStats(({ conversationId, stats }) => {
-      setReply((prev) => {
-        const base =
-          prev && prev.conversationId === conversationId ? prev : emptyReply(conversationId)
-        return { ...base, stats }
-      })
-    })
+    )
+    const offStats = window.api.chat.onStats(({ conversationId, stats }) =>
+      patch(conversationId, (base) => ({ ...base, stats }))
+    )
     const offDone = window.api.chat.onMessageDone(({ conversationId, message }) => {
-      setReply(null)
       // the reply settles into its placeholder row in place — same id, same
       // list position — so the scroller never sees an element swap
       queryClient.setQueryData<ConversationMessages>(chatMessagesKey(conversationId), (prev) =>
@@ -186,6 +215,12 @@ export function useStreamingReply(): {
           ? { ...prev, messages: prev.messages.map((m) => (m.id === message.id ? message : m)) }
           : prev
       )
+      // cleared on a zero timeout queued behind the query's own notify, so the
+      // row never renders still-streaming with its reply gone
+      working = null
+      cancelAnimationFrame(frame)
+      frame = 0
+      setTimeout(publish, 0)
       // the refetch recomputes where the truncation marker sits now that the
       // turn is in the history
       void queryClient.invalidateQueries({ queryKey: chatMessagesKey(conversationId) })
@@ -195,10 +230,17 @@ export function useStreamingReply(): {
       offPart()
       offStats()
       offDone()
+      working = null
+      publish()
     }
   }, [queryClient])
 
-  return { reply, startReply: (conversationId) => setReply(emptyReply(conversationId)) }
+  return {
+    startReply: (conversationId) => {
+      working = emptyReply(conversationId)
+      publish()
+    }
+  }
 }
 
 /** Save the conversation's account scope; optimistic so the selector doesn't flicker. */

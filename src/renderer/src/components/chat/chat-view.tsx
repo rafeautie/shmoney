@@ -3,7 +3,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon, Wallet01Icon } from '@hugeicons/core-free-icons'
 import type { ChatMessage, ChatTurnScope } from '@shared/chat'
 import { cn } from '@/lib/utils'
-import { useMessages, type ActiveReply } from '@/lib/chat'
+import { useMessages } from '@/lib/chat'
 import { ChatMessageRow } from '@/components/chat/chat-message-row'
 import { ChatStarters } from '@/components/chat/chat-starters'
 import { Marker, MarkerContent, MarkerIcon } from '@/components/ui/marker'
@@ -46,12 +46,13 @@ function scopeMarkers(messages: ChatMessage[]): Map<number, string> {
 /** The transcript: the conversation's messages with the in-flight reply streaming in place. */
 export function ChatView({
   conversationId,
-  reply,
+  streaming,
   onPickPrompt,
   openersDisabled
 }: {
   conversationId: number | null
-  reply: ActiveReply | null
+  /** a reply is streaming into this conversation */
+  streaming: boolean
   /** send a starter prompt from the blank-chat state; omit to hide the openers */
   onPickPrompt?: (prompt: string) => void
   /** grey the openers out (non-interactive) while the composer is unavailable */
@@ -62,7 +63,6 @@ export function ChatView({
     truncatedBeforeId: null
   }
   const markers = useMemo(() => scopeMarkers(messages), [messages])
-  const streaming = reply !== null && reply.conversationId === conversationId
 
   // scroll-behavior: smooth would animate the mount-time jump to
   // defaultScrollPosition (the scroller asks for behavior 'auto', which defers
@@ -134,7 +134,7 @@ export function ChatView({
                 {/* one component type for every row, streaming or not: a
                     settling turn keeps its instance, so the cards the user
                     opened mid-reply don't snap shut when it lands */}
-                <ChatMessageRow message={message} reply={streaming ? reply : null} />
+                <ChatMessageRow message={message} />
               </MessageScrollerItem>
             ))}
           </MessageScrollerContent>

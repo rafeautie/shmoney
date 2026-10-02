@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ComponentProps, type RefObject } from 'react'
+import { memo, useLayoutEffect, useRef, type ComponentProps, type RefObject } from 'react'
 import { Streamdown, defaultRehypePlugins } from 'streamdown'
 import { Amount } from '@/components/amount'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
@@ -62,24 +62,35 @@ function useWordFade(ref: RefObject<HTMLElement | null>, active: boolean) {
     const root = ref.current
     if (!active || !root) return
     const arrivals: number[] = []
+    // words before this index have finished fading, so a re-render of one
+    // needs nothing; each pass walks only the still-fading tail
+    let settled = 0
     const apply = () => {
       const now = performance.now()
-      root.querySelectorAll<HTMLElement>('[data-word]').forEach((word, i) => {
+      const words = root.querySelectorAll<HTMLElement>('[data-word]')
+      while (settled < words.length && now - (arrivals[settled] ?? now) >= WORD_FADE_MS) settled++
+      for (let i = settled; i < words.length; i++) {
+        const word = words[i]
         const age = now - (arrivals[i] ??= now)
-        if (age >= WORD_FADE_MS || word.classList.contains('animate-word-in')) return
+        if (age >= WORD_FADE_MS || word.classList.contains('animate-word-in')) continue
         word.style.animationDelay = `${-age}ms`
         word.classList.add('animate-word-in')
-      })
+      }
     }
+    const addsWord = (node: Node) =>
+      node instanceof Element && (node.matches('[data-word]') || node.querySelector('[data-word]'))
     apply()
-    const observer = new MutationObserver(apply)
+    // only a newly inserted word element can lack its fade class
+    const observer = new MutationObserver((records) => {
+      if (records.some((record) => Array.from(record.addedNodes).some(addsWord))) apply()
+    })
     observer.observe(root, { childList: true, subtree: true })
     return () => observer.disconnect()
   }, [ref, active])
 }
 
 /** An assistant answer as Markdown, streaming-aware via streamdown. */
-export function AssistantBubble({
+export const AssistantBubble = memo(function AssistantBubble({
   text,
   isStreaming = false
 }: {
@@ -105,4 +116,4 @@ export function AssistantBubble({
       </BubbleContent>
     </Bubble>
   )
-}
+})
