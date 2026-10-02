@@ -1,14 +1,42 @@
-import { and, asc, eq, inArray, isNull, notInArray, or, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  notInArray,
+  or,
+  sql,
+  type SQL
+} from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, budgets, categories, categoryGroups, transactions } from '../db/schema'
 import { notOpeningSql, notTransferSql } from '../db/system-categories'
-import { transactionDate } from '../db/expressions'
 import { bucketSql } from '../reports/query'
 import { computeEnvelopes, type BudgetFillRow, type EnvelopeComputation } from './rollover'
 import type { BudgetSummary, EnvelopeSummary } from '@shared/budgets'
 
 // expense magnitude, matching measureSql('expense') in reports/query.ts
 const expenseSql = sql<number>`coalesce(sum(case when ${transactions.amount} < 0 then -${transactions.amount} else 0 end), 0)`
+
+const DAY_SECONDS = 24 * 60 * 60
+
+/**
+ * A plain epoch range around the local months from..to ('YYYY-MM'), so the
+ * date index can narrow rows before the exact local-month test runs on them.
+ * A day of slack each side covers every UTC offset.
+ */
+function monthSpan(from: string, to: string): SQL {
+  const [fromYear, fromMonth] = from.split('-').map(Number)
+  const [toYear, toMonth] = to.split('-').map(Number)
+  return and(
+    gte(transactions.effectiveDate, Date.UTC(fromYear, fromMonth - 1, 1) / 1000 - DAY_SECONDS),
+    lt(transactions.effectiveDate, Date.UTC(toYear, toMonth, 1) / 1000 + DAY_SECONDS)
+  )!
+}
 
 // budgets are scalar amounts, so they can't keep currencies apart the way
 // report series do; display everything in the most common account currency
@@ -34,7 +62,11 @@ export function getBudgetSummary(month: string): BudgetSummary {
   const monthBucket = bucketSql('month')
   // a starting balance is account setup, not money budgeted or spent; without
   // this it would land in the unbudgeted bucket as a large one-off income
-  const basePreds = [isNull(transactions.deletedAt), sql`${transactionDate} > 0`, notOpeningSql()]
+  const basePreds = [
+    isNull(transactions.deletedAt),
+    gt(transactions.effectiveDate, 0),
+    notOpeningSql()
+  ]
 
   let computed: EnvelopeComputation[] = []
   let minMonth: string | null = null
@@ -48,6 +80,7 @@ export function getBudgetSummary(month: string): BudgetSummary {
         and(
           ...basePreds,
           inArray(transactions.categoryId, categoryIds),
+          monthSpan(minMonth, month),
           sql`${monthBucket} >= ${minMonth}`,
           sql`${monthBucket} <= ${month}`
         )
@@ -62,7 +95,12 @@ export function getBudgetSummary(month: string): BudgetSummary {
   // Transfers excluded). Envelopes that start after the viewed month don't
   // count as budgeted for it, so their spending lands here too.
   const activeIds = computed.map((e) => e.categoryId)
-  const unbudgetedPreds = [...basePreds, sql`${monthBucket} = ${month}`, notTransferSql()]
+  const unbudgetedPreds = [
+    ...basePreds,
+    monthSpan(month, month),
+    sql`${monthBucket} = ${month}`,
+    notTransferSql()
+  ]
   if (activeIds.length > 0) {
     unbudgetedPreds.push(
       or(isNull(transactions.categoryId), notInArray(transactions.categoryId, activeIds))!

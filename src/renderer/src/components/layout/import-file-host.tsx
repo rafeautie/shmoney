@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react'
-import { ImportDialog } from '@/components/accounts/import-dialog'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useImportUi } from '@/lib/import-ui'
+
+// fetched the first time an import starts, not with the app shell
+const ImportDialog = lazy(() =>
+  import('@/components/accounts/import-dialog').then((m) => ({ default: m.ImportDialog }))
+)
 
 type OpenedFile = { fileName: string; bytes: Uint8Array }
 
@@ -11,21 +15,29 @@ type OpenedFile = { fileName: string; bytes: Uint8Array }
  *
  * Dropping a file is handled only by the dialog's own drop zone.
  */
-export function ImportFileHost(): React.JSX.Element {
+export function ImportFileHost(): React.JSX.Element | null {
   const { open, setOpen } = useImportUi()
   const [file, setFile] = useState<OpenedFile | null>(null)
+  const [started, setStarted] = useState(false)
 
   useEffect(() => window.api.app.onOpenImportFile(setFile), [])
 
+  const isOpen = open || file !== null
+  // once loaded, stay mounted so the close animation plays
+  if (isOpen && !started) setStarted(true)
+  if (!started) return null
+
   return (
-    <ImportDialog
-      open={open || file !== null}
-      onOpenChange={(next) => {
-        if (next) return
-        setOpen(false)
-        setFile(null)
-      }}
-      initialFile={file ?? undefined}
-    />
+    <Suspense fallback={null}>
+      <ImportDialog
+        open={isOpen}
+        onOpenChange={(next) => {
+          if (next) return
+          setOpen(false)
+          setFile(null)
+        }}
+        initialFile={file ?? undefined}
+      />
+    </Suspense>
   )
 }

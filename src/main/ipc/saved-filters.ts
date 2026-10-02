@@ -21,18 +21,16 @@ const log = createLogger('saved-filters')
 
 /**
  * Soft-deleted presets from a prior session had their undo toast close with the
- * app, so there's no restoring them; runs once at startup, before the renderer
- * exists, and hard-deletes those rows for good. Same-session deletes stay
+ * app, so there's no restoring them; runs once at startup, before the renderer's
+ * first IPC is served, and hard-deletes those rows for good. Same-session deletes stay
  * restorable since this never runs mid-session.
  */
-function purgeDeletedSavedFilters(): void {
+export function purgeDeletedSavedFilters(): void {
   const removed = db.delete(savedFilters).where(isNotNull(savedFilters.deletedAt)).run().changes
   if (removed > 0) log.info('saved-filters.purged-deleted', { count: removed })
 }
 
 export function registerSavedFiltersIpc(): void {
-  purgeDeletedSavedFilters()
-
   ipcMain.handle(SAVED_FILTERS_IPC.list, (): SavedFilter[] => {
     const rows = db
       .select()

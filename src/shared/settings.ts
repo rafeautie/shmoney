@@ -26,6 +26,8 @@ export const settingSchemas = {
   applyRulesOnSync: z.boolean(),
   // suggest new rules when identical transactions get categorized repeatedly
   ruleSuggestionsEnabled: z.boolean(),
+  // fingerprint of the enabled rules the last accepted-suggestion heal ran against
+  ruleSuggestionsHealedFor: z.string().nullable(),
   // whether the first-run onboarding dialog has been finished or skipped
   onboardingComplete: z.boolean(),
   // newest automated Activity entry the user has seen; drives the Activity nav dot
@@ -54,6 +56,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   detectTransfers: true,
   applyRulesOnSync: true,
   ruleSuggestionsEnabled: true,
+  ruleSuggestionsHealedFor: null,
   onboardingComplete: false,
   activitySeenAt: null,
   activitySource: null,

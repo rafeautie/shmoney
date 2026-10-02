@@ -124,9 +124,26 @@ export const transactions = sqliteTable(
     categoryId: integer('category_id').references(() => categories.id, { onDelete: 'set null' }),
     // soft delete (unix seconds): read paths exclude these rows; sync upserts
     // must never touch this column or deletes would revert on every sync
-    deletedAt: integer('deleted_at')
+    deletedAt: integer('deleted_at'),
+    // transactionDate (db/expressions.ts) as a column, so the list sort and
+    // date ranges can use an index. VIRTUAL: ALTER TABLE can't add STORED.
+    effectiveDate: integer('effective_date')
+      .notNull()
+      .generatedAlwaysAs(sql`coalesce(nullif("posted", 0), "transacted_at", 0)`, {
+        mode: 'virtual'
+      })
   },
-  (t) => [uniqueIndex('transactions_account_sfid_ux').on(t.accountId, t.simplefinId)]
+  (t) => [
+    uniqueIndex('transactions_account_sfid_ux').on(t.accountId, t.simplefinId),
+    // partial: every list and aggregate already excludes soft-deleted rows
+    index('transactions_date_ix')
+      .on(t.effectiveDate, t.id)
+      .where(sql`${t.deletedAt} is null`),
+    index('transactions_account_date_ix')
+      .on(t.accountId, t.effectiveDate, t.id)
+      .where(sql`${t.deletedAt} is null`),
+    index('transactions_category_ix').on(t.categoryId)
+  ]
 )
 
 export const reports = sqliteTable('reports', {
@@ -216,9 +233,35 @@ export const actionLog = sqliteTable(
     // unix millis when undone; null = currently applied
     undoneAt: integer('undone_at'),
     // null for a standalone entry (and everything logged before runs existed)
-    runId: integer('run_id').references(() => actionRuns.id)
+    runId: integer('run_id').references(() => actionRuns.id),
+    // the names and titles changes carry, newline-joined, for Activity search;
+    // written once by recordAction (changes are immutable)
+    searchText: text('search_text').notNull().default('')
   },
-  (t) => [index('action_log_run_ix').on(t.runId)]
+  (t) => [
+    index('action_log_run_ix').on(t.runId),
+    // the startup purge of stale undone entries
+    index('action_log_undone_ix')
+      .on(t.undoneAt)
+      .where(sql`${t.undoneAt} is not null`)
+  ]
+)
+
+// which transactions each entry touched, so Activity search can match an
+// entry by its transactions' current descriptions without scanning every
+// entry's changes JSON. No FK to transactions: a removed row just stops matching.
+export const actionLogTransactions = sqliteTable(
+  'action_log_transactions',
+  {
+    entryId: integer('entry_id')
+      .notNull()
+      .references(() => actionLog.id, { onDelete: 'cascade' }),
+    transactionId: integer('transaction_id').notNull()
+  },
+  (t) => [
+    primaryKey({ columns: [t.entryId, t.transactionId] }),
+    index('action_log_transactions_tx_ix').on(t.transactionId)
+  ]
 )
 
 // user-defined "if conditions then action" rules. Applied on sync (after the
@@ -375,7 +418,12 @@ export const chatMessages = sqliteTable(
     stats: text('stats', { mode: 'json' }).$type<GenerationStats | null>(),
     createdAt: integer('created_at').notNull()
   },
-  (t) => [index('chat_messages_conversation_ix').on(t.conversationId, t.id)]
+  (t) => [
+    index('chat_messages_conversation_ix').on(t.conversationId, t.id),
+    // recoverAbandonedTurns' status = ? at startup; a bound parameter can't
+    // match a partial index's literal, so this one is whole
+    index('chat_messages_status_ix').on(t.status)
+  ]
 )
 
 // one row per inference request, read by the AI usage settings page. Apart

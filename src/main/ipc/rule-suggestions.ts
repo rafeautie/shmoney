@@ -1,9 +1,12 @@
+import { createHash } from 'node:crypto'
 import { ipcMain } from 'electron'
 import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { categories, ruleSuggestions, settings, transactions } from '../db/schema'
 import { notOpeningSql, notTransferSql } from '../db/system-categories'
 import { compileConditions } from '../rules'
+import { createPhraseCounter } from '../phrase-counts'
+import { readSettings, writeSetting } from '../settings-store'
 import { loadEnabledRules } from './rules'
 import { extractRuleTerm } from '../llm/features/extract-rule-term'
 import { sendToRenderer } from '../llm/manager'
@@ -30,23 +33,24 @@ function matchPredicate(phrase: string): SQL {
   return compileConditions({ description: { op: 'contains', phrases: [phrase] } })
 }
 
-// how many current transactions the suggestion's rule would reach. Ignores
-// category so a partly-categorized cluster still counts.
-function countMatching(phrase: string): number {
-  return (
+// how many current transactions a suggestion's rule would reach, for any
+// number of phrases off one grouped scan. Ignores category so a
+// partly-categorized cluster still counts.
+function phraseCounter(): (phrase: string) => number {
+  return createPhraseCounter(
     db
-      .select({ n: sql<number>`count(*)` })
+      .select({ description: transactions.description, n: sql<number>`count(*)` })
       .from(transactions)
       .where(
         and(
-          matchPredicate(phrase),
           isNull(transactions.deletedAt),
           eq(transactions.pending, false),
           notTransferSql(),
           notOpeningSql()
         )
       )
-      .get()?.n ?? 0
+      .groupBy(transactions.description)
+      .all()
   )
 }
 
@@ -113,6 +117,7 @@ export async function detectRuleSuggestions(
   }
 
   const rules = loadEnabledRules()
+  let countMatching = phraseCounter()
   let created = 0
   for (const { description, categoryId } of pairs.values()) {
     const count = countMatching(description)
@@ -149,6 +154,8 @@ export async function detectRuleSuggestions(
     // the model narrows the description to a reusable term, taken as-is; when
     // it isn't available or fails, the exact description is the pre-LLM behavior
     const phrase = (await extractRuleTerm(description)) ?? description
+    // transactions can change while the model runs
+    countMatching = phraseCounter()
 
     // two clusters can extract the same term; (phrase, category) is the
     // suggestion's identity, so fold into the existing row when one exists
@@ -200,6 +207,8 @@ function listSuggestions(): RuleSuggestion[] {
     .innerJoin(categories, eq(ruleSuggestions.categoryId, categories.id))
     .where(eq(ruleSuggestions.status, 'pending'))
     .all()
+  if (rows.length === 0) return []
+  const countMatching = phraseCounter()
   return (
     rows
       .map((r) => ({
@@ -231,6 +240,8 @@ export function pruneOrphanedSuggestions(): number {
     .select({ id: ruleSuggestions.id, phrase: ruleSuggestions.phrase })
     .from(ruleSuggestions)
     .all()
+  if (rows.length === 0) return 0
+  const countMatching = phraseCounter()
   const orphaned = rows.filter((r) => countMatching(r.phrase) === 0).map((r) => r.id)
   if (orphaned.length === 0) return 0
   db.delete(ruleSuggestions).where(inArray(ruleSuggestions.id, orphaned)).run()
@@ -254,33 +265,50 @@ function setStatus(id: number, status: 'dismissed' | 'accepted'): boolean {
  */
 export function reopenUncoveredAcceptedSuggestions(): void {
   if (!suggestionsEnabled()) return
+  const rules = loadEnabledRules()
   const accepted = db
     .select()
     .from(ruleSuggestions)
     .where(eq(ruleSuggestions.status, 'accepted'))
     .all()
-  if (accepted.length === 0) return
 
-  const rules = loadEnabledRules()
   const now = Date.now()
   let reopened = 0
-  for (const row of accepted) {
-    if (countMatching(row.phrase) < MIN_IDENTICAL) continue
-    if (alreadyCovered(row.phrase, row.categoryId, rules)) continue
-    // createdAt moves to now: this is a fresh suggestion event, not the old one
-    db.update(ruleSuggestions)
-      .set({ status: 'pending', createdAt: now, updatedAt: now })
-      .where(eq(ruleSuggestions.id, row.id))
-      .run()
-    reopened++
+  if (accepted.length > 0) {
+    const countMatching = phraseCounter()
+    for (const row of accepted) {
+      if (countMatching(row.phrase) < MIN_IDENTICAL) continue
+      if (alreadyCovered(row.phrase, row.categoryId, rules)) continue
+      // createdAt moves to now: this is a fresh suggestion event, not the old one
+      db.update(ruleSuggestions)
+        .set({ status: 'pending', createdAt: now, updatedAt: now })
+        .where(eq(ruleSuggestions.id, row.id))
+        .run()
+      reopened++
+    }
   }
+  writeSetting('ruleSuggestionsHealedFor', rulesFingerprint(rules))
   if (reopened > 0) sendToRenderer(RULE_SUGGESTIONS_CREATED, { count: reopened })
 }
 
-export function registerRuleSuggestionsIpc(): void {
-  // heal accepted pairs whose rule disappeared while the app was closed
-  reopenUncoveredAcceptedSuggestions()
+function rulesFingerprint(rules: ReturnType<typeof loadEnabledRules>): string {
+  const shape = rules.map((r) => [r.id, r.conditions, r.action])
+  return createHash('sha256').update(JSON.stringify(shape)).digest('hex')
+}
 
+/**
+ * The launch-time heal for accepted pairs whose rule disappeared while the app
+ * was closed. Skipped when the enabled rules are the ones the last heal saw,
+ * since only a rule change can uncover an accepted pair.
+ */
+export function healAcceptedSuggestionsOnLaunch(): void {
+  if (!suggestionsEnabled()) return
+  const fingerprint = rulesFingerprint(loadEnabledRules())
+  if (readSettings().ruleSuggestionsHealedFor === fingerprint) return
+  reopenUncoveredAcceptedSuggestions()
+}
+
+export function registerRuleSuggestionsIpc(): void {
   ipcMain.handle(RULE_SUGGESTIONS_IPC.list, (): RuleSuggestion[] => listSuggestions())
   ipcMain.handle(RULE_SUGGESTIONS_IPC.dismiss, (_event, input: unknown): boolean =>
     setStatus(idSchema.parse(input), 'dismissed')

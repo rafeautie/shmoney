@@ -4,6 +4,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Delete02Icon, PencilEdit02Icon, PlusSignIcon } from '@hugeicons/core-free-icons'
 import type { Category, CategoryGroup } from '@shared/ipc'
 import { ipcErrorMessage } from '@/lib/utils'
+import { invalidateCategoryData } from '@/lib/invalidate'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SettingsGroup, SettingAction, SettingsSection } from './settings-controls'
@@ -22,12 +23,12 @@ export function CategoriesSettings() {
   const createGroup = useMutation({
     mutationFn: () => window.api.categories.createGroup({ name: newGroupName }),
     onSuccess: () => setNewGroupName(''),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateCategoryData(queryClient)
   })
 
   const resetDefaults = useMutation({
     mutationFn: () => window.api.categories.resetDefaults(),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateCategoryData(queryClient)
   })
 
   return (
@@ -132,12 +133,12 @@ function GroupSection({ group }: { group: CategoryGroup }) {
   const renameGroup = useMutation({
     mutationFn: (name: string) => window.api.categories.renameGroup({ id: group.id, name }),
     onSuccess: () => setRenameDraft(null),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateCategoryData(queryClient)
   })
 
   const deleteGroup = useMutation({
     mutationFn: () => window.api.categories.deleteGroup(group.id),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateCategoryData(queryClient)
   })
 
   const error = deleteGroup.error ?? renameGroup.error
@@ -209,7 +210,7 @@ function CategoryList({ groupId, categories }: { groupId: number | null; categor
   const createCategory = useMutation({
     mutationFn: () => window.api.categories.create({ groupId, name: newCategoryName }),
     onSuccess: () => setNewCategoryName(''),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateCategoryData(queryClient)
   })
 
   return (
@@ -275,12 +276,12 @@ function CategoryChip({ category }: { category: Category }) {
   const rename = useMutation({
     mutationFn: () => window.api.categories.rename({ id: category.id, name: renameDraft }),
     onSuccess: () => setMode('view'),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateCategoryData(queryClient)
   })
 
   const deleteCategory = useMutation({
     mutationFn: () => window.api.categories.delete(category.id),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateCategoryData(queryClient)
   })
 
   const error = rename.error ?? deleteCategory.error

@@ -32,6 +32,19 @@ const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' 
 
 const log = createLogger('rules')
 
+// SQLite caps bound variables per statement at 32,766; id lists that grow with
+// the user's data go through in slices well under that
+const SQL_ID_CHUNK = 5000
+
+export function chunked<T>(items: T[], size = SQL_ID_CHUNK): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
+}
+
+/** how many rows per rule the dry-run sends back; the rest are only counted */
+const PREVIEW_ROWS_PER_RULE = 50
+
 function nowSec(): number {
   return Math.floor(Date.now() / 1000)
 }
@@ -156,14 +169,37 @@ export interface RuleApplyScope {
 }
 
 // rows a run may touch: within scope, not pending (sync drops and re-inserts
-// them, so any change would be lost) and not soft-deleted
-function baseFilter(scope?: RuleApplyScope): SQL {
-  const scopeFilter = scope?.transactionIds
-    ? inArray(transactions.id, scope.transactionIds)
-    : scope?.accountId !== undefined
-      ? eq(transactions.accountId, scope.accountId)
-      : undefined
-  return and(scopeFilter, eq(transactions.pending, false), isNull(transactions.deletedAt))!
+// them, so any change would be lost) and not soft-deleted. An id scope comes
+// back as one filter per slice of ids; the union of their matches is the scope.
+function baseFilters(scope?: RuleApplyScope): SQL[] {
+  const live = and(eq(transactions.pending, false), isNull(transactions.deletedAt))!
+  const ids = scope?.transactionIds
+  if (ids) {
+    if (ids.length === 0) return [and(inArray(transactions.id, ids), live)!]
+    return chunked(ids).map((part) => and(inArray(transactions.id, part), live)!)
+  }
+  if (scope?.accountId !== undefined)
+    return [and(eq(transactions.accountId, scope.accountId), live)!]
+  return [live]
+}
+
+// one rule's matches across every base filter, minus rows an earlier rule claimed
+function matchRule(
+  tx: Tx,
+  bases: SQL[],
+  rule: Rule,
+  overrideCategories: boolean,
+  claimed: Set<number>
+): { id: number; categoryId: number | null }[] {
+  const conditions = and(eligibility(overrideCategories), compileConditions(rule.conditions))
+  return bases.flatMap((base) =>
+    tx
+      .select({ id: transactions.id, categoryId: transactions.categoryId })
+      .from(transactions)
+      .where(and(base, conditions))
+      .all()
+      .filter((r) => !claimed.has(r.id))
+  )
 }
 
 // which matched rows a rule may claim: only blank categories unless overriding,
@@ -190,7 +226,7 @@ export function applyRulesInTx(
     scope
   }: { overrideCategories?: boolean; scope?: RuleApplyScope } = {}
 ): RulesApplyResult {
-  const base = baseFilter(scope)
+  const bases = baseFilters(scope)
   const claimed = new Set<number>()
   let categorized = 0
   let rulesFired = 0
@@ -198,12 +234,7 @@ export function applyRulesInTx(
   for (const rule of loadApplicableRules(tx)) {
     // matching runs in SQL; the first rule to claim a row owns it, so later
     // rules skip anything already claimed
-    const matched = tx
-      .select({ id: transactions.id, categoryId: transactions.categoryId })
-      .from(transactions)
-      .where(and(base, eligibility(overrideCategories), compileConditions(rule.conditions)))
-      .all()
-      .filter((r) => !claimed.has(r.id))
+    const matched = matchRule(tx, bases, rule, overrideCategories, claimed)
     if (matched.length === 0) continue
     for (const r of matched) claimed.add(r.id)
 
@@ -213,7 +244,9 @@ export function applyRulesInTx(
     const changed = matched.filter((r) => (r.categoryId ?? null) !== categoryId)
     if (changed.length === 0) continue
     const ids = changed.map((r) => r.id)
-    tx.update(transactions).set({ categoryId }).where(inArray(transactions.id, ids)).run()
+    for (const part of chunked(ids)) {
+      tx.update(transactions).set({ categoryId }).where(inArray(transactions.id, part)).run()
+    }
     recordAction(tx, {
       source: 'rule',
       label: `Rule "${rule.name}" categorized ${plural(ids.length, 'transaction')}`,
@@ -230,25 +263,28 @@ export function applyRulesInTx(
   return { categorized, rulesFired }
 }
 
-// dry-run: the same matching, but instead of writing, enrich each affected row
-// with its display context and group by the rule that would touch it
+// dry-run: the same matching, but instead of writing, enrich the first few
+// affected rows of each rule with their display context and count the rest.
+// Matching still covers every row, so later rules skip exactly what apply would.
 function previewRules(tx: Tx, overrideCategories = false): RulePreview {
-  const base = baseFilter() // preview always considers every untouched row
+  const bases = baseFilters() // preview always considers every untouched row
   const claimed = new Set<number>()
-  // per rule, the rows it would change (after no-op filtering), in priority order
-  const groups: { rule: Rule; rows: { id: number; categoryId: number | null }[] }[] = []
+  // per rule, how many rows it would change (after no-op filtering) and the
+  // first of them, in priority order
+  const groups: {
+    rule: Rule
+    total: number
+    rows: { id: number; categoryId: number | null }[]
+  }[] = []
   for (const rule of loadApplicableRules(tx)) {
-    const matched = tx
-      .select({ id: transactions.id, categoryId: transactions.categoryId })
-      .from(transactions)
-      .where(and(base, eligibility(overrideCategories), compileConditions(rule.conditions)))
-      .all()
-      .filter((r) => !claimed.has(r.id))
+    const matched = matchRule(tx, bases, rule, overrideCategories, claimed)
     if (matched.length === 0) continue
     for (const r of matched) claimed.add(r.id)
     // drop no-op rows already at the target (only reachable under override)
     const rows = matched.filter((r) => (r.categoryId ?? null) !== rule.action.categoryId)
-    if (rows.length > 0) groups.push({ rule, rows })
+    if (rows.length > 0) {
+      groups.push({ rule, total: rows.length, rows: rows.slice(0, PREVIEW_ROWS_PER_RULE) })
+    }
   }
 
   const touched = [...new Set(groups.flatMap((g) => g.rows.map((r) => r.id)))]
@@ -288,7 +324,15 @@ function previewRules(tx: Tx, overrideCategories = false): RulePreview {
       return [{ ...c, targetCategoryName, currentCategoryName }]
     })
     if (txns.length === 0) return []
-    return [{ ruleId: g.rule.id, ruleName: g.rule.name, action: g.rule.action, transactions: txns }]
+    return [
+      {
+        ruleId: g.rule.id,
+        ruleName: g.rule.name,
+        action: g.rule.action,
+        total: g.total,
+        transactions: txns
+      }
+    ]
   })
 }
 

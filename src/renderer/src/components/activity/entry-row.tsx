@@ -1,18 +1,16 @@
 import { useState, type ReactNode } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, isToday } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import { isSavingsGoalChange, type ActionLogEntry } from '@shared/ipc'
 import { cn, plural } from '@/lib/utils'
 import { SOURCE_CREDIT } from '@/lib/activity-feed'
+import { invalidateAfterUndo } from './invalidate-after-undo'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { ChangeLine } from './change-line'
 import { SourceIcon } from './source-icon'
-
-// a long entry opens on its first lines; the rest are one click away
-const PREVIEW_LINES = 8
 
 function noun(entry: ActionLogEntry): string {
   const c = entry.changes[0]
@@ -21,16 +19,6 @@ function noun(entry: ActionLogEntry): string {
   if (c.field === 'savedFilterDeletedAt') return 'saved filter'
   if (isSavingsGoalChange(c)) return 'savings goal'
   return 'transaction'
-}
-
-// a rule or detector entry sends every row to one category: name it up front
-function sharedTarget(entry: ActionLogEntry, categoryName: Map<number, string>): string | null {
-  const targets = new Set(
-    entry.changes.map((c) => (c.field === 'categoryId' ? c.after : undefined))
-  )
-  if (targets.size !== 1) return null
-  const [target] = targets
-  return typeof target === 'number' ? (categoryName.get(target) ?? null) : null
 }
 
 function undoneLabel(undoneAt: number): string {
@@ -83,15 +71,23 @@ export function EntryRow({
   const queryClient = useQueryClient()
   const [showAll, setShowAll] = useState(false)
   const undone = entry.undoneAt !== null
-  const target = sharedTarget(entry, categoryName)
+  // a rule or detector entry sends every row to one category: name it up front
+  const target =
+    entry.sharedCategoryId !== null ? (categoryName.get(entry.sharedCategoryId) ?? null) : null
   const credit = nested ? undefined : SOURCE_CREDIT[entry.source]
-  const lines = showAll ? entry.changes : entry.changes.slice(0, PREVIEW_LINES)
-  const hidden = entry.changes.length - lines.length
+  // a long entry opens on the page's preview lines; the rest load on request
+  const allChanges = useQuery({
+    queryKey: ['actionLog', 'entryChanges', entry.id],
+    queryFn: () => window.api.actionLog.entryChanges(entry.id),
+    enabled: showAll
+  })
+  const lines = (showAll && allChanges.data) || entry.changes
+  const hidden = entry.changeCount - lines.length
 
   const toggle = useMutation({
     mutationFn: () =>
       undone ? window.api.actionLog.redoEntry(entry.id) : window.api.actionLog.undoEntry(entry.id),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateAfterUndo(queryClient, [entry])
   })
 
   return (
@@ -111,7 +107,7 @@ export function EntryRow({
               {entry.label}
             </div>
             <div className="truncate text-xs text-muted-foreground">
-              {format(new Date(entry.createdAt), 'p')} · {plural(entry.changes.length, noun(entry))}
+              {format(new Date(entry.createdAt), 'p')} · {plural(entry.changeCount, noun(entry))}
               {target && (
                 <>
                   {' '}
@@ -158,6 +154,7 @@ export function EntryRow({
             variant="link"
             size="sm"
             className="-ml-2 text-muted-foreground"
+            disabled={allChanges.isFetching}
             onClick={() => setShowAll(true)}
           >
             Show {hidden} more

@@ -11,10 +11,15 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // because the check reads the wall clock rather than counting ticks.
 const CHECK_INTERVAL_MS = 30 * 60 * 1000
 
+// a launch sync competes with the first screens for the main process, so it
+// waits until the app has settled
+const LAUNCH_DELAY_MS = 10_000
+const launchedAt = Date.now()
+
 /**
  * Mounted once at the root: keeps the connection synced roughly daily. It fires
  * a background sync when more than 24h have passed since the last successful one
- * (connection.lastSyncedAt) — immediately on launch if the app was closed across
+ * (connection.lastSyncedAt) — about 10s after launch if the app was closed across
  * that mark, and on a coarse interval so an app left open still syncs when the
  * mark is crossed. Reuses the same sync path as the manual button, so transfer
  * detection, rules, and query invalidation all run; what it changed shows up
@@ -45,9 +50,12 @@ export function AutoSyncHost(): null {
       mutate()
     }
 
-    check()
+    const first = window.setTimeout(check, launchedAt + LAUNCH_DELAY_MS - Date.now())
     const id = window.setInterval(check, CHECK_INTERVAL_MS)
-    return () => window.clearInterval(id)
+    return () => {
+      window.clearTimeout(first)
+      window.clearInterval(id)
+    }
   }, [lastSyncedAt, mutate])
 
   return null

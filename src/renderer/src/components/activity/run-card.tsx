@@ -5,6 +5,7 @@ import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import type { ActionLogEntry, ActionRun } from '@shared/ipc'
 import { cn } from '@/lib/utils'
 import { runSummary } from '@/lib/activity-feed'
+import { invalidateAfterUndo } from './invalidate-after-undo'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { EntryRow, RowAvatar, UndoneTag } from './entry-row'
@@ -27,7 +28,7 @@ export function RunCard({
   const toggle = useMutation({
     mutationFn: () =>
       allUndone ? window.api.actionLog.redoRun(run.id) : window.api.actionLog.undoRun(run.id),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateAfterUndo(queryClient, entries)
   })
 
   return (

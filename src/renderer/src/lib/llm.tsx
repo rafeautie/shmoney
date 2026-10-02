@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import {
@@ -14,7 +14,74 @@ import {
 } from '@shared/llm'
 import type { CategorizeScopeInput } from '@shared/ipc'
 import { ipcErrorMessage, plural } from '@/lib/utils'
+import { invalidateTransactionData } from '@/lib/invalidate'
 import { notify } from '@/lib/notify'
+
+// One IPC listener per push channel no matter how many components read it (every
+// ThoughtChain in a chat calls useLlmStatus), started on first use and dropped
+// when the last reader unmounts.
+function refCounted(start: () => () => void): () => () => void {
+  let count = 0
+  let stop: (() => void) | null = null
+  return () => {
+    if (count++ === 0) stop = start()
+    return () => {
+      if (--count === 0) {
+        stop?.()
+        stop = null
+      }
+    }
+  }
+}
+
+function pushStore<T>(
+  initial: T,
+  listen: (set: (value: T) => void) => () => void
+): {
+  subscribe: (onChange: () => void) => () => void
+  get: () => T
+  set: (value: T) => void
+} {
+  let value = initial
+  const listeners = new Set<() => void>()
+  const set = (next: T): void => {
+    value = next
+    listeners.forEach((l) => l())
+  }
+  const acquire = refCounted(() => listen(set))
+  return {
+    subscribe: (onChange) => {
+      listeners.add(onChange)
+      const release = acquire()
+      return () => {
+        listeners.delete(onChange)
+        release()
+      }
+    },
+    get: () => value,
+    set
+  }
+}
+
+let statusClient: ReturnType<typeof useQueryClient> | null = null
+const acquireStatusListener = refCounted(() =>
+  window.api.llm.onStatusChanged((status) => {
+    statusClient?.setQueryData<LlmStatus>(LLM_STATUS_QUERY_KEY, status)
+  })
+)
+
+type ProgressMap = Partial<Record<ModelId, LlmDownloadProgress>>
+const downloadStore = pushStore<ProgressMap>({}, (set) => {
+  let current: ProgressMap = {}
+  return window.api.llm.onDownloadProgress((p) => {
+    current = { ...current, [p.modelId]: p }
+    set(current)
+  })
+})
+
+const categorizeStore = pushStore<CategorizeProgress | null>(null, (set) =>
+  window.api.llm.onCategorizeProgress(set)
+)
 
 export const LLM_STATUS_QUERY_KEY = ['llm', 'status'] as const
 export const LLM_HARDWARE_QUERY_KEY = ['llm', 'hardware'] as const
@@ -27,9 +94,8 @@ export function useLlmStatus() {
   })
 
   useEffect(() => {
-    return window.api.llm.onStatusChanged((status) => {
-      queryClient.setQueryData<LlmStatus>(LLM_STATUS_QUERY_KEY, status)
-    })
+    statusClient = queryClient
+    return acquireStatusListener()
   }, [queryClient])
 
   return query
@@ -104,15 +170,7 @@ export function useLlmReady(): boolean {
  */
 export function useLlmDownloadProgress(): Record<ModelId, LlmDownloadProgress | null> {
   const models = useLlmStatus().data?.models
-  const [progress, setProgress] = useState<Partial<Record<ModelId, LlmDownloadProgress>>>({})
-
-  useEffect(
-    () =>
-      window.api.llm.onDownloadProgress((p) =>
-        setProgress((prev) => ({ ...prev, [p.modelId]: p }))
-      ),
-    []
-  )
+  const progress = useSyncExternalStore(downloadStore.subscribe, downloadStore.get)
 
   return Object.fromEntries(
     MODEL_IDS.map((id) => [
@@ -194,7 +252,7 @@ export function useAutoCategorize(scope: CategorizeScopeInput): AutoCategorize {
       }
     },
     onError: (error) => notify.error(ipcErrorMessage(error)),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateTransactionData(queryClient)
   })
 
   return {
@@ -215,15 +273,14 @@ export interface CategorizeRun {
 /** The app-wide categorize run, whichever trigger started it: live progress and cancel. */
 export function useCategorizeRun(): CategorizeRun {
   const running = useIsMutating({ mutationKey: CATEGORIZE_MUTATION_KEY }) > 0
-  const [progress, setProgress] = useState<CategorizeProgress | null>(null)
+  const progress = useSyncExternalStore(categorizeStore.subscribe, categorizeStore.get)
   const [canceling, setCanceling] = useState(false)
 
-  useEffect(() => window.api.llm.onCategorizeProgress(setProgress), [])
   // a finished run's numbers and cancel flag must not carry into the next run
   useEffect(() => {
     if (running) return
+    categorizeStore.set(null)
     // eslint-disable-next-line react-hooks/set-state-in-effect -- resets push-fed state when the run ends; there is no render-derivable source for it
-    setProgress(null)
     setCanceling(false)
   }, [running])
 

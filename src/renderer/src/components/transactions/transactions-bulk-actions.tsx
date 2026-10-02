@@ -6,6 +6,7 @@ import type { Transaction } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { invalidateTransactionData } from '@/lib/invalidate'
 import { CategoryPicker } from './category-picker'
 import {
   categorizeRunLabel,
@@ -47,7 +48,7 @@ export function TransactionsBulkActions({
         changes: transactions.map((t) => ({ transactionId: t.id, categoryId }))
       }),
     onSuccess: () => setCategoryOpen(false),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateTransactionData(queryClient)
   })
 
   const deleteTransactions = useMutation({
@@ -55,7 +56,7 @@ export function TransactionsBulkActions({
     onSuccess: () => {
       setConfirmDelete(false)
     },
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateTransactionData(queryClient)
   })
 
   // all controls are disabled while auto-categorize is running

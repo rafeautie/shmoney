@@ -46,7 +46,14 @@ window.addEventListener('unhandledrejection', (e) =>
 
 // settings come from SQLite via IPC; seed the query cache before the first
 // render so the initial paint already has the right theme/blur/sidebar state
-queryClient.setQueryData(SETTINGS_QUERY_KEY, await window.api.settings.getAll())
+queryClient.setQueryData(SETTINGS_QUERY_KEY, await window.api.settings.initial())
+
+// main keeps the window hidden until the first route has rendered with its
+// data, so launch never shows an empty shell
+const unsubscribeRendered = router.subscribe('onRendered', () => {
+  unsubscribeRendered()
+  window.api.app.ready()
+})
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

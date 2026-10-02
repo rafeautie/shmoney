@@ -6,19 +6,19 @@ import type { CsvMapping } from '@shared/import'
 const noon = (y: number, m0: number, d: number): number => new Date(y, m0, d, 12).getTime() / 1000
 
 describe('parseCsv', () => {
-  it('splits headers from rows and auto-detects TSV', () => {
-    expect(parseCsv('Date,Amount\n1/1/2024,5.00\n')).toEqual({
+  it('splits headers from rows and auto-detects TSV', async () => {
+    expect(await parseCsv('Date,Amount\n1/1/2024,5.00\n')).toEqual({
       headers: ['Date', 'Amount'],
       rows: [['1/1/2024', '5.00']]
     })
-    expect(parseCsv('Date\tAmount\n1/1/2024\t5.00')).toEqual({
+    expect(await parseCsv('Date\tAmount\n1/1/2024\t5.00')).toEqual({
       headers: ['Date', 'Amount'],
       rows: [['1/1/2024', '5.00']]
     })
   })
 
-  it('handles quoted fields with embedded commas', () => {
-    const { rows } = parseCsv('Date,Description,Amount\n1/1/2024,"ACME, INC",-9.99')
+  it('handles quoted fields with embedded commas', async () => {
+    const { rows } = await parseCsv('Date,Description,Amount\n1/1/2024,"ACME, INC",-9.99')
     expect(rows[0][1]).toBe('ACME, INC')
   })
 })

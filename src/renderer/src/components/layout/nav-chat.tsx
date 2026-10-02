@@ -16,8 +16,8 @@ import {
 export function NavChat() {
   const matchRoute = useMatchRoute()
   const onChat = !!matchRoute({ to: '/chat', fuzzy: false })
-  const search = useSearch({ strict: false }) as { c?: number }
-  const activeId = onChat ? (search.c ?? null) : null
+  const chatParam = useSearch({ strict: false, select: (s) => (s as { c?: number }).c })
+  const activeId = onChat ? (chatParam ?? null) : null
   // undefined while loading: show nothing rather than a flash of "no chats"
   const conversations = useConversations().data
 

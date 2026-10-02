@@ -1,14 +1,13 @@
 import { app, BrowserWindow, ipcMain } from 'electron'
-// electron-updater is CJS with getter-defined exports; a named import compiles
-// but throws at runtime in the ESM main bundle, so destructure the default
-import electronUpdater from 'electron-updater'
+import type { AppUpdater } from 'electron-updater'
 import { createLogger } from '../logging'
 import { findNewerMacRelease } from '../release-check'
 import { UPDATES_IPC, type UpdateState } from '@shared/updates'
 
-const { autoUpdater } = electronUpdater
-
 const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000
+
+// download-progress fires per chunk; the sidebar redraws per push
+const PROGRESS_INTERVAL_MS = 250
 
 // set SHMONEY_TEST_UPDATES to exercise the update flow in dev against a
 // git-ignored dev-app-update.yml (see docs/RELEASING.md)
@@ -59,10 +58,26 @@ async function checkManually(): Promise<void> {
   }
 }
 
+// loaded on first use, not at startup: nothing needs it until the first check
+let updater: Promise<AppUpdater> | null = null
+function loadUpdater(): Promise<AppUpdater> {
+  updater ??= import('electron-updater').then((mod) => {
+    // CJS with getter-defined exports: a named import compiles but throws at
+    // runtime in the ESM main bundle, so go through the default
+    const { autoUpdater } = mod.default
+    listenToAutoUpdater(autoUpdater)
+    return autoUpdater
+  })
+  return updater
+}
+
 // failures surface through state (the 'error' event or checkManually), so
 // this never rejects
 function checkForUpdates(): Promise<unknown> {
-  return manual ? checkManually() : autoUpdater.checkForUpdates().catch(() => {})
+  if (manual) return checkManually()
+  return loadUpdater()
+    .then((autoUpdater) => autoUpdater.checkForUpdates())
+    .catch(() => {})
 }
 
 export function registerUpdatesIpc(): void {
@@ -72,13 +87,12 @@ export function registerUpdatesIpc(): void {
     return state
   })
   ipcMain.handle(UPDATES_IPC.quitAndInstall, (): void => {
-    if (state.status === 'downloaded') autoUpdater.quitAndInstall()
+    if (state.status === 'downloaded') void loadUpdater().then((u) => u.quitAndInstall())
   })
 }
 
 export function startUpdateChecks(): void {
   if (!supported) return
-  if (!manual) listenToAutoUpdater()
 
   // let startup (migrations, first window paint) win the first seconds
   setTimeout(() => void checkForUpdates(), 5_000)
@@ -87,7 +101,7 @@ export function startUpdateChecks(): void {
   }, CHECK_INTERVAL_MS)
 }
 
-function listenToAutoUpdater(): void {
+function listenToAutoUpdater(autoUpdater: AppUpdater): void {
   if (testing) autoUpdater.forceDevUpdateConfig = true
 
   // electron-updater's internals go to the same scrubbed local file; its
@@ -103,9 +117,13 @@ function listenToAutoUpdater(): void {
     setState({ status: 'downloading', version: info.version, progress: null })
   )
   autoUpdater.on('update-not-available', () => setState({ status: 'up-to-date' }))
-  autoUpdater.on('download-progress', (p) =>
+  let lastProgressAt = 0
+  autoUpdater.on('download-progress', (p) => {
+    const now = Date.now()
+    if (now - lastProgressAt < PROGRESS_INTERVAL_MS && p.percent < 100) return
+    lastProgressAt = now
     setState({ progress: { percent: p.percent, transferred: p.transferred, total: p.total } })
-  )
+  })
   autoUpdater.on('update-downloaded', (info) =>
     setState({ status: 'downloaded', version: info.version, progress: null })
   )

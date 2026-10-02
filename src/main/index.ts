@@ -9,18 +9,19 @@ import { runMigrations } from './db'
 import { registerConnectionsIpc } from './ipc/connections'
 import { registerCategoriesIpc } from './ipc/categories'
 import { registerTransactionsIpc } from './ipc/transactions'
-import { registerActionLogIpc } from './ipc/action-log'
+import { purgeStaleUndoneEntries, registerActionLogIpc } from './ipc/action-log'
 import { registerReportsIpc } from './ipc/reports'
 import { registerBudgetsIpc } from './ipc/budgets'
-import { registerSavedFiltersIpc } from './ipc/saved-filters'
-import { registerGoalsIpc } from './ipc/goals'
+import { purgeDeletedSavedFilters, registerSavedFiltersIpc } from './ipc/saved-filters'
+import { purgeDeletedGoals, registerGoalsIpc } from './ipc/goals'
 import { registerRulesIpc } from './ipc/rules'
-import { registerRuleSuggestionsIpc } from './ipc/rule-suggestions'
+import { healAcceptedSuggestionsOnLaunch, registerRuleSuggestionsIpc } from './ipc/rule-suggestions'
 import { registerSettingsIpc } from './ipc/settings'
 import { registerStorageIpc } from './ipc/storage'
 import { registerImportIpc } from './ipc/import'
 import { registerLlmIpc } from './ipc/llm'
 import { registerChatIpc } from './ipc/chat'
+import { purgeDeletedConversations, recoverAbandonedTurns } from './llm/features/chat'
 import { registerUpdatesIpc, startUpdateChecks } from './ipc/updates'
 import { registerLogIpc } from './ipc/log'
 import { registerDiagnosticsIpc } from './ipc/diagnostics'
@@ -32,6 +33,7 @@ import { sendImportFile, statementPathFrom } from './file-open'
 import { installApplicationMenu } from './menu'
 import { readSettings } from './settings-store'
 import { loadWindowState, trackWindowState } from './window-state'
+import { IPC } from '@shared/ipc'
 import { TITLE_BAR_OVERLAY_HEIGHT } from '@shared/theme'
 import icon from '../../build/icon.png?asset'
 
@@ -39,6 +41,10 @@ import icon from '../../build/icon.png?asset'
 // redirected userData, so the file transport lands in the right logs dir
 initLogging()
 const log = createLogger('app')
+
+// how long after the first paint to wait for the renderer's first real screen
+// before showing the window anyway
+const SHOW_FALLBACK_MS = 2_000
 
 // macOS delivers open-file before the window exists, so park the path until
 // createWindow can attach it
@@ -84,11 +90,32 @@ function createWindow(): void {
     }
   })
 
-  if (state.maximized) mainWindow.maximize()
   trackWindowState(mainWindow)
 
-  mainWindow.on('ready-to-show', () => {
+  // shown once the renderer reports its first real screen rather than at first
+  // paint, which is only the blank backdrop; ready-to-show stays the floor and
+  // the fallback covers a renderer that never reports
+  let painted = false
+  let rendered = false
+  let shown = false
+  const showIfReady = (): void => {
+    if (shown || !painted || !rendered || mainWindow.isDestroyed()) return
+    shown = true
+    // maximize() also shows a hidden window, so it waits for this moment too
+    if (state.maximized) mainWindow.maximize()
     mainWindow.show()
+  }
+  mainWindow.webContents.ipc.on(IPC.appReady, () => {
+    rendered = true
+    showIfReady()
+  })
+  mainWindow.once('ready-to-show', () => {
+    painted = true
+    showIfReady()
+    setTimeout(() => {
+      rendered = true
+      showIfReady()
+    }, SHOW_FALLBACK_MS)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -205,6 +232,16 @@ if (!app.requestSingleInstanceLock()) {
     installApplicationMenu()
 
     createWindow()
+
+    // startup maintenance runs while the renderer loads its bundle; it's
+    // synchronous, so it still finishes before any renderer IPC is served
+    purgeStaleUndoneEntries()
+    purgeDeletedGoals()
+    purgeDeletedSavedFilters()
+    recoverAbandonedTurns()
+    purgeDeletedConversations()
+    healAcceptedSuggestionsOnLaunch()
+
     startUpdateChecks()
 
     app.on('activate', () => {

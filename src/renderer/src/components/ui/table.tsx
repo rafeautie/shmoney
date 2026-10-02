@@ -46,12 +46,22 @@ function TableFooter({ className, ...props }: React.ComponentProps<'tfoot'>) {
   )
 }
 
-function TableRow({ className, ...props }: React.ComponentProps<'tr'>) {
+function TableRow({
+  className,
+  expanded,
+  ...props
+}: React.ComponentProps<'tr'> & {
+  /** set by rows that track their own open popovers (DataTable), sparing long
+   * tables a :has() selector on every row */
+  expanded?: boolean
+}) {
   return (
     <tr
       data-slot="table-row"
+      data-expanded={expanded || undefined}
       className={cn(
-        'border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted',
+        'border-b transition-colors hover:bg-muted/50 data-expanded:bg-muted/50 data-[state=selected]:bg-muted',
+        expanded === undefined && 'has-aria-expanded:bg-muted/50',
         className
       )}
       {...props}
@@ -64,7 +74,7 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
     <th
       data-slot="table-head"
       className={cn(
-        'h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0',
+        'h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground',
         className
       )}
       {...props}
@@ -79,7 +89,7 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
       className={cn(
         // body cells carry the user's own data, so they stay selectable while
         // the rest of the chrome (including the th labels above) does not
-        'h-10 p-2 align-middle whitespace-nowrap select-text [&:has([role=checkbox])]:pr-0',
+        'h-10 p-2 align-middle whitespace-nowrap select-text',
         className
       )}
       {...props}

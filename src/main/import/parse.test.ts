@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { decodeBuffer, sniffFormat, parseOfx, parseQif } from './parse'
+import { decodeBuffer, sniffFormat, parseOfx, parseQif, qifDateToUnix } from './parse'
 
 // imported rows anchor calendar dates at local noon (month is 0-based here)
 const noon = (y: number, m0: number, d: number): number => new Date(y, m0, d, 12).getTime() / 1000
@@ -111,8 +111,8 @@ describe('sniffFormat', () => {
 })
 
 describe('parseOfx', () => {
-  it('parses OFX 1.x SGML bank statements', () => {
-    const rows = parseOfx(OFX_SGML)
+  it('parses OFX 1.x SGML bank statements', async () => {
+    const rows = await parseOfx(OFX_SGML)
     expect(rows).toEqual([
       {
         posted: noon(2024, 0, 15),
@@ -129,8 +129,8 @@ describe('parseOfx', () => {
     ])
   })
 
-  it('parses OFX 2.x XML credit-card statements', () => {
-    const rows = parseOfx(OFX_XML)
+  it('parses OFX 2.x XML credit-card statements', async () => {
+    const rows = await parseOfx(OFX_XML)
     expect(rows).toEqual([
       {
         posted: noon(2024, 1, 10),
@@ -143,15 +143,15 @@ describe('parseOfx', () => {
 })
 
 describe('parseQif', () => {
-  it('parses bank transactions with comma amounts', () => {
-    const rows = parseQif(QIF)
+  it('parses bank transactions with comma amounts', async () => {
+    const rows = await parseQif(QIF)
     expect(rows).toEqual([
       { posted: noon(2024, 0, 15), amount: -42500, description: 'COFFEE SHOP' },
       { posted: noon(2024, 0, 16), amount: 1000000, description: 'PAYCHECK' }
     ])
   })
 
-  it('handles an !Account preamble, U lines, and day-first dates', () => {
+  it('handles an !Account preamble, U lines, and day-first dates', async () => {
     const qif = `!Account
 NChecking
 TBank
@@ -162,16 +162,16 @@ U-5.00
 T-5.00
 PMINCE PIES
 ^`
-    const rows = parseQif(qif)
+    const rows = await parseQif(qif)
     expect(rows).toEqual([{ posted: noon(2023, 11, 25), amount: -5000, description: 'MINCE PIES' }])
   })
 
-  it("handles Quicken apostrophe years (12/25'04)", () => {
-    const rows = parseQif(`!Type:Bank\nD12/25'04\nT-1.00\nPX\n^`)
+  it("handles Quicken apostrophe years (12/25'04)", async () => {
+    const rows = await parseQif(`!Type:Bank\nD12/25'04\nT-1.00\nPX\n^`)
     expect(rows[0].posted).toBe(noon(2004, 11, 25))
   })
 
-  it('handles Chase-style blank-line record separators (no ^ at all)', () => {
+  it('handles Chase-style blank-line record separators (no ^ at all)', async () => {
     const qif = `!Type:CCard
 C*
 D07/12/2026
@@ -184,15 +184,29 @@ D07/12/2026
 NN/A
 PSpotify USA
 T-21.99`
-    const rows = parseQif(qif)
+    const rows = await parseQif(qif)
     expect(rows).toEqual([
       { posted: noon(2026, 6, 12), amount: -13990, description: 'PAYPAL *MICROSOFT' },
       { posted: noon(2026, 6, 12), amount: -21990, description: 'Spotify USA' }
     ])
   })
 
-  it('flushes a trailing record that has no terminator', () => {
-    const rows = parseQif(`!Type:Bank\nD1/2/2024\nT-1.00\nPX`)
+  it('flushes a trailing record that has no terminator', async () => {
+    const rows = await parseQif(`!Type:Bank\nD1/2/2024\nT-1.00\nPX`)
     expect(rows).toHaveLength(1)
+  })
+})
+
+describe('qifDateToUnix', () => {
+  it('falls through to a later format when a date past the probe sample fails', () => {
+    // 60 dates valid as M/d/yy, then one with day 13 in the month slot
+    const dates = [...Array.from({ length: 60 }, () => '01/02/24'), '13/02/24']
+    const out = qifDateToUnix(dates)
+    expect(out[0]).toBe(noon(2024, 1, 1))
+    expect(out[60]).toBe(noon(2024, 1, 13))
+  })
+
+  it('throws when no format fits', () => {
+    expect(() => qifDateToUnix(['not a date'])).toThrow(/Unrecognized QIF date format/)
   })
 })

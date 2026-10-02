@@ -1,5 +1,21 @@
 import { ipcMain } from 'electron'
-import { and, asc, count, desc, eq, gte, inArray, isNull, like, lte, sum } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  like,
+  lte,
+  or,
+  sql,
+  sum,
+  type SQL
+} from 'drizzle-orm'
+import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { db } from '../db'
 import { createLogger } from '../logging'
 import { canEncryptAccessUrl, decryptAccessUrl, encryptAccessUrl } from '../access-url'
@@ -17,9 +33,9 @@ import { balanceDeltaWhere, withDerivedBalance } from '../accounts/balance'
 import { transactionDate } from '../db/expressions'
 import { transactionsPage, transactionSums } from './transactions-page'
 import { inRun, newRun, recordAction } from './action-log'
-import { applyRulesInTx } from './rules'
+import { applyRulesInTx, chunked } from './rules'
 import { pruneOrphanedSuggestions } from './rule-suggestions'
-import { detectTransferPairs, TRANSFER_WINDOW_SECONDS } from '../transfers'
+import { detectTransferPairs, TRANSFER_WINDOW_SECONDS, type TransferCandidate } from '../transfers'
 import {
   IPC,
   connectInputSchema,
@@ -90,13 +106,19 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 // in an earlier sync completes when its partner shows up now. One 'detector'
 // entry is logged to undo from. Shared by sync and file import; callers gate
 // on detectTransfersEnabled(). Returns the number of pairs detected.
-export function detectAndMarkTransfersInTx(tx: Tx): number {
+// With a scope, only pairs with at least one leg among those rows are marked.
+export function detectAndMarkTransfersInTx(tx: Tx, scope?: { transactionIds: number[] }): number {
   const transfersCategoryId = tx
     .select({ id: categories.id })
     .from(categories)
     .where(eq(categories.systemKey, 'transfers'))
     .get()?.id
   if (transfersCategoryId === undefined) return 0
+
+  if (scope) {
+    const scoped = scopedCandidates(tx, transfersCategoryId, scope.transactionIds)
+    return markTransferPairs(tx, transfersCategoryId, scoped)
+  }
 
   const candidateColumns = {
     id: transactions.id,
@@ -149,14 +171,79 @@ export function detectAndMarkTransfersInTx(tx: Tx): number {
     ...unmarked.map((r) => ({ ...r, isTransfer: false })),
     ...marked.map((r) => ({ ...r, isTransfer: true }))
   ]
-  const pairs = detectTransferPairs(candidates)
+  return markTransferPairs(tx, transfersCategoryId, { candidates })
+}
+
+// The pool a scoped run needs to decide every pair touching `ids` as a full
+// run would: a row's partner lies within one window of it, and that partner's
+// other candidates (which the 1:1 exclusivity check counts) within one more, so
+// take two windows of same-magnitude rows on either side.
+function scopedCandidates(
+  tx: Tx,
+  transfersCategoryId: number,
+  ids: number[]
+): { candidates: TransferCandidate[]; focus: Set<number> } {
+  const transferCandidateColumns = {
+    id: transactions.id,
+    accountId: transactions.accountId,
+    amount: transactions.amount,
+    date: transactionDate,
+    currency: accounts.currency,
+    categoryId: transactions.categoryId
+  }
+  const eligible = and(
+    eq(transactions.pending, false),
+    isNull(transactions.deletedAt),
+    or(isNull(transactions.categoryId), eq(transactions.categoryId, transfersCategoryId))
+  )
+  const fresh = chunked(ids).flatMap((part) =>
+    tx
+      .select(transferCandidateColumns)
+      .from(transactions)
+      .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+      .where(and(eligible, inArray(transactions.id, part)))
+      .all()
+  )
+  const focus = new Set(fresh.map((r) => r.id))
+  if (fresh.length === 0) return { candidates: [], focus }
+
+  const magnitudes = new Set(fresh.map((r) => Math.abs(r.amount)))
+  let minDate = Infinity
+  let maxDate = -Infinity
+  for (const r of fresh) {
+    if (r.date < minDate) minDate = r.date
+    if (r.date > maxDate) maxDate = r.date
+  }
+  const reach = 2 * TRANSFER_WINDOW_SECONDS
+  const candidates = tx
+    .select(transferCandidateColumns)
+    .from(transactions)
+    .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+    .where(
+      and(eligible, gte(transactionDate, minDate - reach), lte(transactionDate, maxDate + reach))
+    )
+    .all()
+    .filter((r) => magnitudes.has(Math.abs(r.amount)))
+    .map(({ categoryId, ...r }) => ({ ...r, isTransfer: categoryId === transfersCategoryId }))
+  return { candidates, focus }
+}
+
+function markTransferPairs(
+  tx: Tx,
+  transfersCategoryId: number,
+  { candidates, focus }: { candidates: TransferCandidate[]; focus?: Set<number> }
+): number {
+  let pairs = detectTransferPairs(candidates)
+  if (focus) pairs = pairs.filter((p) => p.ids.some((id) => focus.has(id)))
   const ids = pairs.flatMap((p) => p.toMark)
   if (ids.length === 0) return 0
 
-  tx.update(transactions)
-    .set({ categoryId: transfersCategoryId })
-    .where(inArray(transactions.id, ids))
-    .run()
+  for (const part of chunked(ids)) {
+    tx.update(transactions)
+      .set({ categoryId: transfersCategoryId })
+      .where(inArray(transactions.id, part))
+      .run()
+  }
   recordAction(tx, {
     source: 'detector',
     label: `Detected ${pairs.length} transfer${pairs.length === 1 ? '' : 's'}`,
@@ -238,6 +325,34 @@ export async function syncConnection(): Promise<SyncResult> {
   const result = inRun(newRun('sync', 'Sync with SimpleFIN'), () =>
     db.transaction((tx) => {
       let matchedImports = 0
+      // prepared once for every account's rows. The conflict `set` reads back
+      // the row being inserted (excluded.*), so it writes exactly txnValues
+      const excluded = (column: SQLiteColumn): SQL => sql.raw(`excluded."${column.name}"`)
+      const upsertTxn = tx
+        .insert(transactions)
+        .values({
+          accountId: sql.placeholder('accountId'),
+          simplefinId: sql.placeholder('simplefinId'),
+          posted: sql.placeholder('posted'),
+          amount: sql.placeholder('amount'),
+          description: sql.placeholder('description'),
+          pending: sql.placeholder('pending'),
+          transactedAt: sql.placeholder('transactedAt')
+        })
+        .onConflictDoUpdate({
+          target: [transactions.accountId, transactions.simplefinId],
+          set: {
+            accountId: excluded(transactions.accountId),
+            simplefinId: excluded(transactions.simplefinId),
+            posted: excluded(transactions.posted),
+            amount: excluded(transactions.amount),
+            description: excluded(transactions.description),
+            pending: excluded(transactions.pending),
+            transactedAt: excluded(transactions.transactedAt)
+          }
+        })
+        .prepare()
+
       for (const account of payload.accounts) {
         const identity = {
           connectionId: row.id,
@@ -311,13 +426,7 @@ export async function syncConnection(): Promise<SyncResult> {
             continue
           }
 
-          tx.insert(transactions)
-            .values(txnValues)
-            .onConflictDoUpdate({
-              target: [transactions.accountId, transactions.simplefinId],
-              set: txnValues
-            })
-            .run()
+          upsertTxn.run(txnValues)
         }
 
         // holdings carry no user-owned columns, so replace the whole set per account:

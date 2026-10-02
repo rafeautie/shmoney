@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { UndoResult } from '@shared/ipc'
+import { invalidateUndoableData } from '@/lib/invalidate'
 
 type Direction = 'undo' | 'redo'
 
@@ -26,7 +27,7 @@ function showUndoToast(result: UndoResult, direction: Direction, queryClient: Qu
           : window.api.actionLog.undoEntry(result.id)
         run
           .then((next) => {
-            queryClient.invalidateQueries()
+            invalidateUndoableData(queryClient)
             showUndoToast(next, undone ? 'redo' : 'undo', queryClient)
           })
           .catch(() => {})
@@ -66,7 +67,7 @@ export function UndoShortcuts() {
           // null = nothing of yours to undo this session; stay silent, like a
           // browser's Ctrl+Z on an empty stack
           if (!result) return
-          queryClient.invalidateQueries()
+          invalidateUndoableData(queryClient)
           showUndoToast(result, isRedo ? 'redo' : 'undo', queryClient)
         })
         .catch(() => {})

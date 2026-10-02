@@ -156,7 +156,10 @@ export interface CategoriesList {
 
 export interface Page<T> {
   rows: T[]
-  total: number
+  /** matching rows across every page; counted on the first page only */
+  total: number | null
+  /** where the next page starts; null after the last */
+  next: PageCursor | null
 }
 
 /** Counts over the visible (non-deleted) transactions; uncategorized = category_id IS NULL. */
@@ -467,8 +470,20 @@ export interface ActionLogEntry {
   undoneAt: number | null
   /** the run this entry was written in; null when standalone */
   runId: number | null
+  /** every change the entry made; `changes` holds only the first few */
+  changeCount: number
+  /** the first {@link ACTION_LOG_PREVIEW_CHANGES}; the rest via actionLog.entryChanges */
   changes: ActionLogChange[]
+  /** the category every change sent its row to, when they all share one */
+  sharedCategoryId: number | null
+  /** what the entry touched, so undo/redo refetches only those */
+  domains: ActionDomain[]
 }
+
+/** changes per entry an Activity page carries */
+export const ACTION_LOG_PREVIEW_CHANGES = 8
+
+export type ActionDomain = 'transactions' | 'budgets' | 'goals' | 'conversations' | 'savedFilters'
 
 export interface ActionRun {
   id: number
@@ -512,8 +527,18 @@ export interface UndoResult {
   applied: number
 }
 
+/**
+ * Where a page starts: a page index, or for the date sort the (date, id) of the
+ * last row already loaded, so the query seeks there instead of counting an OFFSET.
+ */
+export const pageCursorSchema = z.union([
+  z.number().int().min(0),
+  z.object({ date: z.number().int(), id: z.number().int() })
+])
+export type PageCursor = z.infer<typeof pageCursorSchema>
+
 const pageFields = {
-  page: z.number().int().min(0),
+  page: pageCursorSchema,
   pageSize: z.number().int().min(1).max(100),
   sortDir: z.enum(['asc', 'desc'])
 }
@@ -563,6 +588,8 @@ export const IPC = {
   appOpenImportFile: 'app:openImportFile',
   // mirror a notice to an OS toast while unfocused
   appNotify: 'app:notify',
+  // the renderer has committed its first real screen; main shows the window
+  appReady: 'app:ready',
   // dev-only: raw SimpleFIN /accounts passthrough for the Debug page (handler
   // registered only when is.dev, so it isn't present in production builds)
   debugRawAccounts: 'debug:rawAccounts'
@@ -575,6 +602,8 @@ export const ACTION_LOG_IPC = {
   // keyboard Ctrl+Z/Y: act on the newest applied / newest undone entry
   undo: 'actionLog:undo',
   redo: 'actionLog:redo',
+  // Activity page: every change of one entry, past the page's preview
+  entryChanges: 'actionLog:entryChanges',
   // Activity page: act on a specific entry
   undoEntry: 'actionLog:undoEntry',
   redoEntry: 'actionLog:redoEntry',

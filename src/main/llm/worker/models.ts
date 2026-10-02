@@ -20,6 +20,8 @@ fs.mkdirSync(modelsDir, { recursive: true })
 // outcome is decided by this flag, not by whether the promise threw.
 const activeDownloads = new Map<ModelId, { abortController: AbortController; canceled: boolean }>()
 
+const PROGRESS_INTERVAL_MS = 250
+
 export function modelFilePath(modelId: ModelId): string {
   return path.join(modelsDir, LLM_MODELS[modelId].fileName)
 }
@@ -30,17 +32,24 @@ export async function downloadModel(modelId: ModelId): Promise<null> {
   activeDownloads.set(modelId, record)
   postModelStage(modelId, 'downloading')
 
+  // every chunk reports progress; the renderer redraws per push, so ~4 Hz
+  // (plus the final 100%) is all that's forwarded
+  let lastProgressAt = 0
   try {
     const downloader = await createModelDownloader({
       modelUri: model.hfUri,
       dirPath: modelsDir,
       fileName: model.fileName,
       skipExisting: true,
-      onProgress: ({ totalSize, downloadedSize }) =>
+      onProgress: ({ totalSize, downloadedSize }) => {
+        const now = Date.now()
+        if (now - lastProgressAt < PROGRESS_INTERVAL_MS && downloadedSize < totalSize) return
+        lastProgressAt = now
         post({
           event: 'downloadProgress',
           progress: { modelId, downloadedBytes: downloadedSize, totalBytes: totalSize }
         })
+      }
     })
     await downloader.download({ signal: record.abortController.signal })
   } catch (err) {
