@@ -14,7 +14,11 @@ import {
   TransactionCreateRow
 } from './transaction-cells'
 import { TransactionsBulkActions } from './transactions-bulk-actions'
-import { TransactionEditsContext, useTransactionEdits } from './use-transaction-edits'
+import {
+  TRANSACTION_LIST,
+  TransactionEditsContext,
+  useTransactionEdits
+} from './use-transaction-edits'
 
 interface TransactionsTableProps {
   /** Base query key; the current sort is appended to it */
@@ -52,8 +56,9 @@ export function TransactionsTable({
   // keyed by transaction id, so selection survives refetches and filter changes
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 
+  const listKey = [...queryKey, sort, TRANSACTION_LIST]
   const transactionsQuery = useInfiniteQuery({
-    queryKey: [...queryKey, sort],
+    queryKey: listKey,
     queryFn: ({ pageParam }) => fetchPage({ page: pageParam, pageSize: PAGE_SIZE, ...sort }),
     initialPageParam: 0 as PageCursor,
     getNextPageParam: (lastPage) => lastPage.next ?? undefined,
@@ -65,7 +70,7 @@ export function TransactionsTable({
   )
 
   const edits = useTransactionEdits({
-    listKey: [...queryKey, sort],
+    listKey,
     filters,
     sortBy: sort.sortBy
   })
