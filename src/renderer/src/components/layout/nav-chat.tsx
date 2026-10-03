@@ -1,4 +1,4 @@
-import { Link, useMatchRoute, useSearch } from '@tanstack/react-router'
+import { Link, useLocation, useSearch } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Add01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons'
 import { useConversations } from '@/lib/chat'
@@ -14,8 +14,8 @@ import {
 
 /** The Chat sidebar section: a New chat entry above the conversation history. */
 export function NavChat() {
-  const matchRoute = useMatchRoute()
-  const onChat = !!matchRoute({ to: '/chat', fuzzy: false })
+  // pathname, not useMatchRoute: see NavLinkButton
+  const onChat = useLocation({ select: ({ pathname }) => pathname === '/chat' })
   const chatParam = useSearch({ strict: false, select: (s) => (s as { c?: number }).c })
   const activeId = onChat ? (chatParam ?? null) : null
   // undefined while loading: show nothing rather than a flash of "no chats"
