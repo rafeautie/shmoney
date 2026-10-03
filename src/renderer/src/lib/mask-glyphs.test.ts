@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toGlyphs } from './mask-glyphs'
+import { maskText, toGlyphs } from './mask-glyphs'
 
 /** d = dot, x = folds away, p = pad dot, anything else stays as itself */
 const shape = (text: string): string =>
@@ -34,5 +34,13 @@ describe('toGlyphs', () => {
       .filter((g) => g.kind !== 'fixed')
       .map((g) => g.index)
     expect(indexes).toEqual([0, 1, 2, 3, 4])
+  })
+})
+
+describe('maskText', () => {
+  it('renders the settled four dots as plain text', () => {
+    expect(maskText('$48,213.07')).toBe('$••••')
+    expect(maskText('−$6.75')).toBe('−$••••')
+    expect(maskText('1 234,56 €')).toBe('•••• €')
   })
 })

@@ -16,7 +16,7 @@ import {
 } from 'recharts'
 import type { ReportFilters, WidgetConfig } from '@shared/reports'
 import type { BudgetSummary, EnvelopeSummary } from '@shared/budgets'
-import { cn } from '@/lib/utils'
+import { cn, formatAmount } from '@/lib/utils'
 import { formatMonthLong } from '@/lib/format-date'
 import { usePrivacy } from '@/lib/settings'
 import { Amount } from '@/components/amount'
@@ -31,7 +31,7 @@ import {
   ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart'
-import { BLUR_X_TICK_LABELS, paletteColor } from '@/components/charts/chart-style'
+import { maskTicks, paletteColor } from '@/components/charts/chart-style'
 import { DRILL_LABEL, DRILL_TARGET, useBudgetDrill, type OnBudgetDrill } from '../use-drill'
 import { useResolvedQuery } from '../use-widget-data'
 import { WidgetError } from '../widget-error'
@@ -194,7 +194,6 @@ function BudgetBarsChart({
         config={chartConfig}
         className={cn(
           'aspect-auto h-full w-full',
-          blurAmounts && BLUR_X_TICK_LABELS,
           onDrill && '[&_.recharts-bar-rectangle]:cursor-pointer'
         )}
       >
@@ -205,7 +204,11 @@ function BudgetBarsChart({
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={tickFormatter('expense', currency)}
+            tickFormatter={maskTicks(
+              tickFormatter('expense', currency),
+              (value) => formatAmount(value, currency),
+              blurAmounts
+            )}
           />
           <YAxis
             type="category"
@@ -270,7 +273,6 @@ function BudgetBalancesChart({
         config={chartConfig}
         className={cn(
           'aspect-auto h-full w-full',
-          blurAmounts && BLUR_X_TICK_LABELS,
           onDrill && '[&_.recharts-bar-rectangle]:cursor-pointer'
         )}
       >
@@ -281,7 +283,11 @@ function BudgetBalancesChart({
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={tickFormatter('sum', currency)}
+            tickFormatter={maskTicks(
+              tickFormatter('sum', currency),
+              (value) => formatAmount(value, currency),
+              blurAmounts
+            )}
           />
           <YAxis
             type="category"

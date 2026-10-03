@@ -205,7 +205,7 @@ export function StatCardWidget({
         <div key={currency} className="flex max-w-full min-w-0 flex-col gap-1">
           {
             // a count is not money: no currency, no sign color, and nothing to hide
-            // behind the privacy blur
+            // behind the privacy dots
             measure === 'count' ? (
               <span className={cn(headline, 'tabular-nums')}>
                 {formatMeasureValue(measure, value, currency)}
