@@ -1,35 +1,33 @@
 import { GOAL_STATUS_LABELS, GOAL_STATUS_TONE, type GoalSummary } from '@shared/goals'
 import { Amount } from '@/components/amount'
+import { PaceBar } from '@/components/pace-bar'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 
 // Exported so the Goals page and the report widget draw the same bar.
 
-/** Saved against target, with the pace line as a tick at `expectedByNow`. */
-export function GoalBar({ goal, className }: { goal: GoalSummary; className?: string }) {
-  const pct = goal.targetAmount > 0 ? (goal.progress / goal.targetAmount) * 100 : 0
-  const behind = GOAL_STATUS_TONE[goal.status] === 'destructive'
-  const tick =
-    goal.expectedByNow !== null && goal.targetAmount > 0
-      ? Math.min(100, Math.max(0, (goal.expectedByNow / goal.targetAmount) * 100))
-      : null
-
+/** Saved against target, with `expectedByNow` as the pace. */
+export function GoalMeter({ goal }: { goal: GoalSummary }) {
+  const toPct = (amount: number): number =>
+    goal.targetAmount > 0 ? (amount / goal.targetAmount) * 100 : 0
   return (
-    <div className={cn('space-y-1', className)}>
-      <div className="relative">
-        <Progress
-          value={Math.min(100, Math.max(0, pct))}
-          className={cn(behind && '[&_[data-slot=progress-indicator]]:bg-destructive')}
-        />
-        {tick !== null && (
-          <span
-            aria-hidden
-            className="absolute top-0 h-1 w-px bg-foreground/50"
-            style={{ left: `${tick}%` }}
-          />
-        )}
-      </div>
+    <PaceBar
+      value={toPct(goal.progress)}
+      pace={
+        goal.expectedByNow === null || goal.targetAmount === 0 ? null : toPct(goal.expectedByNow)
+      }
+      offPace="under"
+      destructive={GOAL_STATUS_TONE[goal.status] === 'destructive'}
+      label="Saved"
+    />
+  )
+}
+
+/** The meter with an "X of Y" caption, for rows that have no other progress line. */
+export function GoalBar({ goal, className }: { goal: GoalSummary; className?: string }) {
+  return (
+    <div className={cn('space-y-1.5', className)}>
+      <GoalMeter goal={goal} />
       <div className="text-xs text-muted-foreground">
         <Amount value={goal.progress} currency={goal.currency} colored={false} /> of{' '}
         <Amount value={goal.targetAmount} currency={goal.currency} colored={false} />

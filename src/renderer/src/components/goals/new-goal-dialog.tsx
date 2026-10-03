@@ -91,7 +91,7 @@ export function NewGoalDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-100">
         <DialogHeader>
-          <DialogTitle>New goal</DialogTitle>
+          <DialogTitle>Add goal</DialogTitle>
           <DialogDescription>
             A target amount and the accounts the money lands in. Progress comes from your
             transactions, never typed in.
@@ -181,7 +181,7 @@ export function NewGoalDialog({
             Cancel
           </Button>
           <Button disabled={!canSubmit} onClick={save}>
-            {create.isPending ? 'Creating...' : 'Create goal'}
+            {create.isPending ? 'Adding...' : 'Add goal'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -193,7 +193,7 @@ export function NewGoalDialog({
  * label for entry points that phrase it differently (e.g. an empty state). */
 export function NewGoalButton({
   currency,
-  children = 'New goal'
+  children = 'Add goal'
 }: {
   currency: string
   children?: ReactNode

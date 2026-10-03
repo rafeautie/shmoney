@@ -1,8 +1,16 @@
+import { HugeiconsIcon } from '@hugeicons/react'
+import { Delete02Icon, MoreHorizontalIcon } from '@hugeicons/core-free-icons'
 import { useState } from 'react'
 import type { EnvelopeSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
-import { useSetFill } from '@/components/budget/use-envelopes'
+import { useRemoveEnvelope, useSetFill } from '@/components/budget/use-envelopes'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
 import { NumberInput } from '@/components/ui/number-input'
 import { currencySymbol, parseDollars } from '@/lib/utils'
 
@@ -59,5 +67,30 @@ export function EditableFill({
       }}
       className="w-28"
     />
+  )
+}
+
+export function EnvelopeActionsMenu({ envelope }: { envelope: EnvelopeSummary }) {
+  const remove = useRemoveEnvelope()
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={<Button variant="ghost" size="icon" />}
+        aria-label="Envelope actions"
+      >
+        <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={() => remove.mutate(envelope)}
+          disabled={remove.isPending}
+        >
+          <HugeiconsIcon icon={Delete02Icon} size={14} />
+          Remove envelope
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

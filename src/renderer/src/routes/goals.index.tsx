@@ -161,9 +161,10 @@ function SummaryStrip({ goals }: { goals: GoalSummary[] }) {
                 colored: false
               },
               {
-                label: 'Needed per month',
+                label: 'Planned',
                 value: inCurrency.reduce((sum, g) => sum + (g.neededPerMonth ?? 0), 0),
-                colored: false
+                colored: false,
+                sub: 'this month'
               }
             ]}
           />

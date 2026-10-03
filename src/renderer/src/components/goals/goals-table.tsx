@@ -58,7 +58,7 @@ export function GoalsTable({
                 <GoalBar goal={goal} />
               </TableCell>
               <TableCell>
-                <EditableTarget goal={goal} labelled={false} />
+                <EditableTarget goal={goal} />
               </TableCell>
               <TableCell>
                 <TargetDatePicker goal={goal} />

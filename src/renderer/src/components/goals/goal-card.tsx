@@ -1,5 +1,6 @@
 import type { GoalSummary } from '@shared/goals'
-import { GoalBar, GoalStatusBadge } from '@/components/goals/goal-progress'
+import { Amount } from '@/components/amount'
+import { GoalMeter, GoalStatusBadge } from '@/components/goals/goal-progress'
 import {
   EditableName,
   EditableTarget,
@@ -10,11 +11,14 @@ import {
 import { modeLabel, paceLine } from '@/components/goals/goal-labels'
 import { Card, CardContent } from '@/components/ui/card'
 
-/** One goal, editing in place; every field commits on Enter or blur. */
+/** One goal, editing in place like an envelope card; every field commits on Enter or blur. */
 export function GoalCard({ goal }: { goal: GoalSummary }) {
   return (
     <Card className="gap-0 py-4">
-      <CardContent className="space-y-3 px-4">
+      {/* Flex, not space-y: an open popover appends out-of-flow markers after its
+          trigger, and space-y's margin would land on the trigger once it is no
+          longer the last child, growing the card as it opens. */}
+      <CardContent className="flex flex-col gap-3 px-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
@@ -31,21 +35,24 @@ export function GoalCard({ goal }: { goal: GoalSummary }) {
           </div>
         </div>
 
-        <GoalBar goal={goal} />
+        <GoalMeter goal={goal} />
+
+        {/* min-h holds the line steady while the target swaps to its input */}
+        <div className="flex min-h-8 flex-wrap items-center text-xs text-muted-foreground">
+          <span>
+            <span className="font-medium text-foreground">
+              <Amount value={goal.progress} currency={goal.currency} colored={false} />
+            </span>{' '}
+            saved of
+          </span>
+          <EditableTarget goal={goal} />
+          {goal.targetDate !== null && <span>by</span>}
+          <TargetDatePicker goal={goal} />
+        </div>
 
         <p className="text-xs text-muted-foreground">{paceLine(goal)}</p>
 
-        {/* The settings of the goal, penned off from the progress it reports.
-            Flex, not space-y: an open popover appends out-of-flow markers after
-            its trigger, and space-y's margin would land on the trigger once it
-            is no longer the last child, growing the card as it opens. */}
-        <div className="flex flex-col gap-2 rounded-md border bg-muted/30 p-2">
-          <div className="flex items-center justify-between gap-2 text-xs">
-            <EditableTarget goal={goal} />
-            <TargetDatePicker goal={goal} />
-          </div>
-          <GoalAccounts goal={goal} />
-        </div>
+        <GoalAccounts goal={goal} />
       </CardContent>
     </Card>
   )

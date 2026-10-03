@@ -1,12 +1,8 @@
 import { Fragment } from 'react'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Delete02Icon } from '@hugeicons/core-free-icons'
 import { groupEnvelopes, type BudgetSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
-import { EditableFill } from '@/components/budget/envelope-fields'
+import { EditableFill, EnvelopeActionsMenu } from '@/components/budget/envelope-fields'
 import { BalanceBadge, EnvelopeBar } from '@/components/budget/envelope-progress'
-import { useRemoveEnvelope } from '@/components/budget/use-envelopes'
-import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn, TABLE_BLEED } from '@/lib/utils'
@@ -20,8 +16,6 @@ export function EnvelopeList({
   pace: number | null
   className?: string
 }) {
-  const remove = useRemoveEnvelope()
-
   return (
     // full-bleed like the transactions table: rows and hover reach the app
     // edges, while TABLE_BLEED keeps edge-cell content aligned with p-6 chrome
@@ -89,16 +83,7 @@ export function EnvelopeList({
                     <BalanceBadge balance={envelope.balance} currency={summary.currency} />
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7"
-                      onClick={() => remove.mutate(envelope)}
-                      disabled={remove.isPending}
-                    >
-                      <HugeiconsIcon icon={Delete02Icon} size={14} />
-                      <span className="sr-only">Remove envelope</span>
-                    </Button>
+                    <EnvelopeActionsMenu envelope={envelope} />
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,14 +1,10 @@
 import type { EnvelopeSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
+import { PaceBar } from '@/components/pace-bar'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 
-/**
- * Spent-vs-fill bar. With a `pace` (elapsed share of the current month) it
- * draws a tick there, and spending past the tick is hatched so being ahead of
- * pace reads without color; overspending turns the bar destructive.
- */
+/** Spent against fill, with the month's elapsed share as the pace in the current month. */
 export function EnvelopeMeter({
   spent,
   fill,
@@ -18,37 +14,15 @@ export function EnvelopeMeter({
   fill: number
   pace?: number | null
 }) {
-  const over = spent > fill
-  const pct = fill > 0 ? Math.min(100, (spent / fill) * 100) : spent > 0 ? 100 : 0
-  const pacePct = pace === null ? null : pace * 100
-  const aheadOfPace = pacePct !== null && pct > pacePct
+  const pct = fill > 0 ? (spent / fill) * 100 : spent > 0 ? 100 : 0
   return (
-    <div className="relative">
-      <Progress
-        value={pct}
-        aria-label={aheadOfPace ? 'Spent, ahead of pace' : 'Spent'}
-        className={cn(
-          '[&_[data-slot=progress-track]]:h-2',
-          over && '[&_[data-slot=progress-indicator]]:bg-destructive'
-        )}
-      />
-      {aheadOfPace && (
-        <div aria-hidden className="absolute inset-0 overflow-hidden rounded-md">
-          <div
-            className="absolute inset-y-0 bg-[repeating-linear-gradient(-45deg,transparent_0_2px,var(--background)_2px_4px)] opacity-70"
-            style={{ left: `${pacePct}%`, width: `${pct - pacePct}%` }}
-          />
-        </div>
-      )}
-      {pacePct !== null && (
-        <div
-          aria-hidden
-          title={`${Math.round(pacePct)}% of the month has passed`}
-          className="absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded-full bg-foreground shadow-[0_0_0_1px_var(--background)]"
-          style={{ left: `${pacePct}%` }}
-        />
-      )}
-    </div>
+    <PaceBar
+      value={pct}
+      pace={pace === null ? null : pace * 100}
+      offPace="over"
+      destructive={spent > fill}
+      label="Spent"
+    />
   )
 }
 

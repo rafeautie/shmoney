@@ -17,7 +17,7 @@ export function paceLine(goal: GoalSummary): string {
   if (goal.status === 'reached') return 'Reached'
   if (goal.accounts.length === 0) return 'Link an account to start tracking this goal'
   if (goal.neededPerMonth !== null && goal.targetDate !== null)
-    return `Save ${formatAmount(goal.neededPerMonth, goal.currency)}/month to reach it by ${longDay(goal.targetDate)}`
+    return `Save ${formatAmount(goal.neededPerMonth, goal.currency)}/month to reach it on time`
   if (goal.projectedDate !== null)
     return `At ${formatAmount(goal.averagePerMonth, goal.currency)}/month you'll get there around ${longDay(goal.projectedDate)}`
   if (goal.status === 'overdue') return 'Past its target date'

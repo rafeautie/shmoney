@@ -1,18 +1,8 @@
 import type { EnvelopeSummary } from '@shared/budgets'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Delete02Icon, MoreHorizontalIcon } from '@hugeicons/core-free-icons'
-import { EditableFill } from '@/components/budget/envelope-fields'
+import { EditableFill, EnvelopeActionsMenu } from '@/components/budget/envelope-fields'
 import { Amount } from '@/components/amount'
 import { BalanceBadge, EnvelopeMeter } from '@/components/budget/envelope-progress'
-import { useRemoveEnvelope } from '@/components/budget/use-envelopes'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
 
 /** One envelope: title and balance, the bar, then one line with the editable fill. */
 export function EnvelopeCard({
@@ -26,8 +16,6 @@ export function EnvelopeCard({
   currency: string
   pace: number | null
 }) {
-  const remove = useRemoveEnvelope()
-
   return (
     <Card className="gap-0 py-4">
       <CardContent className="space-y-3 px-4">
@@ -39,24 +27,7 @@ export function EnvelopeCard({
             <BalanceBadge balance={envelope.balance} currency={currency} />
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<Button variant="ghost" size="icon" />}
-                aria-label="Envelope actions"
-              >
-                <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => remove.mutate(envelope)}
-                  disabled={remove.isPending}
-                >
-                  <HugeiconsIcon icon={Delete02Icon} size={14} />
-                  Remove envelope
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <EnvelopeActionsMenu envelope={envelope} />
           </div>
         </div>
 
