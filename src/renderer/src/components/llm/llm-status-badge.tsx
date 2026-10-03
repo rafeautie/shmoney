@@ -18,13 +18,13 @@ export function LlmStatusBadge({ className }: { className?: string }) {
       ? { dot: 'bg-destructive', label: 'Failed to load', explanation: runtimeError }
       : runtime === 'ready'
         ? {
-            dot: 'bg-emerald-500',
+            dot: 'bg-positive',
             label: 'Loaded',
             explanation: 'The model is in memory and responds right away.'
           }
         : runtime === 'loading'
           ? {
-              dot: 'bg-amber-500 animate-pulse',
+              dot: 'bg-warning-fill animate-pulse',
               label: 'Loading',
               explanation: 'The model is loading into memory.'
             }

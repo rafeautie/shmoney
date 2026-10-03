@@ -19,10 +19,10 @@ export function Amount({ value, currency, colored = true, className, blurClassNa
     <span
       className={cn(
         'tabular-nums duration-0',
-        colored && value > 0 && 'text-green-500 dark:text-green-400',
-        colored && value > 0 && blurAmounts && 'bg-green-500/20 dark:bg-green-400/20',
-        colored && value < 0 && 'text-red-600 dark:text-red-500',
-        colored && value < 0 && blurAmounts && 'bg-red-600/20 dark:bg-red-500/20',
+        colored && value > 0 && 'text-positive',
+        colored && value > 0 && blurAmounts && 'bg-positive/20',
+        colored && value < 0 && 'text-negative',
+        colored && value < 0 && blurAmounts && 'bg-negative/20',
         // figures are the user's data wherever they appear (cards, headers,
         // tooltips), so they select; a blurred one is hidden, not readable
         blurAmounts ? 'bg-foreground/20 blur-sm select-none' : 'select-text',

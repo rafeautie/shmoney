@@ -57,15 +57,11 @@ export function ChatWarning({
       <div className="min-h-0">
         <div
           className={cn(
-            'mx-2 flex items-center gap-2.5 rounded-t-2xl border border-b-0 border-amber-500/30 bg-amber-500/10 py-2 pr-2 pl-3.5 transition duration-200 ease-out',
+            'mx-2 flex items-center gap-2.5 rounded-t-2xl border border-b-0 border-warning-fill/30 bg-warning-fill/10 py-2 pr-2 pl-3.5 transition duration-200 ease-out',
             leaving && 'translate-y-2 opacity-0'
           )}
         >
-          <HugeiconsIcon
-            icon={Alert02Icon}
-            size={16}
-            className="shrink-0 text-amber-600 dark:text-amber-400"
-          />
+          <HugeiconsIcon icon={Alert02Icon} size={16} className="shrink-0 text-warning" />
           <div className="min-w-0 flex-1 space-y-0.5">
             <p className="text-[0.8125rem] text-foreground">{children}</p>
             {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
@@ -75,7 +71,7 @@ export function ChatWarning({
               type="button"
               onClick={action.onClick}
               disabled={action.disabled}
-              className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-500/15 focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 dark:text-amber-400"
+              className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-warning transition-colors hover:bg-warning-fill/15 focus-visible:ring-2 focus-visible:ring-warning-fill/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
             >
               {action.label}
             </button>
@@ -84,7 +80,7 @@ export function ChatWarning({
             type="button"
             onClick={() => setLeaving(true)}
             aria-label="Dismiss"
-            className="shrink-0 rounded-md p-1 text-amber-700/70 transition-colors hover:bg-amber-500/15 hover:text-amber-700 focus-visible:ring-2 focus-visible:ring-amber-500/40 focus-visible:outline-none dark:text-amber-400/70 dark:hover:text-amber-400"
+            className="shrink-0 rounded-md p-1 text-warning/70 transition-colors hover:bg-warning-fill/15 hover:text-warning focus-visible:ring-2 focus-visible:ring-warning-fill/40 focus-visible:outline-none"
           >
             <HugeiconsIcon icon={Cancel01Icon} size={14} strokeWidth={2} />
           </button>

@@ -18,10 +18,7 @@ export function ExperimentalBadge({
   return (
     <Badge
       variant="outline"
-      className={cn(
-        'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
-        className
-      )}
+      className={cn('border-warning-fill/30 bg-warning-fill/10 text-warning', className)}
     >
       {icon && <HugeiconsIcon icon={TestTube01Icon} data-icon="inline-start" />}
       Experimental

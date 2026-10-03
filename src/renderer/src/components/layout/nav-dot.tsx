@@ -2,8 +2,8 @@ import type { DotTone } from '@/lib/nav-status'
 import { cn } from '@/lib/utils'
 
 const TONES: Record<DotTone, string> = {
-  attention: 'bg-amber-500',
-  info: 'bg-blue-500',
+  attention: 'bg-warning-fill',
+  info: 'bg-info',
   busy: 'animate-pulse-busy bg-sidebar-foreground'
 }
 

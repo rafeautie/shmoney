@@ -91,8 +91,8 @@ function StatChange({
     direction === 'flat'
       ? undefined
       : (direction === 'up') === (UP_TONE[measure] === 'good')
-        ? UP_TONE[measure] && 'text-green-600 dark:text-green-400'
-        : UP_TONE[measure] && 'text-red-600 dark:text-red-500'
+        ? UP_TONE[measure] && 'text-positive'
+        : UP_TONE[measure] && 'text-negative'
   const icon =
     direction === 'up'
       ? ArrowUpRight01Icon
