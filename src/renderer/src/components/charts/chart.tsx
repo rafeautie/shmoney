@@ -17,7 +17,6 @@ import {
   type MouseHandlerDataParam
 } from 'recharts'
 import { cn } from '@/lib/utils'
-import { usePrivacy } from '@/lib/settings'
 import { PrivateText } from '@/components/amount'
 import {
   ChartContainer,
@@ -27,7 +26,8 @@ import {
   ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart'
-import { maskTicks, paletteColor } from './chart-style'
+import { paletteColor } from './chart-style'
+import { privateTick } from './private-tick'
 
 // The one chart-drawing surface shared by the report widgets and the chat
 // charts. It owns the house style — axes, tooltip, legend, palette, per-point
@@ -227,18 +227,13 @@ function CartesianView({
   onSelect,
   className
 }: CartesianProps & CommonProps) {
-  const { blurAmounts } = usePrivacy()
   if (data.length === 0 || series.length === 0) return <ChartNote>Nothing to chart.</ChartNote>
 
   const chartConfig: ChartConfig = Object.fromEntries(
     series.map((s, i) => [s.key, { label: s.label, color: paletteColor(i) }])
   )
   const labelFmt = formatLabel ?? ((l: string) => l)
-  const valueTicks = maskTicks(
-    (value: number) => formatValue(value, { compact: true }),
-    (value: number) => formatValue(value),
-    blurAmounts && sensitive
-  )
+  const valueTick = privateTick((value) => formatValue(value, { compact: true }), sensitive)
   const showLegend = legend === 'auto' ? series.length > 1 : legend
   const singleSeries = series.length === 1
   // a categorical breakdown lays its bars sideways so every category label gets
@@ -254,13 +249,7 @@ function CartesianView({
   const axes = horizontal ? (
     <>
       <CartesianGrid horizontal={false} />
-      <XAxis
-        type="number"
-        tickLine={false}
-        axisLine={false}
-        tickMargin={8}
-        tickFormatter={valueTicks}
-      />
+      <XAxis type="number" tickLine={false} axisLine={false} tickMargin={8} tick={valueTick} />
       <YAxis
         type="category"
         dataKey={xKey}
@@ -282,7 +271,7 @@ function CartesianView({
         minTickGap={24}
         tickFormatter={labelFmt}
       />
-      <YAxis tickLine={false} axisLine={false} width={56} tickFormatter={valueTicks} />
+      <YAxis tickLine={false} axisLine={false} width={56} tick={valueTick} />
     </>
   )
   const tooltip =
