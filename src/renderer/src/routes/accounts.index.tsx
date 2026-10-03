@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useSettingsDialog } from '@/lib/settings-dialog'
 import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { BankIcon } from '@hugeicons/core-free-icons'
 import type { Account } from '@shared/ipc'
+import { DEFAULT_TRANSACTION_FILTERS } from '@shared/transaction-filters'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
 import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
@@ -42,9 +43,16 @@ import {
 type AccountsTab = 'accounts' | 'transactions'
 
 export const Route = createFileRoute('/accounts/')({
-  // the tab rides in the URL so it survives reloads and can be linked to
-  validateSearch: (search: Record<string, unknown>): { tab?: AccountsTab } =>
-    search.tab === 'transactions' ? { tab: 'transactions' } : {},
+  // the tab rides in the URL so it survives reloads and can be linked to. q and
+  // create are one-shot intents (from the command palette): applied on arrival,
+  // then dropped from the URL
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { tab?: AccountsTab; q?: string; create?: true } => ({
+    ...(search.tab === 'transactions' && { tab: 'transactions' }),
+    ...(typeof search.q === 'string' && search.q.trim() && { q: search.q.trim() }),
+    ...(search.create === true && { create: true })
+  }),
   loader: ({ context }) => context.queryClient.ensureQueryData(accountsOptions),
   component: AccountsPage
 })
@@ -64,11 +72,22 @@ function hasDistinctAvailable(account: Account): boolean {
 function AccountsPage() {
   const [creating, setCreating] = useState(false)
   // controlled so the Create button can jump to the transactions tab
-  const { tab = 'accounts' } = Route.useSearch()
+  const { tab = 'accounts', q, create } = Route.useSearch()
   const navigate = Route.useNavigate()
   const setTab = (next: string): void =>
     void navigate({ search: next === 'transactions' ? { tab: 'transactions' } : {}, replace: true })
   const filterState = useTransactionFilters()
+
+  // apply each arriving intent once, during render, then clear it from the URL
+  const [seenIntent, setSeenIntent] = useState<{ q?: string; create?: true }>({})
+  if (q !== seenIntent.q || create !== seenIntent.create) {
+    setSeenIntent({ q, create })
+    if (q !== undefined) filterState.setFilters({ ...DEFAULT_TRANSACTION_FILTERS, search: q })
+    if (create) setCreating(true)
+  }
+  useEffect(() => {
+    if (q !== undefined || create) void navigate({ search: { tab: 'transactions' }, replace: true })
+  }, [q, create, navigate])
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
       <div className="space-y-4 px-6 pt-6 pb-4">

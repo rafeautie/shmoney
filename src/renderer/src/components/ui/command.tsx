@@ -40,9 +40,10 @@ function CommandInput({
 
 function CommandList({
   className,
+  viewPortClassName,
   children,
   ...props
-}: React.ComponentProps<typeof CommandPrimitive.List>) {
+}: React.ComponentProps<typeof CommandPrimitive.List> & { viewPortClassName?: string }) {
   return (
     <CommandPrimitive.List
       data-slot="command-list"
@@ -50,7 +51,9 @@ function CommandList({
       {...props}
     >
       {/* the viewport is the scroll container, so cmdk's scrollIntoView lands there */}
-      <ScrollArea viewPortClassName="max-h-[300px] scroll-py-1">{children}</ScrollArea>
+      <ScrollArea viewPortClassName={cn('max-h-[300px] scroll-py-1', viewPortClassName)}>
+        {children}
+      </ScrollArea>
     </CommandPrimitive.List>
   )
 }

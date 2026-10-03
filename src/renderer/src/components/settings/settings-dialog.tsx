@@ -1,20 +1,10 @@
 import { useEffect, useRef } from 'react'
-import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
-import {
-  AiBrain01Icon,
-  BankIcon,
-  DashboardSpeed01Icon,
-  DatabaseIcon,
-  InformationCircleIcon,
-  Settings01Icon,
-  Tag01Icon,
-  WorkflowSquare03Icon
-} from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { StatusDot } from '@/components/layout/nav-dot'
 import { useSettingsSectionStatuses } from '@/lib/nav-status'
-import { useSettingsDialog, type SettingsSection } from '@/lib/settings-dialog'
+import { SETTINGS_NAV, useSettingsDialog, type SettingsSection } from '@/lib/settings-dialog'
 import { isDemo } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 import { AboutSettings } from './about-settings'
@@ -29,48 +19,28 @@ import { RulesSettings } from './rules-settings'
 import { StorageSettings } from './storage-settings'
 import { TransferSettings } from './transfer-settings'
 
-const SECTIONS: {
-  id: SettingsSection
-  label: string
-  icon: IconSvgElement
-  content: () => React.JSX.Element
-}[] = [
-  {
-    id: 'general',
-    label: 'General',
-    icon: Settings01Icon,
-    content: () => (
-      <>
-        <AppearanceSettings />
-        <PrivacySettings />
-        {/* OS notifications have no counterpart in a browser tab */}
-        {!isDemo && <NotificationSettings />}
-      </>
-    )
-  },
-  { id: 'connection', label: 'Connection', icon: BankIcon, content: () => <ConnectionSettings /> },
-  {
-    id: 'categories',
-    label: 'Categories',
-    icon: Tag01Icon,
-    content: () => (
-      <>
-        <CategoriesSettings />
-        <TransferSettings />
-      </>
-    )
-  },
-  { id: 'rules', label: 'Rules', icon: WorkflowSquare03Icon, content: () => <RulesSettings /> },
-  { id: 'ai', label: 'AI model', icon: AiBrain01Icon, content: () => <LlmSettings /> },
-  {
-    id: 'ai-usage',
-    label: 'AI usage',
-    icon: DashboardSpeed01Icon,
-    content: () => <LlmUsageSettings />
-  },
-  { id: 'storage', label: 'Storage', icon: DatabaseIcon, content: () => <StorageSettings /> },
-  { id: 'about', label: 'About', icon: InformationCircleIcon, content: () => <AboutSettings /> }
-]
+const CONTENT: Record<SettingsSection, () => React.JSX.Element> = {
+  general: () => (
+    <>
+      <AppearanceSettings />
+      <PrivacySettings />
+      {/* OS notifications have no counterpart in a browser tab */}
+      {!isDemo && <NotificationSettings />}
+    </>
+  ),
+  connection: () => <ConnectionSettings />,
+  categories: () => (
+    <>
+      <CategoriesSettings />
+      <TransferSettings />
+    </>
+  ),
+  rules: () => <RulesSettings />,
+  ai: () => <LlmSettings />,
+  'ai-usage': () => <LlmUsageSettings />,
+  storage: () => <StorageSettings />,
+  about: () => <AboutSettings />
+}
 
 /**
  * Globally mounted settings dialog: a section list on the left, the chosen
@@ -80,7 +50,7 @@ const SECTIONS: {
 export function SettingsDialog(): React.JSX.Element {
   const { section, page, open, close } = useSettingsDialog()
   const statuses = useSettingsSectionStatuses()
-  const active = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]
+  const active = SETTINGS_NAV.find((s) => s.id === section) ?? SETTINGS_NAV[0]
   const activeRef = useRef<HTMLButtonElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -108,7 +78,7 @@ export function SettingsDialog(): React.JSX.Element {
       >
         <nav className="flex w-48 shrink-0 flex-col gap-0.5 border-r bg-muted/40 px-2.5 py-4.5">
           <DialogTitle className="px-2 pb-2.5">Settings</DialogTitle>
-          {SECTIONS.map(({ id, label, icon }) => {
+          {SETTINGS_NAV.map(({ id, label, icon }) => {
             const status = statuses[id]
             return (
               <button
@@ -133,7 +103,7 @@ export function SettingsDialog(): React.JSX.Element {
         {/* keyed so switching sections starts at the top; sub-pages scroll back
             up without a remount, so a section keeps its state across them */}
         <ScrollArea key={active.id} viewportRef={viewportRef} className="min-h-0 min-w-0 flex-1">
-          <div className="space-y-8 p-6 pr-12">{active.content()}</div>
+          <div className="space-y-8 p-6 pr-12">{CONTENT[active.id]()}</div>
         </ScrollArea>
       </DialogContent>
     </Dialog>

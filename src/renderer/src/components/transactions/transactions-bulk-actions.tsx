@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { invalidateTransactionData } from '@/lib/invalidate'
+import { isDialogOpen, isTypingTarget } from '@/lib/utils'
 import { CategoryPicker } from './category-picker'
 import {
   categorizeRunLabel,
@@ -68,18 +69,11 @@ export function TransactionsBulkActions({
     if (transactions.length === 0) return
     function onKeyDown(event: KeyboardEvent) {
       if (busy || event.ctrlKey || event.metaKey || event.altKey) return
-      const target = event.target
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
-      ) {
-        return
-      }
+      if (isTypingTarget(event.target)) return
       if (!['d', 'c', 'a'].includes(event.key)) return
       // a letter typed while a dialog is up (e.g. a confirm or the import
       // dialog with focus on a button) must not trigger actions underneath it
-      if (document.querySelector('[data-slot="dialog-content"]')) return
+      if (isDialogOpen()) return
       // the popover focuses its search input before this key's default text
       // insertion runs, so without this the shortcut letter gets typed into it
       event.preventDefault()

@@ -3,6 +3,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { UndoResult } from '@shared/ipc'
 import { invalidateUndoableData } from '@/lib/invalidate'
+import { isTypingTarget } from '@/lib/utils'
 
 type Direction = 'undo' | 'redo'
 
@@ -52,14 +53,7 @@ export function UndoShortcuts() {
       const isRedo = key === 'y' || (key === 'z' && event.shiftKey)
       const isUndo = key === 'z' && !event.shiftKey
       if (!isUndo && !isRedo) return
-      const target = event.target
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
-      ) {
-        return
-      }
+      if (isTypingTarget(event.target)) return
       event.preventDefault()
       const run = isRedo ? window.api.actionLog.redo() : window.api.actionLog.undo()
       run
