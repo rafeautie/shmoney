@@ -70,9 +70,10 @@ export function registerReportsIpc(): void {
       .all()
   })
 
-  ipcMain.handle(REPORTS_IPC.get, (_event, input: unknown): ReportDetail => {
+  ipcMain.handle(REPORTS_IPC.get, (_event, input: unknown): ReportDetail | null => {
     const id = idSchema.parse(input)
-    const report = getReportRow(id)
+    const report = db.select().from(reports).where(eq(reports.id, id)).get()
+    if (!report) return null
     const widgets = db
       .select()
       .from(reportWidgets)

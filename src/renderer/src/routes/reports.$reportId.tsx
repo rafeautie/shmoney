@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Layout } from 'react-grid-layout'
 
@@ -33,13 +33,29 @@ import { ReportGrid } from '@/components/reports/report-grid'
 import { FilterBar } from '@/components/transactions/filter-bar'
 import { AddWidgetButton, WidgetEditor } from '@/components/reports/widget-editor'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { NotFoundScreen } from '@/components/error-screen'
 import { reportOptions } from '@/lib/queries'
 
 export const Route = createFileRoute('/reports/$reportId')({
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(reportOptions(Number(params.reportId))),
-  component: ReportPage
+  loader: async ({ context, params }) => {
+    const id = Number(params.reportId)
+    if (!Number.isInteger(id) || id <= 0) throw notFound()
+    if (!(await context.queryClient.ensureQueryData(reportOptions(id)))) throw notFound()
+  },
+  component: ReportPage,
+  notFoundComponent: ReportNotFound
 })
+
+function ReportNotFound() {
+  return (
+    <NotFoundScreen
+      title="Report not found"
+      description="This report may have been deleted."
+      backTo="/reports"
+      backLabel="Back to Reports"
+    />
+  )
+}
 
 function ReportPage() {
   const { reportId } = Route.useParams()
@@ -165,13 +181,7 @@ function ReportPage() {
       </Page>
     )
   }
-  if (!detail) {
-    return (
-      <Page>
-        <p className="text-sm text-muted-foreground">Report not found.</p>
-      </Page>
-    )
-  }
+  if (!detail) return <ReportNotFound />
 
   // where a newly created widget lands: full width, below everything else
   const nextPosition = {

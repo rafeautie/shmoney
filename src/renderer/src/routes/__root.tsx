@@ -4,6 +4,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { AppChromeHost } from '@/components/layout/app-chrome-host'
 import { AppHeader } from '@/components/layout/app-header'
 import { AppSidebar } from '@/components/layout/app-sidebar'
+import { ErrorScreen, NotFoundScreen } from '@/components/error-screen'
 import { AutoSyncHost } from '@/components/layout/auto-sync-host'
 import { BackgroundNoticesHost } from '@/components/layout/background-notices-host'
 import { ImportFileHost } from '@/components/layout/import-file-host'
@@ -63,7 +64,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     settings: parseSettingsSection(search.settings),
     settingsPage: parseSettingsPage(search.settingsPage)
   }),
-  component: RootComponent
+  component: RootComponent,
+  errorComponent: ({ error }) => <ErrorScreen error={error} fullWindow />,
+  notFoundComponent: () => (
+    <NotFoundScreen
+      title="Page not found"
+      description="This page does not exist."
+      backTo="/accounts"
+      backLabel="Go to Accounts"
+    />
+  )
 })
 
 function RootComponent() {
