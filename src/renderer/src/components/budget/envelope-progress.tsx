@@ -4,26 +4,71 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 
-/** Spent-vs-fill bar with an "X of Y" caption; turns destructive when overspent. */
+/**
+ * Spent-vs-fill bar. With a `pace` (elapsed share of the current month) it
+ * draws a tick there, and spending past the tick is hatched so being ahead of
+ * pace reads without color; overspending turns the bar destructive.
+ */
+export function EnvelopeMeter({
+  spent,
+  fill,
+  pace = null
+}: {
+  spent: number
+  fill: number
+  pace?: number | null
+}) {
+  const over = spent > fill
+  const pct = fill > 0 ? Math.min(100, (spent / fill) * 100) : spent > 0 ? 100 : 0
+  const pacePct = pace === null ? null : pace * 100
+  const aheadOfPace = pacePct !== null && pct > pacePct
+  return (
+    <div className="relative">
+      <Progress
+        value={pct}
+        aria-label={aheadOfPace ? 'Spent, ahead of pace' : 'Spent'}
+        className={cn(
+          '[&_[data-slot=progress-track]]:h-2',
+          over && '[&_[data-slot=progress-indicator]]:bg-destructive'
+        )}
+      />
+      {aheadOfPace && (
+        <div aria-hidden className="absolute inset-0 overflow-hidden rounded-md">
+          <div
+            className="absolute inset-y-0 bg-[repeating-linear-gradient(-45deg,transparent_0_2px,var(--background)_2px_4px)] opacity-70"
+            style={{ left: `${pacePct}%`, width: `${pct - pacePct}%` }}
+          />
+        </div>
+      )}
+      {pacePct !== null && (
+        <div
+          aria-hidden
+          title={`${Math.round(pacePct)}% of the month has passed`}
+          className="absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded-full bg-foreground shadow-[0_0_0_1px_var(--background)]"
+          style={{ left: `${pacePct}%` }}
+        />
+      )}
+    </div>
+  )
+}
+
+/** The meter with an "X of Y" caption, for rows that have no other spend line. */
 export function EnvelopeBar({
   spent,
   fill,
   currency,
+  pace = null,
   className
 }: {
   spent: number
   fill: number
   currency: string
+  pace?: number | null
   className?: string
 }) {
-  const over = spent > fill
-  const pct = fill > 0 ? Math.min(100, (spent / fill) * 100) : spent > 0 ? 100 : 0
   return (
-    <div className={cn('space-y-1', className)}>
-      <Progress
-        value={pct}
-        className={cn(over && '[&_[data-slot=progress-indicator]]:bg-destructive')}
-      />
+    <div className={cn('space-y-1.5', className)}>
+      <EnvelopeMeter spent={spent} fill={fill} pace={pace} />
       <div className="text-xs text-muted-foreground">
         <Amount value={spent} currency={currency} colored={false} /> of{' '}
         <Amount value={fill} currency={currency} colored={false} />

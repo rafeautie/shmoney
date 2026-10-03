@@ -116,7 +116,12 @@ export function getBudgetSummary(month: string): BudgetSummary {
   let envelopes: EnvelopeSummary[] = []
   if (computed.length > 0) {
     const nameRows = db
-      .select({ id: categories.id, name: categories.name, groupName: categoryGroups.name })
+      .select({
+        id: categories.id,
+        name: categories.name,
+        groupId: categories.groupId,
+        groupName: categoryGroups.name
+      })
       .from(categories)
       .leftJoin(categoryGroups, eq(categories.groupId, categoryGroups.id))
       .where(inArray(categories.id, activeIds))
@@ -126,18 +131,19 @@ export function getBudgetSummary(month: string): BudgetSummary {
       .map((e) => ({
         categoryId: e.categoryId,
         categoryName: names.get(e.categoryId)?.name ?? 'Unknown',
+        groupId: names.get(e.categoryId)?.groupId ?? null,
         groupName: names.get(e.categoryId)?.groupName ?? null,
         startMonth: e.startMonth,
         fill: e.fill,
         spent: e.spent,
         balance: e.balance
       }))
-      // grouped envelopes sort by group then name; ungrouped ones sink to the end
+      // groups in creation order, as Settings > Categories lists them; ungrouped last
       .sort((a, b) => {
-        if (a.groupName !== b.groupName) {
-          if (a.groupName === null) return 1
-          if (b.groupName === null) return -1
-          return a.groupName.localeCompare(b.groupName)
+        if (a.groupId !== b.groupId) {
+          if (a.groupId === null) return 1
+          if (b.groupId === null) return -1
+          return a.groupId - b.groupId
         }
         return a.categoryName.localeCompare(b.categoryName)
       })
