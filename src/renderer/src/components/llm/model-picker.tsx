@@ -280,12 +280,8 @@ function sizeHint({
 
 function UnsupportedWarning(): React.JSX.Element {
   return (
-    <div className="flex gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
-      <HugeiconsIcon
-        icon={Alert02Icon}
-        size={16}
-        className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
-      />
+    <div className="flex gap-2.5 rounded-lg border border-warning-fill/30 bg-warning-fill/10 p-3">
+      <HugeiconsIcon icon={Alert02Icon} size={16} className="mt-0.5 shrink-0 text-warning" />
       <div className="space-y-0.5 text-sm">
         <p className="font-medium text-foreground">On-device AI is off on this device</p>
         <p className="text-muted-foreground">

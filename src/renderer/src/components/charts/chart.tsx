@@ -158,8 +158,8 @@ function ValueText({
     <span
       className={cn(
         'tabular-nums',
-        sensitive && colored && value > 0 && 'text-green-500 dark:text-green-400',
-        sensitive && colored && value < 0 && 'text-red-600 dark:text-red-500',
+        sensitive && colored && value > 0 && 'text-positive',
+        sensitive && colored && value < 0 && 'text-negative',
         sensitive && blurAmounts && 'bg-foreground/20 blur-sm select-none',
         className
       )}
