@@ -5,7 +5,6 @@
 import { and, eq, inArray, isNull, or, sql, type SQL } from 'drizzle-orm'
 import { accounts, categories, transactions } from '../db/schema'
 import { notOpeningSql, notTransferSql } from '../db/system-categories'
-import { transactionDate } from '../db/expressions'
 import type { ResolvedFilters } from '@shared/reports'
 
 export function escapeLike(term: string): string {
@@ -23,10 +22,10 @@ export function buildWhere(
   // table shows those rows (as "—"), so it opts out unless a date bound is set
   // (an unknown date can't satisfy a range)
   if (!opts.keepUnknownDates || f.dateStart !== null || f.dateEnd !== null) {
-    preds.push(sql`${transactionDate} > 0`)
+    preds.push(sql`${transactions.effectiveDate} > 0`)
   }
-  if (f.dateStart !== null) preds.push(sql`${transactionDate} >= ${f.dateStart}`)
-  if (f.dateEnd !== null) preds.push(sql`${transactionDate} <= ${f.dateEnd}`)
+  if (f.dateStart !== null) preds.push(sql`${transactions.effectiveDate} >= ${f.dateStart}`)
+  if (f.dateEnd !== null) preds.push(sql`${transactions.effectiveDate} <= ${f.dateEnd}`)
   if (f.accountIds?.length) preds.push(inArray(transactions.accountId, f.accountIds))
   if (f.categoryIds?.length || f.includeUncategorized) {
     const parts: SQL[] = []

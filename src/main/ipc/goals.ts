@@ -30,7 +30,7 @@ function nowSec(): number {
 }
 
 /** A prior session's undo toast is gone, so those rows can never come back. */
-function purgeDeletedGoals(): void {
+export function purgeDeletedGoals(): void {
   const removed = db.delete(savingsGoals).where(isNotNull(savingsGoals.deletedAt)).run().changes
   if (removed > 0) log.info('goals.purged-deleted', { count: removed })
 }
@@ -190,8 +190,6 @@ export function updateGoal(
 }
 
 export function registerGoalsIpc(): void {
-  purgeDeletedGoals()
-
   ipcMain.handle(GOALS_IPC.list, (): GoalSummary[] => getGoalSummaries())
 
   ipcMain.handle(GOALS_IPC.series, (_event, input: unknown): RunQueryResult =>

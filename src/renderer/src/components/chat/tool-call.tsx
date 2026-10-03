@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowRight01Icon } from '@hugeicons/core-free-icons'
 import { cn } from '@/lib/utils'
@@ -30,12 +30,24 @@ function IOSection({ label, children }: { label: string; children: React.ReactNo
   )
 }
 
+// memoized on the value: a big query result is costly to pretty-print, and
+// the chain re-renders its open cards with every streamed patch
+const InputSection = memo(function InputSection({ value }: { value: unknown }) {
+  return (
+    <IOSection label="Input">
+      <pre className="max-h-56 overflow-y-auto font-mono whitespace-pre-wrap wrap-break-word text-muted-foreground">
+        {ioText(value)}
+      </pre>
+    </IOSection>
+  )
+})
+
 /**
  * The output, encapsulated in its own viewport against the panel's muted
  * card: capped height, scrollbar hidden until the pointer is over it (or it
  * scrolls), matching ChatTableViewport's reveal.
  */
-function OutputSection({ value }: { value: unknown }) {
+const OutputSection = memo(function OutputSection({ value }: { value: unknown }) {
   return (
     <IOSection label="Output">
       <ScrollArea className="rounded-md border bg-background" viewPortClassName="max-h-56">
@@ -45,7 +57,7 @@ function OutputSection({ value }: { value: unknown }) {
       </ScrollArea>
     </IOSection>
   )
-}
+})
 
 /**
  * One tool call in the transcript, any tool, any state. Always expandable,
@@ -87,13 +99,7 @@ export function ToolCallCard({
       </CollapsibleTrigger>
       <CollapsibleContent animated>
         <div className="mt-1.5 flex flex-col gap-2 rounded-lg border bg-muted/30 p-2 text-xs">
-          {input !== undefined && (
-            <IOSection label="Input">
-              <pre className="max-h-56 overflow-y-auto font-mono whitespace-pre-wrap wrap-break-word text-muted-foreground">
-                {ioText(input)}
-              </pre>
-            </IOSection>
-          )}
+          {input !== undefined && <InputSection value={input} />}
           {output !== undefined && <OutputSection value={output} />}
           {input === undefined && output === undefined && (
             <p className="text-muted-foreground italic">Waiting for the call…</p>

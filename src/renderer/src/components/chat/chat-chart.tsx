@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
@@ -61,7 +61,7 @@ const cellText = (cell: unknown, isSeries: boolean, currency: string | null): st
  * current — and the Data toggle opens the exact rows the chart is drawn
  * from, so any chart can be audited in place.
  */
-export function ChatChart({
+export const ChatChart = memo(function ChatChart({
   spec,
   series,
   data,
@@ -220,4 +220,4 @@ export function ChatChart({
       )}
     </div>
   )
-}
+})

@@ -135,6 +135,9 @@ export interface RulePreviewGroup {
   ruleId: number
   ruleName: string
   action: RuleAction
+  /** every row this rule would change; applying covers all of them */
+  total: number
+  /** the first of those rows, for display */
   transactions: RulePreviewTransaction[]
 }
 

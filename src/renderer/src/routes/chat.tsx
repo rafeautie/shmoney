@@ -8,6 +8,7 @@ import {
   useSendChat,
   useSetConversationAccount,
   useStopChat,
+  useStreamingConversationId,
   useStreamingReply
 } from '@/lib/chat'
 import { CATEGORIZE_MUTATION_KEY, useLlmStatus, useLlmSupported } from '@/lib/llm'
@@ -42,7 +43,9 @@ function ChatPage() {
   const sendChat = useSendChat()
   const stopChat = useStopChat()
 
-  const { reply, startReply } = useStreamingReply()
+  const { startReply } = useStreamingReply()
+  const streamingId = useStreamingConversationId()
+  const streaming = streamingId !== null && streamingId === conversationId
 
   // scope: a new chat's selection is local until the first send creates the
   // conversation with it; an existing chat's lives on the conversation row
@@ -92,7 +95,7 @@ function ChatPage() {
         <>
           <ChatView
             conversationId={conversationId}
-            reply={reply}
+            streaming={streaming}
             onPickPrompt={send}
             // grey the openers out (rather than hiding them) whenever the
             // composer itself is unavailable, so a click can't queue behind a
@@ -110,7 +113,7 @@ function ChatPage() {
           ) : (
             <ChatInput
               hasConversation={conversationId !== null}
-              streaming={reply?.conversationId === conversationId}
+              streaming={streaming}
               loading={modelLoading}
               disabled={categorizeRunning || sendChat.isPending}
               disabledHint={

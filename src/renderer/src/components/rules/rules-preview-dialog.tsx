@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { SearchRemoveIcon } from '@hugeicons/core-free-icons'
 import type { RulePreviewGroup } from '@shared/rules'
+import { invalidateTransactionData } from '@/lib/invalidate'
 import { cn, ipcErrorMessage, plural, TABLE_BLEED } from '@/lib/utils'
 import { Amount } from '@/components/amount'
 import { Button } from '@/components/ui/button'
@@ -51,14 +52,18 @@ export function RulesPreviewDialog({
   })
 
   const groups = previewQuery.data ?? []
-  const total = groups.reduce((sum, g) => sum + g.transactions.length, 0)
+  const total = groups.reduce((sum, g) => sum + g.total, 0)
 
   const apply = useMutation({
     mutationFn: () => window.api.rules.apply({ overrideCategories }),
     onSuccess: () => {
       onOpenChange(false)
     },
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () =>
+      Promise.all([
+        invalidateTransactionData(queryClient),
+        queryClient.invalidateQueries({ queryKey: ['rules'] })
+      ])
   })
 
   return (
@@ -140,6 +145,7 @@ export function ApplyRulesButton({ disabled }: { disabled?: boolean }): React.JS
 }
 
 function PreviewGroup({ group }: { group: RulePreviewGroup }): React.JSX.Element {
+  const hidden = group.total - group.transactions.length
   return (
     <table className={cn('w-full caption-bottom text-xs', TABLE_BLEED)}>
       {/* sticky so the rule label + column headers stay pinned while the rows
@@ -150,7 +156,7 @@ function PreviewGroup({ group }: { group: RulePreviewGroup }): React.JSX.Element
           <TableHead colSpan={5} className="h-auto pt-1 pb-2">
             <span className="flex items-center gap-2">
               <span className="text-sm font-medium text-foreground">{group.ruleName}</span>
-              <Badge variant="secondary">{plural(group.transactions.length, 'transaction')}</Badge>
+              <Badge variant="secondary">{plural(group.total, 'transaction')}</Badge>
               <span className="text-xs font-normal text-muted-foreground">→ Set category</span>
             </span>
           </TableHead>
@@ -192,6 +198,13 @@ function PreviewGroup({ group }: { group: RulePreviewGroup }): React.JSX.Element
             </TableCell>
           </TableRow>
         ))}
+        {hidden > 0 && (
+          <TableRow className="hover:bg-transparent">
+            <TableCell colSpan={5} className="text-muted-foreground">
+              and {hidden} more
+            </TableCell>
+          </TableRow>
+        )}
       </TableBody>
     </table>
   )

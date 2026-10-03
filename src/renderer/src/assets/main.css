@@ -217,19 +217,29 @@
 }
 
 /* Busy status dots pulse from the sidebar's text color toward grey, both
- * opaque, so nothing behind the dot shows through mid-pulse. Plain vars, since
- * both tokens swap with the theme. */
-@theme {
-  --animate-pulse-busy: pulse-busy 2s ease-in-out infinite;
+ * opaque, so nothing behind the dot shows through mid-pulse. The grey is an
+ * overlay whose opacity animates (compositable), rather than animating
+ * background-color, which repaints every frame. Plain vars, since both tokens
+ * swap with the theme. In the components layer so a caller's own position
+ * utility (e.g. absolute) still wins. */
+@layer components {
+  .animate-pulse-busy {
+    position: relative;
+  }
+
+  .animate-pulse-busy::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background-color: var(--muted-foreground);
+    opacity: 0;
+    animation: pulse-busy 2s ease-in-out infinite;
+  }
 
   @keyframes pulse-busy {
-    0%,
-    100% {
-      background-color: var(--sidebar-foreground);
-    }
-
     50% {
-      background-color: var(--muted-foreground);
+      opacity: 1;
     }
   }
 }
@@ -340,8 +350,10 @@
   }
 
   /* Provide the same gentle color fade to hover styles without an explicit
-   * transition utility. Component utilities use the root timing tokens above. */
-  * {
+   * transition utility. Component utilities use the root timing tokens above.
+   * SVG internals (chart shapes) and table cells are left out: there can be
+   * thousands of them, and nothing about them needs a fade. */
+  *:not(svg *, td, th) {
     @apply transition-colors duration-[250ms] ease-in-out;
   }
 }

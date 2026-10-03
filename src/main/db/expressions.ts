@@ -10,5 +10,7 @@ import { transactions } from './schema'
  *
  * SimpleFIN sends posted = 0 for pending transactions; their real date is
  * transacted_at. Derived rather than stored, so every consumer agrees.
+ * transactions.effectiveDate is the same expression as a generated column;
+ * queries that sort or range over the date should use it so the indexes apply.
  */
 export const transactionDate = sql<number>`coalesce(nullif(${transactions.posted}, 0), ${transactions.transactedAt}, 0)`

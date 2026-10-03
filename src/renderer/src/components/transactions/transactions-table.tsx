@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import type { ColumnDef, RowSelectionState, SortingState } from '@tanstack/react-table'
-import type { Page, Transaction, TransactionSortBy } from '@shared/ipc'
-import { PAGE_SIZE, cn, nextPageParam, sortQuery } from '@/lib/utils'
+import type { Page, PageCursor, Transaction, TransactionSortBy } from '@shared/ipc'
+import type { ResolvedTransactionFilters } from '@shared/transaction-filters'
+import { PAGE_SIZE, cn, sortQuery } from '@/lib/utils'
 import { CategoryCell } from './category-cell'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { selectColumn } from '@/components/data-table-select-column'
@@ -13,16 +14,19 @@ import {
   TransactionCreateRow
 } from './transaction-cells'
 import { TransactionsBulkActions } from './transactions-bulk-actions'
+import { TransactionEditsContext, useTransactionEdits } from './use-transaction-edits'
 
 interface TransactionsTableProps {
   /** Base query key; the current sort is appended to it */
   queryKey: readonly unknown[]
   fetchPage: (query: {
-    page: number
+    page: PageCursor
     pageSize: number
     sortBy: TransactionSortBy
     sortDir: 'asc' | 'desc'
   }) => Promise<Page<Transaction>>
+  /** The filters the query applies, so edits that can't move a row skip refetching the list */
+  filters?: ResolvedTransactionFilters
   /** Show the account column (for views spanning multiple accounts) */
   showAccount?: boolean
   /** Pin the inline entry row at the top (transactions pages; report widgets omit it) */
@@ -36,6 +40,7 @@ interface TransactionsTableProps {
 export function TransactionsTable({
   queryKey,
   fetchPage,
+  filters,
   showAccount,
   showCreateRow,
   createAccountId,
@@ -50,14 +55,20 @@ export function TransactionsTable({
   const transactionsQuery = useInfiniteQuery({
     queryKey: [...queryKey, sort],
     queryFn: ({ pageParam }) => fetchPage({ page: pageParam, pageSize: PAGE_SIZE, ...sort }),
-    initialPageParam: 0,
-    getNextPageParam: nextPageParam,
+    initialPageParam: 0 as PageCursor,
+    getNextPageParam: (lastPage) => lastPage.next ?? undefined,
     placeholderData: keepPreviousData
   })
   const transactions = useMemo(
     () => transactionsQuery.data?.pages.flatMap((page) => page.rows) ?? [],
     [transactionsQuery.data]
   )
+
+  const edits = useTransactionEdits({
+    listKey: [...queryKey, sort],
+    filters,
+    sortBy: sort.sortBy
+  })
 
   // bulk actions apply to the selection ∩ the rows the current filters show,
   // so selected rows that a filter hides are never acted on
@@ -109,36 +120,42 @@ export function TransactionsTable({
   )
 
   return (
-    <div className={cn('relative flex min-h-0 flex-col', className)}>
-      <DataTable
-        bleed
-        className="min-h-0 flex-1"
-        columns={columns}
-        data={transactions}
-        sorting={sorting}
-        onSortingChange={setSorting}
-        onLoadMore={transactionsQuery.fetchNextPage}
-        hasMore={transactionsQuery.hasNextPage}
-        isFetchingMore={transactionsQuery.isFetchingNextPage}
-        isLoading={transactionsQuery.isLoading}
-        emptyMessage={emptyMessage}
-        topRow={
-          showCreateRow && (
-            <TransactionCreateRow showAccount={showAccount} accountId={createAccountId} />
-          )
-        }
-        // transfers are neither income nor expense, so dim the whole row to de-emphasize them
-        rowClassName={(transaction) => transaction.isTransfer && 'opacity-60'}
-        // pending rows can't be selected: sync drops and re-inserts them, so bulk edits would be lost
-        enableRowSelection={(row) => !row.original.pending}
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        getRowId={(transaction) => String(transaction.id)}
-      />
-      <TransactionsBulkActions
-        transactions={selectedTransactions}
-        onClearSelection={() => setRowSelection({})}
-      />
-    </div>
+    <TransactionEditsContext value={edits}>
+      <div className={cn('relative flex min-h-0 flex-col', className)}>
+        <DataTable
+          bleed
+          className="min-h-0 flex-1"
+          columns={columns}
+          data={transactions}
+          sorting={sorting}
+          onSortingChange={setSorting}
+          onLoadMore={transactionsQuery.fetchNextPage}
+          hasMore={transactionsQuery.hasNextPage}
+          isFetchingMore={transactionsQuery.isFetchingNextPage}
+          isLoading={transactionsQuery.isLoading}
+          emptyMessage={emptyMessage}
+          topRow={
+            showCreateRow && (
+              <TransactionCreateRow showAccount={showAccount} accountId={createAccountId} />
+            )
+          }
+          // transfers are neither income nor expense, so dim the whole row to de-emphasize them
+          rowClassName={(transaction) => transaction.isTransfer && 'opacity-60'}
+          // pending rows can't be selected: sync drops and re-inserts them, so bulk edits would be lost
+          enableRowSelection={(row) => !row.original.pending}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          getRowId={(transaction) => String(transaction.id)}
+        />
+        {/* a fixed box for the bar: adding it as the table's own sibling restyles the
+            whole loaded table (about 150ms at 1000 rows) on the first and last selection */}
+        <div className="contents">
+          <TransactionsBulkActions
+            transactions={selectedTransactions}
+            onClearSelection={() => setRowSelection({})}
+          />
+        </div>
+      </div>
+    </TransactionEditsContext>
   )
 }

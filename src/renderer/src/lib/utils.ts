@@ -1,7 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import type { SortingState } from '@tanstack/react-table'
-import type { Page } from '@shared/ipc'
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
@@ -29,12 +28,6 @@ export function sortQuery<S extends string>(
   return { sortBy: sort.id, sortDir: sort.desc ? 'desc' : 'asc' }
 }
 
-/** getNextPageParam for useInfiniteQuery over the paged IPC endpoints */
-export function nextPageParam<T>(lastPage: Page<T>, pages: Page<T>[]): number | undefined {
-  const loaded = pages.reduce((count, page) => count + page.rows.length, 0)
-  return loaded < lastPage.total ? pages.length : undefined
-}
-
 /** Stable within a calendar day, so resolved relative ranges (and the React
  * Query keys built from them) don't churn on every render. */
 export function startOfTodayEpoch(): number {
@@ -47,10 +40,24 @@ export function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
 }
 
+// Intl.NumberFormat construction dominates formatting cost, so reuse instances
+const sharesFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 })
+const currencyFormats = new Map<string, Intl.NumberFormat>()
+
+// throws RangeError for a currency Intl rejects, like the constructor it wraps
+function currencyFormat(currency: string): Intl.NumberFormat {
+  let format = currencyFormats.get(currency)
+  if (!format) {
+    format = new Intl.NumberFormat(undefined, { style: 'currency', currency })
+    currencyFormats.set(currency, format)
+  }
+  return format
+}
+
 /** Share/quantity count with up to 8 fractional digits, trailing zeros trimmed
  * (handles both large lots like 15359.23 and tiny crypto fractions like 0.01725554). */
 export function formatShares(value: string | number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 }).format(Number(value))
+  return sharesFormat.format(Number(value))
 }
 
 /**
@@ -62,7 +69,7 @@ export function currencySymbol(currency: string): string {
   if (currency.trim() === '') return ''
   try {
     return (
-      new Intl.NumberFormat(undefined, { style: 'currency', currency })
+      currencyFormat(currency)
         .formatToParts(0)
         .find((part) => part.type === 'currency')?.value ?? currency
     )
@@ -74,7 +81,7 @@ export function currencySymbol(currency: string): string {
 export function formatAmount(milliunits: number, currency: string): string {
   const value = milliunits / 1000
   try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value)
+    return currencyFormat(currency).format(value)
   } catch {
     // SimpleFIN allows custom currency URLs that Intl rejects
     return `${value.toFixed(2)} ${currency}`

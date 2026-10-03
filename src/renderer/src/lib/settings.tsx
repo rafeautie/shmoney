@@ -4,16 +4,16 @@ import type { SettingKey, Settings } from '@shared/settings'
 
 export const SETTINGS_QUERY_KEY = ['settings'] as const
 
-export function useSettings() {
-  const queryClient = useQueryClient()
-  const { data: settings } = useQuery({
-    queryKey: SETTINGS_QUERY_KEY,
-    queryFn: () => window.api.settings.getAll(),
-    // settings only change through setSetting, which updates the cache itself
-    staleTime: Infinity
-  })
+const settingsOptions = {
+  queryKey: SETTINGS_QUERY_KEY,
+  queryFn: () => window.api.settings.getAll(),
+  // settings only change through setSetting, which updates the cache itself
+  staleTime: Infinity
+}
 
-  const setSetting = useCallback(
+export function useSetSetting() {
+  const queryClient = useQueryClient()
+  return useCallback(
     <K extends SettingKey>(key: K, value: Settings[K]) => {
       queryClient.setQueryData<Settings>(SETTINGS_QUERY_KEY, (prev) =>
         prev ? { ...prev, [key]: value } : prev
@@ -22,8 +22,21 @@ export function useSettings() {
     },
     [queryClient]
   )
+}
 
+/** One setting's value; re-renders only when that key changes. */
+export function useSetting<K extends SettingKey>(key: K): Settings[K] {
+  const { data } = useQuery({ ...settingsOptions, select: (s: Settings) => s[key] })
   // main.tsx seeds the cache before render, so data is always present
+  if (data === undefined)
+    throw new Error('settings cache not seeded; await loadInitialSettings() first')
+  return data
+}
+
+export function useSettings() {
+  const { data: settings } = useQuery(settingsOptions)
+  const setSetting = useSetSetting()
+
   if (!settings) throw new Error('settings cache not seeded; await loadInitialSettings() first')
 
   return { settings, setSetting }
@@ -31,7 +44,8 @@ export function useSettings() {
 
 // rendered once at the root; keeps the dark class in sync with the theme setting
 export function ThemeSync() {
-  const { settings } = useSettings()
+  const theme = useSetting('theme')
+  const blurAmounts = useSetting('blurAmounts')
   // main mirrors the theme setting onto nativeTheme.themeSource, so this query
   // already answers for the explicit choices too; subscribing only matters for
   // 'system', where the OS can flip while the app is running
@@ -46,7 +60,7 @@ export function ThemeSync() {
     return () => query.removeEventListener('change', onChange)
   }, [])
 
-  const dark = settings.theme === 'system' ? systemDark : settings.theme === 'dark'
+  const dark = theme === 'system' ? systemDark : theme === 'dark'
 
   useLayoutEffect(() => {
     const root = document.documentElement
@@ -62,23 +76,23 @@ export function ThemeSync() {
     void root.offsetHeight
     const id = requestAnimationFrame(() => root.classList.remove('suppress-transitions'))
     return () => cancelAnimationFrame(id)
-  }, [dark, settings.blurAmounts])
+  }, [dark, blurAmounts])
 
   return null
 }
 
 export function useTheme() {
-  const { settings, setSetting } = useSettings()
+  const setSetting = useSetSetting()
   return {
-    theme: settings.theme,
+    theme: useSetting('theme'),
     setTheme: useCallback((theme: Settings['theme']) => setSetting('theme', theme), [setSetting])
   }
 }
 
 export function usePrivacy() {
-  const { settings, setSetting } = useSettings()
+  const setSetting = useSetSetting()
   return {
-    blurAmounts: settings.blurAmounts,
+    blurAmounts: useSetting('blurAmounts'),
     setBlurAmounts: useCallback((blur: boolean) => setSetting('blurAmounts', blur), [setSetting])
   }
 }

@@ -1,9 +1,8 @@
-import { parseSync } from 'ofx-js'
-import { deserializeQif } from 'qif-ts'
 import { parse as parseDate, isValid } from 'date-fns'
 
 // Pure file-format parsing: text in, rows out. No electron/db imports so these
 // run under vitest (better-sqlite3 can't load there — see transfers.test.ts).
+// The parser libraries load on first use, keeping them off app startup.
 
 /** A file row before dedupe ids are assigned. Units match the app: unix seconds / milliunits. */
 export interface ParsedRow {
@@ -65,7 +64,8 @@ function asArray<T>(value: T | T[] | undefined): T[] {
 }
 
 /** OFX 1.x (SGML) and 2.x (XML), including Quicken .qfx. Walks bank + credit-card statements. */
-export function parseOfx(text: string): ParsedRow[] {
+export async function parseOfx(text: string): Promise<ParsedRow[]> {
+  const { parseSync } = await import('ofx-js')
   const { OFX } = parseSync(text)
   const statements = [
     ...asArray(OFX.BANKMSGSRSV1?.STMTTRNRS).map((r) => r.STMTRS),
@@ -87,19 +87,33 @@ export function parseOfx(text: string): ParsedRow[] {
 }
 
 // QIF date formats vary by exporter (US vs day-first, 2- vs 4-digit years,
-// Quicken's apostrophe years like 12/25'04). Try candidates against every date
-// in the file; the first format that parses all of them wins.
+// Quicken's apostrophe years like 12/25'04). The first format that parses every
+// date in the file wins.
 // 2-digit-year formats first: 'yy' rejects 4-digit input (trailing chars fail
 // the parse) but 'yyyy' silently accepts "04" as year 4, so yy must get first try
 const QIF_DATE_FORMATS = ['M/d/yy', 'd/M/yy', 'M/d/yyyy', 'd/M/yyyy', 'yyyy-M-d', 'M-d-yyyy']
 
-function qifDateToUnix(dates: string[]): number[] {
+/** every date as unix seconds in `format`, or null at the first one it can't parse */
+function parseAllDates(cleaned: string[], format: string): number[] | null {
+  const reference = new Date()
+  const out: number[] = new Array(cleaned.length)
+  for (let i = 0; i < cleaned.length; i++) {
+    const d = parseDate(cleaned[i], format, reference)
+    if (!isValid(d)) return null
+    out[i] = dayToUnix(d.getFullYear(), d.getMonth() + 1, d.getDate())
+  }
+  return out
+}
+
+/** exported for tests */
+export function qifDateToUnix(dates: string[]): number[] {
   const cleaned = dates.map((d) => d.trim().replace(/\s+/g, '').replace("'", '/'))
   for (const format of QIF_DATE_FORMATS) {
-    const parsed = cleaned.map((d) => parseDate(d, format, new Date()))
-    if (parsed.every(isValid)) {
-      return parsed.map((d) => dayToUnix(d.getFullYear(), d.getMonth() + 1, d.getDate()))
-    }
+    // a wrong format nearly always fails within the first rows, so probe a
+    // sample before committing to a full pass
+    if (parseAllDates(cleaned.slice(0, 50), format) === null) continue
+    const all = parseAllDates(cleaned, format)
+    if (all) return all
   }
   throw new Error(`Unrecognized QIF date format (first date: "${dates[0]}")`)
 }
@@ -122,7 +136,8 @@ function preprocessQif(text: string): string {
   return body.join('\n')
 }
 
-export function parseQif(text: string): ParsedRow[] {
+export async function parseQif(text: string): Promise<ParsedRow[]> {
+  const { deserializeQif } = await import('qif-ts')
   const data = deserializeQif(preprocessQif(text))
   const txns = data.transactions.filter((t) => t.date !== undefined && t.amount !== undefined)
   const dates = qifDateToUnix(txns.map((t) => t.date as string))

@@ -1,8 +1,9 @@
+import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { dialog, ipcMain } from 'electron'
 import { is } from '@electron-toolkit/utils'
-import { and, eq, isNotNull } from 'drizzle-orm'
+import { and, eq, isNotNull, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '../db'
 import { accounts, transactions } from '../db/schema'
@@ -22,8 +23,10 @@ import {
   IMPORT_IPC,
   importApplyInputSchema,
   importPreviewInputSchema,
+  type CsvMapping,
   type ImportApplyResult,
   type ImportPreview,
+  type NormalizedImportRow,
   type PickFileResult
 } from '@shared/import'
 
@@ -44,6 +47,36 @@ const FILE_FILTERS = [
   { name: 'All files', extensions: ['*'] }
 ]
 
+/** raw rows the column-matching step shows as a sample */
+const CSV_SAMPLE_ROWS = 3
+
+type Normalized = { rows: NormalizedImportRow[]; errors: { line: number; message: string }[] }
+
+// A picked file, parsed once and kept here so preview and apply refer to it by
+// handle instead of shipping every row back and forth over IPC. csv keeps the
+// raw table plus the last mapping's normalized rows (preview then apply reuse it).
+type PickedFile =
+  | { kind: 'rows'; normalized: Normalized }
+  | { kind: 'csv'; rows: string[][]; normalizedFor?: { key: string; result: Normalized } }
+
+const pickedFiles = new Map<string, PickedFile>()
+
+function normalizedRows(handle: string, mapping: CsvMapping | undefined): Normalized {
+  const file = pickedFiles.get(handle)
+  if (!file) throw new Error('The import file is no longer loaded; pick it again')
+  if (file.kind === 'rows') return file.normalized
+  if (!mapping) throw new Error('A column mapping is required for CSV files')
+  const key = JSON.stringify(mapping)
+  if (file.normalizedFor?.key !== key) {
+    const normalized = normalizeCsvRows(file.rows, mapping)
+    file.normalizedFor = {
+      key,
+      result: { rows: assignExternalIds(normalized.rows), errors: normalized.errors }
+    }
+  }
+  return file.normalizedFor.result
+}
+
 async function pickFileBytes(
   input: unknown
 ): Promise<{ fileName: string; bytes: Uint8Array } | null> {
@@ -57,62 +90,81 @@ async function pickFileBytes(
   return { fileName: basename(result.filePaths[0]), bytes: readFileSync(result.filePaths[0]) }
 }
 
+// soft-deleted rows included: they hold the unique key, so applying restores
+// them instead of inserting (annotateDuplicates decides what that means)
+function annotate(
+  rows: NormalizedImportRow[],
+  accountId: number | undefined
+): ImportPreview['rows'] {
+  if (accountId === undefined) {
+    // a brand-new account has nothing to be a duplicate of
+    return rows.map((r) => ({ ...r, status: 'new' as const }))
+  }
+  const existing = db
+    .select({
+      simplefinId: transactions.simplefinId,
+      posted: transactions.posted,
+      amount: transactions.amount,
+      deletedAt: transactions.deletedAt
+    })
+    .from(transactions)
+    .where(eq(transactions.accountId, accountId))
+    .all()
+  return annotateDuplicates(rows, existing)
+}
+
 export function registerImportIpc(): void {
   ipcMain.handle(IMPORT_IPC.pickFile, async (_event, input: unknown): Promise<PickFileResult> => {
     const picked = await pickFileBytes(input)
     if (!picked) return null
+    // one import dialog at a time: a new pick supersedes whatever was loaded
+    pickedFiles.clear()
 
     const { fileName } = picked
     const text = decodeBuffer(picked.bytes)
     const format = sniffFormat(fileName, text)
+    const handle = randomUUID()
     if (format === 'csv') {
-      const { headers, rows } = parseCsv(text)
+      const { headers, rows } = await parseCsv(text)
+      pickedFiles.set(handle, { kind: 'csv', rows })
       return {
         kind: 'csv',
+        handle,
         fileName,
         headers,
-        rows,
+        sampleRows: rows.slice(0, CSV_SAMPLE_ROWS),
+        rowCount: rows.length,
         suggestedMapping: detectCsvMapping(headers, rows)
       }
     }
-    const parsed = format === 'ofx' ? parseOfx(text) : parseQif(text)
-    return { kind: 'rows', fileName, format, rows: assignExternalIds(parsed) }
+    const parsed = format === 'ofx' ? await parseOfx(text) : await parseQif(text)
+    const rows = assignExternalIds(parsed)
+    pickedFiles.set(handle, { kind: 'rows', normalized: { rows, errors: [] } })
+    return { kind: 'rows', handle, fileName, format, rowCount: rows.length }
+  })
+
+  ipcMain.handle(IMPORT_IPC.release, (_event, input: unknown): boolean => {
+    pickedFiles.delete(z.string().parse(input))
+    return true
   })
 
   ipcMain.handle(IMPORT_IPC.preview, (_event, input: unknown): ImportPreview => {
-    const { source, accountId } = importPreviewInputSchema.parse(input)
-
-    let rows, errors
-    if ('rows' in source) {
-      rows = source.rows
-      errors = [] as { line: number; message: string }[]
-    } else {
-      const normalized = normalizeCsvRows(source.csv.rows, source.csv.mapping)
-      rows = assignExternalIds(normalized.rows)
-      errors = normalized.errors
-    }
-
-    if (accountId === undefined) {
-      // a brand-new account has nothing to be a duplicate of
-      return { rows: rows.map((r) => ({ ...r, status: 'new' as const })), errors }
-    }
-    // soft-deleted rows included: they hold the unique key, so applying restores
-    // them instead of inserting (annotateDuplicates decides what that means)
-    const existing = db
-      .select({
-        simplefinId: transactions.simplefinId,
-        posted: transactions.posted,
-        amount: transactions.amount,
-        deletedAt: transactions.deletedAt
-      })
-      .from(transactions)
-      .where(eq(transactions.accountId, accountId))
-      .all()
-    return { rows: annotateDuplicates(rows, existing), errors }
+    const { handle, mapping, accountId } = importPreviewInputSchema.parse(input)
+    const { rows, errors } = normalizedRows(handle, mapping)
+    return { rows: annotate(rows, accountId), errors }
   })
 
   ipcMain.handle(IMPORT_IPC.apply, (_event, input: unknown): ImportApplyResult => {
-    const { rows, target } = importApplyInputSchema.parse(input)
+    const { handle, mapping, excluded, target } = importApplyInputSchema.parse(input)
+    const excludedIds = new Set(excluded)
+    // the same selection the preview showed: every row but exact duplicates
+    // and the ones the user unchecked
+    const rows = annotate(
+      normalizedRows(handle, mapping).rows,
+      'accountId' in target ? target.accountId : undefined
+    ).filter((r) => r.status !== 'duplicate' && !excludedIds.has(r.externalId))
+    if (rows.length === 0) throw new Error('No rows selected')
+
     const now = Math.floor(Date.now() / 1000)
     const detectEnabled = detectTransfersEnabled()
     const rulesEnabled = applyRulesOnSyncEnabled()
@@ -156,7 +208,9 @@ export function registerImportIpc(): void {
           if (opening !== 0) {
             // a day before the earliest imported row, so it sorts first. It's an
             // ordinary transaction from here on: editable, deletable, undoable.
-            const earliest = Math.min(...rows.map((r) => r.posted))
+            // A loop, not Math.min(...rows): spreading a huge import overflows the stack
+            let earliest = Infinity
+            for (const r of rows) if (r.posted < earliest) earliest = r.posted
             tx.insert(transactions)
               .values({
                 accountId,
@@ -175,38 +229,47 @@ export function registerImportIpc(): void {
         // not clobber one. A soft-deleted row holding the key is different — it is
         // an undone import or a deleted transaction, and the unique index would
         // otherwise make it unimportable forever — so un-delete it in place,
-        // leaving its own columns (a since-edited amount, a category) alone
+        // leaving its own columns (a since-edited amount, a category) alone.
+        // Both statements are prepared once and run per row.
+        const insertRow = tx
+          .insert(transactions)
+          .values({
+            accountId,
+            simplefinId: sql.placeholder('externalId'),
+            posted: sql.placeholder('posted'),
+            amount: sql.placeholder('amount'),
+            description: sql.placeholder('description'),
+            pending: false
+          })
+          .onConflictDoNothing({ target: [transactions.accountId, transactions.simplefinId] })
+          .returning({ id: transactions.id })
+          .prepare()
+        const restoreRow = tx
+          .update(transactions)
+          .set({ deletedAt: null })
+          .where(
+            and(
+              eq(transactions.accountId, accountId),
+              eq(transactions.simplefinId, sql.placeholder('externalId')),
+              isNotNull(transactions.deletedAt)
+            )
+          )
+          .returning({ id: transactions.id })
+          .prepare()
+
         const insertedIds: number[] = []
         for (const row of rows) {
-          const inserted = tx
-            .insert(transactions)
-            .values({
-              accountId,
-              simplefinId: row.externalId,
-              posted: row.posted,
-              amount: row.amount,
-              description: row.description,
-              pending: false
-            })
-            .onConflictDoNothing({ target: [transactions.accountId, transactions.simplefinId] })
-            .returning({ id: transactions.id })
-            .get()
+          const inserted = insertRow.get({
+            externalId: row.externalId,
+            posted: row.posted,
+            amount: row.amount,
+            description: row.description
+          })
           if (inserted) {
             insertedIds.push(inserted.id)
             continue
           }
-          const restored = tx
-            .update(transactions)
-            .set({ deletedAt: null })
-            .where(
-              and(
-                eq(transactions.accountId, accountId),
-                eq(transactions.simplefinId, row.externalId),
-                isNotNull(transactions.deletedAt)
-              )
-            )
-            .returning({ id: transactions.id })
-            .get()
+          const restored = restoreRow.get({ externalId: row.externalId })
           if (restored) insertedIds.push(restored.id)
         }
 
@@ -227,10 +290,15 @@ export function registerImportIpc(): void {
           })
         }
 
+        // scoped to what this import brought in, so a big ledger isn't rescanned
         const detectedTransfers =
-          insertedIds.length > 0 && detectEnabled ? detectAndMarkTransfersInTx(tx) : 0
+          insertedIds.length > 0 && detectEnabled
+            ? detectAndMarkTransfersInTx(tx, { transactionIds: insertedIds })
+            : 0
         const rulesApplied =
-          insertedIds.length > 0 && rulesEnabled ? applyRulesInTx(tx).categorized : 0
+          insertedIds.length > 0 && rulesEnabled
+            ? applyRulesInTx(tx, { scope: { transactionIds: insertedIds } }).categorized
+            : 0
 
         return {
           accountId,

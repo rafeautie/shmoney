@@ -1,4 +1,4 @@
-import type { Page, Transaction, TransactionSortBy } from '@shared/ipc'
+import type { Page, PageCursor, Transaction, TransactionSortBy } from '@shared/ipc'
 import {
   DEFAULT_TRANSACTION_FILTERS,
   type ResolvedTransactionFilters
@@ -14,7 +14,7 @@ interface FilteredTransactionsTableProps {
   /** Base query key; resolved filters and sort are appended to it */
   queryKey: readonly unknown[]
   fetchPage: (query: {
-    page: number
+    page: PageCursor
     pageSize: number
     sortBy: TransactionSortBy
     sortDir: 'asc' | 'desc'
@@ -56,6 +56,7 @@ export function FilteredTransactionsTable({
       <TransactionsTable
         queryKey={[...queryKey, resolved]}
         fetchPage={(query) => fetchPage({ ...query, filters: resolved })}
+        filters={resolved}
         showAccount={showAccount}
         showCreateRow={showCreateRow}
         createAccountId={createAccountId}

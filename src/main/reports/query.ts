@@ -2,13 +2,12 @@ import { eq, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, categoryGroups, transactions } from '../db/schema'
 import { buildWhere } from './filters'
-import { transactionDate } from '../db/expressions'
 import type { Measure, QueryRow, ResolvedQuery, RunQueryResult, TimeGrain } from '@shared/reports'
 
 // bucket labels must match bucketLabelFor() in src/shared/reports.ts exactly,
 // since the renderer zero-fills gaps by enumerating the same labels
 export function bucketSql(grain: Exclude<TimeGrain, 'none'>): SQL<string> {
-  const d = sql`${transactionDate}, 'unixepoch', 'localtime'`
+  const d = sql`${transactions.effectiveDate}, 'unixepoch', 'localtime'`
   switch (grain) {
     case 'day':
       return sql<string>`strftime('%Y-%m-%d', ${d})`

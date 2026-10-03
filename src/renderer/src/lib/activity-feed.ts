@@ -65,11 +65,11 @@ export function runSummary(entries: ActionLogEntry[]): string {
     ...entries.filter((e) => e.source === 'detector').map((e) => e.label)
   ]
   if (rules.length > 0) {
-    const rows = rules.reduce((n, e) => n + e.changes.length, 0)
+    const rows = rules.reduce((n, e) => n + e.changeCount, 0)
     parts.push(`${plural(rules.length, 'rule')} categorized ${plural(rows, 'transaction')}`)
   }
   if (ai.length > 0) {
-    const rows = ai.reduce((n, e) => n + e.changes.length, 0)
+    const rows = ai.reduce((n, e) => n + e.changeCount, 0)
     parts.push(`AI categorized ${plural(rows, 'transaction')}`)
   }
   parts.push(...entries.filter((e) => e.source === 'user').map((e) => e.label))

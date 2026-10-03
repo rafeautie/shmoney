@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { ActionLogEntry, ActionRun, ActionSource } from '@shared/ipc'
+import {
+  ACTION_LOG_PREVIEW_CHANGES,
+  type ActionLogEntry,
+  type ActionRun,
+  type ActionSource
+} from '@shared/ipc'
 import { buildFeed, runSummary } from './activity-feed'
 
 const day = (d: number, h = 12) => new Date(2026, 8, d, h).getTime()
@@ -18,7 +23,11 @@ function entry(
     label: `entry ${id}`,
     undoneAt: null,
     runId,
-    changes: Array.from({ length: rows }, (_, i) => ({
+    changeCount: rows,
+    sharedCategoryId: 1,
+    domains: ['transactions'],
+    // a page carries only a preview of each entry's changes
+    changes: Array.from({ length: Math.min(rows, ACTION_LOG_PREVIEW_CHANGES) }, (_, i) => ({
       transactionId: id * 100 + i,
       field: 'categoryId' as const,
       before: null,

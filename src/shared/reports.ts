@@ -23,7 +23,7 @@ import {
   subWeeks,
   subYears
 } from 'date-fns'
-import { idSchema, transactionSortBySchema } from './ipc'
+import { idSchema, pageCursorSchema, transactionSortBySchema } from './ipc'
 
 // ---------- filters ----------
 
@@ -423,7 +423,7 @@ export const widgetLayoutsSchema = z.object({
 export type WidgetLayoutsInput = z.infer<typeof widgetLayoutsSchema>
 
 export const reportTransactionsQuerySchema = z.object({
-  page: z.number().int().min(0),
+  page: pageCursorSchema,
   pageSize: z.number().int().min(1).max(100),
   sortBy: transactionSortBySchema,
   sortDir: z.enum(['asc', 'desc']),

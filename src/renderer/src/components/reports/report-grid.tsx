@@ -14,14 +14,35 @@ function useContainerWidth() {
     const node = containerRef.current
     if (!node) return
     setWidth(node.offsetWidth)
-    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width))
+    // Leading + trailing throttle: the sidebar's 200ms collapse would otherwise
+    // re-lay out every chart on every frame; this applies the first width at once
+    // and then at most one update per THROTTLE_MS, always ending on the final width.
+    let last = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let latest = node.offsetWidth
+    const flush = () => {
+      timer = undefined
+      last = performance.now()
+      setWidth(latest)
+    }
+    const observer = new ResizeObserver(([entry]) => {
+      latest = entry.contentRect.width
+      if (timer !== undefined) return
+      const wait = Math.max(0, last + RESIZE_THROTTLE_MS - performance.now())
+      if (wait === 0) flush()
+      else timer = setTimeout(flush, wait)
+    })
     observer.observe(node)
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      clearTimeout(timer)
+    }
   }, [])
 
   return { width, containerRef, mounted: width > 0 }
 }
 
+const RESIZE_THROTTLE_MS = 100
 const GRID_COLS = 12
 const GRID_ROW_HEIGHT = 56
 

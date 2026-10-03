@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
 
 // App-wide open state for the import dialog. The dialog is mounted once in the
 // root layout (ImportFileHost), so a button on a page and a file dropped on the
@@ -20,4 +21,14 @@ export function useImportUi(): ImportUi {
   const ctx = useContext(ImportUiContext)
   if (!ctx) throw new Error('useImportUi must be used within an ImportUiProvider')
   return ctx
+}
+
+/** Opens the import flow. The dialog itself is mounted once by ImportFileHost. */
+export function ImportButton(): React.JSX.Element {
+  const { setOpen } = useImportUi()
+  return (
+    <Button variant="outline" onClick={() => setOpen(true)}>
+      Import
+    </Button>
+  )
 }

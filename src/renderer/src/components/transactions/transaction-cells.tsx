@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { memo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
@@ -6,10 +6,13 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDataTransferHorizontalIcon } from '@hugeicons/core-free-icons'
 import type { Transaction } from '@shared/ipc'
 import { cn, currencySymbol, ipcErrorMessage, parseSignedAmount } from '@/lib/utils'
+import { invalidateTransactionData } from '@/lib/invalidate'
 import { useAccountCurrency } from '@/lib/currency'
 import { AccountPicker } from '@/components/accounts/account-picker'
 import { Amount } from '@/components/amount'
 import { CategoryPicker } from './category-picker'
+import { CellPopover } from './cell-popover'
+import { useTransactionEditsContext } from './use-transaction-edits'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
@@ -20,22 +23,14 @@ import { TableCell, TableRow } from '@/components/ui/table'
 
 const SYNCED_TITLE = 'Synced from your bank'
 
-// every cell edit goes through transactions:update, which records an undoable
-// action-log entry per changed field; the cell updating is the feedback (no toast)
-function useUpdateTransaction() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (input: Parameters<typeof window.api.transactions.update>[0]) =>
-      window.api.transactions.update(input),
-    onError: (error) => toast(ipcErrorMessage(error)),
-    onSettled: () => queryClient.invalidateQueries()
-  })
-}
-
 /** Description cell: click to edit in place. Pending/synced rows are plain text. */
-export function EditableTextCell({ transaction }: { transaction: Transaction }) {
+export const EditableTextCell = memo(function EditableTextCell({
+  transaction
+}: {
+  transaction: Transaction
+}) {
   const [draft, setDraft] = useState<string | null>(null)
-  const update = useUpdateTransaction()
+  const { update } = useTransactionEditsContext()
 
   const display = (
     <div className="flex min-w-0 items-center gap-1.5" title={transaction.description}>
@@ -64,7 +59,7 @@ export function EditableTextCell({ transaction }: { transaction: Transaction }) 
     const commit = () => {
       const trimmed = draft.trim()
       if (trimmed !== '' && trimmed !== transaction.description) {
-        update.mutate({ id: transaction.id, description: trimmed })
+        void update({ id: transaction.id, description: trimmed })
       }
       setDraft(null)
     }
@@ -93,12 +88,16 @@ export function EditableTextCell({ transaction }: { transaction: Transaction }) 
       {display}
     </Button>
   )
-}
+})
 
 /** Amount cell: click to edit the literal signed decimal (negative = expense). */
-export function EditableAmountCell({ transaction }: { transaction: Transaction }) {
+export const EditableAmountCell = memo(function EditableAmountCell({
+  transaction
+}: {
+  transaction: Transaction
+}) {
   const [draft, setDraft] = useState<string | null>(null)
-  const update = useUpdateTransaction()
+  const { update } = useTransactionEditsContext()
 
   const display = (
     <Amount
@@ -122,7 +121,7 @@ export function EditableAmountCell({ transaction }: { transaction: Transaction }
     const commit = () => {
       const amount = parseSignedAmount(draft)
       if (amount !== null && amount !== transaction.amount) {
-        update.mutate({ id: transaction.id, amount })
+        void update({ id: transaction.id, amount })
       }
       setDraft(null)
     }
@@ -156,12 +155,16 @@ export function EditableAmountCell({ transaction }: { transaction: Transaction }
       </Button>
     </div>
   )
-}
+})
 
 /** Date cell: click for a calendar; picking a day commits immediately. */
-export function EditableDateCell({ transaction }: { transaction: Transaction }) {
+export const EditableDateCell = memo(function EditableDateCell({
+  transaction
+}: {
+  transaction: Transaction
+}) {
   const [open, setOpen] = useState(false)
-  const update = useUpdateTransaction()
+  const { update } = useTransactionEditsContext()
 
   const label = transaction.date ? format(new Date(transaction.date * 1000), 'MMM d, yyyy') : '—'
 
@@ -169,26 +172,25 @@ export function EditableDateCell({ transaction }: { transaction: Transaction }) 
   if (transaction.syncOwned) return <span title={SYNCED_TITLE}>{label}</span>
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={<Button variant="cell" size="sm" className="-ml-2 whitespace-nowrap" />}
-      >
-        {label}
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={transaction.date ? new Date(transaction.date * 1000) : undefined}
-          defaultMonth={transaction.date ? new Date(transaction.date * 1000) : undefined}
-          onSelect={(next) => {
-            if (next) update.mutate({ id: transaction.id, date: format(next, 'yyyy-MM-dd') })
-            setOpen(false)
-          }}
-        />
-      </PopoverContent>
-    </Popover>
+    <CellPopover
+      open={open}
+      onOpenChange={setOpen}
+      trigger={{ variant: 'cell', size: 'sm', className: '-ml-2 whitespace-nowrap' }}
+      label={label}
+      contentClassName="w-auto p-0"
+    >
+      <Calendar
+        mode="single"
+        selected={transaction.date ? new Date(transaction.date * 1000) : undefined}
+        defaultMonth={transaction.date ? new Date(transaction.date * 1000) : undefined}
+        onSelect={(next) => {
+          if (next) void update({ id: transaction.id, date: format(next, 'yyyy-MM-dd') })
+          setOpen(false)
+        }}
+      />
+    </CellPopover>
   )
-}
+})
 
 /**
  * Pinned entry row at the top of a transactions table. Enter commits when
@@ -252,7 +254,7 @@ export function TransactionCreateRow({
       descriptionRef.current?.focus()
     },
     onError: (error) => toast(ipcErrorMessage(error)),
-    onSettled: () => queryClient.invalidateQueries()
+    onSettled: () => invalidateTransactionData(queryClient)
   })
 
   const ready =

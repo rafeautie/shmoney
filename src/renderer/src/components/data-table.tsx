@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -24,6 +24,7 @@ import { Empty, EmptyDescription, EmptyMedia } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { RowExpandedContext } from '@/components/data-table-row-expanded'
 
 // enough placeholder rows to fill the visible area of a typical table
 const SKELETON_ROWS = 8
@@ -73,6 +74,53 @@ export function DataTableColumnHeader<TData, TValue>({
     </Button>
   )
 }
+
+interface DataTableRowProps<TData> {
+  row: Row<TData>
+  // the rest mirror state `row` reads, so the memo comparison can see it change
+  selected: boolean
+  canSelect: boolean
+  columns: ColumnDef<TData, unknown>[]
+  className: string
+  onClick: ((row: TData) => void) | undefined
+}
+
+function DataTableRowImpl<TData>({ row, selected, className, onClick }: DataTableRowProps<TData>) {
+  // the compiler would cache the cells on `row` alone, missing selection changes
+  'use no memo'
+  const [openPopovers, setOpenPopovers] = useState(0)
+  const reportExpanded = useCallback((delta: number) => setOpenPopovers((n) => n + delta), [])
+  return (
+    <RowExpandedContext value={reportExpanded}>
+      <TableRow
+        expanded={openPopovers > 0}
+        data-state={selected ? 'selected' : undefined}
+        className={className}
+        onClick={onClick ? () => onClick(row.original) : undefined}
+      >
+        {row.getVisibleCells().map((cell) => (
+          <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+    </RowExpandedContext>
+  )
+}
+
+// Row objects are rebuilt whenever data changes (e.g. a page loads), so compare
+// the underlying record instead; the query's structural sharing keeps it stable
+const DataTableRow = memo(
+  DataTableRowImpl,
+  (prev, next) =>
+    prev.row.id === next.row.id &&
+    prev.row.original === next.row.original &&
+    prev.selected === next.selected &&
+    prev.canSelect === next.canSelect &&
+    prev.columns === next.columns &&
+    prev.className === next.className &&
+    prev.onClick === next.onClick
+) as typeof DataTableRowImpl
 
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[]
@@ -160,6 +208,13 @@ export function DataTable<TData>({
     meta: { toggleRowSelected }
   })
 
+  // rows get one stable click handler, so an inline onRowClick doesn't re-render them all
+  const onRowClickRef = useRef(onRowClick)
+  useLayoutEffect(() => {
+    onRowClickRef.current = onRowClick
+  })
+  const handleRowClick = useCallback((original: TData) => onRowClickRef.current?.(original), [])
+
   const scrollRef = useRef<HTMLDivElement>(null)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
@@ -227,20 +282,19 @@ export function DataTable<TData>({
               </TableCell>
             </TableRow>
           ) : (
-            table.getRowModel().rows.map((row) => (
-              <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() ? 'selected' : undefined}
-                className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row.original))}
-                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id} className={cell.column.columnDef.meta?.className}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
+            table
+              .getRowModel()
+              .rows.map((row) => (
+                <DataTableRow
+                  key={row.id}
+                  row={row}
+                  selected={row.getIsSelected()}
+                  canSelect={row.getCanSelect()}
+                  columns={columns}
+                  className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row.original))}
+                  onClick={onRowClick ? handleRowClick : undefined}
+                />
+              ))
           )}
           {isFetchingMore && (
             <TableRow className="hover:bg-transparent">

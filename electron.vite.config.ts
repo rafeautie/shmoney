@@ -58,7 +58,10 @@ export default defineConfig({
         routesDirectory: resolve('src/renderer/src/routes'),
         generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts')
       }),
-      react()
-    ]
+      react({ babel: { plugins: ['babel-plugin-react-compiler'] } })
+    ],
+    // keepNames so minified stacks in the local log still name their functions
+    esbuild: { keepNames: true },
+    build: { minify: true }
   }
 })

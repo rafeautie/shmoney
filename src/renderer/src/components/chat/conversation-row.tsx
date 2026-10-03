@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Delete02Icon, MoreHorizontalIcon, PencilEdit01Icon } from '@hugeicons/core-free-icons'
@@ -15,7 +15,7 @@ import { StatusDot } from '@/components/layout/nav-dot'
 import { SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
 
 /** One conversation in the sidebar history: link, inline rename, delete menu. */
-export function ConversationRow({
+export const ConversationRow = memo(function ConversationRow({
   conversation,
   active
 }: {
@@ -26,6 +26,8 @@ export function ConversationRow({
   const rename = useRenameConversation()
   const deleteConversation = useDeleteConversation()
   const [editing, setEditing] = useState(false)
+  // the dropdown (a Base UI root) mounts on first hover or focus, not for every row up front
+  const [armed, setArmed] = useState(false)
   const status = conversationStatus(conversation)
   // the open thread is being read as it lands; only its running reply is news
   const dot = status === 'busy' || (status !== null && !active) ? status : null
@@ -56,7 +58,7 @@ export function ConversationRow({
   }
 
   return (
-    <SidebarMenuItem>
+    <SidebarMenuItem onPointerEnter={() => setArmed(true)} onFocus={() => setArmed(true)}>
       <SidebarMenuButton
         render={<Link to="/chat" search={{ c: conversation.id }} />}
         isActive={active}
@@ -71,36 +73,38 @@ export function ConversationRow({
         />
         <span className="truncate">{conversation.title ?? 'Untitled'}</span>
       </SidebarMenuButton>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <SidebarMenuAction
-              showOnHover
-              aria-label="Conversation actions"
-              // fade in on row hover with the same gentle timing as button hovers
-              className="transition-[opacity,transform,background-color,color] ease-in-out"
-            />
-          }
-        >
-          <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          <DropdownMenuItem onClick={() => setEditing(true)}>
-            <HugeiconsIcon icon={PencilEdit01Icon} size={14} />
-            Rename
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => {
-              deleteConversation.mutate(conversation.id)
-              if (active) void navigate({ to: '/chat' })
-            }}
+      {armed && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <SidebarMenuAction
+                showOnHover
+                aria-label="Conversation actions"
+                // fade in on row hover with the same gentle timing as button hovers
+                className="transition-[opacity,transform,background-color,color] ease-in-out"
+              />
+            }
           >
-            <HugeiconsIcon icon={Delete02Icon} size={14} />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => setEditing(true)}>
+              <HugeiconsIcon icon={PencilEdit01Icon} size={14} />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => {
+                deleteConversation.mutate(conversation.id)
+                if (active) void navigate({ to: '/chat' })
+              }}
+            >
+              <HugeiconsIcon icon={Delete02Icon} size={14} />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </SidebarMenuItem>
   )
-}
+})

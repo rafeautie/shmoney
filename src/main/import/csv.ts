@@ -1,13 +1,13 @@
-import Papa from 'papaparse'
 import { parse as parseDate, isValid } from 'date-fns'
 import { CSV_DATE_FORMATS, type CsvMapping } from '@shared/import'
 import { dayToUnix, type ParsedRow } from './parse'
 
 // Pure CSV normalization: raw table + user-confirmed column mapping -> ParsedRows.
-// No electron/db imports so it runs under vitest.
+// No electron/db imports so it runs under vitest. papaparse loads on first use.
 
 /** first row = headers, rest = data. Papaparse auto-detects the delimiter (covers TSV). */
-export function parseCsv(text: string): { headers: string[]; rows: string[][] } {
+export async function parseCsv(text: string): Promise<{ headers: string[]; rows: string[][] }> {
+  const { default: Papa } = await import('papaparse')
   const result = Papa.parse<string[]>(text.trim(), { skipEmptyLines: 'greedy' })
   const [headers = [], ...rows] = result.data
   return { headers, rows }

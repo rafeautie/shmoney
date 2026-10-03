@@ -1,18 +1,18 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { memo, useEffect, useId, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import {
   CSV_DATE_FORMATS,
   type CsvMapping,
   type ImportPreview,
-  type ImportPreviewInput,
   type PickFileResult
 } from '@shared/import'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { FileImportIcon, UnfoldMoreIcon } from '@hugeicons/core-free-icons'
 import { data as currencyData } from 'currency-codes'
-import { useImportUi } from '@/lib/import-ui'
+import { invalidateTransactionData } from '@/lib/invalidate'
 import { cn, currencySymbol, ipcErrorMessage, plural, TABLE_BLEED } from '@/lib/utils'
 import { Amount } from '@/components/amount'
 import { Badge } from '@/components/ui/badge'
@@ -61,8 +61,33 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 type PickedFile = Exclude<PickFileResult, null>
 type Step = 'file' | 'account' | 'mapping' | 'preview'
 
-/** how many raw rows the column-matching step shows as a sample */
-const MAPPING_SAMPLE_ROWS = 3
+type PreviewRow = ImportPreview['rows'][number] & { dateLabel: string }
+interface PreviewData {
+  rows: PreviewRow[]
+  errors: ImportPreview['errors']
+  /** rows checked by default (status 'new') */
+  byId: Map<string, PreviewRow>
+  newCount: number
+  duplicateCount: number
+}
+
+// display strings and counts once per preview result, not per render
+function toPreviewData(preview: ImportPreview): PreviewData {
+  let newCount = 0
+  let duplicateCount = 0
+  const rows = preview.rows.map((row) => {
+    if (row.status === 'new') newCount++
+    else if (row.status === 'duplicate') duplicateCount++
+    return { ...row, dateLabel: format(new Date(row.posted * 1000), 'MMM d, yyyy') }
+  })
+  const byId = new Map(rows.map((row) => [row.externalId, row]))
+  return { rows, errors: preview.errors, byId, newCount, duplicateCount }
+}
+
+/** a row's checkbox when the user hasn't touched it: new rows in, probable duplicates opt-in */
+const includedByDefault = (row: PreviewRow): boolean => row.status === 'new'
+
+const NO_TOGGLES: ReadonlySet<string> = new Set()
 
 export function ImportDialog({
   open,
@@ -86,8 +111,12 @@ export function ImportDialog({
   const [newName, setNewName] = useState('')
   const [newCurrency, setNewCurrency] = useState('USD')
   const [newBalance, setNewBalance] = useState('')
-  /** externalId -> include in the import (duplicates are excluded regardless) */
-  const [included, setIncluded] = useState<Record<string, boolean>>({})
+  /** externalIds the user flipped from their default, for the preview result they
+   * were made on (a new result starts clean); duplicates are excluded regardless */
+  const [toggles, setToggles] = useState<{
+    data: PreviewData | undefined
+    ids: ReadonlySet<string>
+  }>({ data: undefined, ids: NO_TOGGLES })
 
   // a stale file/selection must never carry over into the next import
   useEffect(() => {
@@ -101,8 +130,19 @@ export function ImportDialog({
     setNewName('')
     setNewCurrency('USD')
     setNewBalance('')
-    setIncluded({})
+    setToggles({ data: undefined, ids: NO_TOGGLES })
   }, [open])
+
+  // the parsed file lives in main under its handle; let it go (and the preview
+  // built from it) once the dialog closes or another file replaces it
+  const handle = file?.handle
+  useEffect(() => {
+    if (!open || !handle) return
+    return () => {
+      void window.api.import.release(handle)
+      queryClient.removeQueries({ queryKey: ['import', 'preview', handle] })
+    }
+  }, [open, handle, queryClient])
 
   const accountsQuery = useQuery({
     queryKey: ['accounts'],
@@ -137,43 +177,40 @@ export function ImportDialog({
     pickFile({ fileName: dropped.name, bytes })
   }
 
-  const previewInput: ImportPreviewInput | null = useMemo(() => {
-    if (!file) return null
-    if (file.kind === 'csv') {
-      if (!mapping) return null
-      return {
-        source: { csv: { headers: file.headers, rows: file.rows, mapping } },
-        accountId: mode === 'existing' && accountId !== null ? accountId : undefined
-      }
-    }
-    return {
-      source: { rows: file.rows },
-      accountId: mode === 'existing' && accountId !== null ? accountId : undefined
-    }
-  }, [file, mapping, mode, accountId])
-
+  const csvMapping = file?.kind === 'csv' ? (mapping ?? undefined) : undefined
+  const previewAccountId = mode === 'existing' && accountId !== null ? accountId : undefined
   const preview = useQuery({
-    // key on the inputs that change the result, not the (large) row data — the
-    // rows are fixed once a file is picked
-    queryKey: ['import', 'preview', file?.fileName, mapping, mode, accountId],
-    queryFn: () => window.api.import.preview(previewInput!),
-    enabled: open && step === 'preview' && previewInput !== null,
-    staleTime: 0,
-    gcTime: 0
+    queryKey: ['import', 'preview', handle, csvMapping, previewAccountId],
+    queryFn: () =>
+      window.api.import.preview({
+        handle: handle!,
+        mapping: csvMapping,
+        accountId: previewAccountId
+      }),
+    select: toPreviewData,
+    enabled: open && step === 'preview' && !!handle && (file?.kind !== 'csv' || !!csvMapping),
+    // the file is fixed under its handle, so Back -> Next can reuse the result;
+    // closing the dialog drops it
+    staleTime: Infinity
   })
 
-  // default selection: new rows in, probable duplicates opt-in, exact ones out
-  useEffect(() => {
-    if (!preview.data) return
-    const next: Record<string, boolean> = {}
-    for (const row of preview.data.rows) next[row.externalId] = row.status === 'new'
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- seeds the user-editable selection once per preview result; deriving it in render would clobber user edits
-    setIncluded(next)
-  }, [preview.data])
-
-  const selectedRows = (preview.data?.rows ?? []).filter(
-    (row) => row.status !== 'duplicate' && included[row.externalId]
-  )
+  const previewData = preview.data
+  const toggled = toggles.data === previewData ? toggles.ids : NO_TOGGLES
+  const isIncluded = (row: PreviewRow): boolean =>
+    row.status !== 'duplicate' && includedByDefault(row) !== toggled.has(row.externalId)
+  const onToggle = (row: PreviewRow, checked: boolean): void =>
+    setToggles((prev) => {
+      const ids = new Set(prev.data === previewData ? prev.ids : NO_TOGGLES)
+      if (checked === includedByDefault(row)) ids.delete(row.externalId)
+      else ids.add(row.externalId)
+      return { data: previewData, ids }
+    })
+  // the default count adjusted by each flip, so a toggle doesn't rescan every row
+  let selectedCount = previewData?.newCount ?? 0
+  for (const id of toggled) {
+    const row = previewData?.byId.get(id)
+    if (row) selectedCount += includedByDefault(row) ? -1 : 1
+  }
 
   const balanceInvalid = newBalance.trim() !== '' && !Number.isFinite(Number(newBalance))
   const accountStepReady =
@@ -187,7 +224,9 @@ export function ImportDialog({
 
   const apply = useMutation({
     mutationFn: () => {
-      const rows = selectedRows.map(({ status: _status, ...row }) => row)
+      const excluded = (previewData?.rows ?? [])
+        .filter((row) => row.status !== 'duplicate' && !isIncluded(row))
+        .map((row) => row.externalId)
       const target =
         mode === 'existing'
           ? { accountId: accountId! }
@@ -199,7 +238,7 @@ export function ImportDialog({
                   newBalance.trim() === '' ? undefined : Math.round(Number(newBalance) * 1000)
               }
             }
-      return window.api.import.apply({ rows, target })
+      return window.api.import.apply({ handle: handle!, mapping: csvMapping, excluded, target })
     },
     onSuccess: (result) => {
       const extras = [
@@ -212,7 +251,8 @@ export function ImportDialog({
       })
       onOpenChange(false)
     },
-    onSettled: () => queryClient.invalidateQueries()
+    // the rows, a new account, transfer and rule categorizations, the Activity entry
+    onSettled: () => invalidateTransactionData(queryClient)
   })
 
   // dots cover only the post-file-picker steps (the ones with Back/Next); the
@@ -301,8 +341,8 @@ export function ImportDialog({
             <p className="text-sm text-muted-foreground">
               {file.fileName} ·{' '}
               {file.kind === 'csv'
-                ? plural(file.rows.length, 'row')
-                : plural(file.rows.length, 'transaction')}
+                ? plural(file.rowCount, 'row')
+                : plural(file.rowCount, 'transaction')}
             </p>
             <Tabs value={mode} onValueChange={(v) => setMode(v as 'existing' | 'new')}>
               <TabsList>
@@ -372,7 +412,8 @@ export function ImportDialog({
         {step === 'mapping' && file?.kind === 'csv' && (
           <CsvMappingFields
             headers={file.headers}
-            rows={file.rows}
+            sampleRows={file.sampleRows}
+            rowCount={file.rowCount}
             mapping={mapping}
             onChange={setMapping}
           />
@@ -382,10 +423,8 @@ export function ImportDialog({
           <ImportPreviewTable
             preview={preview}
             currency={currency}
-            included={included}
-            onToggle={(externalId, value) =>
-              setIncluded((prev) => ({ ...prev, [externalId]: value }))
-            }
+            isIncluded={isIncluded}
+            onToggle={onToggle}
           />
         )}
 
@@ -412,13 +451,13 @@ export function ImportDialog({
               {step === 'preview' && (
                 <Button
                   onClick={() => apply.mutate()}
-                  disabled={selectedRows.length === 0 || apply.isPending}
+                  disabled={selectedCount === 0 || apply.isPending}
                 >
                   {apply.isPending
                     ? 'Importing…'
-                    : selectedRows.length === 0
+                    : selectedCount === 0
                       ? 'Nothing to import'
-                      : `Import ${plural(selectedRows.length, 'transaction')}`}
+                      : `Import ${plural(selectedCount, 'transaction')}`}
                 </Button>
               )}
             </div>
@@ -429,15 +468,9 @@ export function ImportDialog({
   )
 }
 
-/** Opens the import flow. The dialog itself is mounted once by ImportFileHost. */
-export function ImportButton(): React.JSX.Element {
-  const { setOpen } = useImportUi()
-  return (
-    <Button variant="outline" onClick={() => setOpen(true)}>
-      Import
-    </Button>
-  )
-}
+// lives with the open state so pages can show it without loading the dialog;
+// re-exported for existing importers
+export { ImportButton } from '@/lib/import-ui'
 
 // progress dots, same look as the onboarding flow's StepDots
 function StepDots({ count, index }: { count: number; index: number }): React.JSX.Element {
@@ -562,12 +595,14 @@ function ColumnSelect({
 
 function CsvMappingFields({
   headers,
-  rows,
+  sampleRows,
+  rowCount,
   mapping,
   onChange
 }: {
   headers: string[]
-  rows: string[][]
+  sampleRows: string[][]
+  rowCount: number
   mapping: CsvMapping | null
   onChange: (mapping: CsvMapping) => void
 }): React.JSX.Element {
@@ -702,7 +737,7 @@ function CsvMappingFields({
       {/* raw data sample so the column roles can be matched by sight */}
       <div className="flex min-h-0 flex-1 flex-col gap-1.5">
         <p className="text-xs text-muted-foreground">
-          First {Math.min(rows.length, MAPPING_SAMPLE_ROWS)} of {plural(rows.length, 'row')}
+          First {sampleRows.length} of {plural(rowCount, 'row')}
         </p>
         <ScrollArea horizontal className="rounded-md border">
           <table className="w-full text-xs">
@@ -719,7 +754,7 @@ function CsvMappingFields({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.slice(0, MAPPING_SAMPLE_ROWS).map((row, i) => (
+              {sampleRows.map((row, i) => (
                 <TableRow key={i}>
                   {headers.map((_, col) => (
                     <TableCell key={col} className="max-w-48 truncate whitespace-nowrap">
@@ -736,17 +771,75 @@ function CsvMappingFields({
   )
 }
 
+// h-10 cells plus the row's bottom border; rows are measured once rendered
+const PREVIEW_ROW_HEIGHT = 41
+
+const PreviewTableRow = memo(function PreviewTableRow({
+  row,
+  index,
+  checked,
+  currency,
+  onToggle,
+  measureRef
+}: {
+  row: PreviewRow
+  index: number
+  checked: boolean
+  currency: string
+  onToggle: (row: PreviewRow, checked: boolean) => void
+  measureRef: (element: HTMLTableRowElement | null) => void
+}): React.JSX.Element {
+  return (
+    <TableRow
+      ref={measureRef}
+      data-index={index}
+      className={cn(row.status === 'duplicate' && 'opacity-50')}
+    >
+      <TableCell className="pr-0">
+        {row.status !== 'duplicate' && (
+          <Checkbox
+            checked={checked}
+            onCheckedChange={(next) => onToggle(row, next === true)}
+            aria-label="Include in import"
+          />
+        )}
+      </TableCell>
+      <TableCell className="whitespace-nowrap text-muted-foreground">{row.dateLabel}</TableCell>
+      <TableCell className="max-w-0 truncate">{row.description}</TableCell>
+      <TableCell className="text-right whitespace-nowrap">
+        <Amount value={row.amount} currency={currency} />
+      </TableCell>
+      <TableCell className="whitespace-nowrap">
+        {row.status === 'duplicate' && <Badge variant="secondary">Duplicate</Badge>}
+        {row.status === 'probable' && <Badge variant="outline">Possible duplicate</Badge>}
+      </TableCell>
+    </TableRow>
+  )
+})
+
 function ImportPreviewTable({
   preview,
   currency,
-  included,
+  isIncluded,
   onToggle
 }: {
-  preview: UseQueryResult<ImportPreview>
+  preview: UseQueryResult<PreviewData>
   currency: string
-  included: Record<string, boolean>
-  onToggle: (externalId: string, value: boolean) => void
+  isIncluded: (row: PreviewRow) => boolean
+  onToggle: (row: PreviewRow, checked: boolean) => void
 }): React.JSX.Element {
+  // the virtualizer is a mutable instance the compiler can't see change
+  'use no memo'
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const rows = preview.data?.rows ?? []
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => viewportRef.current,
+    estimateSize: () => PREVIEW_ROW_HEIGHT,
+    getItemKey: (index) => rows[index].externalId,
+    overscan: 10
+  })
+
   if (preview.isLoading) {
     return <p className="py-8 text-center text-sm text-muted-foreground">Checking transactions…</p>
   }
@@ -755,9 +848,16 @@ function ImportPreviewTable({
       <p className="py-8 text-center text-sm text-destructive">{ipcErrorMessage(preview.error)}</p>
     )
   }
-  const rows = preview.data?.rows ?? []
   const errors = preview.data?.errors ?? []
-  const duplicates = rows.filter((r) => r.status === 'duplicate').length
+  const duplicates = preview.data?.duplicateCount ?? 0
+  // every row that isn't new carries a status badge
+  const anyBadges = rows.length > (preview.data?.newCount ?? 0)
+
+  // only the rows in view are mounted; spacer rows stand in for the rest so the
+  // scrollbar and sticky header behave as if the whole table were there
+  const items = virtualizer.getVirtualItems()
+  const padTop = items.length > 0 ? items[0].start : 0
+  const padBottom = items.length > 0 ? virtualizer.getTotalSize() - items[items.length - 1].end : 0
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
@@ -777,51 +877,45 @@ function ImportPreviewTable({
           No transactions found in the file.
         </p>
       ) : (
-        <ScrollArea className="-mx-4 min-h-0 flex-1 [--table-edge:1rem]" viewPortClassName="h-full">
+        <ScrollArea
+          className="-mx-4 min-h-0 flex-1 [--table-edge:1rem]"
+          viewPortClassName="h-full"
+          viewportRef={viewportRef}
+        >
           <table className={cn('w-full caption-bottom text-xs', TABLE_BLEED)}>
             <TableHeader className="sticky top-0 z-10 bg-popover shadow-[inset_0_-1px_0_0_var(--border)] [&_tr]:border-b-0">
               <TableRow className="hover:bg-transparent">
                 <TableHead className="w-8" />
-                <TableHead className="font-normal text-muted-foreground">Date</TableHead>
+                {/* widths hold the columns steady as rows mount and unmount */}
+                <TableHead className="w-24 font-normal text-muted-foreground">Date</TableHead>
                 <TableHead className="w-full font-normal text-muted-foreground">
                   Description
                 </TableHead>
-                <TableHead className="text-right font-normal text-muted-foreground">
+                <TableHead className="w-28 text-right font-normal text-muted-foreground">
                   Amount
                 </TableHead>
-                <TableHead className="font-normal text-muted-foreground">Status</TableHead>
+                <TableHead className={cn('font-normal text-muted-foreground', anyBadges && 'w-36')}>
+                  Status
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody className="[&_tr:last-child]:border-b!">
-              {rows.map((row) => (
-                <TableRow
-                  key={row.externalId}
-                  className={cn(row.status === 'duplicate' && 'opacity-50')}
-                >
-                  <TableCell>
-                    {row.status !== 'duplicate' && (
-                      <Checkbox
-                        checked={included[row.externalId] ?? false}
-                        onCheckedChange={(checked) => onToggle(row.externalId, checked === true)}
-                        aria-label="Include in import"
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap text-muted-foreground">
-                    {format(new Date(row.posted * 1000), 'MMM d, yyyy')}
-                  </TableCell>
-                  <TableCell className="max-w-0 truncate">{row.description}</TableCell>
-                  <TableCell className="text-right whitespace-nowrap">
-                    <Amount value={row.amount} currency={currency} />
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    {row.status === 'duplicate' && <Badge variant="secondary">Duplicate</Badge>}
-                    {row.status === 'probable' && (
-                      <Badge variant="outline">Possible duplicate</Badge>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {padTop > 0 && <tr aria-hidden style={{ height: padTop }} />}
+              {items.map((item) => {
+                const row = rows[item.index]
+                return (
+                  <PreviewTableRow
+                    key={row.externalId}
+                    row={row}
+                    index={item.index}
+                    checked={isIncluded(row)}
+                    currency={currency}
+                    onToggle={onToggle}
+                    measureRef={virtualizer.measureElement}
+                  />
+                )
+              })}
+              {padBottom > 0 && <tr aria-hidden style={{ height: padBottom }} />}
             </TableBody>
           </table>
         </ScrollArea>

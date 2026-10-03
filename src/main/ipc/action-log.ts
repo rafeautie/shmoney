@@ -18,6 +18,7 @@ import { db } from '../db'
 import {
   accounts,
   actionLog,
+  actionLogTransactions,
   actionRuns,
   budgets,
   categories,
@@ -28,16 +29,18 @@ import {
 } from '../db/schema'
 import { dominantCurrency } from '../budgets/summary'
 import { createLogger } from '../logging'
-import { transactionDate } from '../db/expressions'
 import { escapeLike } from '../reports/filters'
 import {
   ACTION_LOG_IPC,
+  ACTION_LOG_PREVIEW_CHANGES,
   actionLogPageSchema,
   idSchema,
   isSavingsGoalChange,
   isTransactionChange,
   type ActionChange,
+  type ActionDomain,
   type ActionField,
+  type ActionLogChange,
   type ActionLogEntry,
   type ActionLogPage,
   type ActionLogPageInput,
@@ -76,6 +79,15 @@ const EDITABLE_FIELDS = {
 
 // entries per Activity page; an unfiltered page may run over to finish a run
 const PAGE_SIZE = 100
+
+// ids per IN (...) list, well under SQLite's 32766 bound-variable limit
+const IN_CHUNK = 10_000
+
+function chunks<T>(items: T[], size = IN_CHUNK): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size))
+  return out
+}
 
 // applied entries (undoneAt null) are the permanent Activity history and are
 // never purged. An entry the user undid and left undone, though, is dead weight
@@ -117,6 +129,14 @@ export function inRun<T>(run: Run, fn: () => T): T {
   }
 }
 
+// what Activity search matches a change by: the name or title it carries,
+// else (via action_log_transactions) its transaction's current description
+function changeName(change: ActionChange): string | null {
+  if ('name' in change) return change.name
+  if ('title' in change) return change.title
+  return null
+}
+
 /**
  * Append an entry to the audit log within an existing transaction. Callers pass
  * only the changes that actually altered a row, so an entry always has effect.
@@ -142,10 +162,22 @@ export function recordAction(
       source: entry.source,
       label: entry.label,
       changes: entry.changes,
-      runId: run?.id ?? null
+      runId: run?.id ?? null,
+      searchText: entry.changes
+        .map(changeName)
+        .filter((name) => name !== null)
+        .join('\n')
     })
     .returning({ id: actionLog.id })
     .get()
+  const txIds = [...new Set(entry.changes.filter(isTransactionChange).map((c) => c.transactionId))]
+  // two variables per row
+  for (const chunk of chunks(txIds, IN_CHUNK / 2)) {
+    tx.insert(actionLogTransactions)
+      .values(chunk.map((transactionId) => ({ entryId: row.id, transactionId })))
+      .onConflictDoNothing()
+      .run()
+  }
   return row.id
 }
 
@@ -435,29 +467,28 @@ function redoNewest(): UndoResult | null {
 // each change joined to its current context: a transaction change to its
 // transaction (null when later removed, e.g. on disconnect), a budget change to
 // its category name
-function enrich(rows: (typeof actionLog.$inferSelect)[]): ActionLogEntry[] {
-  const allChanges = rows.flatMap((r) => r.changes)
-  const txIds = [...new Set(allChanges.filter(isTransactionChange).map((c) => c.transactionId))]
-  const context = txIds.length
-    ? db
-        .select({
-          id: transactions.id,
-          description: transactions.description,
-          accountName: accounts.name,
-          amount: transactions.amount,
-          currency: accounts.currency,
-          date: transactionDate
-        })
-        .from(transactions)
-        .innerJoin(accounts, eq(transactions.accountId, accounts.id))
-        .where(inArray(transactions.id, txIds))
-        .all()
-    : []
+function enrichChanges(changes: ActionChange[]): ActionLogChange[] {
+  const txIds = [...new Set(changes.filter(isTransactionChange).map((c) => c.transactionId))]
+  const context = chunks(txIds).flatMap((ids) =>
+    db
+      .select({
+        id: transactions.id,
+        description: transactions.description,
+        accountName: accounts.name,
+        amount: transactions.amount,
+        currency: accounts.currency,
+        date: transactions.effectiveDate
+      })
+      .from(transactions)
+      .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+      .where(inArray(transactions.id, ids))
+      .all()
+  )
   const byId = new Map(context.map((c) => [c.id, c]))
 
   const budgetCatIds = [
     ...new Set(
-      allChanges
+      changes
         .filter((c): c is BudgetActionChange => c.field === 'budgetAmount')
         .map((c) => c.categoryId)
     )
@@ -473,55 +504,96 @@ function enrich(rows: (typeof actionLog.$inferSelect)[]): ActionLogEntry[] {
   const currency = budgetCatIds.length ? dominantCurrency() : 'USD'
   let fallbackCurrency: string | undefined
 
-  return rows.map((row) => ({
+  return changes.map((change) => {
+    if (change.field === 'budgetAmount') {
+      return { ...change, categoryName: catById.get(change.categoryId) ?? null, currency }
+    }
+    if (change.field === 'savingsGoalTargetAmount') {
+      return {
+        ...change,
+        currency: change.currency ?? (fallbackCurrency ??= dominantCurrency())
+      }
+    }
+    // these carry their own display context (title/name), so nothing to join
+    if (
+      change.field === 'conversationTitle' ||
+      change.field === 'conversationDeletedAt' ||
+      change.field === 'savedFilterDeletedAt' ||
+      isSavingsGoalChange(change)
+    ) {
+      return change
+    }
+    const t = byId.get(change.transactionId)
+    return {
+      ...change,
+      description: t?.description ?? null,
+      accountName: t?.accountName ?? null,
+      amount: t?.amount ?? null,
+      currency: t?.currency ?? null,
+      date: t?.date ?? null
+    }
+  })
+}
+
+function domainOf(change: ActionChange): ActionDomain {
+  if (change.field === 'budgetAmount') return 'budgets'
+  if (change.field === 'conversationTitle' || change.field === 'conversationDeletedAt')
+    return 'conversations'
+  if (change.field === 'savedFilterDeletedAt') return 'savedFilters'
+  if (isSavingsGoalChange(change)) return 'goals'
+  return 'transactions'
+}
+
+// the one category every change sends its row to, when there is exactly one
+function sharedCategoryId(changes: ActionChange[]): number | null {
+  const targets = new Set(changes.map((c) => (c.field === 'categoryId' ? c.after : undefined)))
+  const [target] = targets
+  return targets.size === 1 && typeof target === 'number' ? target : null
+}
+
+// an entry's summary plus only the changes the Activity row previews; the rest
+// load on demand through entryChanges
+function enrich(rows: (typeof actionLog.$inferSelect)[]): ActionLogEntry[] {
+  const previews = rows.map((r) => r.changes.slice(0, ACTION_LOG_PREVIEW_CHANGES))
+  const enriched = enrichChanges(previews.flat())
+  let at = 0
+  return rows.map((row, i) => ({
     id: row.id,
     createdAt: row.createdAt,
     source: row.source as ActionSource,
     label: row.label,
     undoneAt: row.undoneAt,
     runId: row.runId,
-    changes: row.changes.map((change) => {
-      if (change.field === 'budgetAmount') {
-        return { ...change, categoryName: catById.get(change.categoryId) ?? null, currency }
-      }
-      if (change.field === 'savingsGoalTargetAmount') {
-        return {
-          ...change,
-          currency: change.currency ?? (fallbackCurrency ??= dominantCurrency())
-        }
-      }
-      // these carry their own display context (title/name), so nothing to join
-      if (
-        change.field === 'conversationTitle' ||
-        change.field === 'conversationDeletedAt' ||
-        change.field === 'savedFilterDeletedAt' ||
-        isSavingsGoalChange(change)
-      ) {
-        return change
-      }
-      const t = byId.get(change.transactionId)
-      return {
-        ...change,
-        description: t?.description ?? null,
-        accountName: t?.accountName ?? null,
-        amount: t?.amount ?? null,
-        currency: t?.currency ?? null,
-        date: t?.date ?? null
-      }
-    })
+    changeCount: row.changes.length,
+    sharedCategoryId: sharedCategoryId(row.changes),
+    domains: [...new Set(row.changes.map(domainOf))],
+    changes: enriched.slice(at, (at += previews[i].length))
   }))
 }
 
-// search covers the label, the names and titles changes carry with them, and
-// the current description of every transaction an entry touched
+function entryChanges(id: number): ActionLogChange[] {
+  const row = db
+    .select({ changes: actionLog.changes })
+    .from(actionLog)
+    .where(eq(actionLog.id, id))
+    .get()
+  return row ? enrichChanges(row.changes) : []
+}
+
+// search covers the label, the names and titles changes carry with them
+// (search_text), and the current description of every transaction an entry
+// touched (action_log_transactions)
 function searchWhere(q: string): SQL {
   const term = '%' + escapeLike(q) + '%'
-  return sql`(${actionLog.label} like ${term} escape '\\' or exists (
-    select 1 from json_each(${actionLog.changes}) j
-    left join ${transactions} t on t.id = json_extract(j.value, '$.transactionId')
-    where coalesce(json_extract(j.value, '$.name'), json_extract(j.value, '$.title'), t.description, '')
-      like ${term} escape '\\'
-  ))`
+  return sql`(${actionLog.label} like ${term} escape '\\'
+    or ${actionLog.searchText} like ${term} escape '\\'
+    or ${actionLog.id} in (
+      select ${actionLogTransactions.entryId} from ${actionLogTransactions}
+      where ${actionLogTransactions.transactionId} in (
+        select ${transactions.id} from ${transactions}
+        where ${transactions.description} like ${term} escape '\\'
+      )
+    ))`
 }
 
 function listPage({ before, source, q }: ActionLogPageInput): ActionLogPage {
@@ -586,7 +658,7 @@ function newestAutomatedAt(): number | null {
 
 // compact the log at startup: drop entries that have sat undone longer than the
 // retention window. Applied history stays intact — only abandoned undos go.
-function purgeStaleUndoneEntries(): void {
+export function purgeStaleUndoneEntries(): void {
   const cutoff = Date.now() - UNDONE_RETENTION_MS
   const removed = db
     .delete(actionLog)
@@ -600,8 +672,6 @@ function purgeStaleUndoneEntries(): void {
 }
 
 export function registerActionLogIpc(): void {
-  purgeStaleUndoneEntries()
-
   // snapshot the newest entry so keyboard undo/redo can tell this session's
   // actions apart from earlier ones
   const newest = db
@@ -614,6 +684,9 @@ export function registerActionLogIpc(): void {
 
   ipcMain.handle(ACTION_LOG_IPC.page, (_event, input: unknown) =>
     listPage(actionLogPageSchema.parse(input ?? {}))
+  )
+  ipcMain.handle(ACTION_LOG_IPC.entryChanges, (_event, input: unknown) =>
+    entryChanges(idSchema.parse(input))
   )
   ipcMain.handle(ACTION_LOG_IPC.newestAutomatedAt, () => newestAutomatedAt())
   ipcMain.handle(ACTION_LOG_IPC.undo, () => undoNewest())

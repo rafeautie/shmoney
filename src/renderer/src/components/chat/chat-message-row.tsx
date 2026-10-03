@@ -1,9 +1,9 @@
-import type { ReactNode } from 'react'
+import { memo, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Target02Icon } from '@hugeicons/core-free-icons'
 import { messageText, type ChatMessage, type StreamingChatPart } from '@shared/chat'
-import type { ActiveReply } from '@/lib/chat'
+import { useActiveReply } from '@/lib/chat'
 import { Badge } from '@/components/ui/badge'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
@@ -107,16 +107,13 @@ function queriedGoals(parts: StreamingChatPart[]): boolean {
  * same component renders a turn live and settled; it takes its items from the
  * streamed reply while the row is streaming and from the persisted parts after,
  * so React never tears the subtree down on settle and the cards keep whatever
- * the user opened mid-reply.
+ * the user opened mid-reply. Only the streaming row subscribes to the reply,
+ * so a patch re-renders that row alone.
  */
-export function ChatMessageRow({
-  message,
-  reply
-}: {
-  message: ChatMessage
-  /** the streamed reply, passed only while this row is the streaming one */
-  reply?: ActiveReply | null
-}) {
+export const ChatMessageRow = memo(function ChatMessageRow({ message }: { message: ChatMessage }) {
+  const streaming = message.status === 'streaming'
+  const reply = useActiveReply(streaming ? message.conversationId : null)
+
   if (message.role === 'user') {
     return (
       <Message align="end">
@@ -141,7 +138,6 @@ export function ChatMessageRow({
     )
   }
 
-  const streaming = message.status === 'streaming'
   // a null reply is a conversation reopened mid-turn: nothing streamed here
   // yet, so the row waits like it does before the first chunk. The streamed
   // array can be momentarily sparse after such a reopen, so holes are dropped
@@ -184,4 +180,4 @@ export function ChatMessageRow({
       </MessageContent>
     </Message>
   )
-}
+})

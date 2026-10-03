@@ -5,7 +5,9 @@ import { z } from 'zod'
 export const IMPORT_IPC = {
   pickFile: 'import:pick-file',
   preview: 'import:preview',
-  apply: 'import:apply'
+  apply: 'import:apply',
+  /** forget a picked file's parsed rows in main */
+  release: 'import:release'
 } as const
 
 // a parsed file row normalized to the app's units, ready to preview/insert.
@@ -68,30 +70,28 @@ export const csvMappingSchema = z.object({
 })
 export type CsvMapping = z.infer<typeof csvMappingSchema>
 
-// pickFile output: ofx/qfx/qif parse fully in main; csv needs a mapping step
-// first, so the raw table comes back with a best-guess mapping. null = canceled
+// pickFile output. The parsed file stays in main under `handle` (ofx/qfx/qif
+// parse fully there; csv waits for a mapping step, so it comes with a
+// best-guess mapping), and preview/apply refer back to it, so only a sample and
+// the count cross IPC here. null = canceled
 export type PickFileResult =
-  | { kind: 'rows'; fileName: string; format: 'ofx' | 'qif'; rows: NormalizedImportRow[] }
+  | { kind: 'rows'; handle: string; fileName: string; format: 'ofx' | 'qif'; rowCount: number }
   | {
       kind: 'csv'
+      handle: string
       fileName: string
       headers: string[]
-      rows: string[][]
+      /** the first few raw data rows, for matching columns by sight */
+      sampleRows: string[][]
+      rowCount: number
       suggestedMapping: CsvMapping | null
     }
   | null
 
 export const importPreviewInputSchema = z.object({
-  source: z.union([
-    z.object({ rows: z.array(normalizedImportRowSchema) }),
-    z.object({
-      csv: z.object({
-        headers: z.array(z.string()),
-        rows: z.array(z.array(z.string())),
-        mapping: csvMappingSchema
-      })
-    })
-  ]),
+  handle: z.string(),
+  /** required for a csv file, ignored otherwise */
+  mapping: csvMappingSchema.optional(),
   /** existing target account; omitted for a new account (no duplicates possible) */
   accountId: z.number().int().optional()
 })
@@ -112,7 +112,10 @@ export interface ImportPreview {
 }
 
 export const importApplyInputSchema = z.object({
-  rows: z.array(normalizedImportRowSchema).min(1),
+  handle: z.string(),
+  mapping: csvMappingSchema.optional(),
+  /** externalIds of importable rows the user unchecked; exact duplicates are always skipped */
+  excluded: z.array(z.string()),
   target: z.union([
     z.object({ accountId: z.number().int() }),
     z.object({

@@ -1,24 +1,18 @@
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { memo, useState } from 'react'
 import type { Transaction } from '@shared/ipc'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CategoryPicker } from './category-picker'
+import { CellPopover } from './cell-popover'
+import { useTransactionEditsContext } from './use-transaction-edits'
 
-export function CategoryCell({ transaction }: { transaction: Transaction }) {
-  const queryClient = useQueryClient()
+export const CategoryCell = memo(function CategoryCell({
+  transaction
+}: {
+  transaction: Transaction
+}) {
+  const { setCategory } = useTransactionEditsContext()
   const [open, setOpen] = useState(false)
-
-  // the main-process handler records the change to the action log for undo
-  const setCategory = useMutation({
-    mutationFn: (categoryId: number | null) =>
-      window.api.transactions.setCategories({
-        changes: [{ transactionId: transaction.id, categoryId }]
-      }),
-    onSuccess: () => setOpen(false),
-    onSettled: () => queryClient.invalidateQueries()
-  })
+  const [pending, setPending] = useState(false)
 
   if (transaction.pending) {
     return (
@@ -32,26 +26,31 @@ export function CategoryCell({ transaction }: { transaction: Transaction }) {
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        render={
-          <Button
-            variant="cell"
-            size="sm"
-            className={cn('-ml-2', !transaction.categoryName && 'text-muted-foreground')}
-            onClick={(event) => event.stopPropagation()}
-          />
-        }
-      >
-        {transaction.categoryName ?? 'Uncategorized'}
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-0" align="start">
-        <CategoryPicker
-          selectedCategoryId={transaction.categoryId}
-          disabled={setCategory.isPending}
-          onSelect={(categoryId) => setCategory.mutate(categoryId)}
-        />
-      </PopoverContent>
-    </Popover>
+    <CellPopover
+      open={open}
+      onOpenChange={setOpen}
+      trigger={{
+        variant: 'cell',
+        size: 'sm',
+        className: cn('-ml-2', !transaction.categoryName && 'text-muted-foreground'),
+        onClick: (event) => event.stopPropagation()
+      }}
+      label={transaction.categoryName ?? 'Uncategorized'}
+      contentClassName="w-56 p-0"
+    >
+      <CategoryPicker
+        selectedCategoryId={transaction.categoryId}
+        disabled={pending}
+        onSelect={(categoryId) => {
+          setPending(true)
+          setCategory(transaction.id, categoryId)
+            .then(
+              () => setOpen(false),
+              () => undefined
+            )
+            .finally(() => setPending(false))
+        }}
+      />
+    </CellPopover>
   )
-}
+})

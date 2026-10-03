@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { format } from 'date-fns'
@@ -1179,30 +1179,39 @@ function AggregateBody({
   }
 }
 
-export function WidgetRenderer({
-  widget,
-  reportFilters
-}: {
-  widget: ReportWidget
-  reportFilters: ReportFilters
-}) {
-  if (!widget.config) {
-    return (
-      <CenteredNote>
-        This widget&apos;s configuration is from an incompatible version. Edit it to reconfigure.
-      </CenteredNote>
-    )
-  }
-  if (widget.type === 'transactions') {
-    return (
-      <TransactionsWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
-    )
-  }
-  if (widget.type === 'budget') {
-    return <BudgetWidget config={widget.config} reportFilters={reportFilters} />
-  }
-  if (widget.type === 'goals') {
-    return <GoalsWidget config={widget.config} />
-  }
-  return <AggregateWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
-}
+export const WidgetRenderer = memo(
+  function WidgetRenderer({
+    widget,
+    reportFilters
+  }: {
+    widget: ReportWidget
+    reportFilters: ReportFilters
+  }) {
+    if (!widget.config) {
+      return (
+        <CenteredNote>
+          This widget&apos;s configuration is from an incompatible version. Edit it to reconfigure.
+        </CenteredNote>
+      )
+    }
+    if (widget.type === 'transactions') {
+      return (
+        <TransactionsWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
+      )
+    }
+    if (widget.type === 'budget') {
+      return <BudgetWidget config={widget.config} reportFilters={reportFilters} />
+    }
+    if (widget.type === 'goals') {
+      return <GoalsWidget config={widget.config} />
+    }
+    return <AggregateWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
+  },
+  (a, b) =>
+    // title and grid position never reach the body, so typing a title in the editor
+    // preview (or dragging a card) leaves the chart and its queries alone
+    a.reportFilters === b.reportFilters &&
+    a.widget.id === b.widget.id &&
+    a.widget.type === b.widget.type &&
+    a.widget.config === b.widget.config
+)

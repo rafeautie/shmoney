@@ -3,6 +3,7 @@ import {
   ACTION_LOG_IPC,
   IPC,
   type Account,
+  type ActionLogChange,
   type ActionLogPage,
   type ActionLogPageInput,
   type RunUndoResult,
@@ -125,6 +126,12 @@ import {
   type GoalUpdateInput
 } from '@shared/goals'
 
+// started as the preload loads so the read overlaps the renderer bundle's
+// download and parse. The web demo evaluates this before its handlers exist,
+// so a rejection falls back to a fresh read when the renderer asks
+const initialSettings: Promise<Settings> = ipcRenderer.invoke(SETTINGS_IPC.getAll)
+initialSettings.catch(() => {})
+
 const api = {
   connection: {
     get: (): Promise<Connection | null> => ipcRenderer.invoke(IPC.connectionGet),
@@ -167,6 +174,9 @@ const api = {
       ipcRenderer.invoke(ACTION_LOG_IPC.page, input),
     newestAutomatedAt: (): Promise<number | null> =>
       ipcRenderer.invoke(ACTION_LOG_IPC.newestAutomatedAt),
+    /** All of one entry's changes, enriched; a page carries only the first few */
+    entryChanges: (id: number): Promise<ActionLogChange[]> =>
+      ipcRenderer.invoke(ACTION_LOG_IPC.entryChanges, id),
     undoRun: (runId: number): Promise<RunUndoResult> =>
       ipcRenderer.invoke(ACTION_LOG_IPC.undoRun, runId),
     redoRun: (runId: number): Promise<RunUndoResult> =>
@@ -280,7 +290,7 @@ const api = {
     /**
      * Parse a transaction file: `dropped` bytes from drag-and-drop, or (input
      * omitted) the native open dialog; null when canceled. filePath is a
-     * dev-only bypass.
+     * dev-only bypass. The rows stay in main under the returned handle.
      */
     pickFile: (input?: {
       filePath?: string
@@ -289,12 +299,18 @@ const api = {
     /** Dry-run: normalized rows with duplicate statuses; never writes */
     preview: (input: ImportPreviewInput): Promise<ImportPreview> =>
       ipcRenderer.invoke(IMPORT_IPC.preview, input),
-    /** Inserts the given rows (skipping id conflicts); undo via the Activity page */
+    /** Inserts the handle's rows minus duplicates and exclusions (skipping id
+     * conflicts); undo via the Activity page */
     apply: (input: ImportApplyInput): Promise<ImportApplyResult> =>
-      ipcRenderer.invoke(IMPORT_IPC.apply, input)
+      ipcRenderer.invoke(IMPORT_IPC.apply, input),
+    /** Frees a picked file's rows in main */
+    release: (handle: string): Promise<boolean> => ipcRenderer.invoke(IMPORT_IPC.release, handle)
   },
   settings: {
     getAll: (): Promise<Settings> => ipcRenderer.invoke(SETTINGS_IPC.getAll),
+    /** The snapshot read at preload time, for seeding the first render */
+    initial: (): Promise<Settings> =>
+      initialSettings.catch(() => ipcRenderer.invoke(SETTINGS_IPC.getAll)),
     set: <K extends SettingKey>(key: K, value: Settings[K]): Promise<boolean> =>
       ipcRenderer.invoke(SETTINGS_IPC.set, { key, value })
   },
@@ -448,7 +464,9 @@ const api = {
     },
     /** Mirror a notice to an OS toast; a no-op when the
      * window is focused or the user turned native notifications off. */
-    notify: (title: string, body: string): void => ipcRenderer.send(IPC.appNotify, { title, body })
+    notify: (title: string, body: string): void => ipcRenderer.send(IPC.appNotify, { title, body }),
+    /** The first real screen is on screen; main shows the window */
+    ready: (): void => ipcRenderer.send(IPC.appReady)
   },
   demo: {
     // dev and web demo only: rejects in production, where the handlers are never

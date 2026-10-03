@@ -101,7 +101,12 @@ function ReportPage() {
             ...prev,
             widgets: prev.widgets.map((widget) => {
               const l = layout.find((l) => l.i === String(widget.id))
-              return l ? { ...widget, x: l.x, y: l.y, w: l.w, h: l.h } : widget
+              if (
+                !l ||
+                (widget.x === l.x && widget.y === l.y && widget.w === l.w && widget.h === l.h)
+              )
+                return widget
+              return { ...widget, x: l.x, y: l.y, w: l.w, h: l.h }
             })
           }
         : prev

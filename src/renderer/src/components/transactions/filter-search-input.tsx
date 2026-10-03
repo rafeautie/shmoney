@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useEffectEvent, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Search01Icon } from '@hugeicons/core-free-icons'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
@@ -24,13 +24,17 @@ export function FilterSearchInput({
     if (text.trim() !== (value ?? '')) setText(value ?? '')
   }
 
+  // an effect event, so a parent re-render (a fresh inline onChange) mid-typing
+  // doesn't restart the debounce
+  const commit = useEffectEvent((next: string | undefined) => onChange(next))
+
   useEffect(() => {
     const trimmed = text.trim()
     const next = trimmed === '' ? undefined : trimmed
     if (next === value) return undefined
-    const timer = setTimeout(() => onChange(next), 300)
+    const timer = setTimeout(() => commit(next), 300)
     return () => clearTimeout(timer)
-  }, [text, value, onChange])
+  }, [text, value])
 
   return (
     <InputGroup className="h-8 w-56">
