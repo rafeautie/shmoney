@@ -2,6 +2,7 @@
 export const MASK_DOTS = 4
 const DIGIT = /\p{Nd}/u
 const SEPARATOR = /[.,'’\s]/u
+const LETTER = /\p{L}/u
 
 export type Glyph =
   | { kind: 'fixed'; char: string }
@@ -21,11 +22,17 @@ export function toGlyphs(text: string): Glyph[] {
   let digits = 0
   let index = 0
   let afterLastDigit = 0
+  let inSuffix = false
   chars.forEach((char, i) => {
+    const suffix = LETTER.test(char) && (inSuffix || DIGIT.test(chars[i - 1] ?? ''))
+    inSuffix = suffix
     if (DIGIT.test(char)) {
       glyphs.push({ kind: digits < MASK_DOTS ? 'digit' : 'drop', char, index: index++ })
       digits++
       afterLastDigit = glyphs.length
+    } else if (suffix) {
+      // a compact figure's K or M would give its magnitude away
+      glyphs.push({ kind: 'drop', char, index: index++ })
     } else if (
       SEPARATOR.test(char) &&
       DIGIT.test(chars[i - 1] ?? '') &&
@@ -41,12 +48,4 @@ export function toGlyphs(text: string): Glyph[] {
   for (; digits < MASK_DOTS; digits++) pads.push({ kind: 'pad', index: index++ })
   glyphs.splice(afterLastDigit, 0, ...pads)
   return glyphs
-}
-
-/** The settled hidden look as plain text, for SVG labels (chart ticks) that
- * can't hold the per-glyph markup. */
-export function maskText(text: string): string {
-  return toGlyphs(text)
-    .map((glyph) => (glyph.kind === 'fixed' ? glyph.char : glyph.kind === 'drop' ? '' : '•'))
-    .join('')
 }

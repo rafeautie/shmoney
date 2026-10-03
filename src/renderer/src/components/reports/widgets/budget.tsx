@@ -16,9 +16,8 @@ import {
 } from 'recharts'
 import type { ReportFilters, WidgetConfig } from '@shared/reports'
 import type { BudgetSummary, EnvelopeSummary } from '@shared/budgets'
-import { cn, formatAmount } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { formatMonthLong } from '@/lib/format-date'
-import { usePrivacy } from '@/lib/settings'
 import { Amount } from '@/components/amount'
 import { EnvelopeProgressRow } from '@/components/budget/envelope-progress'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
@@ -31,7 +30,8 @@ import {
   ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart'
-import { maskTicks, paletteColor } from '@/components/charts/chart-style'
+import { paletteColor } from '@/components/charts/chart-style'
+import { privateTick } from '@/components/charts/private-tick'
 import { DRILL_LABEL, DRILL_TARGET, useBudgetDrill, type OnBudgetDrill } from '../use-drill'
 import { useResolvedQuery } from '../use-widget-data'
 import { WidgetError } from '../widget-error'
@@ -180,7 +180,6 @@ function BudgetBarsChart({
   currency: string
   onDrill?: OnBudgetDrill
 }) {
-  const { blurAmounts } = usePrivacy()
   const data = envelopes.map((e) => ({ label: e.categoryName, budgeted: e.fill, spent: e.spent }))
   const barClick =
     onDrill && ((_bar: unknown, index: number) => onDrill([envelopes[index].categoryId]))
@@ -204,11 +203,7 @@ function BudgetBarsChart({
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={maskTicks(
-              tickFormatter('expense', currency),
-              (value) => formatAmount(value, currency),
-              blurAmounts
-            )}
+            tick={privateTick(tickFormatter('expense', currency))}
           />
           <YAxis
             type="category"
@@ -264,7 +259,6 @@ function BudgetBalancesChart({
   currency: string
   onDrill?: OnBudgetDrill
 }) {
-  const { blurAmounts } = usePrivacy()
   const data = envelopes.map((e) => ({ label: e.categoryName, balance: e.balance }))
   const chartConfig: ChartConfig = { balance: { label: 'Available' } }
   return (
@@ -283,11 +277,7 @@ function BudgetBalancesChart({
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={maskTicks(
-              tickFormatter('sum', currency),
-              (value) => formatAmount(value, currency),
-              blurAmounts
-            )}
+            tick={privateTick(tickFormatter('sum', currency))}
           />
           <YAxis
             type="category"
