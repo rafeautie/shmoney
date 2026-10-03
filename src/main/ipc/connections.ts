@@ -40,6 +40,7 @@ import {
   IPC,
   connectInputSchema,
   accountIdSchema,
+  accountRenameSchema,
   type Connection,
   type SyncResult
 } from '@shared/ipc'
@@ -306,6 +307,27 @@ function claimImportedRows(
   )
 }
 
+// A disconnect detaches synced accounts (connectionId -> null) rather than
+// deleting them. When the bank reports one of them again, hand it back to the
+// connection so the upsert below lands on it instead of creating a duplicate;
+// its transactions keep their bank ids, so they upsert in place too.
+function adoptDetachedAccount(tx: Tx, connectionId: number, simplefinId: string): void {
+  const attached = tx
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.connectionId, connectionId), eq(accounts.simplefinId, simplefinId)))
+    .get()
+  if (attached) return
+  const detached = tx
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(isNull(accounts.connectionId), eq(accounts.simplefinId, simplefinId)))
+    .orderBy(asc(accounts.id))
+    .get()
+  if (!detached) return
+  tx.update(accounts).set({ connectionId }).where(eq(accounts.id, detached.id)).run()
+}
+
 export async function syncConnection(): Promise<SyncResult> {
   const row = connectionRow()
   if (!row) throw new Error('Not connected to SimpleFIN')
@@ -353,14 +375,16 @@ export async function syncConnection(): Promise<SyncResult> {
         })
         .prepare()
 
+      const deleted = new Set(row.deletedAccountIds)
       for (const account of payload.accounts) {
+        if (deleted.has(account.id)) continue
+        adoptDetachedAccount(tx, row.id, account.id)
         const identity = {
           connectionId: row.id,
           simplefinId: account.id,
           institutionName: account.conn_id
             ? (institutionByConnId.get(account.conn_id) ?? null)
             : null,
-          name: account.name,
           currency: account.currency
         }
         // A bridge that reports no balance leaves the anchor alone rather than
@@ -382,10 +406,15 @@ export async function syncConnection(): Promise<SyncResult> {
         if (!anchor) log.warn('accounts.noBalance', { simplefinId: account.id })
         const [accountRow] = tx
           .insert(accounts)
-          .values({ ...identity, ...(anchor ?? { balance: 0, balanceDate: 0 }) })
+          .values({
+            ...identity,
+            name: account.name,
+            ...(anchor ?? { balance: 0, balanceDate: 0 })
+          })
           .onConflictDoUpdate({
             target: [accounts.connectionId, accounts.simplefinId],
-            // omitting the balance columns is what preserves the existing anchor
+            // omitting the balance columns is what preserves the existing anchor;
+            // omitting name keeps a rename the user made
             set: { ...identity, ...anchor }
           })
           .returning()
@@ -545,21 +574,16 @@ export function registerConnectionsIpc(): void {
   })
 
   ipcMain.handle(IPC.connectionDisconnect, () => {
-    // deleting the connection cascades to its accounts, their transactions and
-    // holdings. Manual accounts (null connectionId) and their transactions are
-    // untouched. Then prune rule suggestions backed only by the deleted
-    // transactions (keeping any still matching surviving manual-account rows) so
-    // no stale suggestion or its notification lingers; runs after the cascade so
-    // the match counts reflect what's actually left.
-    //
-    // The action_log is deliberately left intact: it's the shared, indestructible
-    // backbone for undo and the Activity page across budgets, chats, imports and
-    // manual accounts, none of which a disconnect touches. Entries that referenced
-    // now-deleted synced transactions are already tolerated everywhere (listEntries
-    // renders them with null context; undo/redo's guarded writes no-op on missing
-    // rows), so clearing the table would only destroy still-valid history.
-    db.delete(connections).run()
-    pruneOrphanedSuggestions()
+    // Only the credentials go. Synced accounts are detached first (the FK would
+    // otherwise cascade-delete them), keeping every transaction, category and
+    // edit as a manual account; reconnecting re-adopts them by SimpleFIN id.
+    db.transaction((tx) => {
+      tx.update(accounts)
+        .set({ connectionId: null })
+        .where(sql`${accounts.connectionId} IS NOT NULL`)
+        .run()
+      tx.delete(connections).run()
+    })
     return true
   })
 
@@ -607,17 +631,36 @@ export function registerConnectionsIpc(): void {
     )
   })
 
+  ipcMain.handle(IPC.accountsRename, (_event, input: unknown) => {
+    const { id, name } = accountRenameSchema.parse(input)
+    db.update(accounts).set({ name }).where(eq(accounts.id, id)).run()
+    return true
+  })
+
   ipcMain.handle(IPC.accountsDelete, (_event, input: unknown) => {
     const id = accountIdSchema.parse(input)
     const row = db.select().from(accounts).where(eq(accounts.id, id)).get()
     if (!row) throw new Error('Account not found')
-    // a synced account would just be recreated by the next sync's upsert;
-    // those are removed by disconnecting SimpleFIN instead
-    if (row.connectionId !== null) throw new Error('Only manual accounts can be deleted')
-    // cascades to transactions and holdings; action_log entries pointing at the
-    // deleted transactions are safe — undo/redo's guarded writes no-op on missing rows
-    db.delete(accounts).where(eq(accounts.id, id)).run()
-    // same cleanup the disconnect path does: a suggestion whose cluster lived
+    db.transaction((tx) => {
+      // remember a synced account so the next sync doesn't recreate it
+      if (row.connectionId !== null && row.simplefinId !== null) {
+        const conn = tx
+          .select({ deletedAccountIds: connections.deletedAccountIds })
+          .from(connections)
+          .where(eq(connections.id, row.connectionId))
+          .get()
+        if (conn && !conn.deletedAccountIds.includes(row.simplefinId)) {
+          tx.update(connections)
+            .set({ deletedAccountIds: [...conn.deletedAccountIds, row.simplefinId] })
+            .where(eq(connections.id, row.connectionId))
+            .run()
+        }
+      }
+      // cascades to transactions and holdings; action_log entries pointing at the
+      // deleted transactions are safe: undo/redo's guarded writes no-op on missing rows
+      tx.delete(accounts).where(eq(accounts.id, id)).run()
+    })
+    // a suggestion whose cluster lived
     // only on this account now backs nothing, so drop it (and its notification)
     // rather than leave a dead row hidden in the list forever
     pruneOrphanedSuggestions()

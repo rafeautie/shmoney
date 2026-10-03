@@ -143,6 +143,8 @@ const api = {
   accounts: {
     list: (): Promise<Account[]> => ipcRenderer.invoke(IPC.accountsList),
     get: (id: number): Promise<Account | null> => ipcRenderer.invoke(IPC.accountsGet, id),
+    rename: (id: number, name: string): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.accountsRename, { id, name }),
     delete: (id: number): Promise<boolean> => ipcRenderer.invoke(IPC.accountsDelete, id),
     holdings: (id: number): Promise<Holding[]> => ipcRenderer.invoke(IPC.accountHoldings, id),
     transactions: (query: FilteredAccountTransactionsQuery): Promise<Page<Transaction>> =>
