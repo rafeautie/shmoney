@@ -26,16 +26,11 @@ const streamdownComponents: ComponentProps<typeof Streamdown>['components'] = {
       'data-currency'?: string
     }
     if (amount === undefined) return <span {...props}>{children}</span>
-    // inline-block + clip-path keep the privacy blur inside the amount's own
-    // box: unclipped, the halo bleeds into neighboring prose and the line box
-    // crops it at the top
     return (
       <Amount
         value={Math.round(Number(amount) * 1000)}
         currency={String(currency)}
         colored={false}
-        className="inline-block"
-        blurClassName="scale-85"
       />
     )
   }

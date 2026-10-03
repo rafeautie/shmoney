@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SettingKey, Settings } from '@shared/settings'
+import { startPrivacyTransition } from '@/lib/privacy-transition'
 
 export const SETTINGS_QUERY_KEY = ['settings'] as const
 
@@ -45,7 +46,6 @@ export function useSettings() {
 // rendered once at the root; keeps the dark class in sync with the theme setting
 export function ThemeSync() {
   const theme = useSetting('theme')
-  const blurAmounts = useSetting('blurAmounts')
   // main mirrors the theme setting onto nativeTheme.themeSource, so this query
   // already answers for the explicit choices too; subscribing only matters for
   // 'system', where the OS can flip while the app is running
@@ -64,11 +64,10 @@ export function ThemeSync() {
 
   useLayoutEffect(() => {
     const root = document.documentElement
-    // Suppress transitions for appearance flips that recolor/reblur many
-    // elements at once (theme swap, blur-amounts toggle) so they repaint in one
-    // instant step instead of each fading at its own duration. The blur classes
-    // are already committed to the DOM by the time this layout effect runs, so
-    // adding the class here still catches them (see .suppress-transitions).
+    // Suppress transitions for the theme swap, which recolors many elements at
+    // once, so it repaints in one instant step instead of each fading at its
+    // own duration (see .suppress-transitions). The blur-amounts toggle is left
+    // out on purpose: its figures animate (see privacy-transition).
     root.classList.add('suppress-transitions')
     root.classList.toggle('dark', dark)
     // Force a synchronous reflow so the new styles commit with transitions off,
@@ -76,7 +75,7 @@ export function ThemeSync() {
     void root.offsetHeight
     const id = requestAnimationFrame(() => root.classList.remove('suppress-transitions'))
     return () => cancelAnimationFrame(id)
-  }, [dark, blurAmounts])
+  }, [dark])
 
   return null
 }
@@ -93,7 +92,13 @@ export function usePrivacy() {
   const setSetting = useSetSetting()
   return {
     blurAmounts: useSetting('blurAmounts'),
-    setBlurAmounts: useCallback((blur: boolean) => setSetting('blurAmounts', blur), [setSetting])
+    setBlurAmounts: useCallback(
+      (blur: boolean) => {
+        startPrivacyTransition()
+        setSetting('blurAmounts', blur)
+      },
+      [setSetting]
+    )
   }
 }
 

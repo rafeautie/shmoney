@@ -43,7 +43,7 @@ export interface ProposalTarget {
   partIndex: number
 }
 
-/** a proposal amount (major units) inline in prose, blurred with the rest under privacy mode */
+/** a proposal amount (major units) inline in prose, hidden with the rest under privacy mode */
 function Money({ value, currency }: { value: number; currency: string | null }) {
   return (
     <Amount
@@ -51,8 +51,6 @@ function Money({ value, currency }: { value: number; currency: string | null }) 
       // a mixed-currency scope has no single currency; formatAmount then prints a plain number
       currency={currency ?? ''}
       colored={false}
-      className="inline-block"
-      blurClassName="scale-85"
     />
   )
 }

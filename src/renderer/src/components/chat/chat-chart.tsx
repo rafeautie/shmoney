@@ -5,9 +5,9 @@ import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import type { ChartData, ChartSpec } from '@shared/chat'
 import { cn } from '@/lib/utils'
 import { formatBucketLabel } from '@/lib/format-date'
-import { usePrivacy } from '@/lib/settings'
 import { Chart, type FormatValue } from '@/components/charts/chart'
 import { ChatTableViewport } from '@/components/chat/chat-table'
+import { PrivateText } from '@/components/amount'
 
 // A chart the model composed over its own query result, rendered from the
 // persisted part (or the streamed equivalent). Values are real amounts (the
@@ -77,7 +77,6 @@ export const ChatChart = memo(function ChatChart({
   asOf?: number
 }) {
   const [showData, setShowData] = useState(false)
-  const { blurAmounts } = usePrivacy()
   const seriesIndexes = new Set(series.map((name) => data.columns.indexOf(name)))
   const formatValue: FormatValue = (v, opts) => formatChatValue(v, currency, opts?.compact)
 
@@ -196,19 +195,10 @@ export const ChatChart = memo(function ChatChart({
                   <tr key={i}>
                     {row.map((cell, j) => (
                       <td key={j}>
-                        {/* blur an inner span, not the cell, so the table's
-                            borders stay crisp; see AssistantBubble for the
-                            clip-path rationale */}
-                        <span
-                          className={cn(
-                            'inline-block',
-                            blurAmounts &&
-                              seriesIndexes.has(j) &&
-                              'blur-sm select-none bg-foreground/20'
-                          )}
-                        >
-                          {cellText(cell, seriesIndexes.has(j), currency)}
-                        </span>
+                        <PrivateText
+                          text={cellText(cell, seriesIndexes.has(j), currency)}
+                          sensitive={seriesIndexes.has(j)}
+                        />
                       </td>
                     ))}
                   </tr>

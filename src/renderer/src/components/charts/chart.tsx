@@ -18,6 +18,7 @@ import {
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { usePrivacy } from '@/lib/settings'
+import { PrivateText } from '@/components/amount'
 import {
   ChartContainer,
   ChartLegend,
@@ -137,7 +138,7 @@ export function Chart(props: ChartProps) {
 
 // ---------- shared pieces ----------
 
-/** A formatted value with the standard privacy blur (and optional signed color). */
+/** A formatted value hidden by the privacy toggle (and optional signed color). */
 function ValueText({
   value,
   currency,
@@ -153,19 +154,17 @@ function ValueText({
   sensitive?: boolean
   className?: string
 }) {
-  const { blurAmounts } = usePrivacy()
   return (
-    <span
+    <PrivateText
+      text={formatValue(value, { currency })}
+      sensitive={sensitive}
       className={cn(
         'tabular-nums',
         sensitive && colored && value > 0 && 'text-positive',
         sensitive && colored && value < 0 && 'text-negative',
-        sensitive && blurAmounts && 'bg-foreground/20 blur-sm select-none',
         className
       )}
-    >
-      {formatValue(value, { currency })}
-    </span>
+    />
   )
 }
 
