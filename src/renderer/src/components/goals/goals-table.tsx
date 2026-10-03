@@ -14,8 +14,8 @@ import { cn, TABLE_BLEED } from '@/lib/utils'
 
 /**
  * One row per goal, editing the same fields the card does, laid out like the
- * budget's envelope table. `saved` is what landed this month, so a goal with no
- * month-end level yet reads as a dash rather than as zero saved.
+ * budget's envelope table. This month reads saved of planned; `saved` is what
+ * landed, so a goal with no month-end level yet reads as a dash, not zero.
  */
 export function GoalsTable({
   goals,
@@ -25,19 +25,19 @@ export function GoalsTable({
   savedThisMonth: Map<number, number>
 }) {
   return (
-    <table className={cn('w-full caption-bottom text-xs', TABLE_BLEED)}>
+    // fixed layout so the declared widths hold and Goal takes the rest; the
+    // min width keeps Goal readable and lets the page scroll sideways instead
+    <table className={cn('w-full min-w-[62rem] table-fixed caption-bottom text-xs', TABLE_BLEED)}>
       {/* box-shadows stand in for the header's borders, which collapse drops while sticky */}
       <TableHeader className="sticky top-0 z-10 bg-background shadow-[inset_0_1px_0_0_var(--border),inset_0_-1px_0_0_var(--border)] [&_tr]:border-b-0">
         <TableRow>
           <TableHead>Goal</TableHead>
-          <TableHead className="w-32">Status</TableHead>
-          <TableHead className="w-64">Progress</TableHead>
-          <TableHead className="w-32">Target</TableHead>
-          <TableHead className="w-36">Target date</TableHead>
-          <TableHead className="w-56">Accounts</TableHead>
-          <TableHead className="w-28 text-right">Planned</TableHead>
-          <TableHead className="w-28 text-right">Saved</TableHead>
-          <TableHead className="w-10" />
+          <TableHead className="w-48">Progress</TableHead>
+          <TableHead className="w-28">Target</TableHead>
+          <TableHead className="w-32">Target date</TableHead>
+          <TableHead className="w-36">Accounts</TableHead>
+          <TableHead className="w-36 text-right">This month</TableHead>
+          <TableHead className="w-16" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -47,12 +47,12 @@ export function GoalsTable({
             <TableRow key={goal.id}>
               <TableCell>
                 <div className="flex min-w-0 flex-col">
-                  <EditableName goal={goal} className="truncate text-left" />
+                  <div className="flex min-w-0 items-center gap-2">
+                    <EditableName goal={goal} className="min-w-0 truncate text-left" />
+                    <GoalStatusBadge status={goal.status} />
+                  </div>
                   <span className="truncate text-xs text-muted-foreground">{modeLabel(goal)}</span>
                 </div>
-              </TableCell>
-              <TableCell>
-                <GoalStatusBadge status={goal.status} />
               </TableCell>
               <TableCell>
                 <GoalBar goal={goal} />
@@ -67,17 +67,17 @@ export function GoalsTable({
                 <GoalAccounts goal={goal} />
               </TableCell>
               <TableCell className="text-right">
-                {goal.neededPerMonth === null ? (
-                  <span className="text-muted-foreground">—</span>
-                ) : (
-                  <Amount value={goal.neededPerMonth} currency={goal.currency} colored={false} />
-                )}
-              </TableCell>
-              <TableCell className="text-right">
                 {saved === undefined ? (
                   <span className="text-muted-foreground">—</span>
                 ) : (
                   <Amount value={saved} currency={goal.currency} colored={false} />
+                )}
+                {goal.neededPerMonth !== null && (
+                  <span className="text-muted-foreground">
+                    {' '}
+                    of{' '}
+                    <Amount value={goal.neededPerMonth} currency={goal.currency} colored={false} />
+                  </span>
                 )}
               </TableCell>
               <TableCell>
