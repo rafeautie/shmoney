@@ -56,10 +56,11 @@ function getReportRow(id: number): ReportRow {
 
 export function registerReportsIpc(): void {
   ipcMain.handle(REPORTS_IPC.list, (): ReportSummary[] => {
-    return db
+    const rows = db
       .select({
         id: reports.id,
         name: reports.name,
+        filters: reports.filters,
         widgetCount: count(reportWidgets.id),
         updatedAt: reports.updatedAt
       })
@@ -68,6 +69,16 @@ export function registerReportsIpc(): void {
       .groupBy(reports.id)
       .orderBy(desc(reports.updatedAt))
       .all()
+    // the top-left widget, the one a reader sees first, previews the report
+    const first = new Map<number, ReportWidget>()
+    for (const row of db
+      .select()
+      .from(reportWidgets)
+      .orderBy(asc(reportWidgets.y), asc(reportWidgets.x))
+      .all()) {
+      if (!first.has(row.reportId)) first.set(row.reportId, toWidget(row))
+    }
+    return rows.map((row) => ({ ...row, preview: first.get(row.id) ?? null }))
   })
 
   ipcMain.handle(REPORTS_IPC.get, (_event, input: unknown): ReportDetail | null => {

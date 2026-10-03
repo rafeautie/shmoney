@@ -5,6 +5,7 @@ import {
   addQuarters,
   addWeeks,
   addYears,
+  differenceInCalendarMonths,
   endOfDay,
   endOfMonth,
   endOfQuarter,
@@ -229,17 +230,7 @@ export function resolveDateRange(
   if (range.kind === 'absolute') return { start: range.start, end: range.end }
 
   const now = new Date(nowSec * 1000)
-  const fns = {
-    day: { start: startOfDay, end: endOfDay, sub: subDays },
-    week: {
-      start: (d: Date) => startOfWeek(d, { weekStartsOn: 1 }),
-      end: (d: Date) => endOfWeek(d, { weekStartsOn: 1 }),
-      sub: subWeeks
-    },
-    month: { start: startOfMonth, end: endOfMonth, sub: subMonths },
-    quarter: { start: startOfQuarter, end: endOfQuarter, sub: subQuarters },
-    year: { start: startOfYear, end: endOfYear, sub: subYears }
-  }[range.unit]
+  const fns = UNIT_FNS[range.unit]
 
   const lastUnit = range.includeCurrent ? now : fns.sub(now, 1)
   const firstUnit = fns.sub(lastUnit, range.count - 1)
@@ -283,6 +274,92 @@ export function bucketLabelFor(grain: Exclude<TimeGrain, 'none'>, date: Date): s
     case 'year':
       return format(date, 'yyyy')
   }
+}
+
+/** Parse a bucket label back to a local-time Date at the start of the bucket. */
+export function parseBucketLabel(grain: Exclude<TimeGrain, 'none'>, label: string): Date {
+  switch (grain) {
+    case 'day':
+    case 'week': {
+      const [y, m, d] = label.split('-').map(Number)
+      return new Date(y, m - 1, d)
+    }
+    case 'month': {
+      const [y, m] = label.split('-').map(Number)
+      return new Date(y, m - 1, 1)
+    }
+    case 'quarter': {
+      const [y, q] = label.split('-Q').map(Number)
+      return new Date(y, (q - 1) * 3, 1)
+    }
+    case 'year':
+      return new Date(Number(label), 0, 1)
+  }
+}
+
+const UNIT_FNS = {
+  day: { start: startOfDay, end: endOfDay, sub: subDays },
+  week: {
+    start: (d: Date) => startOfWeek(d, { weekStartsOn: 1 }),
+    end: (d: Date) => endOfWeek(d, { weekStartsOn: 1 }),
+    sub: subWeeks
+  },
+  month: { start: startOfMonth, end: endOfMonth, sub: subMonths },
+  quarter: { start: startOfQuarter, end: endOfQuarter, sub: subQuarters },
+  year: { start: startOfYear, end: endOfYear, sub: subYears }
+}
+
+const toSec = (d: Date): number => Math.floor(d.getTime() / 1000)
+
+/** Inclusive unix-second bounds of one bucket. */
+export function bucketBounds(
+  grain: Exclude<TimeGrain, 'none'>,
+  label: string
+): { start: number; end: number } {
+  const start = parseBucketLabel(grain, label)
+  return { start: toSec(start), end: toSec(UNIT_FNS[grain].end(start)) }
+}
+
+export interface PreviousPeriod {
+  start: number
+  end: number
+  /** "previous month", "previous 12 months", "previous period" */
+  label: string
+}
+
+/**
+ * The window a stat compares against. A relative range shifts back by its own
+ * length; when it includes the current (partial) unit, the comparison stops at
+ * the same point in time, so month-to-date is compared with last month to date.
+ * A whole-month absolute range shifts by months, any other by its length in
+ * seconds. "All time" has nothing before it.
+ */
+export function previousPeriod(range: DateRange, nowSec: number): PreviousPeriod | null {
+  if (range.kind === 'all') return null
+  if (range.kind === 'relative') {
+    const { start, end } = resolveDateRange(range, nowSec)
+    const fns = UNIT_FNS[range.unit]
+    const shift = (sec: number): Date => fns.sub(new Date(sec * 1000), range.count)
+    return {
+      start: toSec(fns.start(shift(start!))),
+      end: range.includeCurrent ? toSec(endOfDay(shift(nowSec))) : toSec(fns.end(shift(end!))),
+      label: range.count === 1 ? `previous ${range.unit}` : `previous ${range.count} ${range.unit}s`
+    }
+  }
+  const start = new Date(range.start * 1000)
+  const end = new Date(range.end * 1000)
+  const wholeMonths =
+    range.start === toSec(startOfMonth(start)) && range.end === toSec(endOfMonth(end))
+  if (wholeMonths) {
+    const months = differenceInCalendarMonths(end, start) + 1
+    return {
+      start: toSec(startOfMonth(subMonths(start, months))),
+      end: toSec(endOfMonth(subMonths(end, months))),
+      label: months === 1 ? 'previous month' : `previous ${months} months`
+    }
+  }
+  const span = range.end - range.start + 1
+  return { start: range.start - span, end: range.start - 1, label: 'previous period' }
 }
 
 /**
@@ -344,8 +421,11 @@ export interface Report {
 export interface ReportSummary {
   id: number
   name: string
+  filters: ReportFilters
   widgetCount: number
   updatedAt: number
+  /** the report's first widget, drawn small on the report list */
+  preview: ReportWidget | null
 }
 
 export interface ReportWidget {
