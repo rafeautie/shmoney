@@ -23,6 +23,9 @@ export interface TransactionEdits {
   setCategory: (transactionId: number, categoryId: number | null) => Promise<unknown>
 }
 
+/** Tags every transaction list's query key, so edits patch lists and nothing else */
+export const TRANSACTION_LIST = 'transaction-list'
+
 export const TransactionEditsContext = createContext<TransactionEdits | null>(null)
 
 export function useTransactionEditsContext(): TransactionEdits {
@@ -63,12 +66,6 @@ export function editCanMoveRow(
   }
 }
 
-function isTransactionPages(data: unknown): data is TransactionPages {
-  return (
-    typeof data === 'object' && data !== null && Array.isArray((data as TransactionPages).pages)
-  )
-}
-
 /** Writes an edit into every cached transaction list so the cell updates before any refetch. */
 export function patchCachedTransaction(
   queryClient: QueryClient,
@@ -76,7 +73,7 @@ export function patchCachedTransaction(
   patch: Partial<Transaction>
 ): void {
   queryClient.setQueriesData<TransactionPages>(
-    { predicate: (query) => isTransactionDerived(query) && isTransactionPages(query.state.data) },
+    { predicate: (query) => query.queryKey.includes(TRANSACTION_LIST) },
     (data) => {
       if (!data || !data.pages.some((page) => page.rows.some((row) => row.id === id))) return data
       return {
