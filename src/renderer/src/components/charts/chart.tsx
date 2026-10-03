@@ -27,11 +27,11 @@ import {
   ChartTooltipContent,
   type ChartConfig
 } from '@/components/ui/chart'
-import { BLUR_X_TICK_LABELS, BLUR_Y_TICK_LABELS, paletteColor } from './chart-style'
+import { maskTicks, paletteColor } from './chart-style'
 
 // The one chart-drawing surface shared by the report widgets and the chat
 // charts. It owns the house style — axes, tooltip, legend, palette, per-point
-// coloring, privacy blur — for the chart family both surfaces have in common
+// coloring, privacy mask — for the chart family both surfaces have in common
 // (line / bar / area / pie / stat). Report-only widgets (radar, radial, gauge,
 // budget) keep their own drawing in components/reports/widgets.
 //
@@ -69,7 +69,7 @@ export interface StatItem {
   colored?: boolean
   /** a signed secondary line under the headline (chat's period-over-period change) */
   change?: { value: number; label: string } | null
-  /** false for counts: skip the privacy blur and sign coloring. Default true. */
+  /** false for counts: skip the privacy mask and sign coloring. Default true. */
   sensitive?: boolean
 }
 
@@ -97,7 +97,7 @@ interface CartesianProps {
   colorByPoint?: boolean
   /** 'series' = top label + one row per series (time series); 'point' = a single row labelled by the datum. Default 'series'. */
   tooltipMode?: 'series' | 'point'
-  /** false for counts: skip the y-axis privacy blur. Default true. */
+  /** false for counts: skip the y-axis privacy mask. Default true. */
   sensitive?: boolean
   onSelect?: OnSelect
 }
@@ -234,6 +234,11 @@ function CartesianView({
     series.map((s, i) => [s.key, { label: s.label, color: paletteColor(i) }])
   )
   const labelFmt = formatLabel ?? ((l: string) => l)
+  const valueTicks = maskTicks(
+    (value: number) => formatValue(value, { compact: true }),
+    (value: number) => formatValue(value),
+    blurAmounts && sensitive
+  )
   const showLegend = legend === 'auto' ? series.length > 1 : legend
   const singleSeries = series.length === 1
   // a categorical breakdown lays its bars sideways so every category label gets
@@ -254,7 +259,7 @@ function CartesianView({
         tickLine={false}
         axisLine={false}
         tickMargin={8}
-        tickFormatter={(value: number) => formatValue(value, { compact: true })}
+        tickFormatter={valueTicks}
       />
       <YAxis
         type="category"
@@ -277,12 +282,7 @@ function CartesianView({
         minTickGap={24}
         tickFormatter={labelFmt}
       />
-      <YAxis
-        tickLine={false}
-        axisLine={false}
-        width={56}
-        tickFormatter={(value: number) => formatValue(value, { compact: true })}
-      />
+      <YAxis tickLine={false} axisLine={false} width={56} tickFormatter={valueTicks} />
     </>
   )
   const tooltip =
@@ -340,7 +340,6 @@ function CartesianView({
       config={chartConfig}
       className={cn(
         'aspect-auto w-full',
-        blurAmounts && sensitive && (horizontal ? BLUR_X_TICK_LABELS : BLUR_Y_TICK_LABELS),
         onSelect &&
           (kind === 'bar'
             ? '[&_.recharts-bar-rectangle]:cursor-pointer'

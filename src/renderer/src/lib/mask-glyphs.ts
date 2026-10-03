@@ -42,3 +42,11 @@ export function toGlyphs(text: string): Glyph[] {
   glyphs.splice(afterLastDigit, 0, ...pads)
   return glyphs
 }
+
+/** The settled hidden look as plain text, for SVG labels (chart ticks) that
+ * can't hold the per-glyph markup. */
+export function maskText(text: string): string {
+  return toGlyphs(text)
+    .map((glyph) => (glyph.kind === 'fixed' ? glyph.char : glyph.kind === 'drop' ? '' : '•'))
+    .join('')
+}

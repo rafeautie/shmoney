@@ -1,6 +1,8 @@
 // Chart styling shared by the report widgets and the chat charts, kept out of
 // chart.tsx so the component file holds only component exports (which fast
-// refresh needs) and so both surfaces color and blur identically.
+// refresh needs) and so both surfaces color and hide amounts identically.
+
+import { maskText } from '@/lib/mask-glyphs'
 
 const PALETTE_SIZE = 10
 
@@ -13,11 +15,13 @@ export function paletteColor(index: number): string {
   return `color-mix(in oklab, ${base}, ${cycle === 1 ? 'white' : 'black'} 30%)`
 }
 
-// Recharts renders y-axis tick text outside the g that YAxis's className lands
-// on, so the privacy blur has to target the labels from the chart container.
-export const BLUR_Y_TICK_LABELS =
-  '[&_.recharts-yAxis-tick-labels]:blur-sm [&_.recharts-yAxis-tick-labels]:select-none [&_.recharts-yAxis-tick-labels]:bg-foreground/20'
-
-/** The same blur for value ticks on the x-axis (sideways bar charts). */
-export const BLUR_X_TICK_LABELS =
-  '[&_.recharts-xAxis-tick-labels]:blur-sm [&_.recharts-xAxis-tick-labels]:select-none [&_.recharts-xAxis-tick-labels]:bg-foreground/20'
+/** A value-axis tick formatter that shows the privacy dots while amounts are
+ * hidden. The dots come from the full figure, since a compact tick's "K" or
+ * "M" would still give away the magnitude. */
+export function maskTicks(
+  compact: (value: number) => string,
+  full: (value: number) => string,
+  hidden: boolean
+): (value: number) => string {
+  return hidden ? (value) => maskText(full(value)) : compact
+}

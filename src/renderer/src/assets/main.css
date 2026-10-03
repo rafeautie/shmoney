@@ -34,11 +34,12 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  /* Status tones, readable as text on the page (4.5:1 or better). Negative
-   * stays its own token apart from destructive: one colors money flowing out,
-   * the other errors and danger actions. Amber is too light to read as text,
-   * so warning dots, tints and borders use the brighter warning-fill. */
-  --positive: oklch(0.545 0.165 149.5);
+  /* Status tones. Negative stays its own token apart from destructive: one
+   * colors money flowing out, the other errors and danger actions. Positive is
+   * the bright green-500 by choice, over a darker but higher-contrast green.
+   * Amber is too light to read as text, so warning dots, tints and borders
+   * use the brighter warning-fill. */
+  --positive: oklch(0.723 0.219 149.579);
   --negative: oklch(0.577 0.245 27.325);
   --warning: oklch(0.555 0.163 48.998);
   --warning-fill: oklch(0.769 0.188 70.08);
