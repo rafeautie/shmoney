@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Settings01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { ConfirmButton } from '@/components/confirm-dialog'
 import { SettingsGroup, SettingAction } from '@/components/settings/settings-controls'
 import {
@@ -20,10 +22,7 @@ interface AccountSettingsProps {
   isManual: boolean
 }
 
-/**
- * Per-account settings and actions. Synced accounts can't be deleted here — the
- * next sync would just recreate them — so the dialog explains that instead.
- */
+/** Per-account settings and actions: rename and delete. */
 export function AccountSettingsDialog({
   accountId,
   accountName,
@@ -36,6 +35,25 @@ export function AccountSettingsDialog({
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const [name, setName] = useState(accountName)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset the draft each time the dialog opens
+    if (open) setName(accountName)
+  }, [open, accountName])
+  const rename = useMutation({
+    mutationFn: (next: string) => window.api.accounts.rename(accountId, next),
+    // the name shows up on transactions, filters and reports too
+    onSuccess: () => queryClient.invalidateQueries()
+  })
+  const commitName = (): void => {
+    const next = name.trim()
+    if (next === '' || next === accountName) {
+      setName(accountName)
+      return
+    }
+    rename.mutate(next)
+  }
+
   const deleteAccount = useMutation({
     mutationFn: () => window.api.accounts.delete(accountId),
     onSuccess: async () => {
@@ -53,19 +71,39 @@ export function AccountSettingsDialog({
         </DialogHeader>
         <div>
           <SettingsGroup>
+            <div className="flex items-center justify-between gap-4 px-4 py-3">
+              <Label htmlFor="account-name" className="shrink-0">
+                Name
+              </Label>
+              <Input
+                id="account-name"
+                value={name}
+                maxLength={200}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={commitName}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitName()
+                  if (e.key === 'Escape') setName(accountName)
+                }}
+                className="max-w-64"
+              />
+            </div>
             <SettingAction
               label="Delete account"
               description={
                 isManual
                   ? 'Permanently removes this account and all of its transactions and holdings.'
-                  : 'Synced accounts return on the next sync; disconnect SimpleFIN to remove them.'
+                  : 'Permanently removes this account and its history. Later syncs skip it.'
               }
             >
               <ConfirmButton
                 variant="destructive"
-                disabled={!isManual}
                 title={`Delete “${accountName}”?`}
-                description="This permanently deletes the account and all of its transactions and holdings. This cannot be undone."
+                description={
+                  isManual
+                    ? 'This permanently deletes the account and all of its transactions and holdings. This cannot be undone.'
+                    : 'This permanently deletes the account and all of its transactions and holdings, and future syncs will no longer import it. This cannot be undone.'
+                }
                 confirmLabel="Delete account"
                 pendingLabel="Deleting…"
                 pending={deleteAccount.isPending}

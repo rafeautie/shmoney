@@ -253,6 +253,13 @@
       "when": 1790928111106,
       "tag": "0035_perf_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1791022305744,
+      "tag": "0036_account_deletions",
+      "breakpoints": true
     }
   ]
 }
