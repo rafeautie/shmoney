@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Dialog as SheetPrimitive } from '@base-ui/react/dialog'
 
 import { cn } from '@/lib/utils'
+import { ChromeDimmingBackdrop } from '@/lib/dim-chrome'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon } from '@hugeicons/core-free-icons'
@@ -29,6 +30,9 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
       className={cn(
         'fixed inset-0 z-50 bg-black/80 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs',
         className
+      )}
+      render={(backdrop, state) => (
+        <ChromeDimmingBackdrop {...backdrop} open={state.open} fadeMs={150} />
       )}
       {...props}
     />

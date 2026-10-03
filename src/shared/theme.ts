@@ -12,6 +12,13 @@ export const THEME_CHROME = {
   dark: { background: '#0a0a0a', symbol: '#a1a1a1' }
 } as const
 
+/**
+ * Opacity of the modal backdrop (bg-black/80 in components/ui/dialog.tsx and
+ * sheet.tsx). Main darkens the native caption buttons by the same amount, since
+ * the backdrop cannot cover them. Change them together.
+ */
+export const MODAL_BACKDROP_OPACITY = 0.8
+
 /** Height of the app header (h-12), border included: the box is border-box. */
 export const TITLE_BAR_HEIGHT = 48
 

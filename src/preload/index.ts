@@ -465,6 +465,9 @@ const api = {
     /** Mirror a notice to an OS toast; a no-op when the
      * window is focused or the user turned native notifications off. */
     notify: (title: string, body: string): void => ipcRenderer.send(IPC.appNotify, { title, body }),
+    /** A modal backdrop is up (or gone); main dims the native caption buttons to match */
+    dimChrome: (dimmed: boolean, fadeMs: number): void =>
+      ipcRenderer.send(IPC.appDimChrome, dimmed, fadeMs),
     /** The first real screen is on screen; main shows the window */
     ready: (): void => ipcRenderer.send(IPC.appReady)
   },

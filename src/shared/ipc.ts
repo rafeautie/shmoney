@@ -590,6 +590,8 @@ export const IPC = {
   appNotify: 'app:notify',
   // the renderer has committed its first real screen; main shows the window
   appReady: 'app:ready',
+  // a modal backdrop opened or closed; main dims the native caption buttons
+  appDimChrome: 'app:dimChrome',
   // dev-only: raw SimpleFIN /accounts passthrough for the Debug page (handler
   // registered only when is.dev, so it isn't present in production builds)
   debugRawAccounts: 'debug:rawAccounts'
