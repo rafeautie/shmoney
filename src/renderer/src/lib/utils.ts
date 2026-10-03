@@ -11,6 +11,20 @@ export function cn(...inputs: ClassValue[]): string {
 export const TABLE_BLEED =
   '[&_th:first-child]:pl-[var(--table-edge,1.5rem)] [&_td:first-child]:pl-[var(--table-edge,1.5rem)] [&_th:last-child]:pr-[var(--table-edge,1.5rem)] [&_td:last-child]:pr-[var(--table-edge,1.5rem)]'
 
+/** Global shortcuts stand down while focus is in a text field, so typing keeps
+ * its native behavior (editing undo, letters typed as text). */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    (target instanceof HTMLElement && target.isContentEditable)
+  )
+}
+
+export function isDialogOpen(): boolean {
+  return document.querySelector('[data-slot="dialog-content"]') !== null
+}
+
 export function ipcErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error)
   // Electron prefixes IPC rejections with "Error invoking remote method 'x':"

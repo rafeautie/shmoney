@@ -1,5 +1,16 @@
 import { useCallback } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
+import type { IconSvgElement } from '@hugeicons/react'
+import {
+  AiBrain01Icon,
+  BankIcon,
+  DashboardSpeed01Icon,
+  DatabaseIcon,
+  InformationCircleIcon,
+  Settings01Icon,
+  Tag01Icon,
+  WorkflowSquare03Icon
+} from '@hugeicons/core-free-icons'
 
 export const SETTINGS_SECTIONS = [
   'general',
@@ -18,6 +29,18 @@ export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 export const SETTINGS_PAGES = ['licenses', 'report-bug', 'suggestions', 'apply-rules'] as const
 
 export type SettingsPage = (typeof SETTINGS_PAGES)[number]
+
+// shared by the Settings nav and the command palette
+export const SETTINGS_NAV: { id: SettingsSection; label: string; icon: IconSvgElement }[] = [
+  { id: 'general', label: 'General', icon: Settings01Icon },
+  { id: 'connection', label: 'Connection', icon: BankIcon },
+  { id: 'categories', label: 'Categories', icon: Tag01Icon },
+  { id: 'rules', label: 'Rules', icon: WorkflowSquare03Icon },
+  { id: 'ai', label: 'AI model', icon: AiBrain01Icon },
+  { id: 'ai-usage', label: 'AI usage', icon: DashboardSpeed01Icon },
+  { id: 'storage', label: 'Storage', icon: DatabaseIcon },
+  { id: 'about', label: 'About', icon: InformationCircleIcon }
+]
 
 export function parseSettingsSection(value: unknown): SettingsSection | undefined {
   return SETTINGS_SECTIONS.find((s) => s === value)
