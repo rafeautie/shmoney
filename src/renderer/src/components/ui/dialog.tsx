@@ -4,6 +4,7 @@ import * as React from 'react'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 
 import { cn } from '@/lib/utils'
+import { ChromeDimmingBackdrop } from '@/lib/dim-chrome'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Cancel01Icon } from '@hugeicons/core-free-icons'
@@ -31,6 +32,9 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
       className={cn(
         'fixed inset-0 isolate z-50 bg-black/80 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0',
         className
+      )}
+      render={(backdrop, state) => (
+        <ChromeDimmingBackdrop {...backdrop} open={state.open} fadeMs={100} />
       )}
       {...props}
     />
