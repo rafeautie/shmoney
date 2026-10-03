@@ -1,4 +1,4 @@
-import { Link, useMatchRoute } from '@tanstack/react-router'
+import { Link, useLocation } from '@tanstack/react-router'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import {
   Activity01Icon,
@@ -65,11 +65,15 @@ export function NavLinkButton({
   icon: IconSvgElement
   status: DotStatus | null
 }) {
-  const matchRoute = useMatchRoute()
+  // not useMatchRoute: its callback is stable across navigations, so the React
+  // Compiler caches the match and the active row never moves
+  const isActive = useLocation({
+    select: ({ pathname }) => pathname === to || (fuzzy && pathname.startsWith(`${to}/`))
+  })
   return (
     <SidebarMenuButton
       render={<Link to={to} />}
-      isActive={!!matchRoute({ to, fuzzy })}
+      isActive={isActive}
       tooltip={status ? `${label}: ${status.tooltip}` : label}
     >
       {/* the dot rides the icon so it stays visible with the sidebar collapsed */}
