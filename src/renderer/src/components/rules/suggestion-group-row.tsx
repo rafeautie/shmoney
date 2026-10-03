@@ -39,19 +39,26 @@ export function MatchSample({
 }
 
 /**
- * One per-category group of pending rule suggestions in the suggestions dialog
+ * One per-category group of pending rule suggestions on the Settings suggestions page
  * (Activity lists the same groups compactly), as a settings-style block
  * (SettingsGroup): a header row with the category and the group's actions,
  * then one divided row per match — the raw sample in monospace with the
  * extracted phrase highlighted, and the reach as a right-aligned count.
- * Create rule sends the whole group to the globally mounted rule editor (one
- * rule, all phrases as contains matches) where unwanted phrases can be
- * removed; Dismiss drops the group. Self-contained: dismissing mutates and
- * invalidates here, creating goes through the suggestions-ui host.
+ * Create rule sends the whole group to a rule editor (one rule, all phrases
+ * as contains matches) where unwanted phrases can be removed: Settings' inline
+ * one via onCreateRule, else the global one. Dismiss drops the group.
  */
-export function SuggestionGroupRow({ group }: { group: RuleSuggestionGroup }): React.JSX.Element {
+export function SuggestionGroupRow({
+  group,
+  onCreateRule
+}: {
+  group: RuleSuggestionGroup
+  /** where Create rule sends the group; defaults to the global rule editor */
+  onCreateRule?: (group: RuleSuggestionGroup) => void
+}): React.JSX.Element {
   const queryClient = useQueryClient()
-  const { createRule } = useSuggestionsUi()
+  const { createRule: createInEditor } = useSuggestionsUi()
+  const createRule = onCreateRule ?? createInEditor
 
   const dismiss = useMutation({
     mutationFn: (ids: number[]) =>

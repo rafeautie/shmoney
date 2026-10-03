@@ -195,13 +195,13 @@ const api = {
       ipcRenderer.invoke(IPC.categoriesCreateGroup, input),
     renameGroup: (input: CategoryGroupRenameInput): Promise<boolean> =>
       ipcRenderer.invoke(IPC.categoriesRenameGroup, input),
-    deleteGroup: (id: number): Promise<boolean> =>
+    deleteGroup: (id: number): Promise<number | null> =>
       ipcRenderer.invoke(IPC.categoriesDeleteGroup, id),
     create: (input: CategoryCreateInput): Promise<Category> =>
       ipcRenderer.invoke(IPC.categoriesCreate, input),
     rename: (input: CategoryRenameInput): Promise<boolean> =>
       ipcRenderer.invoke(IPC.categoriesRename, input),
-    delete: (id: number): Promise<boolean> => ipcRenderer.invoke(IPC.categoriesDelete, id),
+    delete: (id: number): Promise<number | null> => ipcRenderer.invoke(IPC.categoriesDelete, id),
     resetDefaults: (): Promise<CategoriesList> => ipcRenderer.invoke(IPC.categoriesResetDefaults)
   },
   reports: {
@@ -262,7 +262,7 @@ const api = {
     list: (): Promise<Rule[]> => ipcRenderer.invoke(RULES_IPC.list),
     create: (input: RuleCreateInput): Promise<Rule> => ipcRenderer.invoke(RULES_IPC.create, input),
     update: (input: RuleUpdateInput): Promise<Rule> => ipcRenderer.invoke(RULES_IPC.update, input),
-    delete: (id: number): Promise<boolean> => ipcRenderer.invoke(RULES_IPC.delete, id),
+    delete: (id: number): Promise<number | null> => ipcRenderer.invoke(RULES_IPC.delete, id),
     reorder: (input: RuleReorderInput): Promise<boolean> =>
       ipcRenderer.invoke(RULES_IPC.reorder, input),
     /** Dry-run: what "apply" would change, grouped by rule; never writes */

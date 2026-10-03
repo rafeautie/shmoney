@@ -58,6 +58,16 @@ function describe(change: ActionLogChange, categoryName: Map<number, string>): L
   if (change.field === 'savedFilterDeletedAt') {
     return { subject: change.name, diff: shown(change.after, 'Deleted', 'Restored') }
   }
+  if (change.field === 'categoryDeleted') {
+    return {
+      subject: change.name,
+      meta: change.kind === 'group' ? 'Category group' : 'Category',
+      diff: { tag: 'Deleted' }
+    }
+  }
+  if (change.field === 'ruleDeleted') {
+    return { subject: change.name, meta: 'Rule', diff: { tag: 'Deleted' } }
+  }
   if (isSavingsGoalChange(change)) {
     switch (change.field) {
       case 'savingsGoalDeletedAt':

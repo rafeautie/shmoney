@@ -15,8 +15,10 @@ import { ImportUiProvider } from '@/lib/import-ui'
 import { SuggestionsUiProvider } from '@/lib/suggestions-ui'
 import { useSetSetting, useSetting } from '@/lib/settings'
 import {
+  parseSettingsPage,
   parseSettingsSection,
   useSettingsDialog,
+  type SettingsPage,
   type SettingsSection
 } from '@/lib/settings-dialog'
 
@@ -55,8 +57,11 @@ function LazyOnboarding() {
 // route loaders warm the query cache before their page mounts, so they need the
 // same client the components read from
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  validateSearch: (search: Record<string, unknown>): { settings?: SettingsSection } => ({
-    settings: parseSettingsSection(search.settings)
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { settings?: SettingsSection; settingsPage?: SettingsPage } => ({
+    settings: parseSettingsSection(search.settings),
+    settingsPage: parseSettingsPage(search.settingsPage)
   }),
   component: RootComponent
 })

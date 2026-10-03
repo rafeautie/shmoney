@@ -23,11 +23,17 @@ import {
   budgets,
   categories,
   conversations,
+  rules,
   savedFilters,
   savingsGoals,
   transactions
 } from '../db/schema'
 import { dominantCurrency } from '../budgets/summary'
+import {
+  deleteCategorySnapshot,
+  restoreCategorySnapshot,
+  restoreRuleSnapshot
+} from '../db/deletion-snapshots'
 import { createLogger } from '../logging'
 import { escapeLike } from '../reports/filters'
 import {
@@ -388,6 +394,16 @@ function applyEntry(entryId: number, direction: 'undo' | 'redo', runner: Runner 
         applied += setSavedFilterGuarded(tx, change, direction)
       } else if (isSavingsGoalChange(change)) {
         applied += setGoalGuarded(tx, change, direction)
+      } else if (change.field === 'categoryDeleted') {
+        applied +=
+          direction === 'undo'
+            ? restoreCategorySnapshot(tx, change.snapshot)
+            : deleteCategorySnapshot(tx, change.snapshot)
+      } else if (change.field === 'ruleDeleted') {
+        applied +=
+          direction === 'undo'
+            ? restoreRuleSnapshot(tx, change.snapshot)
+            : tx.delete(rules).where(eq(rules.id, change.snapshot.id)).run().changes
       } else if (change.field === 'description') {
         applied += setDescriptionGuarded(tx, change, direction)
       } else {
@@ -519,6 +535,8 @@ function enrichChanges(changes: ActionChange[]): ActionLogChange[] {
       change.field === 'conversationTitle' ||
       change.field === 'conversationDeletedAt' ||
       change.field === 'savedFilterDeletedAt' ||
+      change.field === 'categoryDeleted' ||
+      change.field === 'ruleDeleted' ||
       isSavingsGoalChange(change)
     ) {
       return change
@@ -540,6 +558,8 @@ function domainOf(change: ActionChange): ActionDomain {
   if (change.field === 'conversationTitle' || change.field === 'conversationDeletedAt')
     return 'conversations'
   if (change.field === 'savedFilterDeletedAt') return 'savedFilters'
+  if (change.field === 'categoryDeleted') return 'categories'
+  if (change.field === 'ruleDeleted') return 'rules'
   if (isSavingsGoalChange(change)) return 'goals'
   return 'transactions'
 }

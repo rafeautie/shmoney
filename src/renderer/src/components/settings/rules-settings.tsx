@@ -1,26 +1,40 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ArrowDown01Icon,
   ArrowUp01Icon,
+  CheckmarkCircle02Icon,
   Delete02Icon,
   PencilEdit02Icon,
+  PlusSignIcon,
   Tag01Icon
 } from '@hugeicons/core-free-icons'
 import { format } from 'date-fns'
+import { groupSuggestions, type RuleSuggestionGroup } from '@shared/rule-suggestions'
 import type { Rule, RuleConditions } from '@shared/rules'
 import { useApplyRulesOnSync, useRuleSuggestionsEnabled } from '@/lib/settings'
-import { useSuggestionsUi } from '@/lib/suggestions-ui'
+import { useSettingsDialog } from '@/lib/settings-dialog'
+import { toastUndoable } from '@/lib/undo-toast'
 import { ipcErrorMessage } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Switch } from '@/components/ui/switch'
-import { ConfirmButton } from '@/components/confirm-dialog'
-import { AddRuleButton, RuleEditor } from '@/components/rules/rules-editor'
-import { ApplyRulesButton } from '@/components/rules/rules-preview-dialog'
-import { SettingsGroup, SettingToggle, SettingAction, SettingsSection } from './settings-controls'
+import { RuleForm, type RuleDraft } from '@/components/rules/rules-editor'
+import { RulesPreviewPage } from '@/components/rules/rules-preview-page'
+import { SuggestionGroupRow } from '@/components/rules/suggestion-group-row'
+import {
+  draftFromGroup,
+  useAcceptCoveredSuggestions
+} from '@/components/rules/use-accept-suggestions'
+import {
+  SettingsGroup,
+  SettingToggle,
+  SettingAction,
+  SettingsSection,
+  SettingsSubpage
+} from './settings-controls'
 
 const AMT_OP_TEXT: Record<string, string> = {
   eq: 'is',
@@ -65,11 +79,16 @@ function describeRule(conditions: RuleConditions, accountName: Map<number, strin
   return parts
 }
 
+// what the rules list is editing in place: an existing rule, or a new one
+// (blank, or drafted from a suggestion group whose members get accepted on save)
+type Editing = { ruleId: number } | { draft: RuleDraft | null; group: RuleSuggestionGroup | null }
+
 export function RulesSettings(): React.JSX.Element {
   const queryClient = useQueryClient()
   const { applyRulesOnSync, setApplyRulesOnSync } = useApplyRulesOnSync()
   const { ruleSuggestionsEnabled, setRuleSuggestionsEnabled } = useRuleSuggestionsEnabled()
-  const { setOpen: setSuggestionsOpen } = useSuggestionsUi()
+  const { page, open } = useSettingsDialog()
+  const acceptCovered = useAcceptCoveredSuggestions()
 
   const rulesQuery = useQuery({ queryKey: ['rules'], queryFn: () => window.api.rules.list() })
   const categoriesQuery = useQuery({
@@ -102,8 +121,13 @@ export function RulesSettings(): React.JSX.Element {
     return map
   }, [accountsQuery.data])
 
-  const [editorOpen, setEditorOpen] = useState(false)
-  const [editingRule, setEditingRule] = useState<Rule | null>(null)
+  const [editing, setEditing] = useState<Editing | null>(null)
+  // the new-rule form opens at the end of the list, often below the fold (and
+  // Settings scrolls to the top when coming back from Suggestions), so bring it
+  // into view once that has settled
+  const revealNewRule = useCallback((el: HTMLDivElement | null) => {
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+  }, [])
 
   const rules = rulesQuery.data ?? []
   const suggestions = suggestionsQuery.data ?? []
@@ -121,13 +145,31 @@ export function RulesSettings(): React.JSX.Element {
     reorder.mutate(next.map((r) => r.id))
   }
 
+  const back = (): void => open('rules')
+
+  if (page === 'apply-rules') return <RulesPreviewPage onBack={back} />
+  if (page === 'suggestions') {
+    return (
+      <SuggestionsPage
+        groups={groupSuggestions(suggestions)}
+        onBack={back}
+        onCreateRule={(group) => {
+          setEditing({ draft: draftFromGroup(group), group })
+          back()
+        }}
+      />
+    )
+  }
+
+  const newRule = editing && 'draft' in editing ? editing : null
+
   return (
     <SettingsSection
       title="Rules"
       description="Automatically categorize or flag transactions as they sync. Rules run top to bottom and only fill blanks, unless you choose to override existing categories when applying them manually."
       action={
         suggestions.length > 0 && (
-          <Button variant="outline" onClick={() => setSuggestionsOpen(true)}>
+          <Button variant="outline" onClick={() => open('rules', 'suggestions')}>
             Suggestions
             <Badge variant="secondary">{suggestions.length}</Badge>
           </Button>
@@ -150,7 +192,13 @@ export function RulesSettings(): React.JSX.Element {
           label="Apply rules now"
           description="Run your rules against existing transactions, with a preview first."
         >
-          <ApplyRulesButton disabled={rules.length === 0} />
+          <Button
+            variant="outline"
+            disabled={rules.length === 0}
+            onClick={() => open('rules', 'apply-rules')}
+          >
+            Apply
+          </Button>
         </SettingAction>
       </SettingsGroup>
 
@@ -172,36 +220,102 @@ export function RulesSettings(): React.JSX.Element {
           </Empty>
         ) : (
           <div className="divide-y rounded-lg border">
-            {rules.map((rule, index) => (
-              <div key={rule.id} className="px-3 py-3">
-                <RuleRow
+            {rules.map((rule, index) =>
+              editing && 'ruleId' in editing && editing.ruleId === rule.id ? (
+                <RuleForm
+                  key={rule.id}
+                  inline
                   rule={rule}
-                  conditionText={describeRule(rule.conditions, accountName)}
-                  actionText={`set category to ${categoryName.get(rule.action.categoryId) ?? 'unknown'}`}
-                  isFirst={index === 0}
-                  isLast={index === rules.length - 1}
-                  onMoveUp={() => move(index, -1)}
-                  onMoveDown={() => move(index, 1)}
-                  onEdit={() => {
-                    setEditingRule(rule)
-                    setEditorOpen(true)
-                  }}
+                  draft={null}
+                  onDone={() => setEditing(null)}
                 />
-              </div>
-            ))}
+              ) : (
+                <div key={rule.id} className="px-3 py-3">
+                  <RuleRow
+                    rule={rule}
+                    conditionText={describeRule(rule.conditions, accountName)}
+                    actionText={`set category to ${categoryName.get(rule.action.categoryId) ?? 'unknown'}`}
+                    isFirst={index === 0}
+                    isLast={index === rules.length - 1}
+                    onMoveUp={() => move(index, -1)}
+                    onMoveDown={() => move(index, 1)}
+                    onEdit={() => setEditing({ ruleId: rule.id })}
+                  />
+                </div>
+              )
+            )}
           </div>
         )}
-        <AddRuleButton />
+        {newRule ? (
+          <div ref={revealNewRule} className="scroll-mt-6 rounded-lg border">
+            <RuleForm
+              key={newRule.group ? `sug:${newRule.group.categoryId}` : 'new'}
+              inline
+              rule={null}
+              draft={newRule.draft}
+              onSaved={(saved) => {
+                if (newRule.group) acceptCovered(saved, newRule.group)
+              }}
+              onDone={() => setEditing(null)}
+            />
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => setEditing({ draft: null, group: null })}
+          >
+            <HugeiconsIcon icon={PlusSignIcon} className="size-3.5" />
+            Add rule
+          </Button>
+        )}
       </div>
 
       {reorder.isError && (
         <p className="text-sm text-destructive">{ipcErrorMessage(reorder.error)}</p>
       )}
-
-      {/* editing an existing rule: the trigger is the row's pencil, so the page
-          drives the editor itself */}
-      <RuleEditor rule={editingRule} open={editorOpen} onOpenChange={setEditorOpen} />
     </SettingsSection>
+  )
+}
+
+/** Rules › Suggestions: pending suggestions grouped per category; each group
+ *  becomes one multi-phrase rule, created in the inline editor back on Rules. */
+function SuggestionsPage({
+  groups,
+  onBack,
+  onCreateRule
+}: {
+  groups: RuleSuggestionGroup[]
+  onBack: () => void
+  onCreateRule: (group: RuleSuggestionGroup) => void
+}): React.JSX.Element {
+  return (
+    <SettingsSubpage
+      parent="Rules"
+      title="Suggestions"
+      description="You've categorized transactions like these repeatedly. Create one rule per category to do it automatically from now on; the highlighted part of each sample is what the rule will match."
+      onBack={onBack}
+    >
+      {groups.length === 0 ? (
+        <Empty className="border border-muted-foreground/30 bg-background">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <HugeiconsIcon icon={CheckmarkCircle02Icon} />
+            </EmptyMedia>
+            <EmptyTitle>No suggestions</EmptyTitle>
+            <EmptyDescription>
+              Categorize the same merchant a few times and we&apos;ll suggest a rule here.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {groups.map((group) => (
+            <SuggestionGroupRow key={group.categoryId} group={group} onCreateRule={onCreateRule} />
+          ))}
+        </div>
+      )}
+    </SettingsSubpage>
   )
 }
 
@@ -231,6 +345,9 @@ function RuleRow({
   })
   const remove = useMutation({
     mutationFn: () => window.api.rules.delete(rule.id),
+    onSuccess: (actionId) => {
+      if (actionId !== null) toastUndoable(`Deleted “${rule.name}”`, actionId, queryClient)
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['rules'] })
   })
 
@@ -271,18 +388,16 @@ function RuleRow({
         >
           <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
         </Button>
-        <ConfirmButton
+        {/* no confirm: the toast's Undo brings the rule back */}
+        <Button
           variant="ghost"
           size="icon-sm"
           aria-label={`Delete rule ${rule.name}`}
-          title={`Delete “${rule.name}”?`}
-          description="Removes this rule. Transactions it already categorized keep their categories."
-          pending={remove.isPending}
-          pendingLabel="Deleting…"
-          onConfirm={(close) => remove.mutate(undefined, { onSuccess: close })}
+          disabled={remove.isPending}
+          onClick={() => remove.mutate()}
         >
           <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
-        </ConfirmButton>
+        </Button>
       </div>
       <Switch
         checked={rule.enabled}

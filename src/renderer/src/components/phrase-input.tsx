@@ -64,7 +64,9 @@ export function PhraseInput({
             if (event.key === 'Enter') {
               event.preventDefault()
               add()
-            } else if (event.key === 'Escape') {
+            } else if (event.key === 'Escape' && adding) {
+              // clears the draft only; a handled Escape doesn't close the form around it
+              event.preventDefault()
               setAdding('')
             }
           }}
@@ -125,6 +127,7 @@ function PhraseChip({
               event.preventDefault()
               commit()
             } else if (event.key === 'Escape') {
+              event.preventDefault()
               setEditing(null)
             }
           }}

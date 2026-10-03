@@ -3,6 +3,8 @@ import { asc, eq } from 'drizzle-orm'
 import { db } from '../db'
 import { categoryGroups, categories } from '../db/schema'
 import { resetCategoriesToDefaults } from '../db/defaults'
+import { deleteCategorySnapshot, snapshotCategories } from '../db/deletion-snapshots'
+import { recordAction } from './action-log'
 import { pruneOrphanedRules } from './rules'
 import {
   IPC,
@@ -57,6 +59,25 @@ function assertNotSystem(id: number): void {
   if (row?.systemKey != null) throw new Error("System categories can't be changed")
 }
 
+// hard delete, logged with a snapshot of everything it takes so undo can restore it
+function deleteLogged(
+  target: { groupId: number } | { categoryId: number },
+  kind: 'category' | 'group',
+  label: string
+): number | null {
+  return db.transaction((tx) => {
+    const snapshot = snapshotCategories(tx, target)
+    if (!snapshot) return null
+    deleteCategorySnapshot(tx, snapshot)
+    const name = snapshot.group?.name ?? snapshot.categories[0].name
+    return recordAction(tx, {
+      source: 'user',
+      label,
+      changes: [{ field: 'categoryDeleted', name, kind, snapshot }]
+    })
+  })
+}
+
 export function registerCategoriesIpc(): void {
   ipcMain.handle(IPC.categoriesList, () => {
     return listCategories()
@@ -94,13 +115,13 @@ export function registerCategoriesIpc(): void {
     }
   })
 
-  ipcMain.handle(IPC.categoriesDeleteGroup, (_event, input: unknown) => {
+  ipcMain.handle(IPC.categoriesDeleteGroup, (_event, input: unknown): number | null => {
     const id = idSchema.parse(input)
     // cascades to the group's categories; their transactions become uncategorized
-    db.delete(categoryGroups).where(eq(categoryGroups.id, id)).run()
+    const actionId = deleteLogged({ groupId: id }, 'group', 'Delete category group')
     // rules targeting any of those now-deleted categories are orphaned (no FK); drop them
     pruneOrphanedRules()
-    return true
+    return actionId
   })
 
   ipcMain.handle(IPC.categoriesCreate, (_event, input: unknown) => {
@@ -134,14 +155,14 @@ export function registerCategoriesIpc(): void {
     }
   })
 
-  ipcMain.handle(IPC.categoriesDelete, (_event, input: unknown) => {
+  ipcMain.handle(IPC.categoriesDelete, (_event, input: unknown): number | null => {
     const id = idSchema.parse(input)
     assertNotSystem(id)
     // FK sets assigned transactions' category to null
-    db.delete(categories).where(eq(categories.id, id)).run()
+    const actionId = deleteLogged({ categoryId: id }, 'category', 'Delete category')
     // a rule that targeted this category is now orphaned (no FK); drop it
     pruneOrphanedRules()
-    return true
+    return actionId
   })
 
   ipcMain.handle(IPC.categoriesResetDefaults, () => {

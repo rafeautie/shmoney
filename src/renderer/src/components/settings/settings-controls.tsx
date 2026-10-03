@@ -1,4 +1,7 @@
 import { useId } from 'react'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { ArrowLeft01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons'
+import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 
@@ -20,6 +23,58 @@ export function SettingsSection({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 space-y-1">
           <h3 className="font-heading text-base font-medium">{title}</h3>
+          {description != null && (
+            <p className="text-xs/relaxed text-muted-foreground">{description}</p>
+          )}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+// A page opened from within a section (licenses, a preview, suggestions): it
+// takes over the pane, with a breadcrumb back to the section instead of a
+// dialog stacked over Settings.
+export function SettingsSubpage({
+  parent,
+  title,
+  description,
+  action,
+  onBack,
+  children
+}: {
+  parent: string
+  title: string
+  description?: React.ReactNode
+  action?: React.ReactNode
+  onBack: () => void
+  children?: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <section className="space-y-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 space-y-1">
+          <nav aria-label="Breadcrumb" className="-ml-1.5 flex items-center gap-1 text-base">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Back to ${parent}`}
+              onClick={onBack}
+            >
+              <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
+            </Button>
+            <button
+              type="button"
+              onClick={onBack}
+              className="font-heading font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:underline"
+            >
+              {parent}
+            </button>
+            <HugeiconsIcon icon={ArrowRight01Icon} className="size-3.5 text-muted-foreground" />
+            <h3 className="font-heading font-medium">{title}</h3>
+          </nav>
           {description != null && (
             <p className="text-xs/relaxed text-muted-foreground">{description}</p>
           )}
