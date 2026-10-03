@@ -1,0 +1,1 @@
+ALTER TABLE `connections` ADD `deleted_account_ids` text DEFAULT '[]' NOT NULL;

@@ -109,12 +109,12 @@ export function ConnectionSettings() {
         </SettingAction>
         <SettingAction
           label="Disconnect"
-          description="Remove all synced accounts and transactions, along with their history and rule suggestions, from this device."
+          description="Forget the SimpleFIN access key. Synced accounts and their transactions stay on this device."
         >
           <ConfirmButton
             variant="outline"
             title="Disconnect SimpleFIN?"
-            description="This deletes all synced accounts and transactions from this device, along with their activity history and any rule suggestions they produced. Your manual accounts and saved rules are kept."
+            description="Syncing stops and the access key is removed. Your accounts, transactions and categories are kept; reconnecting picks them back up."
             confirmLabel="Disconnect"
             pendingLabel="Disconnecting…"
             pending={disconnect.isPending}

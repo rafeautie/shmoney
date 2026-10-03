@@ -20,6 +20,11 @@ export const connections = sqliteTable('connections', {
   // the most recent sync that threw; both null once a sync succeeds
   lastSyncFailedAt: integer('last_sync_failed_at'),
   lastSyncFailure: text('last_sync_failure'),
+  // SimpleFIN ids of accounts the user deleted; sync skips them so they stay gone
+  deletedAccountIds: text('deleted_account_ids', { mode: 'json' })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
   createdAt: text('created_at')
     .notNull()
     .default(sql`(current_timestamp)`)
@@ -29,8 +34,9 @@ export const accounts = sqliteTable(
   'accounts',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
-    // null connectionId/simplefinId marks a manual account (created by file
-    // import): sync never touches it and disconnect's cascade leaves it alone
+    // null connectionId marks a manual account: sync never touches it. A null
+    // simplefinId means it was created here; a non-null one means it was synced
+    // and later detached by a disconnect, so a reconnect can re-adopt it
     connectionId: integer('connection_id').references(() => connections.id, {
       onDelete: 'cascade'
     }),
