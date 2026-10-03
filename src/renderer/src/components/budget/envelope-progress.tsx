@@ -63,16 +63,18 @@ export function BalanceBadge({ balance, currency }: { balance: number; currency:
 /** Compact read-only envelope row, shared by the Budget page and the report widget. */
 export function EnvelopeProgressRow({
   envelope,
-  currency
+  currency,
+  nameClassName
 }: {
   envelope: EnvelopeSummary
   currency: string
+  nameClassName?: string
 }) {
   return (
     <div className="flex items-center gap-3">
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="truncate text-sm">{envelope.categoryName}</span>
+          <span className={cn('truncate text-sm', nameClassName)}>{envelope.categoryName}</span>
           {envelope.groupName && (
             <span className="truncate text-xs text-muted-foreground">{envelope.groupName}</span>
           )}

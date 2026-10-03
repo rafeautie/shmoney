@@ -69,3 +69,18 @@ export function drillFilters(
   }
   return filters
 }
+
+/**
+ * The transactions behind budget envelopes in one month, matching how the
+ * budget counts spending: every account, pending included, outflows only.
+ */
+export function budgetDrillFilters(month: string, categoryIds: number[]): TransactionFilters {
+  const { start, end } = bucketBounds('month', month)
+  return {
+    dateRange: { kind: 'absolute', start, end },
+    direction: 'expense',
+    includePending: true,
+    includeTransfers: true,
+    categoryIds
+  }
+}

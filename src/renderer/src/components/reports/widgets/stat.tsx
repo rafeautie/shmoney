@@ -19,6 +19,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CenteredNote } from './shared'
 import { displayMeasure, formatMeasureValue } from './measure'
+import { DRILL_LABEL, DRILL_TARGET, type OnDrill } from '../use-drill'
 
 function totalFor(rows: QueryRow[], currency: string): number {
   return rows.filter((r) => r.currency === currency).reduce((sum, r) => sum + r.value, 0)
@@ -138,7 +139,8 @@ export function StatCardWidget({
   rows,
   currencies,
   resolved,
-  reportFilters
+  reportFilters,
+  onDrill
 }: {
   widget: ReportWidget
   config: WidgetConfig
@@ -146,6 +148,7 @@ export function StatCardWidget({
   currencies: string[]
   resolved: ResolvedQuery
   reportFilters: ReportFilters
+  onDrill?: OnDrill
 }) {
   const measure = displayMeasure(config)
   const previous = usePreviousPeriod(widget.id, config, reportFilters, resolved)
@@ -179,9 +182,25 @@ export function StatCardWidget({
   const range =
     period &&
     `${format(new Date(period.start * 1000), 'MMM d, yyyy')} to ${format(new Date(period.end * 1000), 'MMM d, yyyy')}`
-  const headline = 'text-3xl font-semibold tracking-tight'
+  const headline = cn('text-3xl font-semibold tracking-tight', onDrill && DRILL_LABEL)
   return (
-    <div className="flex h-full flex-col items-start justify-center gap-2 overflow-hidden p-4">
+    <div
+      className={cn(
+        'flex h-full flex-col items-start justify-center gap-2 overflow-hidden p-4',
+        onDrill && cn(DRILL_TARGET, 'rounded-xl focus-visible:ring-2 focus-visible:ring-ring/50')
+      )}
+      {...(onDrill && {
+        role: 'button',
+        tabIndex: 0,
+        // the tile sums every bucket and group, so it opens the whole filtered list
+        onClick: () => onDrill({}),
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return
+          e.preventDefault()
+          onDrill({})
+        }
+      })}
+    >
       {byCurrency.map(({ currency, value }) => (
         <div key={currency} className="flex max-w-full min-w-0 flex-col gap-1">
           {
