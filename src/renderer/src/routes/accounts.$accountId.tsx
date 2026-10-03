@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { AccountMenuButton, AccountName } from '@/components/accounts/account-menu'
 import { Amount } from '@/components/amount'
+import { NotFoundScreen } from '@/components/error-screen'
 import { AccountGoalsStrip } from '@/components/goals/account-goals-strip'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
 import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
@@ -14,10 +15,25 @@ import { HoldingsTable } from '@/components/accounts/holdings-table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export const Route = createFileRoute('/accounts/$accountId')({
-  loader: ({ context, params }) =>
-    context.queryClient.ensureQueryData(accountOptions(Number(params.accountId))),
-  component: AccountDetailPage
+  loader: async ({ context, params }) => {
+    const id = Number(params.accountId)
+    if (!Number.isInteger(id) || id <= 0) throw notFound()
+    if (!(await context.queryClient.ensureQueryData(accountOptions(id)))) throw notFound()
+  },
+  component: AccountDetailPage,
+  notFoundComponent: AccountNotFound
 })
+
+function AccountNotFound() {
+  return (
+    <NotFoundScreen
+      title="Account not found"
+      description="This account may have been deleted."
+      backTo="/accounts"
+      backLabel="Back to Accounts"
+    />
+  )
+}
 
 function AccountDetailPage() {
   const { accountId } = Route.useParams()
@@ -53,6 +69,8 @@ function AccountDetailPage() {
       className="min-h-0 flex-1"
     />
   )
+
+  if (accountQuery.isSuccess && !account) return <AccountNotFound />
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">

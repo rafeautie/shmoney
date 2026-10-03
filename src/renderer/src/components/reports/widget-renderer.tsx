@@ -53,6 +53,7 @@ import {
 import { BLUR_X_TICK_LABELS, paletteColor } from '@/components/charts/chart-style'
 import { groupTotals, pivotTimeSeries } from './data'
 import { useResolvedQuery, useWidgetData } from './use-widget-data'
+import { WidgetError, WidgetErrorBoundary } from './widget-error'
 
 // The report-only charts here (radar, radial, gauge, budget) pass
 // isAnimationActive={false} for the same reason the shared Chart does; see the note
@@ -655,7 +656,7 @@ function BudgetWidget({
 
   if (query.isLoading) return <WidgetSkeleton />
   if (query.isError) {
-    return <CenteredNote>Failed to load: {String(query.error)}</CenteredNote>
+    return <WidgetError error={query.error} onRetry={() => void query.refetch()} />
   }
   const summary = query.data!
 
@@ -959,7 +960,7 @@ function GoalsWidget({ config }: { config: WidgetConfig }) {
 
   if (query.isLoading) return <WidgetSkeleton />
   if (query.isError) {
-    return <CenteredNote>Failed to load: {String(query.error)}</CenteredNote>
+    return <WidgetError error={query.error} onRetry={() => void query.refetch()} />
   }
   const goals = query.data!.filter((goal) => goal.archivedAt === null)
   if (goals.length === 0) return <NoGoalsNote />
@@ -1071,7 +1072,7 @@ function AggregateWidget({
 
   if (query.isLoading || goalsQuery.isLoading) return <WidgetSkeleton />
   if (query.isError) {
-    return <CenteredNote>Failed to load: {String(query.error)}</CenteredNote>
+    return <WidgetError error={query.error} onRetry={() => void query.refetch()} />
   }
   const { rows, currencies } = query.data!
 
@@ -1179,33 +1180,41 @@ function AggregateBody({
   }
 }
 
+function WidgetBody({
+  widget,
+  reportFilters
+}: {
+  widget: ReportWidget
+  reportFilters: ReportFilters
+}) {
+  if (!widget.config) {
+    return (
+      <CenteredNote>
+        This widget&apos;s configuration is from an incompatible version. Edit it to reconfigure.
+      </CenteredNote>
+    )
+  }
+  if (widget.type === 'transactions') {
+    return (
+      <TransactionsWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
+    )
+  }
+  if (widget.type === 'budget') {
+    return <BudgetWidget config={widget.config} reportFilters={reportFilters} />
+  }
+  if (widget.type === 'goals') {
+    return <GoalsWidget config={widget.config} />
+  }
+  return <AggregateWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
+}
+
 export const WidgetRenderer = memo(
-  function WidgetRenderer({
-    widget,
-    reportFilters
-  }: {
-    widget: ReportWidget
-    reportFilters: ReportFilters
-  }) {
-    if (!widget.config) {
-      return (
-        <CenteredNote>
-          This widget&apos;s configuration is from an incompatible version. Edit it to reconfigure.
-        </CenteredNote>
-      )
-    }
-    if (widget.type === 'transactions') {
-      return (
-        <TransactionsWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
-      )
-    }
-    if (widget.type === 'budget') {
-      return <BudgetWidget config={widget.config} reportFilters={reportFilters} />
-    }
-    if (widget.type === 'goals') {
-      return <GoalsWidget config={widget.config} />
-    }
-    return <AggregateWidget widget={widget} config={widget.config} reportFilters={reportFilters} />
+  function WidgetRenderer(props: { widget: ReportWidget; reportFilters: ReportFilters }) {
+    return (
+      <WidgetErrorBoundary resetKey={props.widget.config}>
+        <WidgetBody {...props} />
+      </WidgetErrorBoundary>
+    )
   },
   (a, b) =>
     // title and grid position never reach the body, so typing a title in the editor

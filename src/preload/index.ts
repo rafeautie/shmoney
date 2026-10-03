@@ -208,7 +208,7 @@ const api = {
   },
   reports: {
     list: (): Promise<ReportSummary[]> => ipcRenderer.invoke(REPORTS_IPC.list),
-    get: (id: number): Promise<ReportDetail> => ipcRenderer.invoke(REPORTS_IPC.get, id),
+    get: (id: number): Promise<ReportDetail | null> => ipcRenderer.invoke(REPORTS_IPC.get, id),
     create: (input: ReportCreateInput): Promise<Report> =>
       ipcRenderer.invoke(REPORTS_IPC.create, input),
     update: (input: ReportUpdateInput): Promise<Report> =>

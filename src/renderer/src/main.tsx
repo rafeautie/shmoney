@@ -9,6 +9,8 @@ import { routeTree } from './routeTree.gen'
 import { queryClient } from './lib/query-client'
 import { SETTINGS_QUERY_KEY, ThemeSync } from './lib/settings'
 import { TooltipProvider } from './components/ui/tooltip'
+import { ErrorScreen } from './components/error-screen'
+import { logRenderError } from './lib/errors'
 
 // Electron loads the production build from a file:// URL, where
 // location.pathname is the on-disk path rather than "/". Hash-based
@@ -23,7 +25,11 @@ const router = createRouter({
   defaultPreload: 'intent',
   // let the query cache's own staleTime decide whether a preload refetches,
   // rather than the router keeping a second, separate freshness window
-  defaultPreloadStaleTime: 0
+  defaultPreloadStaleTime: 0,
+  // a page that crashes renders this inside the shell, so the sidebar still works;
+  // the root route's own errorComponent covers crashes in the shell itself
+  defaultErrorComponent: ({ error }) => <ErrorScreen error={error} />,
+  defaultOnCatch: (error) => logRenderError('render-error', error)
 })
 
 declare module '@tanstack/react-router' {
