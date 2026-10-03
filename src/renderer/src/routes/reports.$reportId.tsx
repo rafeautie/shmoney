@@ -166,7 +166,11 @@ function ReportPage() {
 
   const deleteWidgetMutation = useMutation({
     mutationFn: (widgetId: number) => window.api.reports.widgetDelete(widgetId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report', id] })
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['report', id] })
+      // the list previews the first widget
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+    }
   })
 
   function openEditor(widget: ReportWidget) {

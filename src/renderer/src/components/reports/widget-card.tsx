@@ -48,6 +48,8 @@ interface WidgetCardProps {
   widget: ReportWidget
   reportFilters: ReportFilters
   editing: boolean
+  /** marks open their transactions on click; the report grid sets it outside edit mode */
+  drillable?: boolean
   /** takes the widget rather than closing over it, so the grid can pass one stable
    * function to every card and keep the memo below effective */
   onEdit: (widget: ReportWidget) => void
@@ -63,6 +65,7 @@ export const WidgetCard = memo(function WidgetCard({
   widget,
   reportFilters,
   editing,
+  drillable = false,
   onEdit,
   onDelete
 }: WidgetCardProps) {
@@ -99,7 +102,7 @@ export const WidgetCard = memo(function WidgetCard({
         )}
       </div>
       <div className="min-h-0 flex-1">
-        <WidgetRenderer widget={widget} reportFilters={reportFilters} />
+        <WidgetRenderer widget={widget} reportFilters={reportFilters} drillable={drillable} />
       </div>
     </Card>
   )

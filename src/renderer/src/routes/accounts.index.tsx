@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { BankIcon } from '@hugeicons/core-free-icons'
 import type { Account } from '@shared/ipc'
+import { transactionFiltersSchema, type TransactionFilters } from '@shared/transaction-filters'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
 import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
@@ -41,10 +42,20 @@ import {
 
 type AccountsTab = 'accounts' | 'transactions'
 
+function seedFilters(value: unknown): { filters?: TransactionFilters } {
+  const parsed = transactionFiltersSchema.safeParse(value)
+  return parsed.success ? { filters: parsed.data } : {}
+}
+
 export const Route = createFileRoute('/accounts/')({
   // the tab rides in the URL so it survives reloads and can be linked to
-  validateSearch: (search: Record<string, unknown>): { tab?: AccountsTab } =>
-    search.tab === 'transactions' ? { tab: 'transactions' } : {},
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { tab?: AccountsTab; filters?: TransactionFilters } =>
+    search.tab === 'transactions'
+      ? // filters seed the filter bar on mount; how a report drill-down lands here
+        { tab: 'transactions', ...seedFilters(search.filters) }
+      : {},
   loader: ({ context }) => context.queryClient.ensureQueryData(accountsOptions),
   component: AccountsPage
 })
@@ -64,11 +75,11 @@ function hasDistinctAvailable(account: Account): boolean {
 function AccountsPage() {
   const [creating, setCreating] = useState(false)
   // controlled so the Create button can jump to the transactions tab
-  const { tab = 'accounts' } = Route.useSearch()
+  const { tab = 'accounts', filters } = Route.useSearch()
   const navigate = Route.useNavigate()
   const setTab = (next: string): void =>
     void navigate({ search: next === 'transactions' ? { tab: 'transactions' } : {}, replace: true })
-  const filterState = useTransactionFilters()
+  const filterState = useTransactionFilters({ initial: filters })
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
       <div className="space-y-4 px-6 pt-6 pb-4">

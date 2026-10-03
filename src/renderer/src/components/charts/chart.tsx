@@ -13,7 +13,8 @@ import {
   Rectangle,
   XAxis,
   YAxis,
-  type BarShapeProps
+  type BarShapeProps,
+  type MouseHandlerDataParam
 } from 'recharts'
 import { cn } from '@/lib/utils'
 import { usePrivacy } from '@/lib/settings'
@@ -31,7 +32,7 @@ import { BLUR_X_TICK_LABELS, BLUR_Y_TICK_LABELS, paletteColor } from './chart-st
 // charts. It owns the house style — axes, tooltip, legend, palette, per-point
 // coloring, privacy blur — for the chart family both surfaces have in common
 // (line / bar / area / pie / stat). Report-only widgets (radar, radial, gauge,
-// budget) keep their own drawing in widget-renderer.
+// budget) keep their own drawing in components/reports/widgets.
 //
 // It stays unit-agnostic: callers inject `formatValue`, so chat can pass real
 // amounts and report widgets can pass milliunits without either data pipeline
@@ -71,6 +72,10 @@ export interface StatItem {
   sensitive?: boolean
 }
 
+/** A click on a mark: the datum's index, and for bars the series it belongs to
+ * (null where a click picks a whole x position: line and area charts, pie slices). */
+export type OnSelect = (index: number, seriesKey: string | null) => void
+
 interface CommonProps {
   formatValue: FormatValue
   /** passthrough to the chart's root (height/aspect/padding); callers own outer layout */
@@ -93,6 +98,7 @@ interface CartesianProps {
   tooltipMode?: 'series' | 'point'
   /** false for counts: skip the y-axis privacy blur. Default true. */
   sensitive?: boolean
+  onSelect?: OnSelect
 }
 
 interface PieProps {
@@ -108,6 +114,7 @@ interface PieProps {
   donut?: boolean
   /** false for counts: skip the tooltip blur. Default true. */
   sensitive?: boolean
+  onSelect?: OnSelect
 }
 
 interface StatProps {
@@ -218,6 +225,7 @@ function CartesianView({
   colorByPoint = false,
   tooltipMode = 'series',
   sensitive = true,
+  onSelect,
   className
 }: CartesianProps & CommonProps) {
   const { blurAmounts } = usePrivacy()
@@ -316,6 +324,17 @@ function CartesianView({
       />
     )
   const legendEl = showLegend ? <ChartLegend content={<ChartLegendContent />} /> : null
+  // bars report their own series; a line or area click picks the hovered x position
+  const barClick = (key: string) =>
+    onSelect ? (_bar: unknown, index: number) => onSelect(index, key) : undefined
+  const chartClick = onSelect
+    ? (state: MouseHandlerDataParam) => {
+        const index = Number(state.activeTooltipIndex)
+        if (Number.isInteger(index) && index >= 0 && index < data.length) {
+          onSelect(index, singleSeries ? series[0].key : null)
+        }
+      }
+    : undefined
 
   return (
     <ChartContainer
@@ -323,11 +342,15 @@ function CartesianView({
       className={cn(
         'aspect-auto w-full',
         blurAmounts && sensitive && (horizontal ? BLUR_X_TICK_LABELS : BLUR_Y_TICK_LABELS),
+        onSelect &&
+          (kind === 'bar'
+            ? '[&_.recharts-bar-rectangle]:cursor-pointer'
+            : '[&_.recharts-surface]:cursor-pointer'),
         className
       )}
     >
       {kind === 'line' ? (
-        <LineChart data={data} margin={{ top: 16, right: 8 }}>
+        <LineChart data={data} margin={{ top: 16, right: 8 }} onClick={chartClick}>
           {axes}
           {tooltip}
           {legendEl}
@@ -346,7 +369,7 @@ function CartesianView({
           ))}
         </LineChart>
       ) : kind === 'area' ? (
-        <AreaChart data={data} margin={{ top: 16, right: 8 }}>
+        <AreaChart data={data} margin={{ top: 16, right: 8 }} onClick={chartClick}>
           {axes}
           {tooltip}
           {legendEl}
@@ -376,7 +399,12 @@ function CartesianView({
           {legendEl}
           {horizontal ? (
             // a single-series breakdown colors per bar, like the report's categorical bar
-            <Bar dataKey={series[0].key} radius={[0, 2, 2, 0]} isAnimationActive={false}>
+            <Bar
+              dataKey={series[0].key}
+              radius={[0, 2, 2, 0]}
+              isAnimationActive={false}
+              onClick={barClick(series[0].key)}
+            >
               {data.map((_row, i) => (
                 <Cell key={i} fill={paletteColor(i)} />
               ))}
@@ -401,6 +429,7 @@ function CartesianView({
                     : undefined
                 }
                 isAnimationActive={false}
+                onClick={barClick(s.key)}
               />
             ))
           )}
@@ -420,6 +449,7 @@ function PieView({
   legend = true,
   donut = false,
   sensitive = true,
+  onSelect,
   className
 }: PieProps & CommonProps) {
   // slices carry an explicit fill so Recharts colors each by order
@@ -431,7 +461,14 @@ function PieView({
     data.map((row) => [String(row[labelKey]), { label: String(row[labelKey]) }])
   )
   return (
-    <ChartContainer config={chartConfig} className={cn('aspect-auto w-full', className)}>
+    <ChartContainer
+      config={chartConfig}
+      className={cn(
+        'aspect-auto w-full',
+        onSelect && '[&_.recharts-pie-sector]:cursor-pointer',
+        className
+      )}
+    >
       <PieChart>
         <ChartTooltip
           content={
@@ -457,6 +494,7 @@ function PieView({
           innerRadius={donut ? '55%' : 0}
           strokeWidth={2}
           isAnimationActive={false}
+          onClick={onSelect ? (_slice, index) => onSelect(index, null) : undefined}
         />
       </PieChart>
     </ChartContainer>

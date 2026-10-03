@@ -149,6 +149,7 @@ export function ReportGrid({
                 widget={widget}
                 reportFilters={reportFilters}
                 editing={editing}
+                drillable={!editing}
                 onEdit={onEditWidget}
                 onDelete={onDeleteWidget}
               />
