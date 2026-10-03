@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { AccountSettingsButton } from '@/components/accounts/account-settings-dialog'
+import { AccountMenuButton, AccountName } from '@/components/accounts/account-menu'
 import { Amount } from '@/components/amount'
 import { AccountGoalsStrip } from '@/components/goals/account-goals-strip'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
@@ -23,6 +23,7 @@ function AccountDetailPage() {
   const { accountId } = Route.useParams()
   const id = Number(accountId)
   const [creating, setCreating] = useState(false)
+  const [renaming, setRenaming] = useState(false)
   // controlled so the Create button can jump to the transactions tab
   const [tab, setTab] = useState('holdings')
 
@@ -30,6 +31,7 @@ function AccountDetailPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- wholesale reset on param change is the point
     setCreating(false)
+    setRenaming(false)
     setTab('holdings')
   }, [id])
 
@@ -62,9 +64,12 @@ function AccountDetailPage() {
         <div className="flex items-end gap-8">
           <div>
             {/* the account's own name and institution, not page furniture */}
-            <h2 className="text-2xl font-semibold tracking-tight select-text">
-              {account?.name ?? 'Account'}
-            </h2>
+            <AccountName
+              accountId={id}
+              name={account?.name ?? 'Account'}
+              editing={renaming && account !== undefined}
+              onDone={() => setRenaming(false)}
+            />
             <p className="text-muted-foreground select-text">
               {account && (
                 <>
@@ -87,10 +92,11 @@ function AccountDetailPage() {
           />
           <AutoCategorizeButton scope={{ accountId: id }} />
           {account && (
-            <AccountSettingsButton
+            <AccountMenuButton
               accountId={id}
               accountName={account.name}
               isManual={account.connectionId === null}
+              onRename={() => setRenaming(true)}
             />
           )}
         </div>

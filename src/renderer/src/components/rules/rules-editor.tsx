@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { endOfDay, format, startOfDay } from 'date-fns'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { PlusSignIcon } from '@hugeicons/core-free-icons'
 import type { Rule, RuleAction, RuleConditions } from '@shared/rules'
 import { cn, currencySymbol, ipcErrorMessage } from '@/lib/utils'
 import { useAccountCurrency } from '@/lib/currency'
@@ -100,29 +98,18 @@ export function RuleEditor({
   )
 }
 
-/** The rule editor opened on a blank rule, plus the button that opens it. Editing an
- * existing rule drives <RuleEditor> directly, since its trigger lives on the row. */
-export function AddRuleButton(): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <Button variant="outline" className="w-full" onClick={() => setOpen(true)}>
-        <HugeiconsIcon icon={PlusSignIcon} size={14} />
-        Add rule
-      </Button>
-      <RuleEditor rule={null} open={open} onOpenChange={setOpen} />
-    </>
-  )
-}
-
-function RuleForm({
+/** The rule form, in a dialog (RuleEditor) or `inline` in a list, as Settings
+ * edits rules in place. Inline, Escape cancels. */
+export function RuleForm({
   rule,
   draft,
+  inline = false,
   onSaved,
   onDone
 }: {
   rule: Rule | null
   draft: RuleDraft | null
+  inline?: boolean
   onSaved?: (rule: Rule, wasCreate: boolean) => void
   onDone: () => void
 }): React.JSX.Element {
@@ -232,6 +219,9 @@ function RuleForm({
   const categories = categoriesQuery.data
   const accounts = accountsQuery.data ?? []
 
+  const title = rule ? 'Edit rule' : 'New rule'
+  const description = 'A rule applies its action to transactions matching every condition you set.'
+
   return (
     <form
       className="flex min-h-0 flex-1 flex-col"
@@ -239,15 +229,34 @@ function RuleForm({
         event.preventDefault()
         if (canSave) save.mutate()
       }}
+      onKeyDown={(event) => {
+        // only Escapes from the form itself (a select or calendar popup handles
+        // its own, and they reach here through the React tree, not the DOM) that
+        // nothing inside already used; preventing the default keeps Settings open
+        if (
+          inline &&
+          event.key === 'Escape' &&
+          !event.defaultPrevented &&
+          event.currentTarget.contains(event.target as Node)
+        ) {
+          event.preventDefault()
+          onDone()
+        }
+      }}
     >
-      <DialogHeader className="p-4">
-        <DialogTitle>{rule ? 'Edit rule' : 'New rule'}</DialogTitle>
-        <DialogDescription>
-          A rule applies its action to transactions matching every condition you set.
-        </DialogDescription>
-      </DialogHeader>
+      {inline ? (
+        <div className="flex flex-col gap-1 p-4">
+          <h4 className="text-sm font-medium">{title}</h4>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+      ) : (
+        <DialogHeader className="p-4">
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+      )}
 
-      <ScrollArea className="border-t" viewPortClassName="max-h-[60vh]">
+      <FormBody inline={inline}>
         <div className="flex flex-col gap-5 p-4">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="rule-name">Name</Label>
@@ -486,7 +495,7 @@ function RuleForm({
             <p className="text-sm text-destructive">{ipcErrorMessage(save.error)}</p>
           )}
         </div>
-      </ScrollArea>
+      </FormBody>
 
       <DialogFooter className="border-t p-4">
         <Button type="button" variant="outline" onClick={onDone}>
@@ -497,6 +506,22 @@ function RuleForm({
         </Button>
       </DialogFooter>
     </form>
+  )
+}
+
+// the dialog scrolls its own body; inline, the page around it scrolls
+function FormBody({
+  inline,
+  children
+}: {
+  inline: boolean
+  children: React.ReactNode
+}): React.JSX.Element {
+  if (inline) return <div className="border-t">{children}</div>
+  return (
+    <ScrollArea className="border-t" viewPortClassName="max-h-[60vh]">
+      {children}
+    </ScrollArea>
   )
 }
 

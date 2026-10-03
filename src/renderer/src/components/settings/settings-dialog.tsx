@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import {
   AiBrain01Icon,
@@ -78,30 +78,33 @@ const SECTIONS: {
  * useSettingsDialog), so it opens over whatever page is showing.
  */
 export function SettingsDialog(): React.JSX.Element {
-  const { section, open, close } = useSettingsDialog()
+  const { section, page, open, close } = useSettingsDialog()
   const statuses = useSettingsSectionStatuses()
   const active = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]
   const activeRef = useRef<HTMLButtonElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    viewportRef.current?.scrollTo({ top: 0 })
+  }, [page])
 
   return (
-    <Dialog open={section !== undefined} onOpenChange={(next) => !next && close()}>
+    <Dialog
+      open={section !== undefined}
+      onOpenChange={(next, details) => {
+        if (next) return
+        if (details.reason === 'escape-key') {
+          // an inline editor that used Escape to cancel prevents its default
+          if (details.event.defaultPrevented) return
+          // on a sub-page, Escape steps back to its section first
+          if (page) return open(active.id)
+        }
+        close()
+      }}
+    >
       <DialogContent
         className="flex h-[min(720px,calc(100vh-4rem))] gap-0 overflow-hidden p-0 sm:max-w-4xl"
         // base-ui otherwise focuses the first section, even when opened at another
         initialFocus={activeRef}
-        onKeyDown={(event) => {
-          // base-ui's escape-to-close does not fire here. Escapes from nested
-          // dialogs bubble through the React tree but not the DOM, and inline
-          // editors use Escape to cancel, so only close for the popup itself.
-          const target = event.target as HTMLElement
-          if (
-            event.key === 'Escape' &&
-            event.currentTarget.contains(target) &&
-            !target.closest('input, textarea, [contenteditable=true]')
-          ) {
-            close()
-          }
-        }}
       >
         <nav className="flex w-48 shrink-0 flex-col gap-0.5 border-r bg-muted/40 px-2.5 py-4.5">
           <DialogTitle className="px-2 pb-2.5">Settings</DialogTitle>
@@ -127,8 +130,9 @@ export function SettingsDialog(): React.JSX.Element {
             )
           })}
         </nav>
-        {/* keyed so switching sections starts at the top */}
-        <ScrollArea key={active.id} className="min-h-0 min-w-0 flex-1">
+        {/* keyed so switching sections starts at the top; sub-pages scroll back
+            up without a remount, so a section keeps its state across them */}
+        <ScrollArea key={active.id} viewportRef={viewportRef} className="min-h-0 min-w-0 flex-1">
           <div className="space-y-8 p-6 pr-12">{active.content()}</div>
         </ScrollArea>
       </DialogContent>

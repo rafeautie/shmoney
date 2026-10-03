@@ -435,12 +435,67 @@ export function isSavingsGoalChange(c: { field: string }): c is SavingsGoalActio
   return (SAVINGS_GOAL_FIELDS as readonly string[]).includes(c.field)
 }
 
+/** A rule row as stored, kept whole so undoing its deletion can reinsert it. */
+export interface RuleSnapshot {
+  id: number
+  name: string
+  enabled: boolean
+  priority: number
+  conditions: unknown
+  action: unknown
+  configVersion: number
+  createdAt: number
+  updatedAt: number
+}
+
+/** Everything a category or group delete removes or rewrites (FK cascades and
+ *  orphaned rules included), so undo can put it all back with the same ids. */
+export interface CategoryDeleteSnapshot {
+  /** set when the whole group went */
+  group: { id: number; name: string } | null
+  categories: { id: number; groupId: number | null; name: string }[]
+  /** transactions that pointed at each category (now uncategorized) */
+  assignments: { categoryId: number; transactionIds: number[] }[]
+  budgets: { categoryId: number; month: string; amount: number }[]
+  suggestions: {
+    id: number
+    descriptionKey: string
+    phrase: string
+    categoryId: number
+    matchCount: number
+    source: string
+    status: string
+    createdAt: number
+    updatedAt: number
+  }[]
+  rules: RuleSnapshot[]
+}
+
+/** A category or category group hard delete: undo restores the snapshot, redo
+ *  deletes it again. */
+export interface CategoryActionChange {
+  field: 'categoryDeleted'
+  /** the category's or group's name, for the Activity list */
+  name: string
+  kind: 'category' | 'group'
+  snapshot: CategoryDeleteSnapshot
+}
+
+/** A rule hard delete, with the row kept for undo. */
+export interface RuleActionChange {
+  field: 'ruleDeleted'
+  name: string
+  snapshot: RuleSnapshot
+}
+
 export type ActionChange =
   | TransactionActionChange
   | BudgetActionChange
   | ConversationActionChange
   | SavedFilterActionChange
   | SavingsGoalActionChange
+  | CategoryActionChange
+  | RuleActionChange
 
 /** A change enriched with its current context, for the Activity list. */
 export type ActionLogChange =
@@ -464,6 +519,8 @@ export type ActionLogChange =
   | (Extract<SavingsGoalActionChange, { field: 'savingsGoalTargetAmount' }> & {
       currency: string
     })
+  | CategoryActionChange
+  | RuleActionChange
 
 export interface ActionLogEntry {
   id: number
@@ -488,7 +545,8 @@ export interface ActionLogEntry {
 /** changes per entry an Activity page carries */
 export const ACTION_LOG_PREVIEW_CHANGES = 8
 
-export type ActionDomain = 'transactions' | 'budgets' | 'goals' | 'conversations' | 'savedFilters'
+export type ActionDomain =
+  'transactions' | 'budgets' | 'goals' | 'conversations' | 'savedFilters' | 'categories' | 'rules'
 
 export interface ActionRun {
   id: number

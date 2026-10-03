@@ -3,8 +3,9 @@ import { Button } from '@/components/ui/button'
 import { useUpdateState } from '@/lib/updates'
 import { featureRequestUrl } from '@/lib/github'
 import { isDemo } from '@/lib/platform'
-import { LicensesButton } from './licenses-dialog'
-import { ReportBugButton } from './report-bug-dialog'
+import { useSettingsDialog } from '@/lib/settings-dialog'
+import { LicensesPage } from './licenses-page'
+import { ReportBugPage } from './report-bug-page'
 import { SettingsGroup, SettingAction, SettingsSection } from './settings-controls'
 
 function updateStatusLine(state: UpdateState | undefined): string {
@@ -55,6 +56,11 @@ function UpdatesRow() {
 }
 
 export function AboutSettings() {
+  const { page, open } = useSettingsDialog()
+  const back = (): void => open('about')
+  if (page === 'licenses') return <LicensesPage onBack={back} />
+  if (page === 'report-bug') return <ReportBugPage onBack={back} />
+
   return (
     <SettingsSection title="About" description={`v${__APP_VERSION__}`}>
       <SettingsGroup>
@@ -63,13 +69,17 @@ export function AboutSettings() {
           label="Open source licenses"
           description="The open source software shmoney is built with."
         >
-          <LicensesButton />
+          <Button variant="outline" onClick={() => open('about', 'licenses')}>
+            View licenses
+          </Button>
         </SettingAction>
         <SettingAction
           label="Report a bug"
           description="Review your diagnostics, then open a prefilled GitHub issue. Nothing is sent without your say-so."
         >
-          <ReportBugButton />
+          <Button variant="outline" onClick={() => open('about', 'report-bug')}>
+            Report bug
+          </Button>
         </SettingAction>
         {/* window.open on an https URL routes through setWindowOpenHandler to
             the OS browser (see main/index.ts) */}

@@ -5,6 +5,7 @@ import { accounts, categories, rules, transactions } from '../db/schema'
 import { notOpeningSql, notTransferSql } from '../db/system-categories'
 import type { RuleRow } from '../db/schema'
 import { inRun, newRun, recordAction } from './action-log'
+import { snapshotRule } from '../db/deletion-snapshots'
 import { reopenUncoveredAcceptedSuggestions } from './rule-suggestions'
 import { transactionDate } from '../db/expressions'
 import { compileConditions } from '../rules'
@@ -383,13 +384,23 @@ export function registerRulesIpc(): void {
     return rule
   })
 
-  ipcMain.handle(RULES_IPC.delete, (_event, input: unknown): boolean => {
+  ipcMain.handle(RULES_IPC.delete, (_event, input: unknown): number | null => {
     const id = idSchema.parse(input)
-    db.delete(rules).where(eq(rules.id, id)).run()
+    // hard delete, logged with the row so undo can reinsert it
+    const actionId = db.transaction((tx) => {
+      const snapshot = snapshotRule(tx, id)
+      if (!snapshot) return null
+      tx.delete(rules).where(eq(rules.id, id)).run()
+      return recordAction(tx, {
+        source: 'user',
+        label: 'Delete rule',
+        changes: [{ field: 'ruleDeleted', name: snapshot.name, snapshot }]
+      })
+    })
     // the deleted rule may have been the acceptance of a suggestion; with it
     // gone, that pair becomes suggestible again
     reopenUncoveredAcceptedSuggestions()
-    return true
+    return actionId
   })
 
   ipcMain.handle(RULES_IPC.reorder, (_event, input: unknown): boolean => {

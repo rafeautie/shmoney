@@ -18,6 +18,8 @@ function noun(entry: ActionLogEntry): string {
   if (c.field === 'conversationTitle' || c.field === 'conversationDeletedAt') return 'conversation'
   if (c.field === 'savedFilterDeletedAt') return 'saved filter'
   if (isSavingsGoalChange(c)) return 'savings goal'
+  if (c.field === 'categoryDeleted') return c.kind === 'group' ? 'category group' : 'category'
+  if (c.field === 'ruleDeleted') return 'rule'
   return 'transaction'
 }
 

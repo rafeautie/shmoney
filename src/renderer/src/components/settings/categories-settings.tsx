@@ -5,6 +5,7 @@ import { Delete02Icon, PencilEdit02Icon, PlusSignIcon } from '@hugeicons/core-fr
 import type { Category, CategoryGroup } from '@shared/ipc'
 import { ipcErrorMessage } from '@/lib/utils'
 import { invalidateCategoryData } from '@/lib/invalidate'
+import { toastUndoable } from '@/lib/undo-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SettingsGroup, SettingAction, SettingsSection } from './settings-controls'
@@ -138,6 +139,9 @@ function GroupSection({ group }: { group: CategoryGroup }) {
 
   const deleteGroup = useMutation({
     mutationFn: () => window.api.categories.deleteGroup(group.id),
+    onSuccess: (actionId) => {
+      if (actionId !== null) toastUndoable(`Deleted “${group.name}”`, actionId, queryClient)
+    },
     onSettled: () => invalidateCategoryData(queryClient)
   })
 
@@ -158,7 +162,12 @@ function GroupSection({ group }: { group: CategoryGroup }) {
               autoFocus
               value={renameDraft}
               onChange={(event) => setRenameDraft(event.target.value)}
-              onKeyDown={(event) => event.key === 'Escape' && setRenameDraft(null)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape') return
+                // cancels the rename without closing Settings
+                event.preventDefault()
+                setRenameDraft(null)
+              }}
               className="w-60"
             />
             <Button type="submit" disabled={!renameDraft.trim() || renameGroup.isPending}>
@@ -179,19 +188,17 @@ function GroupSection({ group }: { group: CategoryGroup }) {
             >
               <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
             </Button>
-            <ConfirmButton
+            {/* no confirm: the toast's Undo brings the group back */}
+            <Button
               variant="ghost"
               size="icon-sm"
               className="ml-auto"
               aria-label={`Delete group ${group.name}`}
-              title={`Delete “${group.name}”?`}
-              description="Deletes the group and its categories. Their transactions become uncategorized."
-              pending={deleteGroup.isPending}
-              pendingLabel="Deleting…"
-              onConfirm={(close) => deleteGroup.mutate(undefined, { onSuccess: close })}
+              disabled={deleteGroup.isPending}
+              onClick={() => deleteGroup.mutate()}
             >
               <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
-            </ConfirmButton>
+            </Button>
           </>
         )}
       </div>
@@ -231,7 +238,11 @@ function CategoryList({ groupId, categories }: { groupId: number | null; categor
               autoFocus
               value={newCategoryName}
               onChange={(event) => setNewCategoryName(event.target.value)}
-              onKeyDown={(event) => event.key === 'Escape' && setAddingCategory(false)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Escape') return
+                event.preventDefault()
+                setAddingCategory(false)
+              }}
               placeholder="Category name"
               className="w-44"
             />
@@ -281,6 +292,9 @@ function CategoryChip({ category }: { category: Category }) {
 
   const deleteCategory = useMutation({
     mutationFn: () => window.api.categories.delete(category.id),
+    onSuccess: (actionId) => {
+      if (actionId !== null) toastUndoable(`Deleted “${category.name}”`, actionId, queryClient)
+    },
     onSettled: () => invalidateCategoryData(queryClient)
   })
 
@@ -299,7 +313,11 @@ function CategoryChip({ category }: { category: Category }) {
           autoFocus
           value={renameDraft}
           onChange={(event) => setRenameDraft(event.target.value)}
-          onKeyDown={(event) => event.key === 'Escape' && setMode('view')}
+          onKeyDown={(event) => {
+            if (event.key !== 'Escape') return
+            event.preventDefault()
+            setMode('view')
+          }}
           className="w-44"
         />
         <Button
@@ -337,21 +355,16 @@ function CategoryChip({ category }: { category: Category }) {
           >
             <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
           </Button>
-          <ConfirmButton
+          {/* no confirm: the toast's Undo brings it back, assignments included */}
+          <Button
             variant="ghost"
             size="icon-xs"
             aria-label={`Delete category ${category.name}`}
-            // clear a previous failure so the chip isn't showing a stale error
-            // while the confirmation is up
-            onClick={() => deleteCategory.reset()}
-            title={`Delete “${category.name}”?`}
-            description="Its transactions become uncategorized."
-            pending={deleteCategory.isPending}
-            pendingLabel="Deleting…"
-            onConfirm={(close) => deleteCategory.mutate(undefined, { onSuccess: close })}
+            disabled={deleteCategory.isPending}
+            onClick={() => deleteCategory.mutate()}
           >
             <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
-          </ConfirmButton>
+          </Button>
         </span>
       </span>
       {error != null && <span className="pl-1 text-destructive">{ipcErrorMessage(error)}</span>}

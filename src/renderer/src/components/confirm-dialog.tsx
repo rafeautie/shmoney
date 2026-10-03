@@ -10,6 +10,14 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog'
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger
+} from '@/components/ui/popover'
 
 /** What to confirm and what to do about it — shared by the dialog and the button
  * that opens it. */
@@ -30,9 +38,10 @@ export interface ConfirmProps {
  * The confirm button is destructive by default; pass `pendingLabel` to show progress
  * text while the action runs (the button is disabled whenever `pending` is true).
  *
- * Prefer <ConfirmButton> when a button opens this; reach for the dialog directly when
- * the entry point is something else (a menu item, a keyboard shortcut, a row action
- * whose target varies) or when it must outlive its trigger.
+ * Prefer <ConfirmButton> (an anchored popover) when a button starts the action; reach
+ * for the dialog when the entry point is something else (a menu item, a keyboard
+ * shortcut, a bulk-action bar) or when it must outlive its trigger. Never open it
+ * from inside another dialog.
  *
  * Keyboard: Escape cancels (base-ui default) and Enter confirms — the body is a form
  * whose submit button is the confirm action, and it takes initial focus so a bare Enter
@@ -93,43 +102,64 @@ export function ConfirmDialog({
 }
 
 /** A destructive action as one component: the button that starts it plus the
- * confirmation it has to pass. Remaining props style the trigger, so
+ * confirmation it has to pass, anchored to the button as a popover. It isn't
+ * modal, so it never stacks over a dialog the button sits in, and the question
+ * appears where you clicked. Remaining props style the trigger, so
  * `<ConfirmButton variant="destructive" title="Delete X?" onConfirm={…}>Delete</ConfirmButton>`
- * replaces the usual button + open state + <ConfirmDialog> trio. An `onClick`
- * still runs on press, before the dialog opens. */
+ * replaces the usual button + open state + confirm trio. An `onClick` still
+ * runs on press, before the confirmation opens.
+ *
+ * Reach for it only for what undo can't bring back; an undoable delete should
+ * just happen and offer Undo. Keyboard matches ConfirmDialog: Enter confirms,
+ * Escape cancels. */
 export function ConfirmButton({
   title,
   description,
-  confirmLabel,
+  confirmLabel = 'Delete',
   pendingLabel,
-  confirmVariant,
-  pending,
+  confirmVariant = 'destructive',
+  pending = false,
   onConfirm,
   onClick,
   ...buttonProps
 }: ConfirmProps & Omit<React.ComponentProps<typeof Button>, 'title'>): React.JSX.Element {
   const [open, setOpen] = useState(false)
+  const confirmRef = useRef<HTMLButtonElement>(null)
   return (
-    <>
-      <Button
-        {...buttonProps}
-        onClick={(event) => {
-          onClick?.(event)
-          setOpen(true)
-        }}
-      />
-      <ConfirmDialog
-        open={open}
-        onOpenChange={setOpen}
-        title={title}
-        description={description}
-        confirmLabel={confirmLabel}
-        pendingLabel={pendingLabel}
-        confirmVariant={confirmVariant}
-        pending={pending}
-        onConfirm={onConfirm}
-      />
-    </>
+    <Popover open={open} onOpenChange={(next) => (next || !pending) && setOpen(next)}>
+      <PopoverTrigger render={<Button {...buttonProps} onClick={onClick} />} />
+      <PopoverContent align="end" className="w-80" initialFocus={confirmRef}>
+        <form
+          className="grid gap-3"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (!pending) onConfirm(() => setOpen(false))
+          }}
+        >
+          <PopoverHeader>
+            <PopoverTitle>{title}</PopoverTitle>
+            {description != null && <PopoverDescription>{description}</PopoverDescription>}
+          </PopoverHeader>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              ref={confirmRef}
+              type="submit"
+              size="sm"
+              variant={confirmVariant}
+              disabled={pending}
+            >
+              {pending && pendingLabel ? pendingLabel : confirmLabel}
+              <KeyHint>
+                <HugeiconsIcon icon={CornerDownLeftIcon} className="size-3" strokeWidth={2} />
+              </KeyHint>
+            </Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
   )
 }
 

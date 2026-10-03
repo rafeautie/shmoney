@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -12,42 +12,23 @@ import { Badge } from '@/components/ui/badge'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from '@/components/ui/empty'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { SettingsSubpage } from '@/components/settings/settings-controls'
 
-export function RulesPreviewDialog({
-  open,
-  onOpenChange
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}): React.JSX.Element {
+/** Rules › Apply rules: a dry run of what the rules would change, applied only on
+ *  confirm. Override starts off on every visit, so a destructive choice never
+ *  silently carries over to the next apply. */
+export function RulesPreviewPage({ onBack }: { onBack: () => void }): React.JSX.Element {
   const queryClient = useQueryClient()
-
-  // opt-in overwrite of already-set categories; reset each time the dialog opens
-  // so a destructive choice never silently carries over to the next apply
   const [overrideCategories, setOverrideCategories] = useState(false)
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deliberate reset on reopen; the extra render on a closed->open transition is harmless
-    if (open) setOverrideCategories(false)
-  }, [open])
 
   const previewQuery = useQuery({
     queryKey: ['rules', 'preview', overrideCategories],
     queryFn: () => window.api.rules.preview({ overrideCategories }),
-    enabled: open,
     staleTime: 0,
     gcTime: 0,
     // keep the current preview on screen while toggling override re-runs it, so
-    // the dialog updates in place instead of flashing the "Checking…" state
+    // the page updates in place instead of flashing the "Checking…" state
     placeholderData: keepPreviousData
   })
 
@@ -56,9 +37,7 @@ export function RulesPreviewDialog({
 
   const apply = useMutation({
     mutationFn: () => window.api.rules.apply({ overrideCategories }),
-    onSuccess: () => {
-      onOpenChange(false)
-    },
+    onSuccess: onBack,
     onSettled: () =>
       Promise.all([
         invalidateTransactionData(queryClient),
@@ -67,80 +46,58 @@ export function RulesPreviewDialog({
   })
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex flex-col min-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Apply rules</DialogTitle>
-          <DialogDescription>
-            A dry run of what your rules would change. Nothing is written until you confirm.
-          </DialogDescription>
-        </DialogHeader>
+    <SettingsSubpage
+      parent="Rules"
+      title="Apply rules"
+      description="A dry run of what your rules would change. Nothing is written until you confirm."
+      onBack={onBack}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="override-categories"
+            checked={overrideCategories}
+            onCheckedChange={(checked) => setOverrideCategories(checked === true)}
+          />
+          <Label htmlFor="override-categories" className="text-sm font-normal">
+            Override existing categories
+          </Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" onClick={onBack}>
+            Cancel
+          </Button>
+          <Button disabled={total === 0 || apply.isPending} onClick={() => apply.mutate()}>
+            {apply.isPending ? 'Applying…' : total === 0 ? 'Nothing to apply' : `Apply to ${total}`}
+          </Button>
+        </div>
+      </div>
 
-        <ScrollArea className="-mx-4 [--table-edge:1rem]" viewPortClassName="max-h-[60vh]">
-          {previewQuery.isLoading ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">Checking transactions…</p>
-          ) : previewQuery.isError ? (
-            <p className="py-8 text-center text-sm text-destructive">
-              {ipcErrorMessage(previewQuery.error)}
-            </p>
-          ) : total === 0 ? (
-            <Empty className="py-8">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <HugeiconsIcon icon={SearchRemoveIcon} />
-                </EmptyMedia>
-                <EmptyDescription>No transactions match your rules right now.</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          ) : (
-            <div className="flex flex-col gap-6">
-              {groups.map((group) => (
-                <PreviewGroup key={group.ruleId} group={group} />
-              ))}
-            </div>
-          )}
-        </ScrollArea>
+      {apply.isError && <p className="text-sm text-destructive">{ipcErrorMessage(apply.error)}</p>}
 
-        <DialogFooter className="sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="override-categories"
-              checked={overrideCategories}
-              onCheckedChange={(checked) => setOverrideCategories(checked === true)}
-            />
-            <Label htmlFor="override-categories" className="text-sm font-normal">
-              Override existing categories
-            </Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button disabled={total === 0 || apply.isPending} onClick={() => apply.mutate()}>
-              {apply.isPending
-                ? 'Applying…'
-                : total === 0
-                  ? 'Nothing to apply'
-                  : `Apply to ${total}`}
-            </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-/** The apply-rules preview and the button that opens it. Disable it when there are
- * no rules to apply. */
-export function ApplyRulesButton({ disabled }: { disabled?: boolean }): React.JSX.Element {
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <Button variant="outline" disabled={disabled} onClick={() => setOpen(true)}>
-        Apply
-      </Button>
-      <RulesPreviewDialog open={open} onOpenChange={setOpen} />
-    </>
+      {previewQuery.isLoading ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">Checking transactions…</p>
+      ) : previewQuery.isError ? (
+        <p className="py-8 text-center text-sm text-destructive">
+          {ipcErrorMessage(previewQuery.error)}
+        </p>
+      ) : total === 0 ? (
+        <Empty className="py-8">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <HugeiconsIcon icon={SearchRemoveIcon} />
+            </EmptyMedia>
+            <EmptyDescription>No transactions match your rules right now.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <div className="flex flex-col gap-6 [--table-edge:0px]">
+          {groups.map((group) => (
+            <PreviewGroup key={group.ruleId} group={group} />
+          ))}
+        </div>
+      )}
+    </SettingsSubpage>
   )
 }
 

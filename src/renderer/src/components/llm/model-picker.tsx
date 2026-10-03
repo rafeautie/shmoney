@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { ConfirmButton } from '@/components/confirm-dialog'
 import { LlmStatusBadge } from './llm-status-badge'
 
 function formatBytes(bytes: number): string {
@@ -51,8 +51,6 @@ export function ModelPicker({ className }: { className?: string }): React.JSX.El
   const hw = useHardware().data
   const progress = useLlmDownloadProgress()
   const actions = useModelActions()
-  // one confirm dialog, reused across rows; holds the model pending deletion
-  const [confirmDelete, setConfirmDelete] = useState<ModelId | null>(null)
   const [showAll, setShowAll] = useState(false)
 
   // models this machine can't run fold away, except the selected one so the
@@ -94,7 +92,6 @@ export function ModelPicker({ className }: { className?: string }): React.JSX.El
                 hw={hw}
                 progress={progress[id]}
                 actions={actions}
-                onDelete={() => setConfirmDelete(id)}
               />
             ))}
           </div>
@@ -112,22 +109,6 @@ export function ModelPicker({ className }: { className?: string }): React.JSX.El
             : `Show ${hiddenCount} more that need more memory`}
         </Button>
       )}
-
-      <ConfirmDialog
-        open={confirmDelete !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirmDelete(null)
-        }}
-        title={confirmDelete ? `Delete ${LLM_MODELS[confirmDelete].label}?` : ''}
-        description="This removes the model file from this device to reclaim disk space. Auto features on this model stop until you download it again."
-        pending={actions.deleteModel.isPending}
-        pendingLabel="Deleting…"
-        onConfirm={() => {
-          if (confirmDelete) {
-            actions.deleteModel.mutate(confirmDelete, { onSuccess: () => setConfirmDelete(null) })
-          }
-        }}
-      />
     </div>
   )
 }
@@ -138,8 +119,7 @@ function ModelRow({
   recommended,
   hw,
   progress,
-  actions,
-  onDelete
+  actions
 }: {
   model: LlmModel
   selected: boolean
@@ -147,7 +127,6 @@ function ModelRow({
   hw: HardwareInfo | undefined
   progress: LlmDownloadProgress | null
   actions: ReturnType<typeof useModelActions>
-  onDelete: () => void
 }): React.JSX.Element {
   const { stage, error } = useModelState(model.id)
   const runtimeError = useLlmStatus().data?.runtimeError
@@ -257,9 +236,17 @@ function ModelRow({
             </Button>
           )}
           {isDownloaded && (
-            <Button variant="ghost" size="sm" onClick={onDelete}>
+            <ConfirmButton
+              variant="ghost"
+              size="sm"
+              title={`Delete ${model.label}?`}
+              description="This removes the model file from this device to reclaim disk space. Auto features on this model stop until you download it again."
+              pending={actions.deleteModel.isPending}
+              pendingLabel="Deleting…"
+              onConfirm={(close) => actions.deleteModel.mutate(model.id, { onSuccess: close })}
+            >
               Delete
-            </Button>
+            </ConfirmButton>
           )}
         </div>
       </div>
