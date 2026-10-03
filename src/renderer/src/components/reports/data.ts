@@ -1,4 +1,4 @@
-import { enumerateBuckets, type QueryRow, type TimeGrain } from '@shared/reports'
+import { enumerateBuckets, parseBucketLabel, type QueryRow, type TimeGrain } from '@shared/reports'
 
 /** One chart series: a (group, currency) pair. */
 export interface SeriesInfo {
@@ -23,27 +23,6 @@ export function seriesKey(groupId: number | null, currency: string): string {
 function seriesLabel(row: QueryRow, multiCurrency: boolean): string {
   const base = row.groupLabel ?? (row.groupId === null ? 'Uncategorized' : `#${row.groupId}`)
   return multiCurrency ? `${base} (${row.currency})` : base
-}
-
-/** Parse a SQL bucket label back to a local-time Date (start of the bucket). */
-function parseBucketLabel(grain: Exclude<TimeGrain, 'none'>, label: string): Date {
-  switch (grain) {
-    case 'day':
-    case 'week': {
-      const [y, m, d] = label.split('-').map(Number)
-      return new Date(y, m - 1, d)
-    }
-    case 'month': {
-      const [y, m] = label.split('-').map(Number)
-      return new Date(y, m - 1, 1)
-    }
-    case 'quarter': {
-      const [y, q] = label.split('-Q').map(Number)
-      return new Date(y, (q - 1) * 3, 1)
-    }
-    case 'year':
-      return new Date(Number(label), 0, 1)
-  }
 }
 
 function collectSeries(rows: QueryRow[]): SeriesInfo[] {
@@ -122,6 +101,8 @@ export function pivotTimeSeries(
 
 export interface GroupTotal {
   groupId: number | null
+  /** every group the total stands for: its own id, or the members of an "Other" rollup */
+  groupIds: (number | null)[]
   label: string
   currency: string
   value: number
@@ -140,6 +121,7 @@ export function groupTotals(
   const multiCurrency = new Set(rows.map((r) => r.currency)).size > 1
   const totals: GroupTotal[] = rows.map((row) => ({
     groupId: row.groupId,
+    groupIds: [row.groupId],
     label: seriesLabel(row, multiCurrency),
     currency: row.currency,
     value: row.value
@@ -166,7 +148,8 @@ export function groupTotals(
     const rest = group.slice(limit)
     if (rest.length > 0) {
       result.push({
-        groupId: null,
+        groupId: rest.length === 1 ? rest[0].groupId : null,
+        groupIds: rest.flatMap((t) => t.groupIds),
         label: rest.length === 1 ? rest[0].label : 'Other',
         currency,
         value: rest.reduce((sum, t) => sum + t.value, 0)

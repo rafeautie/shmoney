@@ -23,9 +23,11 @@ export interface TransactionFilterState {
  * mechanism.
  */
 export function useTransactionFilters(
-  options: { lockedAccount?: boolean } = {}
+  options: { lockedAccount?: boolean; initial?: TransactionFilters } = {}
 ): TransactionFilterState {
-  const [filters, setFilters] = useState<TransactionFilters>(DEFAULT_TRANSACTION_FILTERS)
+  const [filters, setFilters] = useState<TransactionFilters>(
+    options.initial ?? DEFAULT_TRANSACTION_FILTERS
+  )
   const today = startOfTodayEpoch()
   const resolved = useMemo(() => resolveTransactionFilters(filters, today), [filters, today])
 

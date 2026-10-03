@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { WidgetCard } from '@/components/reports/widget-card'
 
 export const Route = createFileRoute('/reports/')({
   loader: ({ context }) => context.queryClient.ensureQueryData(reportsOptions),
@@ -186,10 +187,38 @@ function ReportCard({
           </DropdownMenuContent>
         </DropdownMenu>
       </CardHeader>
-      <CardContent className="text-sm text-muted-foreground">
-        {report.widgetCount} widget{report.widgetCount === 1 ? '' : 's'} · updated{' '}
-        {format(new Date(report.updatedAt * 1000), 'MMM d, yyyy')}
+      <CardContent className="space-y-3 text-sm text-muted-foreground">
+        <ReportPreview report={report} />
+        <div>
+          {report.widgetCount} widget{report.widgetCount === 1 ? '' : 's'} · updated{' '}
+          {format(new Date(report.updatedAt * 1000), 'MMM d, yyyy')}
+        </div>
       </CardContent>
     </Card>
+  )
+}
+
+/** The first widget at half scale. It lays out at twice the box's size so the
+ * chart draws exactly as it would on the report, then shrinks to fit. */
+function ReportPreview({ report }: { report: ReportSummary }) {
+  if (!report.preview) {
+    return (
+      <div className="flex h-32 items-center justify-center rounded-md bg-tray text-xs">
+        No widgets yet
+      </div>
+    )
+  }
+  return (
+    <div className="relative h-32 overflow-hidden rounded-md bg-tray" inert aria-hidden>
+      <div className="absolute top-2 left-2 h-[calc(200%-2rem)] w-[calc(200%-2rem)] origin-top-left scale-50">
+        <WidgetCard
+          widget={report.preview}
+          reportFilters={report.filters}
+          editing={false}
+          onEdit={() => {}}
+          onDelete={() => {}}
+        />
+      </div>
+    </div>
   )
 }

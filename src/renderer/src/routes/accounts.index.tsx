@@ -5,7 +5,11 @@ import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { BankIcon } from '@hugeicons/core-free-icons'
 import type { Account } from '@shared/ipc'
-import { DEFAULT_TRANSACTION_FILTERS } from '@shared/transaction-filters'
+import {
+  DEFAULT_TRANSACTION_FILTERS,
+  transactionFiltersSchema,
+  type TransactionFilters
+} from '@shared/transaction-filters'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
 import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
@@ -42,14 +46,20 @@ import {
 
 type AccountsTab = 'accounts' | 'transactions'
 
+function seedFilters(value: unknown): { filters?: TransactionFilters } {
+  const parsed = transactionFiltersSchema.safeParse(value)
+  return parsed.success ? { filters: parsed.data } : {}
+}
+
 export const Route = createFileRoute('/accounts/')({
   // the tab rides in the URL so it survives reloads and can be linked to. q and
   // create are one-shot intents (from the command palette): applied on arrival,
   // then dropped from the URL
   validateSearch: (
     search: Record<string, unknown>
-  ): { tab?: AccountsTab; q?: string; create?: true } => ({
-    ...(search.tab === 'transactions' && { tab: 'transactions' }),
+  ): { tab?: AccountsTab; filters?: TransactionFilters; q?: string; create?: true } => ({
+    // filters seed the filter bar on mount; how a report drill-down lands here
+    ...(search.tab === 'transactions' && { tab: 'transactions', ...seedFilters(search.filters) }),
     ...(typeof search.q === 'string' && search.q.trim() && { q: search.q.trim() }),
     ...(search.create === true && { create: true })
   }),
@@ -72,11 +82,11 @@ function hasDistinctAvailable(account: Account): boolean {
 function AccountsPage() {
   const [creating, setCreating] = useState(false)
   // controlled so the Create button can jump to the transactions tab
-  const { tab = 'accounts', q, create } = Route.useSearch()
+  const { tab = 'accounts', filters, q, create } = Route.useSearch()
   const navigate = Route.useNavigate()
   const setTab = (next: string): void =>
     void navigate({ search: next === 'transactions' ? { tab: 'transactions' } : {}, replace: true })
-  const filterState = useTransactionFilters()
+  const filterState = useTransactionFilters({ initial: filters })
 
   // apply each arriving intent once, during render, then clear it from the URL
   const [seenIntent, setSeenIntent] = useState<{ q?: string; create?: true }>({})

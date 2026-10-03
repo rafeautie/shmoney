@@ -200,6 +200,7 @@ export function WidgetEditor({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['report', reportId] })
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
       onOpenChange(false)
     }
   })
