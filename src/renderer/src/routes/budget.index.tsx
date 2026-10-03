@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { BudgetSummary } from '@shared/budgets'
+import { groupEnvelopes, monthPace, type BudgetSummary } from '@shared/budgets'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -7,6 +7,7 @@ import { ArrowLeft01Icon, ArrowRight01Icon, PiggyBankIcon } from '@hugeicons/cor
 import { AddEnvelopeButton } from '@/components/budget/add-envelope-dialog'
 import { EnvelopeCard } from '@/components/budget/envelope-card'
 import { EnvelopeList } from '@/components/budget/envelope-list'
+import { SectionHeader } from '@/components/budget/envelope-section'
 import { Amount } from '@/components/amount'
 import { StatCards, type Stat } from '@/components/stat-cards'
 import { ViewToggle } from '@/components/view-toggle'
@@ -50,6 +51,7 @@ function BudgetPage() {
   const hasEnvelopes = summary !== undefined && summary.minMonth !== null
   const prevDisabled = !hasEnvelopes || (summary.minMonth !== null && month <= summary.minMonth)
   const nextDisabled = !hasEnvelopes || month >= maxMonth
+  const pace = summary === undefined ? null : monthPace(summary.month)
 
   return (
     // full-height flex column so the envelope table can bleed to the app
@@ -126,20 +128,26 @@ function BudgetPage() {
           </Empty>
         </div>
       ) : budgetView === 'table' ? (
-        <EnvelopeList summary={summary} className="min-h-0 flex-1" />
+        <EnvelopeList summary={summary} pace={pace} className="min-h-0 flex-1" />
       ) : (
         <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-4 px-6 pb-6">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {summary.envelopes.map((envelope) => (
-                <EnvelopeCard
-                  key={envelope.categoryId}
-                  envelope={envelope}
-                  month={summary.month}
-                  currency={summary.currency}
-                />
-              ))}
-            </div>
+          <div className="space-y-6 px-6 pb-6">
+            {groupEnvelopes(summary.envelopes).map((section) => (
+              <section key={section.groupId ?? 'ungrouped'} className="space-y-3">
+                <SectionHeader section={section} currency={summary.currency} />
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {section.envelopes.map((envelope) => (
+                    <EnvelopeCard
+                      key={envelope.categoryId}
+                      envelope={envelope}
+                      month={summary.month}
+                      currency={summary.currency}
+                      pace={pace}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
             {summary.unbudgetedSpent > 0 && (
               <p className="text-xs text-muted-foreground">
                 Unbudgeted spending{' '}

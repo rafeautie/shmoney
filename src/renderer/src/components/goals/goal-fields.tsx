@@ -64,13 +64,7 @@ export function EditableName({
   )
 }
 
-export function EditableTarget({
-  goal,
-  labelled = true
-}: {
-  goal: GoalSummary
-  labelled?: boolean
-}) {
+export function EditableTarget({ goal }: { goal: GoalSummary }) {
   const update = useUpdateGoal()
   const [draft, setDraft] = useState<string | null>(null)
 
@@ -82,7 +76,6 @@ export function EditableTarget({
         className="h-7 px-2 font-normal tabular-nums"
         onClick={() => setDraft((goal.targetAmount / 1000).toString())}
       >
-        {labelled && 'Target'}{' '}
         <Amount value={goal.targetAmount} currency={goal.currency} colored={false} />
       </Button>
     )

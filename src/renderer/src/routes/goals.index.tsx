@@ -92,14 +92,14 @@ function GoalsPage() {
           </Empty>
         </div>
       ) : (
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea horizontal className="min-h-0 flex-1">
           {active.length > 0 &&
             (goalsView === 'table' ? (
               <>
                 <GoalsTable goals={active} savedThisMonth={savedThisMonth} />
                 <p className="px-6 pt-2 text-xs text-muted-foreground">
-                  Planned is what you need to put away this month to stay on pace. It rises if you
-                  fall behind. Saved is what landed this month.
+                  This month is what you saved of what you planned: the amount to put away this
+                  month to stay on pace, which rises if you fall behind.
                 </p>
               </>
             ) : (
@@ -161,9 +161,10 @@ function SummaryStrip({ goals }: { goals: GoalSummary[] }) {
                 colored: false
               },
               {
-                label: 'Needed per month',
+                label: 'Planned',
                 value: inCurrency.reduce((sum, g) => sum + (g.neededPerMonth ?? 0), 0),
-                colored: false
+                colored: false,
+                sub: 'this month'
               }
             ]}
           />

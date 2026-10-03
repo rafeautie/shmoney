@@ -34,6 +34,8 @@ export type BudgetRemoveInput = z.infer<typeof budgetRemoveSchema>
 export interface EnvelopeSummary {
   categoryId: number
   categoryName: string
+  /** null = ungrouped */
+  groupId: number | null
   groupName: string | null
   /** month of the envelope's earliest fill row */
   startMonth: string
@@ -51,7 +53,7 @@ export interface BudgetSummary {
   minMonth: string | null
   /** dominant account currency, for display only */
   currency: string
-  /** sorted by group name then category name */
+  /** grouped in Categories-settings order (ungrouped last), then by name */
   envelopes: EnvelopeSummary[]
   /** viewed-month spending outside all envelopes (Transfers excluded) */
   unbudgetedSpent: number
@@ -61,4 +63,45 @@ export interface BudgetSummary {
 export interface BudgetRemoveResult {
   /** action-log entry to replay for undo; null when there was nothing to remove */
   actionId: number | null
+}
+
+export interface EnvelopeSection {
+  groupId: number | null
+  groupName: string | null
+  envelopes: EnvelopeSummary[]
+  totals: { fill: number; spent: number; balance: number }
+}
+
+/** Splits the summary's already-ordered envelopes into one section per group. */
+export function groupEnvelopes(envelopes: EnvelopeSummary[]): EnvelopeSection[] {
+  const sections: EnvelopeSection[] = []
+  for (const envelope of envelopes) {
+    let section = sections.at(-1)
+    if (section === undefined || section.groupId !== envelope.groupId) {
+      section = {
+        groupId: envelope.groupId,
+        groupName: envelope.groupName,
+        envelopes: [],
+        totals: { fill: 0, spent: 0, balance: 0 }
+      }
+      sections.push(section)
+    }
+    section.envelopes.push(envelope)
+    section.totals.fill += envelope.fill
+    section.totals.spent += envelope.spent
+    section.totals.balance += envelope.balance
+  }
+  return sections
+}
+
+/**
+ * Share of `month` that has elapsed, 0 to 1, when it is the current local
+ * month; null otherwise (past months are complete, future ones not started).
+ */
+export function monthPace(month: string, now: Date = new Date()): number | null {
+  const [year, m] = month.split('-').map(Number)
+  if (now.getFullYear() !== year || now.getMonth() !== m - 1) return null
+  const start = new Date(year, m - 1, 1).getTime()
+  const end = new Date(year, m, 1).getTime()
+  return (now.getTime() - start) / (end - start)
 }

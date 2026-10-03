@@ -1,29 +1,48 @@
 import type { EnvelopeSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
+import { PaceBar } from '@/components/pace-bar'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 
-/** Spent-vs-fill bar with an "X of Y" caption; turns destructive when overspent. */
+/** Spent against fill, with the month's elapsed share as the pace in the current month. */
+export function EnvelopeMeter({
+  spent,
+  fill,
+  pace = null
+}: {
+  spent: number
+  fill: number
+  pace?: number | null
+}) {
+  const pct = fill > 0 ? (spent / fill) * 100 : spent > 0 ? 100 : 0
+  return (
+    <PaceBar
+      value={pct}
+      pace={pace === null ? null : pace * 100}
+      offPace="over"
+      destructive={spent > fill}
+      label="Spent"
+    />
+  )
+}
+
+/** The meter with an "X of Y" caption, for rows that have no other spend line. */
 export function EnvelopeBar({
   spent,
   fill,
   currency,
+  pace = null,
   className
 }: {
   spent: number
   fill: number
   currency: string
+  pace?: number | null
   className?: string
 }) {
-  const over = spent > fill
-  const pct = fill > 0 ? Math.min(100, (spent / fill) * 100) : spent > 0 ? 100 : 0
   return (
-    <div className={cn('space-y-1', className)}>
-      <Progress
-        value={pct}
-        className={cn(over && '[&_[data-slot=progress-indicator]]:bg-destructive')}
-      />
+    <div className={cn('space-y-1.5', className)}>
+      <EnvelopeMeter spent={spent} fill={fill} pace={pace} />
       <div className="text-xs text-muted-foreground">
         <Amount value={spent} currency={currency} colored={false} /> of{' '}
         <Amount value={fill} currency={currency} colored={false} />
