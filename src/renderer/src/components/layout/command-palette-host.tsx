@@ -226,7 +226,7 @@ function CommandPalette({
           />
           <PaletteItem
             id="action:blur"
-            label={actions.blurAmounts ? 'Show amounts' : 'Blur amounts'}
+            label={actions.blurAmounts ? 'Show amounts' : 'Hide amounts'}
             keywords={['privacy', 'hide']}
             icon={actions.blurAmounts ? ViewIcon : ViewOffIcon}
             onSelect={() => run(actions.toggleBlur)}

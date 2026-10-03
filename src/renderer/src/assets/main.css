@@ -377,8 +377,157 @@
   }
 }
 
-/* While a global appearance flip is in flight (theme swap, blur-amounts
- * toggle), suppress every transition so the whole UI repaints in one instant
+/* Hidden figures (PrivateText): each digit slides up and out as a dot slides
+ * up into its place, staggered left to right and delayed by distance from the
+ * sidebar toggle (--private-delay, see privacy-transition). Every figure ends
+ * as exactly four dots; extra digits and their separators fold away and short
+ * figures grow pad dots, all by animating a grid track so nothing is measured.
+ * Unlayered so these transitions replace the global color fade. */
+.private {
+  --private-spring: linear(
+    0,
+    0.006,
+    0.025 2.8%,
+    0.101 6.1%,
+    0.539 18.9%,
+    0.721 25.3%,
+    0.849 31.5%,
+    0.937 38.1%,
+    0.968 41.8%,
+    0.991 45.7%,
+    1.006 50.1%,
+    1.015 55%,
+    1.017 63.9%,
+    1.001 85.4%,
+    1
+  );
+  white-space: nowrap;
+}
+
+.private-slot,
+.private-drop,
+.private-pad {
+  --private-d: calc(var(--private-delay, 0ms) + var(--i, 0) * 20ms);
+}
+
+.private-slot {
+  position: relative;
+  display: inline-block;
+}
+
+.private-glyph,
+.private-dot {
+  transition:
+    transform 620ms var(--private-spring) var(--private-d),
+    opacity 300ms ease var(--private-d),
+    filter 360ms ease var(--private-d);
+}
+
+.private-glyph {
+  display: inline-block;
+}
+
+.private-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.32em;
+  height: 0.32em;
+  margin: -0.16em;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  filter: blur(0.1em);
+  transform: translateY(0.6em) scale(0.5);
+}
+
+.private-drop,
+.private-pad {
+  display: inline-grid;
+  transition: grid-template-columns 700ms var(--private-spring) var(--private-d);
+}
+
+.private-drop {
+  grid-template-columns: 1fr;
+}
+
+.private-pad {
+  grid-template-columns: 0fr;
+}
+
+.private-drop > span,
+.private-pad > span {
+  min-width: 0;
+}
+
+.private-hidden .private-slot > .private-glyph {
+  opacity: 0;
+  filter: blur(0.12em);
+  transform: translateY(-0.6em) scale(0.6);
+}
+
+.private-hidden .private-dot {
+  opacity: 1;
+  filter: none;
+  transform: none;
+}
+
+.private-hidden .private-drop {
+  grid-template-columns: 0fr;
+}
+
+.private-hidden .private-drop .private-glyph {
+  opacity: 0;
+  filter: blur(0.12em);
+  transform: scale(0.4);
+}
+
+.private-hidden .private-pad {
+  grid-template-columns: 1fr;
+}
+
+/* A shown figure only gets its per-digit markup when the hide starts, so its
+ * first frame has to begin from the plain, visible look. Gated on
+ * .private-enter (only while a toggle animates) so figures mounting later,
+ * like a page opened while hidden, appear already dotted. */
+@starting-style {
+  .private-enter .private-slot > .private-glyph,
+  .private-enter .private-drop .private-glyph {
+    opacity: 1;
+    filter: none;
+    transform: none;
+  }
+
+  .private-enter .private-dot {
+    opacity: 0;
+    filter: blur(0.1em);
+    transform: translateY(0.6em) scale(0.5);
+  }
+
+  .private-enter .private-drop {
+    grid-template-columns: 1fr;
+  }
+
+  .private-enter .private-pad {
+    grid-template-columns: 0fr;
+  }
+}
+
+/* Off-screen figures and reduced motion flip instantly, with no fade either. */
+[data-private-still] *,
+[data-private-still] {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .private *,
+  .private {
+    transition: none !important;
+  }
+}
+
+/* While a global appearance flip is in flight (theme swap), suppress every
+ * transition so the whole UI repaints in one instant
  * step. Without this, the global 250ms fade above and the shorter per-component
  * transitions run at different speeds, revealing the mismatch. ThemeSync adds
  * this class, applies the change, then removes it on the next frame. Unlayered +
