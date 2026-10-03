@@ -2,9 +2,10 @@ import { useMemo } from 'react'
 import type { QueryRow, WidgetConfig } from '@shared/reports'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { cn } from '@/lib/utils'
 import { groupTotals } from '../data'
 import { CenteredNote, MeasureValue, MixedCurrencyBadge } from './shared'
-import type { OnDrill } from '../use-drill'
+import { DRILL_LABEL, DRILL_TARGET, type OnDrill } from '../use-drill'
 import { displayMeasure } from './measure'
 
 export function SummaryTableWidget({
@@ -57,8 +58,7 @@ export function SummaryTableWidget({
                   key={`${t.groupId}-${t.currency}-${i}`}
                   {...(onDrill && {
                     tabIndex: 0,
-                    className:
-                      'cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-none',
+                    className: cn(DRILL_TARGET, 'focus-visible:bg-muted/50'),
                     onClick: () => onDrill({ groupIds: t.groupIds }),
                     onKeyDown: (e: React.KeyboardEvent) => {
                       if (e.key !== 'Enter' && e.key !== ' ') return
@@ -67,7 +67,9 @@ export function SummaryTableWidget({
                     }
                   })}
                 >
-                  <TableCell className="truncate font-medium">{t.label}</TableCell>
+                  <TableCell className="truncate font-medium">
+                    <span className={cn(onDrill && DRILL_LABEL)}>{t.label}</span>
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">
                     <MeasureValue measure={measure} value={t.value} currency={t.currency} />
                   </TableCell>

@@ -32,17 +32,34 @@ import {
   type ChartConfig
 } from '@/components/ui/chart'
 import { BLUR_X_TICK_LABELS, paletteColor } from '@/components/charts/chart-style'
+import { DRILL_LABEL, DRILL_TARGET, useBudgetDrill, type OnBudgetDrill } from '../use-drill'
 import { useResolvedQuery } from '../use-widget-data'
 import { WidgetError } from '../widget-error'
 import { CenteredNote, TooltipRow, WidgetSkeleton } from './shared'
 import { tickFormatter } from './measure'
 
+/** Click/Enter/Space handlers that make a non-button element open a drill. */
+function drillProps(onActivate: () => void) {
+  return {
+    role: 'button',
+    tabIndex: 0,
+    onClick: onActivate,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return
+      e.preventDefault()
+      onActivate()
+    }
+  }
+}
+
 export function BudgetWidget({
   config,
-  reportFilters
+  reportFilters,
+  drillable
 }: {
   config: WidgetConfig
   reportFilters: ReportFilters
+  drillable: boolean
 }) {
   const resolved = useResolvedQuery(config, reportFilters)
   // show the envelopes for the month the filtered range ends in, so "Last
@@ -56,6 +73,7 @@ export function BudgetWidget({
     queryFn: () => window.api.budgets.summary({ month }),
     placeholderData: (prev: BudgetSummary | undefined) => prev
   })
+  const onDrill = useBudgetDrill(month, drillable)
 
   if (query.isLoading) return <WidgetSkeleton />
   if (query.isError) {
@@ -89,13 +107,27 @@ export function BudgetWidget({
       {view === 'list' ? (
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-3 px-4 pb-4">
-            {summary.envelopes.map((envelope) => (
-              <EnvelopeProgressRow
-                key={envelope.categoryId}
-                envelope={envelope}
-                currency={summary.currency}
-              />
-            ))}
+            {summary.envelopes.map((envelope) =>
+              onDrill ? (
+                <div
+                  key={envelope.categoryId}
+                  className={DRILL_TARGET}
+                  {...drillProps(() => onDrill([envelope.categoryId]))}
+                >
+                  <EnvelopeProgressRow
+                    envelope={envelope}
+                    currency={summary.currency}
+                    nameClassName={DRILL_LABEL}
+                  />
+                </div>
+              ) : (
+                <EnvelopeProgressRow
+                  key={envelope.categoryId}
+                  envelope={envelope}
+                  currency={summary.currency}
+                />
+              )
+            )}
             {summary.unbudgetedSpent > 0 && (
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>Unbudgeted spending</span>
@@ -109,17 +141,30 @@ export function BudgetWidget({
           </div>
         </ScrollArea>
       ) : view === 'bars' ? (
-        <BudgetBarsChart envelopes={summary.envelopes} currency={summary.currency} />
+        <BudgetBarsChart
+          envelopes={summary.envelopes}
+          currency={summary.currency}
+          onDrill={onDrill}
+        />
       ) : view === 'balances' ? (
-        <BudgetBalancesChart envelopes={summary.envelopes} currency={summary.currency} />
+        <BudgetBalancesChart
+          envelopes={summary.envelopes}
+          currency={summary.currency}
+          onDrill={onDrill}
+        />
       ) : view === 'donut' ? (
         <BudgetDonutChart
           envelopes={summary.envelopes}
           currency={summary.currency}
           showLegend={config.display?.showLegend ?? false}
+          onDrill={onDrill}
         />
       ) : (
-        <BudgetGaugeChart totals={summary.totals} currency={summary.currency} />
+        <BudgetGaugeChart
+          totals={summary.totals}
+          currency={summary.currency}
+          onDrill={onDrill && (() => onDrill(summary.envelopes.map((e) => e.categoryId)))}
+        />
       )}
     </div>
   )
@@ -128,13 +173,17 @@ export function BudgetWidget({
 /** Spent vs budgeted, one bar pair per envelope. */
 function BudgetBarsChart({
   envelopes,
-  currency
+  currency,
+  onDrill
 }: {
   envelopes: EnvelopeSummary[]
   currency: string
+  onDrill?: OnBudgetDrill
 }) {
   const { blurAmounts } = usePrivacy()
   const data = envelopes.map((e) => ({ label: e.categoryName, budgeted: e.fill, spent: e.spent }))
+  const barClick =
+    onDrill && ((_bar: unknown, index: number) => onDrill([envelopes[index].categoryId]))
   const chartConfig: ChartConfig = {
     budgeted: { label: 'Budgeted', color: paletteColor(0) },
     spent: { label: 'Spent', color: paletteColor(1) }
@@ -143,7 +192,11 @@ function BudgetBarsChart({
     <div className="min-h-0 flex-1 px-4 pb-4">
       <ChartContainer
         config={chartConfig}
-        className={cn('aspect-auto h-full w-full', blurAmounts && BLUR_X_TICK_LABELS)}
+        className={cn(
+          'aspect-auto h-full w-full',
+          blurAmounts && BLUR_X_TICK_LABELS,
+          onDrill && '[&_.recharts-bar-rectangle]:cursor-pointer'
+        )}
       >
         <BarChart data={data} layout="vertical" margin={{ top: 8, right: 8 }}>
           <CartesianGrid horizontal={false} />
@@ -183,12 +236,14 @@ function BudgetBarsChart({
             fill="var(--color-budgeted)"
             radius={[0, 2, 2, 0]}
             isAnimationActive={false}
+            onClick={barClick}
           />
           <Bar
             dataKey="spent"
             fill="var(--color-spent)"
             radius={[0, 2, 2, 0]}
             isAnimationActive={false}
+            onClick={barClick}
           />
         </BarChart>
       </ChartContainer>
@@ -199,10 +254,12 @@ function BudgetBarsChart({
 /** Rollover balance per envelope; negative balances render destructive. */
 function BudgetBalancesChart({
   envelopes,
-  currency
+  currency,
+  onDrill
 }: {
   envelopes: EnvelopeSummary[]
   currency: string
+  onDrill?: OnBudgetDrill
 }) {
   const { blurAmounts } = usePrivacy()
   const data = envelopes.map((e) => ({ label: e.categoryName, balance: e.balance }))
@@ -211,7 +268,11 @@ function BudgetBalancesChart({
     <div className="min-h-0 flex-1 px-4 pb-4">
       <ChartContainer
         config={chartConfig}
-        className={cn('aspect-auto h-full w-full', blurAmounts && BLUR_X_TICK_LABELS)}
+        className={cn(
+          'aspect-auto h-full w-full',
+          blurAmounts && BLUR_X_TICK_LABELS,
+          onDrill && '[&_.recharts-bar-rectangle]:cursor-pointer'
+        )}
       >
         <BarChart data={data} layout="vertical" margin={{ top: 8, right: 8 }}>
           <CartesianGrid horizontal={false} />
@@ -245,7 +306,12 @@ function BudgetBalancesChart({
               />
             }
           />
-          <Bar dataKey="balance" radius={[0, 2, 2, 0]} isAnimationActive={false}>
+          <Bar
+            dataKey="balance"
+            radius={[0, 2, 2, 0]}
+            isAnimationActive={false}
+            onClick={onDrill && ((_bar, index) => onDrill([envelopes[index].categoryId]))}
+          >
             {data.map((d, i) => (
               <Cell key={d.label} fill={d.balance < 0 ? 'var(--destructive)' : paletteColor(i)} />
             ))}
@@ -260,11 +326,13 @@ function BudgetBalancesChart({
 function BudgetDonutChart({
   envelopes,
   currency,
-  showLegend
+  showLegend,
+  onDrill
 }: {
   envelopes: EnvelopeSummary[]
   currency: string
   showLegend: boolean
+  onDrill?: OnBudgetDrill
 }) {
   const slices = envelopes.filter((e) => e.fill > 0)
   if (slices.length === 0) {
@@ -280,7 +348,13 @@ function BudgetDonutChart({
   }))
   return (
     <div className="min-h-0 flex-1 px-4 pb-4">
-      <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
+      <ChartContainer
+        config={chartConfig}
+        className={cn(
+          'aspect-auto h-full w-full',
+          onDrill && '[&_.recharts-pie-sector]:cursor-pointer'
+        )}
+      >
         <PieChart>
           <ChartTooltip
             content={
@@ -305,6 +379,7 @@ function BudgetDonutChart({
             innerRadius="55%"
             strokeWidth={2}
             isAnimationActive={false}
+            onClick={onDrill && ((_slice, index) => onDrill([slices[index].categoryId]))}
           />
         </PieChart>
       </ChartContainer>
@@ -315,16 +390,25 @@ function BudgetDonutChart({
 /** Overall utilization: total spent as a share of total budgeted. */
 function BudgetGaugeChart({
   totals,
-  currency
+  currency,
+  onDrill
 }: {
   totals: { fill: number; spent: number }
   currency: string
+  /** opens the spending in every envelope */
+  onDrill?: () => void
 }) {
   const pct = totals.fill > 0 ? (totals.spent / totals.fill) * 100 : totals.spent > 0 ? 100 : 0
   const over = pct > 100
   const data = [{ value: Math.min(100, pct), fill: over ? 'var(--destructive)' : 'var(--chart-1)' }]
   return (
-    <div className="relative min-h-0 flex-1 px-4 pb-4">
+    <div
+      className={cn(
+        'relative min-h-0 flex-1 px-4 pb-4',
+        onDrill && cn(DRILL_TARGET, 'rounded-md focus-visible:ring-2 focus-visible:ring-ring/50')
+      )}
+      {...(onDrill && drillProps(onDrill))}
+    >
       <ChartContainer config={{ value: { label: 'Used' } }} className="aspect-auto h-full w-full">
         <RadialBarChart
           data={data}
@@ -338,7 +422,13 @@ function BudgetGaugeChart({
         </RadialBarChart>
       </ChartContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-0.5 pb-4">
-        <span className={cn('text-2xl font-semibold tracking-tight', over && 'text-destructive')}>
+        <span
+          className={cn(
+            'text-2xl font-semibold tracking-tight',
+            over && 'text-destructive',
+            onDrill && DRILL_LABEL
+          )}
+        >
           {Math.round(pct)}%
         </span>
         <span className="text-xs text-muted-foreground">

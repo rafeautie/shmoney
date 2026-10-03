@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { drillFilters } from './report-drill'
+import { budgetDrillFilters, drillFilters } from './report-drill'
 import {
   DEFAULT_REPORT_FILTERS,
   previousPeriod,
@@ -151,5 +151,24 @@ describe('previousPeriod', () => {
 
   it('has nothing before all time', () => {
     expect(previousPeriod({ kind: 'all' }, NOW)).toBeNull()
+  })
+})
+
+describe('drillFilters with an empty target', () => {
+  it('opens the widget effective filters unchanged, as a stat tile does', () => {
+    const f = drillFilters(config({ measure: 'sum' }), report, {}, NOW)!
+    expect(f).toEqual({ ...report, direction: 'all' })
+  })
+})
+
+describe('budgetDrillFilters', () => {
+  it('spans the month and counts outflows in the envelopes, like the budget', () => {
+    expect(budgetDrillFilters('2026-02', [4, 9])).toEqual({
+      dateRange: { kind: 'absolute', start: sec(2026, 1, 1), end: sec(2026, 1, 28, 23, 59, 59) },
+      direction: 'expense',
+      includePending: true,
+      includeTransfers: true,
+      categoryIds: [4, 9]
+    })
   })
 })

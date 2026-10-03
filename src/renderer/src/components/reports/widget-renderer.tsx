@@ -178,6 +178,7 @@ function AggregateBody({
           currencies={currencies}
           resolved={resolved}
           reportFilters={reportFilters}
+          onDrill={onDrill}
         />
       )
     case 'summaryTable':
@@ -210,7 +211,9 @@ function WidgetBody({ widget, reportFilters, drillable }: WidgetRendererProps) {
     )
   }
   if (widget.type === 'budget') {
-    return <BudgetWidget config={widget.config} reportFilters={reportFilters} />
+    return (
+      <BudgetWidget config={widget.config} reportFilters={reportFilters} drillable={drillable} />
+    )
   }
   if (widget.type === 'goals') {
     return <GoalsWidget config={widget.config} />
