@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from 'react'
 
 /** Longest single digit transition plus the per-digit stagger, see .private-* in main.css. */
-const SETTLE_MS = 950
+const SETTLE_MS = 850
 /** ms of delay per px of distance from the toggle: the ripple's speed. */
-const RIPPLE_MS_PER_PX = 0.35
-const MAX_DELAY_MS = 600
+const RIPPLE_MS_PER_PX = 0.2
+const MAX_DELAY_MS = 300
 
 let settling = false
 let timer: ReturnType<typeof setTimeout> | undefined

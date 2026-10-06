@@ -408,7 +408,7 @@
 .private-slot,
 .private-drop,
 .private-pad {
-  --private-d: calc(var(--private-delay, 0ms) + var(--i, 0) * 20ms);
+  --private-d: calc(var(--private-delay, 0ms) + var(--i, 0) * 10ms);
 }
 
 .private-slot {

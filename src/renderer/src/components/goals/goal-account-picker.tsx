@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import {
   Command,
   CommandEmpty,
+  CommandGroup,
   CommandInput,
   CommandItem,
   CommandList
@@ -71,16 +72,18 @@ export function GoalAccountPicker({
           <CommandInput placeholder="Search accounts..." />
           <CommandList>
             <CommandEmpty>No accounts in this currency.</CommandEmpty>
-            {pickable.map((account) => (
-              <CommandItem
-                key={account.id}
-                value={account.name}
-                onSelect={() => toggle(account)}
-                checked={selectedIds.includes(account.id)}
-              >
-                <span className="truncate">{account.name}</span>
-              </CommandItem>
-            ))}
+            <CommandGroup>
+              {pickable.map((account) => (
+                <CommandItem
+                  key={account.id}
+                  value={account.name}
+                  onSelect={() => toggle(account)}
+                  checked={selectedIds.includes(account.id)}
+                >
+                  <span className="truncate">{account.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
           </CommandList>
         </Command>
       </PopoverContent>
