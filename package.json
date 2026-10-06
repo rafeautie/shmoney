@@ -38,6 +38,7 @@
     "typecheck": "npm run typecheck:node && npm run typecheck:web && npm run typecheck:demo",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
+    "test:int": "vitest run --project integration",
     "format": "prettier --write .",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
