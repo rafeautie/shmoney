@@ -46,8 +46,9 @@ for (const mod of modules) {
   }
 }
 
-// the preload hands its api to contextBridge, which the shim parks on `window`
-Object.assign(globalThis, { window: globalThis })
+// the preload hands its api to contextBridge, which the shim parks on `window`;
+// the shim's window asks `document` whether it has focus (OS notifications do)
+Object.assign(globalThis, { window: globalThis, document: { hasFocus: () => false } })
 await import('../../../preload')
 
 afterEach(() => {

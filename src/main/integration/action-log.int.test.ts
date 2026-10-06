@@ -199,6 +199,22 @@ describe('undoEntry and redoEntry', () => {
   })
 })
 
+describe('entryChanges', () => {
+  it('returns every change of an entry, beyond the page preview', async () => {
+    const acct = account()
+    const target = category()
+    const ids = Array.from({ length: 12 }, () => txn(acct))
+    await api.transactions.setCategories({
+      changes: ids.map((transactionId) => ({ transactionId, categoryId: target }))
+    })
+    const [entry] = (await api.actionLog.page()).entries
+    expect(entry.changeCount).toBe(12)
+    const changes = await api.actionLog.entryChanges(entry.id)
+    expect(changes).toHaveLength(12)
+    expect(changes.every((c) => c.field === 'categoryId')).toBe(true)
+  })
+})
+
 describe('runs', () => {
   const runIds = (): number[] =>
     query<{ id: number }>('SELECT id FROM action_runs ORDER BY id').map((r) => r.id)

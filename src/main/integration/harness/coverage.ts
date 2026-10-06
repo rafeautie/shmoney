@@ -6,8 +6,8 @@ import type { TestProject } from 'vitest/node'
 
 // The channel gate: every IPC channel the app declares should be exercised by
 // some tier A spec. Each spec file records what it touched; the global teardown
-// unions the files and names whatever no spec reached. It only reports until
-// SHMONEY_STRICT_CHANNELS=1, which fails the run instead.
+// unions the files and names whatever no spec reached. A run of every spec
+// fails on a gap; a filtered run (one spec while iterating) only reports.
 
 declare module 'vitest' {
   export interface ProvidedContext {
@@ -43,8 +43,11 @@ export function writeChannelLog(dir: string): void {
 }
 
 // Channels only the desktop app can serve (real fs, updater, the keychain-backed
-// debug fetch). Tier C covers them; the gate lists them separately.
-const ELECTRON_ONLY = /^(updates|diagnostics|storage|debug):/
+// debug fetch) or that only Electron's main process and the real model manager
+// push (menu navigation, OS file opens, download progress, usage). Tier C covers
+// them; the gate lists them separately.
+const ELECTRON_ONLY =
+  /^(updates|diagnostics|storage|debug):|^app:(navigate|openImportFile)$|^llm:(downloadProgress|usageChanged)$/
 
 async function declaredChannels(): Promise<string[]> {
   const modules = await Promise.all([
@@ -88,9 +91,12 @@ export default function setup(project: TestProject): () => Promise<void> {
         reached.add(channel)
       }
     }
+    const reports = readdirSync(dir).length
     rmSync(dir, { recursive: true, force: true })
-    // a filtered run (one spec file) says nothing about coverage
-    if (reached.size === 0) return
+    if (reports === 0) return
+    const specs = readdirSync(join(project.config.root, 'src/main/integration')).filter((f) =>
+      f.endsWith('.int.test.ts')
+    ).length
 
     const declared = await declaredChannels()
     const missing = declared.filter((c) => !reached.has(c) && !ELECTRON_ONLY.test(c))
@@ -102,7 +108,7 @@ export default function setup(project: TestProject): () => Promise<void> {
       ...missing.map((c) => `  not exercised: ${c}`)
     ]
     console.log(lines.join('\n'))
-    if (missing.length > 0 && process.env.SHMONEY_STRICT_CHANNELS === '1') {
+    if (missing.length > 0 && reports >= specs) {
       throw new Error(`${missing.length} IPC channels are not exercised by any spec`)
     }
   }
