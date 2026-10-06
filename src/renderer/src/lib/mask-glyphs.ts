@@ -3,9 +3,10 @@ export const MASK_DOTS = 4
 const DIGIT = /\p{Nd}/u
 const SEPARATOR = /[.,'’\s]/u
 const LETTER = /\p{L}/u
+const SYMBOL = /[\p{Sc}\p{L}]/u
 
 export type Glyph =
-  | { kind: 'fixed'; char: string }
+  | { kind: 'fixed'; char: string; gap?: 'before' | 'after' }
   | { kind: 'digit' | 'drop'; char: string; index: number }
   | { kind: 'pad'; index: number }
 
@@ -13,8 +14,9 @@ export type Glyph =
  * Splits a formatted figure for the privacy mask: the first four digits become
  * dots ('digit'), later digits and the separators between digits fold away
  * ('drop'), and a short figure grows 'pad' dots right after its last digit.
- * Signs, symbols and currency codes stay put ('fixed'). index orders the
- * animated glyphs left to right for the stagger.
+ * Signs, symbols and currency codes stay put ('fixed'); a symbol touching the
+ * dots gets a gap on that side, since a dot sits closer than a digit's ink.
+ * index orders the animated glyphs left to right for the stagger.
  */
 export function toGlyphs(text: string): Glyph[] {
   const chars = [...text]
@@ -47,5 +49,10 @@ export function toGlyphs(text: string): Glyph[] {
   const pads: Glyph[] = []
   for (; digits < MASK_DOTS; digits++) pads.push({ kind: 'pad', index: index++ })
   glyphs.splice(afterLastDigit, 0, ...pads)
+  glyphs.forEach((glyph, i) => {
+    if (glyph.kind !== 'fixed' || !SYMBOL.test(glyph.char)) return
+    if (glyphs[i + 1] && glyphs[i + 1].kind !== 'fixed') glyph.gap = 'after'
+    else if (glyphs[i - 1] && glyphs[i - 1].kind !== 'fixed') glyph.gap = 'before'
+  })
   return glyphs
 }

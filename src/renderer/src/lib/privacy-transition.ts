@@ -66,3 +66,15 @@ export function startPrivacyTransition(): void {
   setSettling(true)
   timer = setTimeout(() => setSettling(false), longest + SETTLE_MS)
 }
+
+/** Keeps --device-px (one screen pixel in CSS px) current across display scale
+ * changes, so the mask's dots can size to whole screen pixels. */
+export function trackDevicePixel(): void {
+  const update = (): void => {
+    document.documentElement.style.setProperty('--device-px', `${1 / devicePixelRatio}px`)
+    matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener('change', update, {
+      once: true
+    })
+  }
+  update()
+}

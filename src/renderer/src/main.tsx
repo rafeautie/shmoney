@@ -11,11 +11,14 @@ import { SETTINGS_QUERY_KEY, ThemeSync } from './lib/settings'
 import { TooltipProvider } from './components/ui/tooltip'
 import { ErrorScreen } from './components/error-screen'
 import { logRenderError } from './lib/errors'
+import { trackDevicePixel } from './lib/privacy-transition'
 
 // Electron loads the production build from a file:// URL, where
 // location.pathname is the on-disk path rather than "/". Hash-based
 // history keeps routing independent of that, matching how Electron
 // (and Tauri) apps are expected to use TanStack Router.
+trackDevicePixel()
+
 const router = createRouter({
   routeTree,
   history: createHashHistory(),

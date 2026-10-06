@@ -212,7 +212,7 @@ function Sidebar({
       <div
         data-slot="sidebar-gap"
         className={cn(
-          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200 ease-in-out',
+          'relative w-(--sidebar-width) bg-transparent transition-[width] duration-200',
           'group-data-[collapsible=offcanvas]:w-0',
           'group-data-[side=right]:rotate-180',
           variant === 'floating' || variant === 'inset'
@@ -224,7 +224,7 @@ function Sidebar({
         data-slot="sidebar-container"
         data-side={side}
         className={cn(
-          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 ease-in-out data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex',
+          'fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-200 data-[side=left]:left-0 data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)] data-[side=right]:right-0 data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)] md:flex',
           // Adjust the padding for floating and inset variants.
           variant === 'floating' || variant === 'inset'
             ? 'p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]'
@@ -279,7 +279,7 @@ function SidebarRail({ className, ...props }: React.ComponentProps<'button'>) {
       onClick={toggleSidebar}
       title="Toggle Sidebar"
       className={cn(
-        'absolute inset-y-0 z-20 hidden w-4 transition-all ease-in-out group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2',
+        'absolute inset-y-0 z-20 hidden w-4 transition-all group-data-[side=left]:-right-4 group-data-[side=right]:left-0 after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] hover:after:bg-sidebar-border sm:flex ltr:-translate-x-1/2 rtl:-translate-x-1/2',
         'in-data-[side=left]:cursor-w-resize in-data-[side=right]:cursor-e-resize',
         '[[data-side=left][data-state=collapsed]_&]:cursor-e-resize [[data-side=right][data-state=collapsed]_&]:cursor-w-resize',
         'group-data-[collapsible=offcanvas]:translate-x-0 group-data-[collapsible=offcanvas]:after:left-full hover:group-data-[collapsible=offcanvas]:bg-sidebar',
@@ -322,7 +322,7 @@ function SidebarHeader({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot="sidebar-header"
       data-sidebar="header"
       className={cn(
-        'flex flex-col gap-2 p-2 px-2.5 pt-4.5 transition-[padding] duration-200 ease-in-out group-data-[collapsible=icon]:px-2',
+        'flex flex-col gap-2 p-2.5 pb-2 transition-[padding] duration-200 group-data-[collapsible=icon]:px-2 group-data-[collapsible=icon]:pt-2',
         className
       )}
       {...props}
@@ -336,7 +336,7 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot="sidebar-footer"
       data-sidebar="footer"
       className={cn(
-        'flex flex-col gap-2 p-2 px-2.5 transition-[padding] duration-200 ease-in-out group-data-[collapsible=icon]:px-2',
+        'flex flex-col gap-2 p-2 px-2.5 transition-[padding] duration-200 group-data-[collapsible=icon]:px-2',
         className
       )}
       {...props}
@@ -375,7 +375,7 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot="sidebar-group"
       data-sidebar="group"
       className={cn(
-        'relative flex w-full min-w-0 flex-col px-2.5 py-1 transition-[padding] duration-200 ease-in-out group-data-[collapsible=icon]:px-2',
+        'relative flex w-full min-w-0 flex-col px-2.5 py-1 transition-[padding] duration-200 group-data-[collapsible=icon]:px-2',
         className
       )}
       {...props}
@@ -393,7 +393,7 @@ function SidebarGroupLabel({
     props: mergeProps<'div'>(
       {
         className: cn(
-          'flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-sidebar-foreground/70 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 ease-in-out group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0 focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0',
+          'flex h-8 shrink-0 items-center rounded-md px-2 text-xs text-sidebar-foreground/70 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0 focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0',
           className
         )
       },

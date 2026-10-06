@@ -23,7 +23,7 @@ function CollapsibleContent({
   return (
     <CollapsiblePrimitive.Panel
       data-slot="collapsible-content"
-      // the global `* { transition-colors duration-[250ms] }` rule makes Base UI
+      // the global `* { transition-colors }` rule makes Base UI
       // read the panel as animated and delay unmount by several frames — a
       // visible flash on close. Zero the duration so an unanimated panel closes
       // synchronously; a caller's own transition classes still win the merge.
