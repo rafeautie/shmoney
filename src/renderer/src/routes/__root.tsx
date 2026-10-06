@@ -16,6 +16,7 @@ import { Toaster } from '@/components/ui/sonner'
 import { ImportUiProvider } from '@/lib/import-ui'
 import { SuggestionsUiProvider } from '@/lib/suggestions-ui'
 import { useSetSetting, useSetting } from '@/lib/settings'
+import { useIdleModule } from '@/lib/use-idle-module'
 import {
   parseSettingsPage,
   parseSettingsSection,
@@ -25,10 +26,9 @@ import {
 } from '@/lib/settings-dialog'
 
 // both pull heavy dependencies (charts, license data, the model picker) that most
-// launches never need, so they load on demand
-const SettingsDialog = lazy(() =>
-  import('@/components/settings/settings-dialog').then((m) => ({ default: m.SettingsDialog }))
-)
+// launches never need, so they stay out of the shell; settings loads once the
+// app is idle so its first open is instant
+const loadSettingsDialog = () => import('@/components/settings/settings-dialog')
 const Onboarding = lazy(() =>
   import('@/components/layout/onboarding-dialog').then((m) => ({ default: m.Onboarding }))
 )
@@ -37,13 +37,10 @@ const Onboarding = lazy(() =>
 function LazySettingsDialog() {
   const { section } = useSettingsDialog()
   const [opened, setOpened] = useState(false)
+  const mod = useIdleModule(loadSettingsDialog, Boolean(section))
   if (section && !opened) setOpened(true)
-  if (!opened) return null
-  return (
-    <Suspense fallback={null}>
-      <SettingsDialog />
-    </Suspense>
-  )
+  if (!opened || !mod) return null
+  return <mod.SettingsDialog />
 }
 
 function LazyOnboarding() {

@@ -1,10 +1,9 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useImportUi } from '@/lib/import-ui'
+import { useIdleModule } from '@/lib/use-idle-module'
 
-// fetched the first time an import starts, not with the app shell
-const ImportDialog = lazy(() =>
-  import('@/components/accounts/import-dialog').then((m) => ({ default: m.ImportDialog }))
-)
+// kept out of the app shell, loaded once the app is idle
+const loadImportDialog = () => import('@/components/accounts/import-dialog')
 
 type OpenedFile = { fileName: string; bytes: Uint8Array }
 
@@ -23,21 +22,20 @@ export function ImportFileHost(): React.JSX.Element | null {
   useEffect(() => window.api.app.onOpenImportFile(setFile), [])
 
   const isOpen = open || file !== null
-  // once loaded, stay mounted so the close animation plays
+  const mod = useIdleModule(loadImportDialog, isOpen)
+  // once opened, stay mounted so the close animation plays
   if (isOpen && !started) setStarted(true)
-  if (!started) return null
+  if (!started || !mod) return null
 
   return (
-    <Suspense fallback={null}>
-      <ImportDialog
-        open={isOpen}
-        onOpenChange={(next) => {
-          if (next) return
-          setOpen(false)
-          setFile(null)
-        }}
-        initialFile={file ?? undefined}
-      />
-    </Suspense>
+    <mod.ImportDialog
+      open={isOpen}
+      onOpenChange={(next) => {
+        if (next) return
+        setOpen(false)
+        setFile(null)
+      }}
+      initialFile={file ?? undefined}
+    />
   )
 }

@@ -11,8 +11,8 @@
   /* Tailwind transition utilities use these tokens. Keeping them here means
    * shadcn primitives with their own transition-* utilities share the same
    * gentle hover timing. */
-  --default-transition-duration: 250ms;
-  --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  --default-transition-duration: 120ms;
+  --default-transition-timing-function: ease;
   --radius: 0.45rem;
   /* tells the engine which way native widgets go: scrollbars in the few raw
    * overflow containers, date pickers, autofill. Paired with the .dark rule
@@ -374,7 +374,7 @@
    * SVG internals (chart shapes) and table cells are left out: there can be
    * thousands of them, and nothing about them needs a fade. */
   *:not(svg *, td, th) {
-    @apply transition-colors duration-[250ms] ease-in-out;
+    @apply transition-colors;
   }
 }
 
@@ -432,9 +432,12 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 0.32em;
-  height: 0.32em;
-  margin: -0.16em;
+  /* whole screen pixels: the box's edges snap to the pixel grid one by one, so
+   * a fractional size lands 4px wide here and 5px there, and no dot is round */
+  --private-dot: round(0.32em, var(--device-px, 1px));
+  width: var(--private-dot);
+  height: var(--private-dot);
+  margin: calc(var(--private-dot) / -2);
   border-radius: 50%;
   background: currentColor;
   opacity: 0;
@@ -487,6 +490,20 @@
   grid-template-columns: 1fr;
 }
 
+/* a symbol touching the dots (toGlyphs' gap) eases apart from them */
+.private-gap-before,
+.private-gap-after {
+  transition: margin 620ms var(--private-spring) var(--private-delay, 0ms);
+}
+
+.private-hidden .private-gap-before {
+  margin-inline-start: 0.12em;
+}
+
+.private-hidden .private-gap-after {
+  margin-inline-end: 0.12em;
+}
+
 /* A shown figure only gets its per-digit markup when the hide starts, so its
  * first frame has to begin from the plain, visible look. Gated on
  * .private-enter (only while a toggle animates) so figures mounting later,
@@ -512,6 +529,24 @@
   .private-enter .private-pad {
     grid-template-columns: 0fr;
   }
+
+  .private-enter :is(.private-gap-before, .private-gap-after) {
+    margin: 0;
+  }
+}
+
+/* Only a toggle animates. A figure that changes value while hidden swaps to its
+ * new dots at once; transitioning there would fade its new digits through. */
+.private:not(.private-enter)
+  :is(
+    .private-glyph,
+    .private-dot,
+    .private-drop,
+    .private-pad,
+    .private-gap-before,
+    .private-gap-after
+  ) {
+  transition: none;
 }
 
 /* Off-screen figures and reduced motion flip instantly, with no fade either. */
@@ -529,7 +564,7 @@
 
 /* While a global appearance flip is in flight (theme swap), suppress every
  * transition so the whole UI repaints in one instant
- * step. Without this, the global 250ms fade above and the shorter per-component
+ * step. Without this, the global color fade above and the shorter per-component
  * transitions run at different speeds, revealing the mismatch. ThemeSync adds
  * this class, applies the change, then removes it on the next frame. Unlayered +
  * !important so it wins over the utilities above. */

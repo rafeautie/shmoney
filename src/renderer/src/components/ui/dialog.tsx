@@ -90,7 +90,7 @@ function DialogContent({
           'fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 [--lifted:var(--popover)] text-xs/relaxed text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
           // under another dialog: recede (shift up, shrink, dim behind a scrim)
           // so the stack reads as cards; the dialog on top is lifted by a shadow
-          'transition-[scale,translate] ease-out after:pointer-events-none after:absolute after:inset-0 after:z-50 after:rounded-[inherit] after:bg-black/40 after:opacity-0 after:transition-opacity after:duration-150 data-stacked:shadow-2xl data-covered:-translate-y-[calc(50%+2rem*var(--covered))] data-covered:scale-[calc(1-0.03*var(--covered))] data-covered:after:opacity-100',
+          'transition-[scale,translate] after:pointer-events-none after:absolute after:inset-0 after:z-50 after:rounded-[inherit] after:bg-black/40 after:opacity-0 after:transition-opacity after:duration-150 data-stacked:shadow-2xl data-covered:-translate-y-[calc(50%+2rem*var(--covered))] data-covered:scale-[calc(1-0.03*var(--covered))] data-covered:after:opacity-100',
           className
         )}
         render={(popup, state) => <StackedPopup {...popup} stackId={stackId} open={state.open} />}

@@ -30,6 +30,15 @@ describe('toGlyphs', () => {
     expect(shape('12.50 XYZ')).toBe('ddxdd XYZ')
   })
 
+  it('gaps a symbol from the dots it touches', () => {
+    const gaps = (text: string) =>
+      toGlyphs(text).flatMap((g) => (g.kind === 'fixed' && g.gap ? [`${g.char}:${g.gap}`] : []))
+    expect(gaps('−$6.75')).toEqual(['$:after'])
+    expect(gaps('6,75€')).toEqual(['€:before'])
+    expect(gaps('6,75 €')).toEqual([])
+    expect(gaps('-12.00')).toEqual([])
+  })
+
   it('leaves text without digits alone', () => {
     expect(shape('n/a')).toBe('n/a')
   })
