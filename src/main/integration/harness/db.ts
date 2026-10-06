@@ -30,7 +30,11 @@ const VOLATILE_COLUMNS = new Set(['updated_at'])
 // budget fills are keyed by (category, month); a restore may reissue the row id
 const SURROGATE_IDS = new Set(['budgets'])
 
-/** every user table's rows, order-independent, minus bookkeeping */
+/**
+ * Every user table's live rows, order-independent, minus bookkeeping. A
+ * soft-deleted row counts as absent: the app never shows one, and undoing a
+ * create or an import soft-deletes rather than removes.
+ */
 export function snapshot(): Record<string, string[]> {
   const tables = query<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name"
@@ -41,6 +45,7 @@ export function snapshot(): Record<string, string[]> {
     tables.map((table) => [
       table,
       query(`SELECT * FROM "${table}"`)
+        .filter((row) => row.deleted_at === undefined || row.deleted_at === null)
         .map((row) =>
           JSON.stringify(
             Object.entries(row).filter(
