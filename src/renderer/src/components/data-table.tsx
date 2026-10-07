@@ -53,6 +53,9 @@ export function DataTableColumnHeader<TData, TValue>({
   title: string
   className?: string
 }) {
+  // `column` keeps its identity while its sort changes, so the compiler would
+  // cache a stale icon and click handler
+  'use no memo'
   if (!column.getCanSort()) {
     return <div className={className}>{title}</div>
   }

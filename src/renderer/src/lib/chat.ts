@@ -49,10 +49,19 @@ export function useSendChat() {
       accountId: number | null
     }) => window.api.chat.send(input),
     onSuccess: ({ conversation, userMessage, assistantMessage }) => {
+      // a quick turn can settle before send resolves; keep its final form
+      const reply = lastSettled?.id === assistantMessage.id ? lastSettled : assistantMessage
       queryClient.setQueryData<ConversationMessages>(chatMessagesKey(conversation.id), (prev) =>
         prev
-          ? { ...prev, messages: [...prev.messages, userMessage, assistantMessage] }
-          : { messages: [userMessage, assistantMessage], truncatedBeforeId: null }
+          ? {
+              ...prev,
+              messages: [
+                ...prev.messages.filter((m) => m.id !== userMessage.id && m.id !== reply.id),
+                userMessage,
+                reply
+              ]
+            }
+          : { messages: [userMessage, reply], truncatedBeforeId: null }
       )
       void queryClient.invalidateQueries({ queryKey: CHAT_CONVERSATIONS_KEY })
     },
@@ -150,6 +159,9 @@ function emptyReply(conversationId: number): ActiveReply {
 // rows. Patches apply to `working` at once and publish at most once a frame.
 let working: ActiveReply | null = null
 let published: ActiveReply | null = null
+// the newest reply messageDone settled; chat is single-flight, so one is enough
+// to tell a send that resolves after its own reply finished
+let lastSettled: ChatMessage | null = null
 let frame = 0
 const listeners = new Set<() => void>()
 
@@ -185,7 +197,9 @@ export function useStreamingConversationId(): number | null {
  * marker shows before the first token; the messageDone event settles the
  * reply into its placeholder row in the cache and clears the entry.
  */
-export function useStreamingReply(): { startReply: (conversationId: number) => void } {
+export function useStreamingReply(): {
+  startReply: (conversationId: number, replyId: number) => void
+} {
   const queryClient = useQueryClient()
 
   useEffect(() => {
@@ -208,6 +222,7 @@ export function useStreamingReply(): { startReply: (conversationId: number) => v
       patch(conversationId, (base) => ({ ...base, stats }))
     )
     const offDone = window.api.chat.onMessageDone(({ conversationId, message }) => {
+      lastSettled = message
       // the reply settles into its placeholder row in place — same id, same
       // list position — so the scroller never sees an element swap
       queryClient.setQueryData<ConversationMessages>(chatMessagesKey(conversationId), (prev) =>
@@ -236,7 +251,8 @@ export function useStreamingReply(): { startReply: (conversationId: number) => v
   }, [queryClient])
 
   return {
-    startReply: (conversationId) => {
+    startReply: (conversationId, replyId) => {
+      if (lastSettled?.id === replyId) return
       working = emptyReply(conversationId)
       publish()
     }

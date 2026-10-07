@@ -6,6 +6,7 @@ import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
 import { isSavingsGoalChange, type ActionLogEntry } from '@shared/ipc'
 import { cn, plural } from '@/lib/utils'
 import { SOURCE_CREDIT } from '@/lib/activity-feed'
+import { toastSuperseded } from '@/lib/undo-toast'
 import { invalidateAfterUndo } from './invalidate-after-undo'
 import { Button } from '@/components/ui/button'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -89,6 +90,9 @@ export function EntryRow({
   const toggle = useMutation({
     mutationFn: () =>
       undone ? window.api.actionLog.redoEntry(entry.id) : window.api.actionLog.undoEntry(entry.id),
+    onSuccess: (result) => {
+      if (result.applied === 0) toastSuperseded(undone ? 'redo' : 'undo')
+    },
     onSettled: () => invalidateAfterUndo(queryClient, [entry])
   })
 

@@ -31,6 +31,7 @@ import {
 import { encryptAccessUrl } from '../access-url'
 import { syncConnection } from '../ipc/connections'
 import { createGoal } from '../ipc/goals'
+import { allowDemoTokens } from '../simplefin'
 import { writeSetting } from '../settings-store'
 import { runChatScript } from './chat'
 import { monthKey } from './generate'
@@ -116,6 +117,8 @@ function localDate(now: Date): string {
  * detection and rules-on-sync file them exactly as they would a bank's data.
  */
 export async function seedDataset(id: string): Promise<void> {
+  // the seeded connection is a demo: one, so wherever seeding runs they're in use
+  allowDemoTokens()
   const dataset = getDataset(id)
   clearData()
   const category = categoryResolver()

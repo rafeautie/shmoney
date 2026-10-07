@@ -12,7 +12,11 @@ import {
 
 // The transaction views and the report filter bar share one filter model (and
 // one FilterBar component), so a filter saved in either place loads in both.
-export const transactionFiltersSchema = reportFiltersSchema
+// Only the transfers default differs: a saved or drill-down filter that leaves
+// includeTransfers out shows them, as the table does by default
+export const transactionFiltersSchema = reportFiltersSchema.extend({
+  includeTransfers: z.boolean().default(true)
+})
 export type TransactionFilters = ReportFilters
 
 // the table defaults to showing everything, transfers included

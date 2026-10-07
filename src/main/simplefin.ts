@@ -14,11 +14,13 @@ const log = createLogger('simplefin')
  * institutions, so loggers must record `codes` and never the message.
  */
 export class SfinErrlistError extends Error {
+  readonly errlist: { code: string; msg: string }[]
   readonly codes: string[]
 
   constructor(errlist: { code: string; msg: string }[]) {
     super(errlist.map((e) => e.msg).join('; '))
     this.name = 'SfinErrlistError'
+    this.errlist = errlist.map((e) => ({ code: e.code, msg: e.msg }))
     this.codes = errlist.map((e) => e.code)
   }
 }
@@ -53,7 +55,8 @@ const sfinAccountSchema = z.looseObject({
   // failing the parse — and with it the sync — for every account on the bridge
   balance: z.string().optional(),
   'available-balance': z.string().optional(),
-  'balance-date': z.number(),
+  // optional for the same reason; a balance without one is taken as of the sync
+  'balance-date': z.number().optional(),
   transactions: z.array(sfinTransactionSchema).default([]),
   holdings: z.array(sfinHoldingSchema).default([])
 })
@@ -80,9 +83,17 @@ export function parseAmount(value: string): number {
   return milliunits
 }
 
+// Sample datasets stand in for a bridge only where seeding exists too (the dev
+// app's Debug page, the web demo); a packaged app reads demo: as a bad token
+let demoTokensAllowed = false
+
+export function allowDemoTokens(allowed = true): void {
+  demoTokensAllowed = allowed
+}
+
 export async function claimAccessUrl(setupToken: string): Promise<string> {
   // a sample dataset stands in for a bridge: the token is its own access URL
-  if (setupToken.startsWith(DEMO_TOKEN_PREFIX)) {
+  if (demoTokensAllowed && setupToken.startsWith(DEMO_TOKEN_PREFIX)) {
     getDataset(setupToken.slice(DEMO_TOKEN_PREFIX.length))
     return setupToken
   }
@@ -113,6 +124,7 @@ export async function claimAccessUrl(setupToken: string): Promise<string> {
 
 export async function fetchAccounts(accessUrl: string, startDate: number): Promise<SfinAccountSet> {
   if (accessUrl.startsWith(DEMO_TOKEN_PREFIX)) {
+    if (!demoTokensAllowed) throw new Error('Sample data is not available in this build')
     return accountSetSchema.parse(demoAccountSet(accessUrl.slice(DEMO_TOKEN_PREFIX.length)))
   }
   // fetch() rejects URLs with embedded credentials, so move them to a header

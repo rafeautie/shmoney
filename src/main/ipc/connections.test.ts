@@ -16,6 +16,7 @@ const { ipcRenderer } = await import('../../demo/shims/electron')
 const { IPC } = await import('@shared/ipc')
 const { DEMO_TOKEN_PREFIX } = await import('@shared/demo')
 const { registerConnectionsIpc } = await import('./connections')
+const { allowDemoTokens } = await import('../simplefin')
 
 const TOKEN = `${DEMO_TOKEN_PREFIX}household`
 
@@ -35,6 +36,7 @@ async function connectAndSync(): Promise<void> {
 beforeAll(async () => {
   runMigrations()
   registerConnectionsIpc()
+  allowDemoTokens()
   await connectAndSync()
 })
 

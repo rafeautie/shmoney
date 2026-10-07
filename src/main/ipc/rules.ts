@@ -19,6 +19,7 @@ import {
   ruleReorderSchema,
   ruleUpdateSchema,
   type Rule,
+  type RuleAction,
   type RulePreview,
   type RulePreviewTransaction,
   type RulesApplyResult
@@ -337,6 +338,16 @@ function previewRules(tx: Tx, overrideCategories = false): RulePreview {
   })
 }
 
+// the rules table has no FK to categories, so a stale id would be stored silently
+function assertActionCategory(runner: Pick<Tx, 'select'>, action: RuleAction): void {
+  const found = runner
+    .select({ id: categories.id })
+    .from(categories)
+    .where(eq(categories.id, action.categoryId))
+    .get()
+  if (!found) throw new Error('Category not found')
+}
+
 export function registerRulesIpc(): void {
   ipcMain.handle(RULES_IPC.list, (): Rule[] => db.transaction((tx) => loadRules(tx)))
 
@@ -344,6 +355,7 @@ export function registerRulesIpc(): void {
     const { name, conditions, action } = ruleCreateSchema.parse(input)
     const now = nowSec()
     return db.transaction((tx) => {
+      assertActionCategory(tx, action)
       const next =
         tx
           .select({ v: sql<number>`coalesce(max(${rules.priority}), -1)` })
@@ -362,6 +374,7 @@ export function registerRulesIpc(): void {
 
   ipcMain.handle(RULES_IPC.update, (_event, input: unknown): Rule => {
     const { id, name, enabled, conditions, action } = ruleUpdateSchema.parse(input)
+    if (action !== undefined) assertActionCategory(db, action)
     const row = db
       .update(rules)
       .set({
@@ -406,8 +419,21 @@ export function registerRulesIpc(): void {
   ipcMain.handle(RULES_IPC.reorder, (_event, input: unknown): boolean => {
     const { orderedIds } = ruleReorderSchema.parse(input)
     db.transaction((tx) => {
-      orderedIds.forEach((id, index) => {
-        tx.update(rules).set({ priority: index, updatedAt: nowSec() }).where(eq(rules.id, id)).run()
+      // renumber every rule so none keeps a priority that collides: the listed
+      // ones first, then any the (possibly stale) list left out, in their old
+      // order; ids that no longer exist are ignored
+      const existing = tx
+        .select({ id: rules.id })
+        .from(rules)
+        .orderBy(asc(rules.priority), asc(rules.id))
+        .all()
+        .map((r) => r.id)
+      const known = new Set(existing)
+      const listed = new Set(orderedIds.filter((id) => known.has(id)))
+      const order = [...listed, ...existing.filter((id) => !listed.has(id))]
+      const now = nowSec()
+      order.forEach((id, index) => {
+        tx.update(rules).set({ priority: index, updatedAt: now }).where(eq(rules.id, id)).run()
       })
     })
     return true

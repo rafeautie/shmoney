@@ -46,23 +46,25 @@ import {
 
 type AccountsTab = 'accounts' | 'transactions'
 
-function seedFilters(value: unknown): { filters?: TransactionFilters } {
-  const parsed = transactionFiltersSchema.safeParse(value)
-  return parsed.success ? { filters: parsed.data } : {}
-}
-
 export const Route = createFileRoute('/accounts/')({
   // the tab rides in the URL so it survives reloads and can be linked to. q and
   // create are one-shot intents (from the command palette): applied on arrival,
-  // then dropped from the URL
+  // then dropped from the URL. Every key is written, even as undefined: the
+  // router lays the result over the raw params, so an omitted key lets an
+  // invalid value through
   validateSearch: (
     search: Record<string, unknown>
-  ): { tab?: AccountsTab; filters?: TransactionFilters; q?: string; create?: true } => ({
-    // filters seed the filter bar on mount; how a report drill-down lands here
-    ...(search.tab === 'transactions' && { tab: 'transactions', ...seedFilters(search.filters) }),
-    ...(typeof search.q === 'string' && search.q.trim() && { q: search.q.trim() }),
-    ...(search.create === true && { create: true })
-  }),
+  ): { tab?: AccountsTab; filters?: TransactionFilters; q?: string; create?: true } => {
+    const onTransactions = search.tab === 'transactions'
+    const q = typeof search.q === 'string' ? search.q.trim() : ''
+    return {
+      tab: onTransactions ? 'transactions' : undefined,
+      // filters seed the filter bar on mount; how a report drill-down lands here
+      filters: onTransactions ? transactionFiltersSchema.safeParse(search.filters).data : undefined,
+      q: q || undefined,
+      create: search.create === true ? true : undefined
+    }
+  },
   loader: ({ context }) => context.queryClient.ensureQueryData(accountsOptions),
   component: AccountsPage
 })

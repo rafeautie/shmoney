@@ -22,12 +22,14 @@ export function CategoriesSettings() {
   const [newGroupName, setNewGroupName] = useState('')
 
   const createGroup = useMutation({
+    meta: { silenceError: true },
     mutationFn: () => window.api.categories.createGroup({ name: newGroupName }),
     onSuccess: () => setNewGroupName(''),
     onSettled: () => invalidateCategoryData(queryClient)
   })
 
   const resetDefaults = useMutation({
+    meta: { silenceError: true },
     mutationFn: () => window.api.categories.resetDefaults(),
     onSettled: () => invalidateCategoryData(queryClient)
   })
@@ -132,12 +134,14 @@ function GroupSection({ group }: { group: CategoryGroup }) {
   const [renameDraft, setRenameDraft] = useState<string | null>(null)
 
   const renameGroup = useMutation({
+    meta: { silenceError: true },
     mutationFn: (name: string) => window.api.categories.renameGroup({ id: group.id, name }),
     onSuccess: () => setRenameDraft(null),
     onSettled: () => invalidateCategoryData(queryClient)
   })
 
   const deleteGroup = useMutation({
+    meta: { silenceError: true },
     mutationFn: () => window.api.categories.deleteGroup(group.id),
     onSuccess: (actionId) => {
       if (actionId !== null) toastUndoable(`Deleted “${group.name}”`, actionId, queryClient)
@@ -215,6 +219,7 @@ function CategoryList({ groupId, categories }: { groupId: number | null; categor
   const [newCategoryName, setNewCategoryName] = useState('')
 
   const createCategory = useMutation({
+    meta: { silenceError: true },
     mutationFn: () => window.api.categories.create({ groupId, name: newCategoryName }),
     onSuccess: () => setNewCategoryName(''),
     onSettled: () => invalidateCategoryData(queryClient)
@@ -285,12 +290,14 @@ function CategoryChip({ category }: { category: Category }) {
   const [renameDraft, setRenameDraft] = useState(category.name)
 
   const rename = useMutation({
+    meta: { silenceError: true },
     mutationFn: () => window.api.categories.rename({ id: category.id, name: renameDraft }),
     onSuccess: () => setMode('view'),
     onSettled: () => invalidateCategoryData(queryClient)
   })
 
   const deleteCategory = useMutation({
+    meta: { silenceError: true },
     mutationFn: () => window.api.categories.delete(category.id),
     onSuccess: (actionId) => {
       if (actionId !== null) toastUndoable(`Deleted “${category.name}”`, actionId, queryClient)

@@ -69,6 +69,7 @@ export function BudgetWidget({
     'yyyy-MM'
   )
   const query = useQuery({
+    meta: { silenceError: true },
     queryKey: ['budget-summary', month],
     queryFn: () => window.api.budgets.summary({ month }),
     placeholderData: (prev: BudgetSummary | undefined) => prev

@@ -9,7 +9,7 @@ import {
   useModelState,
   useSelectedModel
 } from '@/lib/llm'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Progress } from '@/components/ui/progress'
 import { DESKTOP_APP_URL, isDemo } from '@/lib/platform'
@@ -41,12 +41,9 @@ export function ChatModelGate() {
             offline. Open a conversation in the sidebar to see how it answers.
           </EmptyDescription>
         </EmptyHeader>
-        <Button
-          nativeButton={false}
-          render={<a href={DESKTOP_APP_URL} target="_blank" rel="noreferrer" />}
-        >
+        <a href={DESKTOP_APP_URL} target="_blank" rel="noreferrer" className={buttonVariants()}>
           Get shmoney
-        </Button>
+        </a>
       </Empty>
     )
   }

@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { fetchAccounts } from '../simplefin'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { allowDemoTokens, fetchAccounts } from '../simplefin'
 import { DATASETS, demoAccountSet } from './index'
 
 const NOW = new Date(2026, 8, 23, 15)
+
+beforeAll(() => allowDemoTokens())
 
 describe('demo datasets', () => {
   it.each(DATASETS.map((d) => d.id))('%s is deterministic for a given day', (id) => {

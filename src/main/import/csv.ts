@@ -23,14 +23,29 @@ export function inferDateFormat(values: string[]): string | null {
   return null
 }
 
+// The decimal separator is the last "." or "," when both appear, and a lone
+// "," followed by one or two digits; any other "," or repeated "." groups
+// thousands. "1,234" stays one thousand two hundred thirty-four.
+function normalizeSeparators(text: string): string {
+  const lastDot = text.lastIndexOf('.')
+  const lastComma = text.lastIndexOf(',')
+  let decimal: '.' | ',' | null = null
+  if (lastDot !== -1 && lastComma !== -1) decimal = lastDot > lastComma ? '.' : ','
+  else if (lastComma !== -1) {
+    decimal = text.indexOf(',') === lastComma && /,\d{1,2}\)?$/.test(text) ? ',' : null
+  } else if (lastDot !== -1) decimal = text.indexOf('.') === lastDot ? '.' : null
+  const grouping = decimal === '.' ? /,/g : decimal === ',' ? /\./g : /[.,]/g
+  return text.replace(grouping, '').replace(',', '.')
+}
+
 /**
- * "$1,234.56" / "(12.34)" / "-12.34" / "12.34 USD" / "USD 12.34" -> integer
- * milliunits. null for empty or unparseable text.
+ * "$1,234.56" / "1.234,56 €" / "(12.34)" / "-12.34" / "12.34 USD" / "USD 12.34"
+ * -> integer milliunits. null for empty or unparseable text.
  */
 export function parseMoney(text: string): number | null {
-  // strip currency symbols, thousands separators, whitespace, and a 3-letter
+  // strip currency symbols, whitespace and apostrophe grouping, and a 3-letter
   // ISO code on either end (e.g. a leading "USD " or a trailing " USD")
-  let cleaned = text.trim().replace(/[$€£,\s]|^[A-Za-z]{3}|[A-Za-z]{3}$/g, '')
+  let cleaned = normalizeSeparators(text.trim().replace(/[$€£'\s]|^[A-Za-z]{3}|[A-Za-z]{3}$/g, ''))
   let negative = false
   const paren = /^\((.*)\)$/.exec(cleaned)
   if (paren) {

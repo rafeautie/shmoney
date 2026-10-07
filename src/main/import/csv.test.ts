@@ -33,6 +33,18 @@ describe('parseMoney', () => {
     expect(parseMoney('USD 12.34')).toBe(12340)
   })
 
+  it('reads European and other grouping conventions', () => {
+    expect(parseMoney('1.234,56')).toBe(1234560)
+    expect(parseMoney('-1.234,56 €')).toBe(-1234560)
+    expect(parseMoney('12,34')).toBe(12340)
+    expect(parseMoney('(12,34)')).toBe(-12340)
+    expect(parseMoney('1 234,56')).toBe(1234560)
+    expect(parseMoney("1'234.56")).toBe(1234560)
+    expect(parseMoney('1.234.567')).toBe(1234567000)
+    expect(parseMoney('1,234')).toBe(1234000)
+    expect(parseMoney('1,234,567.89')).toBe(1234567890)
+  })
+
   it('returns null for empty or junk input', () => {
     expect(parseMoney('')).toBeNull()
     expect(parseMoney('n/a')).toBeNull()

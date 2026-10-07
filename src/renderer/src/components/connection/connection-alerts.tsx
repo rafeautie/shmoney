@@ -54,6 +54,12 @@ export function ConnectionAlerts({
     </a>
   )
 
+  // a sync that failed on its errlist stores those messages as the failure too;
+  // the notices below already list them, so the failure doesn't repeat them
+  const failedOnErrlist =
+    connection.lastSyncErrors.length > 0 &&
+    connection.lastSyncFailure === connection.lastSyncErrors.map((e) => e.msg).join('; ')
+
   const notices: (NoticeProps & { key: string })[] = []
   if (failedAt !== null && !syncing) {
     notices.push({
@@ -63,7 +69,7 @@ export function ConnectionAlerts({
       hint: lastSynced
         ? `Your balances and transactions are from ${format(lastSynced, 'MMM d, p')}.`
         : 'Nothing has synced yet.',
-      messages: [connection.lastSyncFailure ?? 'Unknown error'],
+      messages: failedOnErrlist ? [] : [connection.lastSyncFailure ?? 'Unknown error'],
       actions: [bridgeLink]
     })
   }

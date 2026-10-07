@@ -19,8 +19,16 @@ import type { SQLiteColumn } from 'drizzle-orm/sqlite-core'
 import { db } from '../db'
 import { createLogger } from '../logging'
 import { canEncryptAccessUrl, decryptAccessUrl, encryptAccessUrl } from '../access-url'
-import { connections, accounts, categories, holdings, transactions, settings } from '../db/schema'
+import {
+  connections,
+  accounts,
+  categories,
+  deletedSyncAccounts,
+  holdings,
+  transactions
+} from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
+import { readSettings } from '../settings-store'
 import {
   claimAccessUrl,
   fetchAccounts,
@@ -57,15 +65,11 @@ const RESYNC_OVERLAP_SECONDS = 7 * 24 * 60 * 60
 const log = createLogger('sync')
 
 export function detectTransfersEnabled(): boolean {
-  const row = db.select().from(settings).where(eq(settings.key, 'detectTransfers')).get()
-  // default on; only an explicit stored `false` disables it
-  return row ? row.value !== false : true
+  return readSettings().detectTransfers
 }
 
 export function applyRulesOnSyncEnabled(): boolean {
-  const row = db.select().from(settings).where(eq(settings.key, 'applyRulesOnSync')).get()
-  // default on; only an explicit stored `false` disables it
-  return row ? row.value !== false : true
+  return readSettings().applyRulesOnSync
 }
 
 // the bridge's own site, where the user re-authorizes banks; the origin alone
@@ -375,7 +379,13 @@ export async function syncConnection(): Promise<SyncResult> {
         })
         .prepare()
 
-      const deleted = new Set(row.deletedAccountIds)
+      const deleted = new Set(
+        tx
+          .select()
+          .from(deletedSyncAccounts)
+          .all()
+          .map((r) => r.simplefinId)
+      )
       for (const account of payload.accounts) {
         if (deleted.has(account.id)) continue
         adoptDetachedAccount(tx, row.id, account.id)
@@ -401,7 +411,7 @@ export async function syncConnection(): Promise<SyncResult> {
                 availableBalance: account['available-balance']
                   ? parseAmount(account['available-balance'])
                   : null,
-                balanceDate: account['balance-date']
+                balanceDate: account['balance-date'] ?? now
               }
         if (!anchor) log.warn('accounts.noBalance', { simplefinId: account.id })
         const [accountRow] = tx
@@ -475,6 +485,8 @@ export async function syncConnection(): Promise<SyncResult> {
               purchasePrice: parseAmount(holding.purchase_price),
               createdAt: holding.created
             })
+            // a bridge that repeats a position id keeps the first rather than failing the sync
+            .onConflictDoNothing()
             .run()
         }
       }
@@ -564,7 +576,9 @@ export function registerConnectionsIpc(): void {
         db.update(connections)
           .set({
             lastSyncFailedAt: Math.floor(Date.now() / 1000),
-            lastSyncFailure: e instanceof Error ? e.message : String(e)
+            lastSyncFailure: e instanceof Error ? e.message : String(e),
+            // a fatal errlist (e.g. a revoked bank login) is what the attention notice reads
+            ...(e instanceof SfinErrlistError && { lastSyncErrors: e.errlist })
           })
           .where(eq(connections.id, row.id))
           .run()
@@ -633,7 +647,8 @@ export function registerConnectionsIpc(): void {
 
   ipcMain.handle(IPC.accountsRename, (_event, input: unknown) => {
     const { id, name } = accountRenameSchema.parse(input)
-    db.update(accounts).set({ name }).where(eq(accounts.id, id)).run()
+    const { changes } = db.update(accounts).set({ name }).where(eq(accounts.id, id)).run()
+    if (changes === 0) throw new Error('Account not found')
     return true
   })
 
@@ -642,19 +657,12 @@ export function registerConnectionsIpc(): void {
     const row = db.select().from(accounts).where(eq(accounts.id, id)).get()
     if (!row) throw new Error('Account not found')
     db.transaction((tx) => {
-      // remember a synced account so the next sync doesn't recreate it
-      if (row.connectionId !== null && row.simplefinId !== null) {
-        const conn = tx
-          .select({ deletedAccountIds: connections.deletedAccountIds })
-          .from(connections)
-          .where(eq(connections.id, row.connectionId))
-          .get()
-        if (conn && !conn.deletedAccountIds.includes(row.simplefinId)) {
-          tx.update(connections)
-            .set({ deletedAccountIds: [...conn.deletedAccountIds, row.simplefinId] })
-            .where(eq(connections.id, row.connectionId))
-            .run()
-        }
+      // remember a synced account, attached or detached, so no later sync recreates it
+      if (row.simplefinId !== null) {
+        tx.insert(deletedSyncAccounts)
+          .values({ simplefinId: row.simplefinId })
+          .onConflictDoNothing()
+          .run()
       }
       // cascades to transactions and holdings; action_log entries pointing at the
       // deleted transactions are safe: undo/redo's guarded writes no-op on missing rows

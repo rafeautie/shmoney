@@ -5,6 +5,7 @@ import {
   type ReportFilters,
   type WidgetConfig
 } from './reports'
+import type { Category } from './ipc'
 import type { TransactionFilters } from './transaction-filters'
 
 /** What a click on a chart mark picked out. */
@@ -21,14 +22,15 @@ export interface DrillTarget {
 /**
  * The transaction filters behind one mark: the widget's effective filters
  * narrowed to the clicked bucket and group. Null when the mark has no
- * transaction-filter equivalent (goal sources, a category group of
- * ungrouped categories).
+ * transaction-filter equivalent (goal sources, or an ungrouped mark before
+ * the categories have loaded).
  */
 export function drillFilters(
   config: WidgetConfig,
   reportFilters: ReportFilters,
   target: DrillTarget,
-  nowSec: number
+  nowSec: number,
+  categories?: Pick<Category, 'id' | 'groupId' | 'systemKey'>[]
 ): TransactionFilters | null {
   if (config.query.source === 'goals') return null
   const filters: TransactionFilters = { ...mergeFilters(reportFilters, config.filters) }
@@ -58,10 +60,25 @@ export function drillFilters(
         filters.categoryIds = known.length ? known : undefined
         filters.includeUncategorized = ids.includes(null) || undefined
         break
-      case 'categoryGroup':
-        if (known.length !== ids.length) return null
-        filters.categoryGroupIds = known
+      case 'categoryGroup': {
+        if (known.length === ids.length) {
+          filters.categoryGroupIds = known
+          break
+        }
+        // the ungrouped mark is every category outside a group plus the rows
+        // with none, which a group filter can't say: list those categories
+        // instead, minus the ones the report itself leaves out
+        if (!categories) return null
+        const groups = new Set(known)
+        const picked = categories
+          .filter((c) => c.groupId === null || groups.has(c.groupId))
+          .filter((c) => c.systemKey !== 'opening')
+          .filter((c) => filters.includeTransfers || c.systemKey !== 'transfers')
+          .map((c) => c.id)
+        filters.categoryIds = picked.length ? picked : undefined
+        filters.includeUncategorized = true
         break
+      }
       case 'account':
         filters.accountIds = known
         break

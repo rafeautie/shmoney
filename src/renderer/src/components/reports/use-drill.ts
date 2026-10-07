@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { budgetDrillFilters, drillFilters, type DrillTarget } from '@shared/report-drill'
 import type { ReportFilters, WidgetConfig } from '@shared/reports'
@@ -20,9 +21,20 @@ export function useDrill(
   enabled: boolean
 ): OnDrill | undefined {
   const open = useOpenTransactions()
+  // an ungrouped category-group mark drills by category id
+  const list = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => window.api.categories.list(),
+    enabled: enabled && config.query.groupBy === 'categoryGroup'
+  }).data
+  const categories = list && [
+    ...list.groups.flatMap((g) => g.categories),
+    ...list.ungrouped,
+    ...list.system
+  ]
   if (!enabled || config.query.source === 'goals') return undefined
   return (target) => {
-    const filters = drillFilters(config, reportFilters, target, startOfTodayEpoch())
+    const filters = drillFilters(config, reportFilters, target, startOfTodayEpoch(), categories)
     if (filters) open(filters)
   }
 }

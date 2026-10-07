@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Add01Icon } from '@hugeicons/core-free-icons'
@@ -168,6 +168,7 @@ export function WidgetEditor({
   nextPosition
 }: WidgetEditorProps) {
   const queryClient = useQueryClient()
+  const uid = useId()
   const [draft, setDraft] = useState<Draft>(() => draftFor(widget))
 
   // reset the draft whenever the editor opens for a different target
@@ -289,13 +290,13 @@ export function WidgetEditor({
                 />
               </div>
               <div className="space-y-2">
-                <Label>Widget type</Label>
+                <Label htmlFor={`${uid}-type`}>Widget type</Label>
                 <Select
                   value={draft.type}
                   items={TYPE_LABELS}
                   onValueChange={(type) => setDraft((d) => ({ ...d, type: type as WidgetType }))}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger id={`${uid}-type`} className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -314,13 +315,13 @@ export function WidgetEditor({
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold">Data</h4>
                 <div className="space-y-2">
-                  <Label>Visualization</Label>
+                  <Label htmlFor={`${uid}-budget-view`}>Visualization</Label>
                   <Select
                     value={config.display?.budgetView ?? 'list'}
                     items={BUDGET_VIEW_LABELS}
                     onValueChange={(v) => patchDisplay({ budgetView: v as BudgetView })}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger id={`${uid}-budget-view`} className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -346,13 +347,13 @@ export function WidgetEditor({
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold">Data</h4>
                 <div className="space-y-2">
-                  <Label>Goal view</Label>
+                  <Label htmlFor={`${uid}-goal-view`}>Goal view</Label>
                   <Select
                     value={config.display?.goalView ?? 'list'}
                     items={GOAL_VIEW_LABELS}
                     onValueChange={(v) => patchDisplay({ goalView: v as GoalView })}
                   >
-                    <SelectTrigger className="w-full">
+                    <SelectTrigger id={`${uid}-goal-view`} className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -373,13 +374,13 @@ export function WidgetEditor({
                 <h4 className="text-sm font-semibold">Data</h4>
                 {GOAL_SOURCE_TYPES.includes(draft.type) && (
                   <div className="space-y-2">
-                    <Label>Source</Label>
+                    <Label htmlFor={`${uid}-source`}>Source</Label>
                     <Select
                       value={query.source}
                       items={SOURCE_LABELS}
                       onValueChange={(v) => patchQuery({ source: v as WidgetSource })}
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger id={`${uid}-source`} className="w-full">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -404,13 +405,13 @@ export function WidgetEditor({
                   )}
                   {!isGoalSource && (
                     <div className="space-y-2">
-                      <Label>Measure</Label>
+                      <Label htmlFor={`${uid}-measure`}>Measure</Label>
                       <Select
                         value={query.measure}
                         items={MEASURE_LABELS}
                         onValueChange={(v) => patchQuery({ measure: v as typeof query.measure })}
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id={`${uid}-measure`} className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -425,13 +426,13 @@ export function WidgetEditor({
                   )}
                   {!isGoalSource && (
                     <div className="space-y-2">
-                      <Label>Group by</Label>
+                      <Label htmlFor={`${uid}-group-by`}>Group by</Label>
                       <Select
                         value={query.groupBy}
                         items={GROUP_LABELS}
                         onValueChange={(v) => patchQuery({ groupBy: v as typeof query.groupBy })}
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id={`${uid}-group-by`} className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -446,7 +447,7 @@ export function WidgetEditor({
                   )}
                   {!NO_TIME_TYPES.includes(draft.type) && (
                     <div className="space-y-2">
-                      <Label>Time grain</Label>
+                      <Label htmlFor={`${uid}-time-grain`}>Time grain</Label>
                       <Select
                         value={query.timeGrain}
                         items={Object.entries(GRAIN_LABELS)
@@ -459,7 +460,7 @@ export function WidgetEditor({
                           patchQuery({ timeGrain: v as typeof query.timeGrain })
                         }
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger id={`${uid}-time-grain`} className="w-full">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -560,7 +561,7 @@ export function WidgetEditor({
                     }))
                   }
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger aria-label="Filter mode" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

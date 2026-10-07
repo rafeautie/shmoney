@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, isNull, sql, type SQL } from 'drizzle-orm'
 import {
   CHAT_IPC,
   conversationIdSchema,
@@ -11,10 +11,14 @@ import {
   type SendChatResult
 } from '@shared/chat'
 import { db } from '../db'
-import { chatMessages, conversations } from '../db/schema'
+import { accounts, chatMessages, conversations } from '../db/schema'
 import { listConversations, listMessages, sendChatMessage, stopChat } from '../llm/features/chat'
 import { recordAction } from './action-log'
 import { registerChatProposalsIpc } from './chat-proposals'
+
+// a soft-deleted conversation only comes back through undo, so edits treat it as missing
+const liveConversation = (id: number): SQL | undefined =>
+  and(eq(conversations.id, id), isNull(conversations.deletedAt))
 
 // Thin wiring only: generation lives in ../llm/features/chat; the simple
 // conversation CRUD is plain drizzle right here.
@@ -49,12 +53,19 @@ export function registerChatIpc(): void {
   // takes effect on the next turn: the in-flight one captured its scope at send
   ipcMain.handle(CHAT_IPC.setConversationAccount, (_event, input: unknown): boolean => {
     const { id, accountId } = setConversationAccountSchema.parse(input)
-    const result = db
-      .update(conversations)
-      .set({ accountId, updatedAt: Date.now() })
-      .where(eq(conversations.id, id))
-      .run()
-    return result.changes > 0
+    return db.transaction((tx) => {
+      if (
+        accountId !== null &&
+        !tx.select({ id: accounts.id }).from(accounts).where(eq(accounts.id, accountId)).get()
+      )
+        throw new Error('Account not found')
+      const result = tx
+        .update(conversations)
+        .set({ accountId, updatedAt: Date.now() })
+        .where(liveConversation(id))
+        .run()
+      return result.changes > 0
+    })
   })
 
   ipcMain.handle(CHAT_IPC.renameConversation, (_event, input: unknown): boolean => {
@@ -63,7 +74,7 @@ export function registerChatIpc(): void {
       const row = tx
         .select({ title: conversations.title })
         .from(conversations)
-        .where(eq(conversations.id, id))
+        .where(liveConversation(id))
         .get()
       if (!row || row.title === title) return false
       tx.update(conversations)
@@ -90,7 +101,7 @@ export function registerChatIpc(): void {
       const row = tx
         .select({ title: conversations.title })
         .from(conversations)
-        .where(and(eq(conversations.id, id), isNull(conversations.deletedAt)))
+        .where(liveConversation(id))
         .get()
       if (!row) return null
       tx.update(conversations).set({ deletedAt: now }).where(eq(conversations.id, id)).run()

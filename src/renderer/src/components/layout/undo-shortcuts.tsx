@@ -3,6 +3,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { UndoResult } from '@shared/ipc'
 import { invalidateUndoableData } from '@/lib/invalidate'
+import { toastSuperseded } from '@/lib/undo-toast'
 import { isTypingTarget } from '@/lib/utils'
 
 type Direction = 'undo' | 'redo'
@@ -15,6 +16,8 @@ const DURATION_MS = 6000
 // via the unrestricted per-entry handlers, then re-shows the toast flipped — so
 // the confirmation itself is a toggle you can bounce between.
 function showUndoToast(result: UndoResult, direction: Direction, queryClient: QueryClient): void {
+  // nothing moved, so there is nothing to bounce back to
+  if (result.applied === 0) return toastSuperseded(direction)
   const undone = direction === 'undo'
   // no undone/redone badge: the action button ("Redo" after an undo) says
   // which way the entry just went

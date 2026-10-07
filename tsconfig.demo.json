@@ -4,7 +4,10 @@
     "src/demo/**/*",
     "src/renderer/src/env.d.ts",
     "src/preload/index.d.ts",
-    "vite.demo.config.ts"
+    "vite.demo.config.ts",
+    "vite.e2e.config.ts",
+    "playwright.config.ts",
+    "e2e/**/*"
   ],
   "compilerOptions": {
     "composite": true,

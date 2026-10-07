@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GridLayout, type Layout, type LayoutItem } from 'react-grid-layout'
-import type { ReportFilters, ReportWidget, WidgetType } from '@shared/reports'
+import {
+  REPORT_GRID_COLUMNS,
+  type ReportFilters,
+  type ReportWidget,
+  type WidgetType
+} from '@shared/reports'
 import { createReportCompactor, type ActiveGridOperation } from './grid-compactor'
 import { WidgetCard } from './widget-card'
 
@@ -43,7 +48,7 @@ function useContainerWidth() {
 }
 
 const RESIZE_THROTTLE_MS = 100
-const GRID_COLS = 12
+const GRID_COLS = REPORT_GRID_COLUMNS
 const GRID_ROW_HEIGHT = 56
 
 const MIN_SIZES: Record<WidgetType, { minW: number; minH: number }> = {

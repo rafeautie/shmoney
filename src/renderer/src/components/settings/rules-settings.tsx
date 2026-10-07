@@ -133,6 +133,7 @@ export function RulesSettings(): React.JSX.Element {
   const suggestions = suggestionsQuery.data ?? []
 
   const reorder = useMutation({
+    meta: { silenceError: true },
     mutationFn: (orderedIds: number[]) => window.api.rules.reorder({ orderedIds }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['rules'] })
   })

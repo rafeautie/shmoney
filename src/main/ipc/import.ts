@@ -173,6 +173,7 @@ export function registerImportIpc(): void {
       db.transaction((tx) => {
         let accountId: number
         let accountName: string
+        let openingId: number | undefined
         if ('accountId' in target) {
           const account = tx
             .select({ id: accounts.id, name: accounts.name })
@@ -211,7 +212,8 @@ export function registerImportIpc(): void {
             // A loop, not Math.min(...rows): spreading a huge import overflows the stack
             let earliest = Infinity
             for (const r of rows) if (r.posted < earliest) earliest = r.posted
-            tx.insert(transactions)
+            openingId = tx
+              .insert(transactions)
               .values({
                 accountId,
                 simplefinId: `manual:opening:${accountId}`,
@@ -221,7 +223,8 @@ export function registerImportIpc(): void {
                 categoryId: systemCategoryIdSql('opening'),
                 pending: false
               })
-              .run()
+              .returning({ id: transactions.id })
+              .get().id
           }
         }
 
@@ -275,13 +278,13 @@ export function registerImportIpc(): void {
 
         if (insertedIds.length > 0) {
           // undo soft-deletes exactly these rows (sets deletedAt = `before`,
-          // guarded on it still being null); redo restores them. NOTE: a
-          // SimpleFIN disconnect clears the action log while manual accounts
-          // survive, orphaning this entry — accepted wrinkle.
+          // guarded on it still being null); redo restores them. The starting
+          // balance goes with them; the new account itself stays, empty.
+          const logged = openingId === undefined ? insertedIds : [...insertedIds, openingId]
           recordAction(tx, {
             source: 'import',
             label: `Imported ${insertedIds.length} transaction${insertedIds.length === 1 ? '' : 's'} into ${accountName}`,
-            changes: insertedIds.map((id) => ({
+            changes: logged.map((id) => ({
               transactionId: id,
               field: 'deletedAt',
               before: now,

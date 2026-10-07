@@ -86,6 +86,10 @@ export async function categorizeTransactions(
   scope: CategorizeScopeInput
 ): Promise<CategorizeResult> {
   if (activeRun) throw new Error('A categorize run is already in progress.')
+  // checked before the rules pre-pass writes a run, so a missing model leaves no trace
+  const status = llmManager.getStatus()
+  const stage = status.models[status.selected].stage
+  if (stage !== 'downloaded') throw new Error(`Model is not ready (${stage})`)
 
   // Transfers is excluded from the offered list: the detector pairs transfers
   // structurally, and a small model guessing them from descriptions alone

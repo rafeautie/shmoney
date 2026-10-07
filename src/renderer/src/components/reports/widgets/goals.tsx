@@ -14,6 +14,7 @@ import { TooltipRow, WidgetSkeleton } from './shared'
  * side can never disagree. */
 export function GoalsWidget({ config }: { config: WidgetConfig }) {
   const query = useQuery({
+    meta: { silenceError: true },
     queryKey: ['goals'],
     queryFn: () => window.api.goals.list(),
     placeholderData: (prev: GoalSummary[] | undefined) => prev

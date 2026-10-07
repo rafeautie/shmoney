@@ -132,6 +132,16 @@ import {
 const initialSettings: Promise<Settings> = ipcRenderer.invoke(SETTINGS_IPC.getAll)
 initialSettings.catch(() => {})
 
+type OpenedFile = { fileName: string; bytes: Uint8Array }
+
+// A statement file a cold launch was opened with is sent on did-finish-load,
+// before the page has rendered and subscribed, so it's held here until it does
+let unclaimedImportFile: OpenedFile | null = null
+let importFileListeners = 0
+ipcRenderer.on(IPC.appOpenImportFile, (_event, file: OpenedFile) => {
+  if (importFileListeners === 0) unclaimedImportFile = file
+})
+
 const api = {
   connection: {
     get: (): Promise<Connection | null> => ipcRenderer.invoke(IPC.connectionGet),
@@ -454,15 +464,18 @@ const api = {
       return () => ipcRenderer.removeListener(IPC.appNavigate, listener)
     },
     /** A statement file opened from outside the window (file association). */
-    onOpenImportFile: (
-      callback: (file: { fileName: string; bytes: Uint8Array }) => void
-    ): (() => void) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        file: { fileName: string; bytes: Uint8Array }
-      ): void => callback(file)
+    onOpenImportFile: (callback: (file: OpenedFile) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, file: OpenedFile): void => callback(file)
       ipcRenderer.on(IPC.appOpenImportFile, listener)
-      return () => ipcRenderer.removeListener(IPC.appOpenImportFile, listener)
+      importFileListeners++
+      if (unclaimedImportFile) {
+        callback(unclaimedImportFile)
+        unclaimedImportFile = null
+      }
+      return () => {
+        importFileListeners--
+        ipcRenderer.removeListener(IPC.appOpenImportFile, listener)
+      }
     },
     /** Mirror a notice to an OS toast; a no-op when the
      * window is focused or the user turned native notifications off. */

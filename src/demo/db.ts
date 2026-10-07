@@ -13,6 +13,18 @@ import { merchantOf } from '../main/llm/tools/analysis/merchant'
 const SQL = await initSqlJs(typeof document === 'undefined' ? {} : { locateFile: () => wasmUrl })
 const sqlite = new SQL.Database()
 sqlite.run('PRAGMA foreign_keys = ON')
+// better-sqlite3's run() reports { changes }, which undo counts and several
+// handlers read; sql.js returns nothing, so report it the same way
+const prepare = sqlite.prepare.bind(sqlite)
+sqlite.prepare = (source, params) => {
+  const stmt = prepare(source, params)
+  const run = stmt.run.bind(stmt)
+  stmt.run = ((values) => {
+    run(values)
+    return { changes: sqlite.getRowsModified() }
+  }) as typeof stmt.run
+  return stmt
+}
 // the chat scope views' merchant column calls it (seeded demo transcripts run them)
 sqlite.create_function('MERCHANT', merchantOf)
 

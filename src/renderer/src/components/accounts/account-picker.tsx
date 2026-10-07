@@ -35,7 +35,7 @@ export function AccountPicker({
       // popup has mounted once — this keeps the trigger showing the label
       items={Object.fromEntries(accounts.map((account) => [String(account.id), label(account)]))}
     >
-      <SelectTrigger id={id} className="w-full">
+      <SelectTrigger id={id} aria-label={id ? undefined : 'Account'} className="w-full">
         <SelectValue placeholder="Select an account" />
       </SelectTrigger>
       <SelectContent>

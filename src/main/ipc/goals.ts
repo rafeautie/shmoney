@@ -70,8 +70,10 @@ export function createGoal({
   targetAmount,
   targetDate,
   startedAt,
-  accountIds
+  accountIds: requestedIds
 }: GoalCreateInput): number {
+  // a repeated id names one account, not a missing one
+  const accountIds = [...new Set(requestedIds)]
   const now = nowSec()
   const start = startedAt ?? now
   if (start > now) throw new Error("A goal can't start in the future")
@@ -127,7 +129,7 @@ export function updateGoal(
   if (start > now) throw new Error("A goal can't start in the future")
   const targetDate = patch.targetDate === undefined ? existing.targetDate : patch.targetDate
   assertDatesOrdered(start, targetDate ?? null)
-  const accountIds = patch.accountIds
+  const accountIds = patch.accountIds && [...new Set(patch.accountIds)]
   const currency = accountIds ? sharedCurrency(accountIds) : existing.currency
   // re-archiving keeps the original timestamp, so it isn't logged as a change
   const archivedAt =

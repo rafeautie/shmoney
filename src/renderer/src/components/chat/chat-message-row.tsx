@@ -130,6 +130,15 @@ export const ChatMessageRow = memo(function ChatMessageRow({ message }: { messag
     return (
       <Message>
         <MessageContent>
+          {/* whatever streamed before the failure stays readable above it */}
+          {message.parts.length > 0 && (
+            <Parts
+              parts={message.parts}
+              streaming={false}
+              asOf={message.createdAt}
+              messageId={message.id}
+            />
+          )}
           <Bubble variant="destructive">
             <BubbleContent>{message.errorMessage ?? 'Something went wrong.'}</BubbleContent>
           </Bubble>

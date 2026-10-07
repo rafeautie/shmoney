@@ -31,20 +31,24 @@ function DebugPage() {
   const raw = useQuery({
     queryKey: ['debug', 'rawAccounts'],
     queryFn: () => window.api.debug.rawAccounts(),
+    meta: { silenceError: true },
     retry: false,
     refetchOnWindowFocus: false
   })
   const connection = useQuery({
     queryKey: ['debug', 'connection'],
-    queryFn: () => window.api.connection.get()
+    queryFn: () => window.api.connection.get(),
+    meta: { silenceError: true }
   })
   const accounts = useQuery({
     queryKey: ['debug', 'accounts'],
-    queryFn: () => window.api.accounts.list()
+    queryFn: () => window.api.accounts.list(),
+    meta: { silenceError: true }
   })
   const settings = useQuery({
     queryKey: ['debug', 'settings'],
-    queryFn: () => window.api.settings.getAll()
+    queryFn: () => window.api.settings.getAll(),
+    meta: { silenceError: true }
   })
 
   const env = {

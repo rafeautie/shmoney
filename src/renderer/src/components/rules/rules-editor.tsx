@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { endOfDay, format, startOfDay } from 'date-fns'
 import type { Rule, RuleAction, RuleConditions } from '@shared/rules'
@@ -125,6 +125,7 @@ export function RuleForm({
 
   const src = rule ?? draft
   const c = src?.conditions
+  const accountFieldId = useId()
   const [name, setName] = useState(src?.name ?? '')
 
   const [descOp, setDescOp] = useState<DescOp>(c?.description?.op ?? 'contains')
@@ -202,6 +203,7 @@ export function RuleForm({
     !domInvalid
 
   const save = useMutation({
+    meta: { silenceError: true },
     mutationFn: () => {
       const action: RuleAction = { type: 'setCategory', categoryId: categoryId! }
       const conditions = buildConditions()
@@ -281,7 +283,7 @@ export function RuleForm({
                   items={DESC_OP_ITEMS}
                   onValueChange={(v) => setDescOp(v as DescOp)}
                 >
-                  <SelectTrigger className="w-32 shrink-0">
+                  <SelectTrigger aria-label="Description match" className="w-32 shrink-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -308,7 +310,7 @@ export function RuleForm({
                   items={DIRECTION_ITEMS}
                   onValueChange={(v) => setDirection(v as Direction)}
                 >
-                  <SelectTrigger className="w-32 shrink-0">
+                  <SelectTrigger aria-label="Amount direction" className="w-32 shrink-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -322,7 +324,7 @@ export function RuleForm({
                   items={AMT_OP_LABELS}
                   onValueChange={(v) => setAmtOp(v as AmtOp)}
                 >
-                  <SelectTrigger className="w-32 shrink-0">
+                  <SelectTrigger aria-label="Amount comparison" className="w-32 shrink-0">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -364,7 +366,9 @@ export function RuleForm({
 
             {/* Account */}
             <div className="flex flex-col gap-2">
-              <Label className="font-medium">Account</Label>
+              <Label htmlFor={accountFieldId} className="font-medium">
+                Account
+              </Label>
               <Select
                 value={accountId === null ? 'any' : String(accountId)}
                 items={[
@@ -378,7 +382,7 @@ export function RuleForm({
                 ]}
                 onValueChange={(v) => setAccountId(v === 'any' ? null : Number(v))}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger id={accountFieldId} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -444,7 +448,7 @@ export function RuleForm({
                 }
                 onValueChange={(v) => setCategoryId(Number(v))}
               >
-                <SelectTrigger className="min-w-40 flex-1">
+                <SelectTrigger aria-label="Category" className="min-w-40 flex-1">
                   <SelectValue placeholder="Choose a category" />
                 </SelectTrigger>
                 <SelectContent>
