@@ -60,7 +60,6 @@ export function FilteredTransactionsTable({
             onChange={setFilters}
             defaultFilters={DEFAULT_TRANSACTION_FILTERS}
             hideAccounts={lockedAccount}
-            showGroupByDay
           />
         </div>
         <ExportCsvButton filters={resolved} accountId={accountId} {...sort} />

@@ -12,6 +12,7 @@ import {
 } from '@shared/transaction-filters'
 import { Amount } from '@/components/amount'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
+import { TransactionViewOptionsButton } from '@/components/transactions/view-options'
 import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
 import { ImportButton } from '@/lib/import-ui'
 import { FilteredTotal } from '@/components/transactions/filtered-total'
@@ -120,6 +121,7 @@ function AccountsPage() {
             <ImportButton />
             {/* empty scope → categorize every uncategorized transaction */}
             <AutoCategorizeButton scope={{}} />
+            <TransactionViewOptionsButton />
           </div>
         </div>
         <ConnectionAlert />

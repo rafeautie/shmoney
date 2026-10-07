@@ -8,25 +8,20 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { AmountRangeControl } from '@/components/reports/filter-controls'
-import { useSetSetting, useSetting } from '@/lib/settings'
 
 /** The filters that don't earn a spot in the bar itself: amount range and the
- * pending/transfer toggles, plus the day grouping view toggle. */
+ * pending/transfer toggles. */
 export function MoreFiltersPopover({
   filters,
   onChange,
-  defaultFilters,
-  showGroupByDay
+  defaultFilters
 }: {
   filters: TransactionFilters
   onChange: (filters: TransactionFilters) => void
   /** only used to tell whether the transfers toggle is off its context default */
   defaultFilters: TransactionFilters
-  showGroupByDay?: boolean
 }) {
   const [open, setOpen] = useState(false)
-  const groupByDay = useSetting('groupTransactionsByDay')
-  const setSetting = useSetSetting()
 
   // descriptionSearch has no control here (the search box covers it) but old
   // saved filters and widget overrides can carry one — count it so its effect
@@ -72,16 +67,6 @@ export function MoreFiltersPopover({
             onCheckedChange={(includeTransfers) => onChange({ ...filters, includeTransfers })}
           />
         </label>
-        {/* a view preference, not a filter: saved app-wide and left out of the count */}
-        {showGroupByDay && (
-          <label className="flex items-center justify-between border-t pt-3 text-sm">
-            Group by day
-            <Switch
-              checked={groupByDay}
-              onCheckedChange={(checked) => void setSetting('groupTransactionsByDay', checked)}
-            />
-          </label>
-        )}
       </PopoverContent>
     </Popover>
   )
