@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -126,34 +126,111 @@ const DataTableRow = memo(
 ) as typeof DataTableRowImpl
 
 /** Runs of consecutive rows sharing a key, each under a sticky header row */
-export interface DataTableGroups<TData> {
+export interface DataTableGroups<TData, TTail = unknown> {
   key: (row: TData) => string
-  /** `last`: the trailing group, which may continue on a page not loaded yet */
-  header: (key: string, rows: TData[], last: boolean) => React.ReactNode
+  /** keep stable: a new header re-renders every group */
+  header: (key: string, rows: TData[], tail: TTail | undefined) => React.ReactNode
+  /** handed only to the trailing group, which may continue on a page not loaded yet */
+  tail?: TTail
 }
 
-function groupRuns<TData>(
-  rows: Row<TData>[],
-  key: (row: TData) => string
-): { id: string; key: string; rows: Row<TData>[] }[] {
-  const runs: { id: string; key: string; rows: Row<TData>[] }[] = []
+interface GroupRun<TData> {
+  /** React key: the group key, suffixed if it repeats */
+  id: string
+  key: string
+  rows: Row<TData>[]
+  originals: TData[]
+}
+
+function groupRuns<TData>(rows: Row<TData>[], key: (row: TData) => string): GroupRun<TData>[] {
+  const runs: GroupRun<TData>[] = []
   const seen = new Map<string, number>()
   for (const row of rows) {
     const k = key(row.original)
     const current = runs.at(-1)
     if (current && current.key === k) {
       current.rows.push(row)
+      current.originals.push(row.original)
       continue
     }
     // an optimistic edit can briefly split a key's run; React keys must stay unique
     const n = seen.get(k) ?? 0
     seen.set(k, n + 1)
-    runs.push({ id: n === 0 ? k : `${k}#${n}`, key: k, rows: [row] })
+    runs.push({ id: n === 0 ? k : `${k}#${n}`, key: k, rows: [row], originals: [row.original] })
   }
   return runs
 }
 
-interface DataTableProps<TData> {
+interface DataTableGroupProps<TData, TTail> {
+  run: GroupRun<TData>
+  tail: TTail | undefined
+  header: DataTableGroups<TData, TTail>['header']
+  columns: ColumnDef<TData, unknown>[]
+  /** ids of the group's selected rows, so selecting elsewhere skips this group */
+  selected: string
+  rowClassName: string | undefined
+  rowClass: ((row: TData) => string | false | undefined) | undefined
+  onClick: ((row: TData) => void) | undefined
+}
+
+function DataTableGroupImpl<TData, TTail>({
+  run,
+  tail,
+  header,
+  columns,
+  rowClassName,
+  rowClass,
+  onClick
+}: DataTableGroupProps<TData, TTail>) {
+  // rows read selection off the table, which the compiler can't see change
+  'use no memo'
+  return (
+    // a bare tbody: TableBody's class merge would run per group, and without its
+    // last-row rule each group keeps its closing border
+    <tbody data-slot="table-body">
+      {/* top-10 parks it under the column header. Sticky rows are bounded by the
+          table, not their body, so passed headers pile up under the newest: the
+          cell stays opaque, and a shadow draws its border */}
+      <TableRow className="sticky top-10 z-[5] border-b-0 hover:bg-transparent">
+        <TableCell
+          colSpan={columns.length}
+          className="h-8 bg-background py-0 shadow-[inset_0_-1px_0_0_var(--border)] in-data-[slot=card]:bg-card"
+        >
+          {header(run.key, run.originals, tail)}
+        </TableCell>
+      </TableRow>
+      {run.rows.map((row) => (
+        <DataTableRow
+          key={row.id}
+          row={row}
+          selected={row.getIsSelected()}
+          canSelect={row.getCanSelect()}
+          columns={columns}
+          className={cn(rowClassName, rowClass?.(row.original))}
+          onClick={onClick}
+        />
+      ))}
+    </tbody>
+  )
+}
+
+// runs are regrouped whenever a page lands, so compare the records a run holds
+const DataTableGroup = memo(
+  DataTableGroupImpl,
+  (prev, next) =>
+    prev.run.id === next.run.id &&
+    prev.run.originals.length === next.run.originals.length &&
+    prev.run.originals.every((row, i) => row === next.run.originals[i]) &&
+    prev.tail === next.tail &&
+    prev.header === next.header &&
+    prev.columns === next.columns &&
+    prev.selected === next.selected &&
+    prev.rowClassName === next.rowClassName &&
+    prev.rowClass === next.rowClass &&
+    prev.onClick === next.onClick
+) as typeof DataTableGroupImpl
+
+interface DataTableProps<TData, TTail> {
   columns: ColumnDef<TData, unknown>[]
   data: TData[]
   sorting: SortingState
@@ -179,10 +256,10 @@ interface DataTableProps<TData> {
   /** e.g. "min-h-0 flex-1" to fill the parent's height; only the table body scrolls */
   className?: string
   /** Group rows under sticky headers; only meaningful when the sort keeps groups together */
-  groups?: DataTableGroups<TData>
+  groups?: DataTableGroups<TData, TTail>
 }
 
-export function DataTable<TData>({
+export function DataTable<TData, TTail = undefined>({
   columns,
   data,
   sorting,
@@ -202,7 +279,7 @@ export function DataTable<TData>({
   bleed,
   className,
   groups
-}: DataTableProps<TData>) {
+}: DataTableProps<TData, TTail>) {
   // the row a shift-click extends from: the last one toggled on its own
   const anchorRef = useRef<string | null>(null)
 
@@ -269,6 +346,9 @@ export function DataTable<TData>({
   // it to fill the viewport instead of collapsing to a fixed 96px box
   const rows = table.getRowModel().rows
   const isEmpty = rows.length === 0
+  // the row model keeps its identity across selection and other re-renders
+  const groupKey = groups?.key
+  const runs = useMemo(() => (groupKey ? groupRuns(rows, groupKey) : []), [rows, groupKey])
 
   const renderRow = (row: Row<TData>) => (
     <DataTableRow
@@ -313,25 +393,21 @@ export function DataTable<TData>({
         {groups && !isEmpty ? (
           <>
             {topRow && <TableBody className="[&_tr:last-child]:border-b!">{topRow}</TableBody>}
-            {groupRuns(rows, groups.key).map((run, i, runs) => (
-              <TableBody key={run.id} className="[&_tr:last-child]:border-b!">
-                {/* top-10 parks it under the column header. Sticky rows are bounded by the
-                    table, not their body, so passed headers pile up under the newest:
-                    the cell stays opaque, and a shadow draws its border */}
-                <TableRow className="sticky top-10 z-[5] border-b-0 hover:bg-transparent">
-                  <TableCell
-                    colSpan={columns.length}
-                    className="h-8 bg-background py-0 shadow-[inset_0_-1px_0_0_var(--border)] in-data-[slot=card]:bg-card"
-                  >
-                    {groups.header(
-                      run.key,
-                      run.rows.map((row) => row.original),
-                      i === runs.length - 1
-                    )}
-                  </TableCell>
-                </TableRow>
-                {run.rows.map(renderRow)}
-              </TableBody>
+            {runs.map((run, i) => (
+              <DataTableGroup
+                key={run.id}
+                run={run}
+                tail={i === runs.length - 1 ? groups.tail : undefined}
+                header={groups.header}
+                columns={columns}
+                selected={run.rows
+                  .filter((row) => row.getIsSelected())
+                  .map((row) => row.id)
+                  .join()}
+                rowClassName={onRowClick ? 'cursor-pointer' : undefined}
+                rowClass={rowClassName}
+                onClick={onRowClick ? handleRowClick : undefined}
+              />
             ))}
             {fetchingMoreRow && <TableBody>{fetchingMoreRow}</TableBody>}
           </>
