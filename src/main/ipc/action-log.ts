@@ -214,10 +214,16 @@ function setGuarded(
 ): number {
   const where = and(eq(transactions.id, transactionId), currentValueIs(field, guard), extra)
   switch (field) {
-    case 'categoryId':
-      // a category deleted since can't be put back; that change is superseded
-      if (target !== null && !categoryExists(tx, target)) return 0
-      return tx.update(transactions).set({ categoryId: target }).where(where).run().changes
+    case 'categoryId': {
+      // a category deleted since can't be put back; that change is superseded.
+      // Checked in the same statement, so a bulk undo stays one write per row
+      const stillThere =
+        target === null
+          ? undefined
+          : sql`exists (select 1 from ${categories} where ${categories.id} = ${target})`
+      return tx.update(transactions).set({ categoryId: target }).where(and(where, stillThere)).run()
+        .changes
+    }
     case 'deletedAt':
       return tx.update(transactions).set({ deletedAt: target }).where(where).run().changes
     // amount/posted are NOT NULL columns, so target/guard are never null here
