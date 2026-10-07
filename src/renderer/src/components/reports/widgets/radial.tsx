@@ -24,6 +24,9 @@ import { displayMeasure } from './measure'
  */
 const FULL_TURN = 359.9
 
+// past this many rings the inner ones shrink to unreadable arcs; the rest fold into "Other"
+const MAX_RINGS = 6
+
 export function RadialChartWidget({
   config,
   rows,
@@ -40,7 +43,7 @@ export function RadialChartWidget({
       groupTotals(
         rows,
         config.query.sort ?? { by: 'value', dir: 'desc' },
-        config.query.limit ?? 8
+        Math.min(config.query.limit ?? MAX_RINGS, MAX_RINGS)
       ).filter((t) => t.value > 0),
     [rows, config.query.sort, config.query.limit]
   )

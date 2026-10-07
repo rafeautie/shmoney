@@ -10,8 +10,12 @@ import {
 } from '@/components/ui/chart'
 import { groupTotals } from '../data'
 import { CenteredNote, MixedCurrencyBadge, TooltipRow } from './shared'
+import { TotalsBarChart } from './categorical-bar'
 import type { OnDrill } from '../use-drill'
 import { displayMeasure } from './measure'
+
+// with fewer axes the polygon collapses into a sliver that hides the values
+const MIN_AXES = 5
 
 export function RadarChartWidget({
   config,
@@ -36,6 +40,11 @@ export function RadarChartWidget({
   if (totals.length === 0) {
     return (
       <CenteredNote>No positive values to chart. Try the expense or income measure.</CenteredNote>
+    )
+  }
+  if (totals.length < MIN_AXES) {
+    return (
+      <TotalsBarChart config={config} totals={totals} currencies={currencies} onDrill={onDrill} />
     )
   }
   const measure = displayMeasure(config)

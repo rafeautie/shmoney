@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { QueryRow, WidgetConfig } from '@shared/reports'
 import { Chart } from '@/components/charts/chart'
-import { groupTotals } from '../data'
+import { groupTotals, type GroupTotal } from '../data'
 import { CenteredNote, MixedCurrencyBadge } from './shared'
 import { displayMeasure, makeFormatValue } from './measure'
 import type { OnDrill } from '../use-drill'
@@ -25,9 +25,25 @@ export function CategoricalBarChart({
   if (totals.length === 0) {
     return <CenteredNote>No transactions match these filters.</CenteredNote>
   }
+  return (
+    <TotalsBarChart config={config} totals={totals} currencies={currencies} onDrill={onDrill} />
+  )
+}
+
+/** One bar per group total; also what radar draws when it has too few axes. */
+export function TotalsBarChart({
+  config,
+  totals,
+  currencies,
+  onDrill
+}: {
+  config: WidgetConfig
+  totals: GroupTotal[]
+  currencies: string[]
+  onDrill?: OnDrill
+}) {
   const measure = displayMeasure(config)
-  const currency = currencies[0] ?? 'USD'
-  const fv = makeFormatValue(measure, currency)
+  const fv = makeFormatValue(measure, currencies[0] ?? 'USD')
   const data = totals.map((t) => ({ label: t.label, value: t.value, currency: t.currency }))
   return (
     <div className="relative h-full px-4 pb-4">

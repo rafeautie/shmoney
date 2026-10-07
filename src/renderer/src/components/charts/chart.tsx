@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useId, useMemo, type ReactNode } from 'react'
 import {
   Area,
   AreaChart,
@@ -11,6 +11,7 @@ import {
   Pie,
   PieChart,
   Rectangle,
+  ReferenceArea,
   XAxis,
   YAxis,
   type BarShapeProps,
@@ -100,6 +101,9 @@ interface CartesianProps {
   /** false for counts: skip the y-axis privacy mask. Default true. */
   sensitive?: boolean
   onSelect?: OnSelect
+  /** the datum for a period still in progress (this month so far): drawn hatched
+   * and noted in its tooltip so its short total doesn't read as a drop */
+  inProgressIndex?: number
 }
 
 interface PieProps {
@@ -212,6 +216,21 @@ function ChartNote({ children }: { children: ReactNode }) {
 
 const BAR_TOP_RADIUS: [number, number, number, number] = [2, 2, 0, 0]
 
+function HatchPattern({ id, color }: { id: string; color: string }) {
+  return (
+    <pattern
+      id={id}
+      width={6}
+      height={6}
+      patternUnits="userSpaceOnUse"
+      patternTransform="rotate(45)"
+    >
+      <rect width={6} height={6} style={{ fill: color, fillOpacity: 0.3 }} />
+      <rect width={2.5} height={6} style={{ fill: color }} />
+    </pattern>
+  )
+}
+
 function CartesianView({
   kind,
   data,
@@ -225,8 +244,11 @@ function CartesianView({
   tooltipMode = 'series',
   sensitive = true,
   onSelect,
+  inProgressIndex,
   className
 }: CartesianProps & CommonProps) {
+  // pattern ids are document-global, so scope them to this chart
+  const hatchPrefix = `hatch-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   if (data.length === 0 || series.length === 0) return <ChartNote>Nothing to chart.</ChartNote>
 
   const chartConfig: ChartConfig = Object.fromEntries(
@@ -241,6 +263,11 @@ function CartesianView({
   // minTickGap={0} on the category axis skips a label only when its row is
   // shorter than the text, which beats piling labels on top of each other
   const horizontal = kind === 'bar' && colorByPoint && singleSeries
+  const inProgress =
+    inProgressIndex !== undefined && inProgressIndex >= 0 && inProgressIndex < data.length
+      ? inProgressIndex
+      : null
+  const inProgressLabel = inProgress === null ? null : data[inProgress][xKey]
   // per row, the last series with a value: the segment drawn at the top of its stack
   const stackTops = data.map(
     (row) => series.findLast((s) => Number(row[s.key] ?? 0) !== 0)?.key ?? null
@@ -296,7 +323,18 @@ function CartesianView({
       <ChartTooltip
         content={
           <ChartTooltipContent
-            labelFormatter={(l) => (typeof l === 'string' ? labelFmt(l) : l)}
+            labelFormatter={(l) =>
+              typeof l !== 'string' ? (
+                l
+              ) : l === inProgressLabel ? (
+                <>
+                  {labelFmt(l)}
+                  <div className="font-normal text-muted-foreground">In progress</div>
+                </>
+              ) : (
+                labelFmt(l)
+              )
+            }
             formatter={(value, name, item) => (
               <TooltipRow
                 color={item.color}
@@ -309,6 +347,31 @@ function CartesianView({
             )}
           />
         }
+      />
+    )
+  const hatches =
+    inProgress === null ? null : (
+      <defs>
+        <HatchPattern id={`${hatchPrefix}-band`} color="var(--muted-foreground)" />
+        {series.map((s) => (
+          <HatchPattern
+            key={s.key}
+            id={`${hatchPrefix}-${s.key}`}
+            color={`var(--color-${s.key})`}
+          />
+        ))}
+      </defs>
+    )
+  // a line or area has no mark of its own per period, so shade the stretch
+  // leading into the period in progress instead
+  const inProgressBand =
+    inProgress === null || kind === 'bar' ? null : (
+      <ReferenceArea
+        x1={data[Math.max(0, inProgress - 1)][xKey] ?? undefined}
+        x2={inProgressLabel ?? undefined}
+        fill={`url(#${hatchPrefix}-band)`}
+        fillOpacity={0.25}
+        strokeWidth={0}
       />
     )
   const legendEl = showLegend ? <ChartLegend content={<ChartLegendContent />} /> : null
@@ -338,7 +401,9 @@ function CartesianView({
     >
       {kind === 'line' ? (
         <LineChart data={data} margin={{ top: 16, right: 8 }} onClick={chartClick}>
+          {hatches}
           {axes}
+          {inProgressBand}
           {tooltip}
           {legendEl}
           {series.map((s) => (
@@ -357,7 +422,9 @@ function CartesianView({
         </LineChart>
       ) : kind === 'area' ? (
         <AreaChart data={data} margin={{ top: 16, right: 8 }} onClick={chartClick}>
+          {hatches}
           {axes}
+          {inProgressBand}
           {tooltip}
           {legendEl}
           {series.map((s) => (
@@ -381,6 +448,7 @@ function CartesianView({
           layout={horizontal ? 'vertical' : 'horizontal'}
           margin={{ top: 16, right: 8 }}
         >
+          {hatches}
           {axes}
           {tooltip}
           {legendEl}
@@ -406,11 +474,16 @@ function CartesianView({
                 radius={stacked ? 0 : BAR_TOP_RADIUS}
                 // in a stack only the segment on top gets the rounded corners
                 shape={
-                  stacked
+                  stacked || inProgress !== null
                     ? (props: BarShapeProps) => (
                         <Rectangle
                           {...props}
-                          radius={stackTops[props.index] === s.key ? BAR_TOP_RADIUS : 0}
+                          radius={!stacked || stackTops[props.index] === s.key ? BAR_TOP_RADIUS : 0}
+                          fill={
+                            props.index === inProgress
+                              ? `url(#${hatchPrefix}-${s.key})`
+                              : props.fill
+                          }
                         />
                       )
                     : undefined
