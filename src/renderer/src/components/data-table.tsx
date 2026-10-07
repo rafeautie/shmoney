@@ -372,7 +372,8 @@ export function DataTable<TData, TTail = undefined>({
   )
 
   return (
-    <ScrollArea viewportRef={scrollRef} className={className}>
+    // isolate: the sticky header and day rows layer within the viewport, under the scrollbar
+    <ScrollArea viewportRef={scrollRef} className={className} viewPortClassName="isolate">
       <table
         className={cn('w-full caption-bottom text-xs', isEmpty && 'h-full', bleed && TABLE_BLEED)}
       >
