@@ -30,6 +30,7 @@ export function useWidgetData(
   const isGoals = config.query.source === 'goals'
   const goalQuery = useMemo(() => resolveGoalQuery(config, resolved), [config, resolved])
   const query = useQuery({
+    meta: { silenceError: true },
     queryKey: isGoals
       ? ['goals', 'widget-series', widgetId, goalQuery]
       : ['report-data', widgetId, resolved],

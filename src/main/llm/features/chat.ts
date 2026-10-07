@@ -15,7 +15,8 @@ import {
   type Conversation,
   type ConversationMessages,
   type SendChatInput,
-  type SendChatResult
+  type SendChatResult,
+  type StreamingChatPart
 } from '@shared/chat'
 import type { ChatGenerationResult, ChatSeedCall, ChatToolInputs } from '../protocol'
 import { resolveCurrency } from '../tools/chart-tool'
@@ -310,23 +311,27 @@ export function listConversations(): Conversation[] {
     )
 }
 
-/** a conversation's rows plus where its latest reply's history was cut */
+/**
+ * A conversation's rows plus where its latest reply's history was cut. A
+ * soft-deleted conversation lists as empty, the same as one that never existed.
+ */
 export function listMessages(conversationId: number): ConversationMessages {
+  const conversation = db
+    .select({ truncatedBeforeId: conversations.truncatedBeforeId })
+    .from(conversations)
+    .where(and(eq(conversations.id, conversationId), isNull(conversations.deletedAt)))
+    .get()
+  if (!conversation) return { messages: [], truncatedBeforeId: null }
   const rows = db
     .select()
     .from(chatMessages)
     .where(eq(chatMessages.conversationId, conversationId))
     .orderBy(chatMessages.id)
     .all()
-  const conversation = db
-    .select({ truncatedBeforeId: conversations.truncatedBeforeId })
-    .from(conversations)
-    .where(eq(conversations.id, conversationId))
-    .get()
   // ChatMessageRow is structurally a ChatMessage; no mapping needed
   return {
     messages: reconcileProposals(rows),
-    truncatedBeforeId: conversation?.truncatedBeforeId ?? null
+    truncatedBeforeId: conversation.truncatedBeforeId
   }
 }
 
@@ -571,6 +576,9 @@ function launchGeneration(turn: {
   const { conversationId, assistantMessageId, controller } = turn
   // the latest snapshot; the final one (sent as the turn ends) is persisted
   let stats: GenerationStats | null = null
+  // a rejected turn carries no parts back, so the row keeps what already streamed
+  const streamed: StreamingChatPart[] = []
+  const thoughtOpenedAt = new Map<number, number>()
   void llmManager
     .chat(turn.history, turn.prompt, {
       signal: controller.signal,
@@ -578,7 +586,12 @@ function launchGeneration(turn: {
       currency: turn.currency,
       goalRows: turn.goalRows,
       tools: turn.tools,
-      onPart: (index, part) => sendToRenderer(CHAT_IPC.part, { conversationId, index, part }),
+      onPart: (index, part) => {
+        streamed[index] = part
+        if (part.type === 'reasoning' && !thoughtOpenedAt.has(index))
+          thoughtOpenedAt.set(index, Date.now())
+        sendToRenderer(CHAT_IPC.part, { conversationId, index, part })
+      },
       onStats: (next) => {
         stats = next
         sendToRenderer(CHAT_IPC.stats, { conversationId, stats: next })
@@ -596,16 +609,17 @@ function launchGeneration(turn: {
       finishTurn(assistantMessageId, result, null, stats)
     })
     .catch((err) => {
-      // a stop before the turn was even sent rejects instead of resolving
-      // interrupted; that's a stop, not a failure
+      const parts = settleStreamed(streamed, thoughtOpenedAt)
+      // a stop that rejects (before the turn was even sent, or one the worker
+      // threw on) is still a stop, not a failure
       if (controller.signal.aborted)
-        return finishTurn(assistantMessageId, { parts: [], interrupted: true }, null, stats)
+        return finishTurn(assistantMessageId, { parts, interrupted: true }, null, stats)
       // logged serialized, never raw: the error chain can drag the prompt
       // along, and prompts carry the user's private conversation text
       log.error('chat.generation-failed', err)
       return finishTurn(
         assistantMessageId,
-        { parts: [], interrupted: false },
+        { parts, interrupted: false },
         String((err as Error)?.message ?? err),
         null
       )
@@ -613,6 +627,25 @@ function launchGeneration(turn: {
     .finally(() => {
       if (activeChat === controller) activeChat = null
     })
+}
+
+/**
+ * The persisted form of a reply that rejected mid-turn, from the parts it
+ * streamed: a thought still open closes timed until now (as the worker closes
+ * one on a stop) and a call still writing its params is dropped (as the turn
+ * log's finish() drops it), so only settled shapes persist.
+ */
+function settleStreamed(
+  streamed: StreamingChatPart[],
+  thoughtOpenedAt: Map<number, number>
+): ChatMessagePart[] {
+  const now = Date.now()
+  return streamed.flatMap((part, index): ChatMessagePart[] => {
+    if (part.type === 'reasoning' && part.durationMs === null)
+      return [{ ...part, durationMs: now - (thoughtOpenedAt.get(index) ?? now) }]
+    if (part.type === 'functionCall' && part.result === undefined) return []
+    return [part as ChatMessagePart]
+  })
 }
 
 /**

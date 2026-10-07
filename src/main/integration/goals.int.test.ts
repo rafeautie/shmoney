@@ -131,9 +131,25 @@ describe('create', () => {
     )
   })
 
-  it.todo(
-    'TRIAGE: duplicate accountIds ([a, a]) fail with "One of those accounts no longer exists" because rows.length != accountIds.length (src/main/ipc/goals.ts:45)'
-  )
+  it('treats a repeated account id as that one account, on create and update', async () => {
+    const a = account()
+    const b = account()
+    txn(a, { amount: 40_000, posted: START + DAY })
+    txn(b, { amount: 15_000, posted: START + DAY })
+
+    const single = await makeGoal([a])
+    const doubled = await makeGoal([a, a])
+    expect(linkedIds(doubled.id)).toEqual([a])
+    expect(doubled).toEqual({ ...single, id: doubled.id })
+
+    const updated = await api.goals.update({ id: doubled.id, accountIds: [b, b, b] })
+    expect(linkedIds(doubled.id)).toEqual([b])
+    expect(updated.progress).toBe(15_000)
+
+    await expect(makeGoal([a, a, 999_999])).rejects.toThrow(
+      'One of those accounts no longer exists'
+    )
+  })
 
   it("copies the accounts' currency onto the goal and links every account", async () => {
     const a = account({ currency: 'EUR' })

@@ -75,6 +75,13 @@ const DATE_PRESET_ITEMS = [
   { value: 'custom', label: 'Custom range' }
 ]
 
+/** a relative range no preset covers, named the way the presets are */
+function relativeLabel(range: Extract<DateRange, { kind: 'relative' }>): string {
+  const { unit, count, includeCurrent } = range
+  if (count === 1) return includeCurrent ? `This ${unit}` : `Last ${unit}`
+  return includeCurrent ? `Last ${count} ${unit}s` : `Last ${count} full ${unit}s`
+}
+
 export function DateRangeControl({
   value,
   onChange,
@@ -88,12 +95,17 @@ export function DateRangeControl({
   const [draft, setDraft] = useState<DayRange | undefined>()
   const presetKey =
     DATE_PRESETS.find((p) => JSON.stringify(p.range) === JSON.stringify(value))?.key ??
-    (value.kind === 'absolute' ? 'custom' : 'all')
+    (value.kind === 'absolute' ? 'custom' : value.kind === 'relative' ? 'relative' : 'all')
+  // a saved or drilled relative range outside the presets shows as itself
+  const otherRelative = value.kind === 'relative' && presetKey === 'relative' ? value : null
+  const items = otherRelative
+    ? [...DATE_PRESET_ITEMS, { value: 'relative', label: relativeLabel(otherRelative) }]
+    : DATE_PRESET_ITEMS
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Select
         value={presetKey}
-        items={DATE_PRESET_ITEMS}
+        items={items}
         disabled={disabled}
         onValueChange={(key) => {
           if (key === 'custom') {
@@ -123,6 +135,9 @@ export function DateRangeControl({
             </SelectItem>
           ))}
           <SelectItem value="custom">Custom range</SelectItem>
+          {otherRelative && (
+            <SelectItem value="relative">{relativeLabel(otherRelative)}</SelectItem>
+          )}
         </SelectContent>
       </Select>
       {value.kind === 'absolute' && (

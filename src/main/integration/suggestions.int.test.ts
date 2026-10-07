@@ -223,9 +223,17 @@ describe('suppression', () => {
     expect(events).toEqual([])
   })
 
-  it.todo(
-    'TRIAGE: turning ruleSuggestionsEnabled off leaves already-pending suggestions in the list (src/main/ipc/rule-suggestions.ts:195-225, listSuggestions never checks suggestionsEnabled)'
-  )
+  it('turning ruleSuggestionsEnabled off hides pending suggestions until it is back on', async () => {
+    await categorize(rowsLike('HIDDEN WHILE OFF'), category())
+    const found = (await suggestionFor('HIDDEN WHILE OFF'))!
+
+    await api.settings.set('ruleSuggestionsEnabled', false)
+    expect(await pending()).toEqual([])
+    expect(statusOf(found.id)).toBe('pending')
+
+    await api.settings.set('ruleSuggestionsEnabled', true)
+    expect((await suggestionFor('HIDDEN WHILE OFF'))?.id).toBe(found.id)
+  })
 })
 
 describe('dismiss and accept', () => {

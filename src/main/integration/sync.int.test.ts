@@ -5,6 +5,7 @@ import { count, query } from './harness/db'
 import { accessUrlKeychain } from './harness/fakes/access-url'
 import { installBridge, sfinAccount, sfinTxn, type FakeBridge } from './harness/fakes/simplefin'
 import type { SfinAccountSet } from '../simplefin'
+import { actionNeededErrors } from '@shared/ipc'
 import { beginSyncGuard, guardedSync, resetSyncState } from './harness/sync'
 
 const NOW = new Date(2026, 9, 5, 12)
@@ -387,9 +388,29 @@ describe('sync', () => {
       expect((await api.connection.get())!.lastSyncErrors).toEqual([])
     })
 
-    it.todo(
-      'TRIAGE: an errlist auth failure with zero accounts is stored as lastSyncFailure, not lastSyncErrors, so the "needs your attention" notice never shows'
-    )
+    it('stores an auth failure with no accounts as errors too, so it needs attention', async () => {
+      const bridge = await connect({ accounts: [sfinAccount('a1')] })
+      await api.connection.sync()
+
+      vi.setSystemTime(new Date(NOW.getTime() + DAY * 1000))
+      bridge.payload.accounts = []
+      bridge.payload.errlist = [{ code: 'con.auth', msg: 'Bank login revoked' }]
+      await expect(guardedSync()).rejects.toThrow('Bank login revoked')
+
+      const failed = (await api.connection.get())!
+      expect(failed).toMatchObject({
+        lastSyncFailure: 'Bank login revoked',
+        lastSyncFailedAt: nowSeconds + DAY,
+        lastSyncErrors: [{ code: 'con.auth', msg: 'Bank login revoked' }]
+      })
+      expect(actionNeededErrors(failed.lastSyncErrors)).toHaveLength(1)
+      expect(count('accounts')).toBe(1)
+
+      bridge.payload.accounts = [sfinAccount('a1')]
+      bridge.payload.errlist = []
+      const recovered = await api.connection.sync()
+      expect(recovered).toMatchObject({ lastSyncFailure: null, lastSyncErrors: [] })
+    })
   })
 
   describe('failures', () => {
@@ -440,9 +461,36 @@ describe('sync', () => {
       expect((await api.connection.get())!.bridgeUrl).toBeNull()
     })
 
-    it.todo(
-      'TRIAGE: one duplicate holding id, or a missing balance-date, aborts the whole sync (unique holdings index in connections.ts; z.number() balance-date in simplefin.ts)'
-    )
+    it('syncs past a repeated holding id and an account with no balance-date', async () => {
+      const position = {
+        id: 'h1',
+        symbol: 'A',
+        description: 'A',
+        currency: 'USD',
+        shares: '1',
+        market_value: '1.00',
+        cost_basis: '1.00',
+        purchase_price: '1.00',
+        created: 0
+      }
+      const undated = sfinAccount('undated', { balance: '500.00' }, [
+        sfinTxn('u1', '-5.00', noon(2026, 9, 1))
+      ])
+      delete undated['balance-date']
+      await connect({
+        accounts: [
+          sfinAccount('repeats', { holdings: [position, { ...position, market_value: '2.00' }] }),
+          undated
+        ]
+      })
+
+      await guardedSync()
+      expect(
+        (await api.accounts.holdings(accountBySfid('repeats').id)).map((h) => h.marketValue)
+      ).toEqual([1000])
+      expect(accountBySfid('undated')).toMatchObject({ balance: 500_000, balance_date: nowSeconds })
+      expect((await api.accounts.get(accountBySfid('undated').id))!.balance).toBe(500_000)
+    })
   })
 
   describe('transfer detection and rules', () => {
@@ -589,9 +637,30 @@ describe('sync', () => {
     expect(txnsOf('keep')).toHaveLength(1)
   })
 
-  it.todo(
-    'TRIAGE: disconnect loses deleted-account tombstones (connections row is deleted), so a deleted account returns after reconnect'
-  )
+  it('keeps a deleted account deleted across a disconnect and reconnect', async () => {
+    const accounts = [sfinAccount('keep'), sfinAccount('drop')]
+    await connect({ accounts })
+    await api.connection.sync()
+    await api.accounts.delete(accountBySfid('drop').id)
+
+    await api.connection.disconnect()
+    await connect({ accounts })
+    await guardedSync()
+    expect(accountBySfid('drop')).toBeUndefined()
+    expect(accountBySfid('keep')).toBeDefined()
+  })
+
+  it('keeps a detached account deleted once it is deleted while disconnected', async () => {
+    const accounts = [sfinAccount('detached')]
+    await connect({ accounts })
+    await api.connection.sync()
+    await api.connection.disconnect()
+    await api.accounts.delete(accountBySfid('detached').id)
+
+    await connect({ accounts })
+    await guardedSync()
+    expect(accountBySfid('detached')).toBeUndefined()
+  })
 })
 
 describe('sync guard', () => {

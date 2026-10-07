@@ -202,6 +202,7 @@ export function RuleForm({
     !domInvalid
 
   const save = useMutation({
+    meta: { silenceError: true },
     mutationFn: () => {
       const action: RuleAction = { type: 'setCategory', categoryId: categoryId! }
       const conditions = buildConditions()

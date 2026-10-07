@@ -211,8 +211,8 @@ test.describe('upgrading an old database', () => {
         (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name)
       expect(columns('accounts')).not.toContain('invert_balance')
       expect(columns('saved_filters')).toContain('deleted_at')
-      expect(columns('connections')).toContain('deleted_account_ids')
-      for (const table of ['savings_goals', 'llm_usage', 'action_runs']) {
+      expect(columns('connections')).not.toContain('deleted_account_ids')
+      for (const table of ['savings_goals', 'llm_usage', 'action_runs', 'deleted_sync_accounts']) {
         expect(columns(table).length).toBeGreaterThan(0)
       }
 

@@ -94,10 +94,30 @@ describe('drillFilters', () => {
     expect(other.accountIds).toEqual([4, 5])
   })
 
-  it('has no answer for ungrouped categories or goal sources', () => {
+  it('drills an ungrouped mark to the ungrouped categories and uncategorized rows', () => {
+    const categories = [
+      { id: 1, groupId: 10, systemKey: null },
+      { id: 2, groupId: null, systemKey: null },
+      { id: 3, groupId: null, systemKey: 'transfers' },
+      { id: 4, groupId: null, systemKey: 'opening' },
+      { id: 5, groupId: 20, systemKey: null }
+    ]
+    const byGroup = config({ groupBy: 'categoryGroup' })
+    const ungrouped = drillFilters(byGroup, report, { groupIds: [null] }, NOW, categories)!
+    expect(ungrouped).toMatchObject({ categoryIds: [2], includeUncategorized: true })
+    expect(ungrouped.categoryGroupIds).toBeUndefined()
+
+    // an Other rollup mixing a group with the ungrouped ones; transfers opted in
+    const withTransfers = { ...report, includeTransfers: true }
     expect(
-      drillFilters(config({ groupBy: 'categoryGroup' }), report, { groupIds: [null] }, NOW)
-    ).toBeNull()
+      drillFilters(byGroup, withTransfers, { groupIds: [10, null] }, NOW, categories)
+    ).toMatchObject({ categoryIds: [1, 2, 3], includeUncategorized: true })
+
+    // before the categories load there is no answer yet
+    expect(drillFilters(byGroup, report, { groupIds: [null] }, NOW)).toBeNull()
+  })
+
+  it('has no answer for goal sources', () => {
     expect(drillFilters(config({ source: 'goals' }), report, { bucket: '2026-03' }, NOW)).toBeNull()
   })
 

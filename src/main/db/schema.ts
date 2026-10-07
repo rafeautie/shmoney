@@ -20,14 +20,15 @@ export const connections = sqliteTable('connections', {
   // the most recent sync that threw; both null once a sync succeeds
   lastSyncFailedAt: integer('last_sync_failed_at'),
   lastSyncFailure: text('last_sync_failure'),
-  // SimpleFIN ids of accounts the user deleted; sync skips them so they stay gone
-  deletedAccountIds: text('deleted_account_ids', { mode: 'json' })
-    .$type<string[]>()
-    .notNull()
-    .default(sql`'[]'`),
   createdAt: text('created_at')
     .notNull()
     .default(sql`(current_timestamp)`)
+})
+
+// SimpleFIN ids of accounts the user deleted; sync skips them so they stay gone.
+// Kept apart from the connection so a disconnect and reconnect doesn't revive them
+export const deletedSyncAccounts = sqliteTable('deleted_sync_accounts', {
+  simplefinId: text('simplefin_id').primaryKey()
 })
 
 export const accounts = sqliteTable(

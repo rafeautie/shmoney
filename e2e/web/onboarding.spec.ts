@@ -119,6 +119,29 @@ test.describe('first run', () => {
     await expect(page.getByRole('row', { name: /Checking/ }).first()).toBeVisible()
   })
 
+  test('a failed first sync offers a retry and a way out', async ({ app }) => {
+    const { page } = app
+    await toLastStep(page)
+    await page.evaluate(() => {
+      const connection = window.api.connection
+      const real = connection.sync
+      connection.sync = () => {
+        connection.sync = real
+        return Promise.reject(new Error('Bridge unreachable'))
+      }
+    })
+    await dialog(page).getByLabel('Setup token').fill('demo:starter')
+    await dialog(page).getByRole('button', { name: 'Connect' }).click()
+
+    await expect(dialog(page).getByText('Connected, but the first sync failed')).toBeVisible()
+    await expect(dialog(page).getByText('Bridge unreachable')).toBeVisible()
+    await expect(dialog(page).getByLabel('Setup token')).toBeHidden()
+    await dialog(page).getByRole('button', { name: 'Try again' }).click()
+    await expect(dialog(page).getByText("You're all set!")).toBeVisible()
+    await dialog(page).getByRole('button', { name: 'View accounts' }).click()
+    await expect.poll(() => onboardingComplete(app)).toBe(true)
+  })
+
   test('a bad setup token shows the error and stays on the step', async ({ app }) => {
     const { page } = app
     await toLastStep(page)

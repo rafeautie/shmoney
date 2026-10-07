@@ -22,6 +22,7 @@ export function ConnectionSettings() {
 
   const disconnect = useMutation({
     mutationFn: () => window.api.connection.disconnect(),
+    meta: { silenceError: true },
     onSuccess: () => queryClient.invalidateQueries()
   })
 

@@ -15,11 +15,11 @@ const settingsOptions = {
 export function useSetSetting() {
   const queryClient = useQueryClient()
   return useCallback(
-    <K extends SettingKey>(key: K, value: Settings[K]) => {
+    <K extends SettingKey>(key: K, value: Settings[K]): Promise<boolean> => {
       queryClient.setQueryData<Settings>(SETTINGS_QUERY_KEY, (prev) =>
         prev ? { ...prev, [key]: value } : prev
       )
-      void window.api.settings.set(key, value)
+      return window.api.settings.set(key, value)
     },
     [queryClient]
   )
@@ -137,11 +137,16 @@ export function useApplyRulesOnSync() {
 
 export function useRuleSuggestionsEnabled() {
   const { settings, setSetting } = useSettings()
+  const queryClient = useQueryClient()
   return {
     ruleSuggestionsEnabled: settings.ruleSuggestionsEnabled,
+    // the suggestion list follows the setting in main, so refetch once it's stored
     setRuleSuggestionsEnabled: useCallback(
-      (on: boolean) => setSetting('ruleSuggestionsEnabled', on),
-      [setSetting]
+      (on: boolean) =>
+        void setSetting('ruleSuggestionsEnabled', on).then(() =>
+          queryClient.invalidateQueries({ queryKey: ['ruleSuggestions'] })
+        ),
+      [setSetting, queryClient]
     )
   }
 }

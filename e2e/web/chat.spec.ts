@@ -5,8 +5,8 @@ import { expect, test, type App } from '../fixtures'
 
 const text = (value: string): ChatMessagePart => ({ type: 'text', text: value })
 
-// a reply that settles instantly can land before the send call resolves in the
-// page, so every scripted part takes a beat
+// every scripted part takes a beat so the in-progress states stay observable;
+// the instant case has its own test
 const queueReplies = (app: App, ...replies: ScriptedReply[]): Promise<void> =>
   app.bridge(
     (b, queued: ScriptedReply[]) => b.llm.reply(...queued),
@@ -180,7 +180,7 @@ test('Stop ends a held turn and marks it stopped', async ({ app }) => {
   expect(status).toBe('interrupted')
 })
 
-test('a failed turn shows the error bubble', async ({ app }) => {
+test('a failed turn keeps what streamed and shows the error bubble', async ({ app }) => {
   const { page } = app
   await openReadyChat(app)
   await queueReplies(app, {
@@ -190,6 +190,7 @@ test('a failed turn shows the error bubble', async ({ app }) => {
 
   await send(page, 'Anything at all')
   await expect(page.getByText('The model ran out of memory')).toBeVisible()
+  await expect(page.getByText('Looking into it')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Stop' })).toBeHidden()
   const [{ status }] = await app.sql<{ status: string }>(
     "SELECT status FROM chat_messages WHERE role = 'assistant' AND conversation_id = 4"
@@ -460,9 +461,13 @@ test('the web demo explains that chat runs on the desktop and keeps seeded chats
   await expect(composer(page)).toBeHidden()
 })
 
-// src/renderer/src/routes/chat.tsx:84 starts the live reply only once chat:send
-// resolves, and lib/chat.ts:239 then parks it in `working`. A reply whose
-// messageDone push arrives first (an instant failure, or the scripted model
-// with no delay) is never cleared: the row sits on "Loading model" with Stop
-// showing until reload. Repro: queue { parts: [text('Hi')] } with delayMs 0.
-test.fixme('TRIAGE: a turn that settles before chat:send resolves is stuck streaming', async () => {})
+test('a reply that settles before the send call resolves still finishes', async ({ app }) => {
+  const { page } = app
+  await openReadyChat(app)
+  await app.bridge((b) => b.llm.reply({ parts: [{ type: 'text', text: 'Instant answer' }] }))
+
+  await send(page, 'Quick one')
+  await expect(page.getByText('Instant answer')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Stop' })).toBeHidden()
+  await expect(composer(page)).toBeEnabled()
+})

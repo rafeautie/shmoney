@@ -20,9 +20,10 @@ import { isDemo } from '@/lib/platform'
 
 export const Route = createFileRoute('/chat')({
   component: ChatPage,
+  // c is written even as undefined, or the router passes an invalid raw value through
   validateSearch: (search: Record<string, unknown>): { c?: number } => {
     const c = Number(search.c)
-    return Number.isInteger(c) && c > 0 ? { c } : {}
+    return { c: Number.isInteger(c) && c > 0 ? c : undefined }
   }
 })
 
@@ -80,8 +81,8 @@ function ChatPage() {
     sendChat.mutate(
       { conversationId, text, accountId: conversationId === null ? draftAccountId : null },
       {
-        onSuccess: ({ conversation }) => {
-          startReply(conversation.id)
+        onSuccess: ({ conversation, assistantMessage }) => {
+          startReply(conversation.id, assistantMessage.id)
           if (conversationId === null) select(conversation.id)
         }
       }

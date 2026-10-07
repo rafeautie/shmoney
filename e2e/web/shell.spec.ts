@@ -1,11 +1,11 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect, test } from '../fixtures'
 
-// /goals is left out: see the TRIAGE fixme in the privacy tests
 const MAIN_ROUTES = [
   '/accounts',
   '/accounts?tab=transactions',
   '/budget',
+  '/goals',
   '/reports',
   '/reports/1',
   '/activity',
@@ -311,10 +311,6 @@ test.describe('privacy', () => {
         .not.toMatch(/[$€£]\d/)
     }
   })
-
-  // components/goals/goal-labels.ts:20,22 format the monthly pace with plain
-  // formatAmount, so "Save $439.30/month" stays readable with amounts hidden
-  test.fixme('TRIAGE: the Goals pace sentences ignore Hide amounts', async () => {})
 
   test('hidden figures render as dots and showing them restores the digits', async ({ app }) => {
     const { page } = app

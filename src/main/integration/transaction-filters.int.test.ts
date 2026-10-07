@@ -7,6 +7,7 @@ import {
 } from '@shared/transaction-filters'
 import { api } from './harness/api'
 import { account, category, group, noon, systemCategory, txn } from './harness/builders'
+import { query } from './harness/db'
 
 // one fixture shared by every test in the file; each test names the rows it expects
 const NOW = noon(2026, 9, 15)
@@ -265,10 +266,15 @@ describe('transfer exclusion', () => {
     ])
   })
 
-  // reportFiltersSchema defaults includeTransfers to false (the report default), so
-  // a saved filter or drill filter that omits it parses to false and hides transfers
-  // in the transactions view, whose own default is true (src/shared/reports.ts:84).
-  it.todo('TRIAGE: saved filter without includeTransfers hides transfers in the transactions view')
+  it('a saved filter that leaves includeTransfers out shows transfers', async () => {
+    query(
+      `INSERT INTO saved_filters (name, filters, created_at, updated_at)
+       VALUES ('No transfers field', '{"dateRange":{"kind":"all"}}', 1, 1)`
+    )
+    const saved = (await api.savedFilters.list()).find((f) => f.name === 'No transfers field')!
+    expect(saved.filters.includeTransfers).toBe(true)
+    expect(await listed(saved.filters)).toContain('To savings')
+  })
 })
 
 describe('account scoped list', () => {

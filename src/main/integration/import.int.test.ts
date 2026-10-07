@@ -342,12 +342,20 @@ describe('action log', () => {
     ])
   })
 
-  it.todo(
-    'TRIAGE: undoing an import after a sync claimed its rows leaves the bank rows permanently soft-deleted'
-  )
-  it.todo(
-    'TRIAGE: undoing an import into a new account leaves the account and its "Starting balance" row behind'
-  )
+  it('undo takes the starting balance of a new account with it, and redo brings it back', async () => {
+    const result = await applyCsv(csvOf('05/09/2024,Opened with balance,-17.01'), {
+      newAccount: { name: 'Opened by import', currency: 'USD', balance: 500_000 }
+    })
+    expect(liveIds(result.accountId)).toHaveLength(2)
+    const entry = query<{ id: number }>('SELECT max(id) AS id FROM action_log')[0].id
+
+    expect((await api.actionLog.undoEntry(entry)).applied).toBe(2)
+    expect(liveIds(result.accountId)).toEqual([])
+    expect((await api.accounts.get(result.accountId))!.balance).toBe(0)
+
+    expect((await api.actionLog.redoEntry(entry)).applied).toBe(2)
+    expect((await api.accounts.get(result.accountId))!.balance).toBe(500_000 - 17_010)
+  })
 })
 
 describe('transfer detection and rules on import', () => {
@@ -542,6 +550,25 @@ describe('sync adopts imported rows', () => {
       query(`SELECT simplefin_id, deleted_at FROM transactions WHERE id = ${imported}`)
     ).toEqual([{ simplefin_id: expect.stringMatching(/^import:/), deleted_at: expect.any(Number) }])
     expect(idsOf(bankId, 'amount = -46000 AND deleted_at IS NULL')).toEqual(['bank-after-delete'])
+  })
+
+  it('undoing the import later leaves a claimed row to the bank', async () => {
+    await applyCsv(csvOf('06/18/2024,Claimed then undone,-50.00', '06/19/2024,Unclaimed,-51.00'), {
+      accountId: bankId
+    })
+    const entry = query<{ id: number }>(
+      "SELECT max(id) AS id FROM action_log WHERE source = 'import'"
+    )[0].id
+    bankTxns(sfinTxn('bank-undo', '-50.00', noon(2024, 6, 18)))
+    expect((await api.connection.sync()).matchedImports).toBe(1)
+
+    expect((await api.actionLog.undoEntry(entry)).applied).toBe(1)
+    expect(idsOf(bankId, 'amount IN (-50000, -51000) AND deleted_at IS NULL')).toEqual([
+      'bank-undo'
+    ])
+    bridge = installBridge(bridge.payload)
+    await api.connection.sync()
+    expect(idsOf(bankId, 'amount = -50000 AND deleted_at IS NULL')).toEqual(['bank-undo'])
   })
 
   it('claims each imported row at most once', async () => {

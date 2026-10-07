@@ -508,6 +508,19 @@ test.describe('Settings > Rules > Apply rules now', () => {
 })
 
 test.describe('Settings > Rules > Suggestions', () => {
+  test('turning suggestions off hides the pending one, and on brings it back', async ({ app }) => {
+    const { page } = app
+    await app.open({ route: '/accounts?settings=rules' })
+    const dialog = settingsDialog(page)
+    const button = dialog.getByRole('button', { name: /^Suggestions\s*1$/ })
+    const toggle = dialog.getByRole('switch', { name: 'Suggest rules from repeated categorizing' })
+    await expect(button).toBeVisible()
+    await toggle.click()
+    await expect(button).toBeHidden()
+    await toggle.click()
+    await expect(button).toBeVisible()
+  })
+
   test('the Suggestions button opens the page and Create rule drafts one rule', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/accounts?settings=rules' })

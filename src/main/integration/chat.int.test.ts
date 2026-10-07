@@ -540,11 +540,69 @@ describe('stop and failure', () => {
     expect(t.done.message.errorMessage).toContain('not downloaded')
   })
 
-  // chat.ts launchGeneration catch: finishTurn gets { parts: [] }, so what the
-  // renderer already showed through chat:part vanishes when the row settles
-  it.todo(
-    'TRIAGE: an error mid-turn discards parts that already streamed (src/main/llm/features/chat.ts:601-608, the aborted-reject and error branches of launchGeneration both pass parts: [])'
-  )
+  it('keeps the parts that streamed before an error, dropping a call still writing its params', async () => {
+    fakeLlm.ready()
+    const thought: ChatMessagePart = { type: 'reasoning', text: 'Adding it up', durationMs: 80 }
+    fakeLlm.onChat(async (...args) => {
+      const opts = args[2]
+      opts.onPart(0, thought)
+      opts.onPart(1, text('You spent'))
+      opts.onPart(1, text('You spent $42 on'))
+      opts.onPart(2, { type: 'functionCall', name: 'query' })
+      throw new Error('Worker crashed')
+    })
+    const t = await turn(ask('Spending?'))
+
+    const kept = [thought, text('You spent $42 on')]
+    expect(t.parts.map((e) => e.index)).toEqual([0, 1, 1, 2])
+    expect(t.done.message).toMatchObject({
+      id: t.sent.assistantMessage.id,
+      status: 'error',
+      errorMessage: 'Worker crashed',
+      parts: kept,
+      stats: null
+    })
+    expect(JSON.parse(messageRow(t.sent.assistantMessage.id).parts)).toEqual(kept)
+    expect((await api.chat.listMessages(t.sent.conversation.id)).messages[1].parts).toEqual(kept)
+
+    // an errored reply still stays out of the next turn's history
+    fakeLlm.onChat(reply([text('ok')]))
+    await turn(ask('Again', t.sent.conversation.id))
+    expect(calls[calls.length - 1][0].slice(1)).toEqual([{ type: 'user', text: 'Spending?' }])
+  })
+
+  it('keeps what streamed when a stop rejects mid-turn, closing an open thought as interrupted', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 9, 1, 9))
+    fakeLlm.ready()
+    let begin!: () => void
+    const started = new Promise<void>((resolve) => (begin = resolve))
+    fakeLlm.onChat(async (...args) => {
+      const opts = args[2]
+      opts.onPart(0, text('Looking at '))
+      opts.onPart(1, { type: 'reasoning', text: 'Which month', durationMs: null })
+      begin()
+      await new Promise<void>((resolve) => opts.signal.addEventListener('abort', () => resolve()))
+      throw opts.signal.reason
+    })
+    const t = await start(ask('Stop mid-thought'))
+    await started
+    vi.setSystemTime(new Date(2026, 9, 1, 9, 0, 2))
+    await api.chat.stop()
+    const { message } = await t.settled
+
+    const kept = [text('Looking at '), { type: 'reasoning', text: 'Which month', durationMs: 2000 }]
+    expect(message).toMatchObject({ status: 'interrupted', errorMessage: null, parts: kept })
+    expect(JSON.parse(messageRow(t.sent.assistantMessage.id).parts)).toEqual(kept)
+
+    // like any stopped partial, its text replays into the next turn
+    fakeLlm.onChat(reply([text('ok')]))
+    await turn(ask('Go on', t.sent.conversation.id))
+    expect(calls[calls.length - 1][0].slice(1)).toEqual([
+      { type: 'user', text: 'Stop mid-thought' },
+      { type: 'model', response: ['Looking at '] }
+    ])
+  })
 })
 
 describe('history and scope', () => {
@@ -843,20 +901,67 @@ describe('conversation CRUD', () => {
     expect(await api.chat.listMessages(999_999)).toEqual({ messages: [], truncatedBeforeId: null })
   })
 
-  // chat.ts listMessages and the chat:renameConversation / chat:setConversationAccount
-  // handlers filter on id alone, never deleted_at (sendChatMessage does check it)
-  it.todo(
-    'TRIAGE: listMessages returns the messages of a soft-deleted conversation (src/main/llm/features/chat.ts:314 listMessages has no deletedAt filter)'
-  )
-  it.todo(
-    'TRIAGE: rename works on a deleted conversation and logs an undoable action (src/main/ipc/chat.ts:60 renameConversation has no deletedAt filter)'
-  )
-  it.todo(
-    'TRIAGE: setConversationAccount works on a deleted conversation (src/main/ipc/chat.ts:50 setConversationAccount has no deletedAt filter)'
-  )
-  it.todo(
-    'TRIAGE: setConversationAccount with a nonexistent account rejects with a raw "FOREIGN KEY constraint failed" instead of the "Account not found" send gives (src/main/ipc/chat.ts:50)'
-  )
+  it('lists no messages for a deleted conversation until the delete is undone', async () => {
+    fakeLlm.ready()
+    fakeLlm.onChat(reply([text('ok')]))
+    const { sent } = await turn(ask('Soon hidden'))
+    const id = sent.conversation.id
+    const entry = await api.chat.delete(id)
+
+    expect(await api.chat.listMessages(id)).toEqual({ messages: [], truncatedBeforeId: null })
+    await api.actionLog.undoEntry(entry!)
+    expect((await api.chat.listMessages(id)).messages.map((m) => m.id)).toEqual([
+      sent.userMessage.id,
+      sent.assistantMessage.id
+    ])
+  })
+
+  it('refuses to rename a deleted conversation, writing and logging nothing', async () => {
+    fakeLlm.ready()
+    fakeLlm.onChat(reply([text('ok')]))
+    const { sent } = await turn(ask('Deleted title'))
+    const id = sent.conversation.id
+    const entry = await api.chat.delete(id)
+
+    const entries = count('action_log')
+    expect(await api.chat.rename({ id, title: 'Renamed in the bin' })).toBe(false)
+    expect(count('action_log')).toBe(entries)
+    expect(conversationRow(id).title).toBe('Deleted title')
+
+    await api.actionLog.undoEntry(entry!)
+    expect(await summary(id)).toMatchObject({ title: 'Deleted title' })
+    expect(await api.chat.rename({ id, title: 'Renamed after restore' })).toBe(true)
+  })
+
+  it('refuses to rescope a deleted conversation, writing nothing', async () => {
+    const acct = account({ name: 'Not for the bin' })
+    fakeLlm.ready()
+    fakeLlm.onChat(reply([text('ok')]))
+    const { sent } = await turn(ask('Deleted scope'))
+    const id = sent.conversation.id
+    const entry = await api.chat.delete(id)
+    const before = conversationRow(id)
+
+    expect(await api.chat.setAccount({ id, accountId: acct })).toBe(false)
+    expect(conversationRow(id)).toEqual(before)
+
+    await api.actionLog.undoEntry(entry!)
+    expect(await api.chat.setAccount({ id, accountId: acct })).toBe(true)
+    expect((await summary(id))?.accountId).toBe(acct)
+  })
+
+  it('refuses a missing account on setAccount, keeping the current scope', async () => {
+    const acct = account({ name: 'Current scope' })
+    fakeLlm.ready()
+    fakeLlm.onChat(reply([text('ok')]))
+    const { sent } = await turn({ conversationId: null, text: 'Scoped', accountId: acct })
+    const id = sent.conversation.id
+
+    await expect(api.chat.setAccount({ id, accountId: 999_999 })).rejects.toThrow(
+      'Account not found'
+    )
+    expect(conversationRow(id).account_id).toBe(acct)
+  })
 })
 
 describe('proposals', () => {

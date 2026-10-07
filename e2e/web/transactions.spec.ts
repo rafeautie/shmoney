@@ -79,9 +79,18 @@ test.describe('table', () => {
     expect(oldestFirst).toEqual([...oldestFirst].sort((a, b) => a - b))
   })
 
-  // data-table.tsx DataTableColumnHeader: onClick toggleSorting(sorted === 'asc') never
-  // sees 'asc' on a second click, so the active column stays ascending (3 clicks, same rows)
-  test.fixme('TRIAGE: clicking the active sort header again does not flip its direction', async () => {})
+  test('clicking the active sort header again flips its direction', async ({ app }) => {
+    const { page } = app
+    await openTransactions(app)
+    const amount = page.getByRole('button', { name: 'Amount', exact: true })
+
+    await amount.click()
+    await expect(dataRows(page).first()).toContainText('-$2,450.00')
+    await amount.click()
+    await expect(dataRows(page).first()).not.toContainText('-$')
+    await amount.click()
+    await expect(dataRows(page).first()).toContainText('-$2,450.00')
+  })
 
   test('loads more rows as the table scrolls', async ({ app }) => {
     const { page } = app

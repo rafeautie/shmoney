@@ -5,7 +5,8 @@ import { ipcErrorMessage } from './utils'
 // A failed read otherwise falls through to an "empty" state and a rejected
 // mutation vanishes silently, so surface both as a toast by default. A caller
 // that renders its own error UI (or deliberately ignores failures) opts out with
-// `meta: { silenceError: true }` on the query/mutation.
+// `meta: { silenceError: true }` on the query/mutation; a mutation with its own
+// onError has already said something, so it opts out by having one.
 function notifyError(error: unknown, meta: Record<string, unknown> | undefined): void {
   if (meta?.silenceError) return
   toast.error(ipcErrorMessage(error))
@@ -17,7 +18,10 @@ export const queryClient = new QueryClient({
     onError: (error, query) => notifyError(error, query.meta)
   }),
   mutationCache: new MutationCache({
-    onError: (error, _vars, _ctx, mutation) => notifyError(error, mutation.meta)
+    onError: (error, _vars, _ctx, mutation) => {
+      if (mutation.options.onError) return
+      notifyError(error, mutation.meta)
+    }
   }),
   defaultOptions: {
     queries: {

@@ -8,8 +8,11 @@ import {
   inArray,
   isNotNull,
   isNull,
+  like,
   lt,
   ne,
+  notInArray,
+  or,
   sql,
   type SQL
 } from 'drizzle-orm'
@@ -23,17 +26,18 @@ import {
   budgets,
   categories,
   conversations,
-  rules,
   savedFilters,
   savingsGoals,
   transactions
 } from '../db/schema'
 import { dominantCurrency } from '../budgets/summary'
 import {
-  deleteCategorySnapshot,
+  redeleteCategorySnapshot,
+  redeleteRule,
   restoreCategorySnapshot,
   restoreRuleSnapshot
 } from '../db/deletion-snapshots'
+import { IMPORT_ID_PREFIX } from '../import/dedupe'
 import { createLogger } from '../logging'
 import { escapeLike } from '../reports/filters'
 import {
@@ -194,6 +198,10 @@ function currentValueIs(field: ActionField, value: number | null): SQL {
   return sql`${col} = ${value}`
 }
 
+function categoryExists(tx: Tx, id: number): boolean {
+  return !!tx.select({ id: categories.id }).from(categories).where(eq(categories.id, id)).get()
+}
+
 // write one field on one row, but only if it still holds the value this action
 // last set it to (the guard). A row edited since is "superseded" and skipped.
 function setGuarded(
@@ -201,11 +209,14 @@ function setGuarded(
   field: ActionField,
   transactionId: number,
   target: number | null,
-  guard: number | null
+  guard: number | null,
+  extra?: SQL
 ): number {
-  const where = and(eq(transactions.id, transactionId), currentValueIs(field, guard))
+  const where = and(eq(transactions.id, transactionId), currentValueIs(field, guard), extra)
   switch (field) {
     case 'categoryId':
+      // a category deleted since can't be put back; that change is superseded
+      if (target !== null && !categoryExists(tx, target)) return 0
       return tx.update(transactions).set({ categoryId: target }).where(where).run().changes
     case 'deletedAt':
       return tx.update(transactions).set({ deletedAt: target }).where(where).run().changes
@@ -252,12 +263,7 @@ function setBudgetGuarded(
   }
   if (guard === null) {
     // the category may have been deleted since (fills cascade away); skip then
-    const cat = tx
-      .select({ id: categories.id })
-      .from(categories)
-      .where(eq(categories.id, change.categoryId))
-      .get()
-    if (!cat) return 0
+    if (!categoryExists(tx, change.categoryId)) return 0
     return tx
       .insert(budgets)
       .values({ categoryId: change.categoryId, month: change.month, amount: target })
@@ -374,9 +380,17 @@ export function sides<T>(change: { before: T; after: T }, direction: 'undo' | 'r
   return direction === 'undo' ? [change.before, change.after] : [change.after, change.before]
 }
 
+// a sync that claims an imported row gives it the bank's id, and from then on
+// it's the bank's transaction: undoing the import must leave it alone
+const stillImported = or(
+  like(transactions.simplefinId, `${IMPORT_ID_PREFIX}%`),
+  like(transactions.simplefinId, 'manual:%')
+)
+
 // undo rewinds each field to `before` (guarding on `after`); redo does the
 // reverse. Either way the guard makes it a no-op on rows touched since, so an
-// old entry can never clobber newer edits. Returns rows actually changed.
+// old entry can never clobber newer edits. Returns rows actually changed; an
+// entry whose every change was superseded keeps its state, since nothing moved.
 function applyEntry(entryId: number, direction: 'undo' | 'redo', runner: Runner = db): UndoResult {
   return runner.transaction((tx) => {
     const entry = tx.select().from(actionLog).where(eq(actionLog.id, entryId)).get()
@@ -398,25 +412,31 @@ function applyEntry(entryId: number, direction: 'undo' | 'redo', runner: Runner 
         applied +=
           direction === 'undo'
             ? restoreCategorySnapshot(tx, change.snapshot)
-            : deleteCategorySnapshot(tx, change.snapshot)
+            : redeleteCategorySnapshot(tx, change.snapshot)
       } else if (change.field === 'ruleDeleted') {
         applied +=
           direction === 'undo'
             ? restoreRuleSnapshot(tx, change.snapshot)
-            : tx.delete(rules).where(eq(rules.id, change.snapshot.id)).run().changes
+            : redeleteRule(tx, change.snapshot)
       } else if (change.field === 'description') {
         applied += setDescriptionGuarded(tx, change, direction)
       } else {
         const target = direction === 'undo' ? change.before : change.after
         const guard = direction === 'undo' ? change.after : change.before
-        applied += setGuarded(tx, change.field, change.transactionId, target, guard)
+        const extra =
+          entry.source === 'import' && change.field === 'deletedAt' && direction === 'undo'
+            ? stillImported
+            : undefined
+        applied += setGuarded(tx, change.field, change.transactionId, target, guard, extra)
       }
     }
 
-    tx.update(actionLog)
-      .set({ undoneAt: direction === 'undo' ? Date.now() : null })
-      .where(eq(actionLog.id, entryId))
-      .run()
+    if (applied > 0) {
+      tx.update(actionLog)
+        .set({ undoneAt: direction === 'undo' ? Date.now() : null })
+        .where(eq(actionLog.id, entryId))
+        .run()
+    }
 
     return { id: entryId, label: entry.label, applied }
   })
@@ -458,26 +478,33 @@ function userSessionScope(): SQL {
   return and(eq(actionLog.source, 'user'), gt(actionLog.id, sessionBaselineId)) as SQL
 }
 
-function undoNewest(): UndoResult | null {
-  const entry = db
-    .select({ id: actionLog.id })
-    .from(actionLog)
-    .where(and(userSessionScope(), isNull(actionLog.undoneAt)))
-    .orderBy(desc(actionLog.id))
-    .limit(1)
-    .get()
-  return entry ? applyEntry(entry.id, 'undo') : null
-}
+// entries a keystroke found superseded (applied 0, so left as they were): the
+// next press moves past them instead of hitting the same one forever
+const keyboardSkipped = { undo: new Set<number>(), redo: new Set<number>() }
 
-function redoNewest(): UndoResult | null {
+function applyNewest(direction: 'undo' | 'redo'): UndoResult | null {
+  const skipped = [...keyboardSkipped[direction]]
   const entry = db
     .select({ id: actionLog.id })
     .from(actionLog)
-    .where(and(userSessionScope(), isNotNull(actionLog.undoneAt)))
-    .orderBy(desc(actionLog.undoneAt), desc(actionLog.id))
+    .where(
+      and(
+        userSessionScope(),
+        direction === 'undo' ? isNull(actionLog.undoneAt) : isNotNull(actionLog.undoneAt),
+        skipped.length ? notInArray(actionLog.id, skipped) : undefined
+      )
+    )
+    .orderBy(
+      ...(direction === 'undo'
+        ? [desc(actionLog.id)]
+        : [desc(actionLog.undoneAt), desc(actionLog.id)])
+    )
     .limit(1)
     .get()
-  return entry ? applyEntry(entry.id, 'redo') : null
+  if (!entry) return null
+  const result = applyEntry(entry.id, direction)
+  if (result.applied === 0) keyboardSkipped[direction].add(entry.id)
+  return result
 }
 
 // each change joined to its current context: a transaction change to its
@@ -709,8 +736,8 @@ export function registerActionLogIpc(): void {
     entryChanges(idSchema.parse(input))
   )
   ipcMain.handle(ACTION_LOG_IPC.newestAutomatedAt, () => newestAutomatedAt())
-  ipcMain.handle(ACTION_LOG_IPC.undo, () => undoNewest())
-  ipcMain.handle(ACTION_LOG_IPC.redo, () => redoNewest())
+  ipcMain.handle(ACTION_LOG_IPC.undo, () => applyNewest('undo'))
+  ipcMain.handle(ACTION_LOG_IPC.redo, () => applyNewest('redo'))
   ipcMain.handle(ACTION_LOG_IPC.undoEntry, (_event, input: unknown) =>
     applyEntry(idSchema.parse(input), 'undo')
   )

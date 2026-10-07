@@ -260,6 +260,13 @@
       "when": 1791022305744,
       "tag": "0036_account_deletions",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1791335648321,
+      "tag": "0037_sync_account_deletions",
+      "breakpoints": true
     }
   ]
 }

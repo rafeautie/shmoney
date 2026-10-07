@@ -102,6 +102,37 @@ export function deleteCategorySnapshot(tx: Tx, snapshot: CategoryDeleteSnapshot)
 }
 
 /**
+ * Redo of a category or group delete. Compare-and-set like every other redo:
+ * it goes ahead only while everything the delete would take was there when the
+ * snapshot was made, so a rename, a new fill, a rule edit or a transaction
+ * filed under it since the undo keeps the whole thing (returns 0).
+ */
+export function redeleteCategorySnapshot(tx: Tx, snapshot: CategoryDeleteSnapshot): number {
+  const target = snapshot.group
+    ? { groupId: snapshot.group.id }
+    : snapshot.categories[0] && { categoryId: snapshot.categories[0].id }
+  const current = target ? snapshotCategories(tx, target) : null
+  if (!current || current.group?.name !== snapshot.group?.name) return 0
+  const same =
+    allKnown(JSON.stringify, snapshot.categories, current.categories) &&
+    allKnown(JSON.stringify, snapshot.budgets, current.budgets) &&
+    allKnown(ruleContent, snapshot.rules, current.rules) &&
+    allKnown(String, assignmentPairs(snapshot), assignmentPairs(current))
+  return same ? deleteCategorySnapshot(tx, snapshot) : 0
+}
+
+function allKnown<T>(key: (item: T) => string, before: T[], now: T[]): boolean {
+  const known = new Set(before.map(key))
+  return now.every((item) => known.has(key(item)))
+}
+
+function assignmentPairs(snapshot: CategoryDeleteSnapshot): string[] {
+  return snapshot.assignments.flatMap(({ categoryId, transactionIds }) =>
+    transactionIds.map((id) => `${categoryId}:${id}`)
+  )
+}
+
+/**
  * Put a deleted group/category back with its original ids. Skipped (returns 0)
  * when something has taken its place since: a group or category of the same
  * name, or the parent group of a lone category is gone. Transactions are only
@@ -177,6 +208,18 @@ export function restoreCategorySnapshot(tx: Tx, snapshot: CategoryDeleteSnapshot
 
 export function snapshotRule(tx: Tx, id: number): RuleSnapshot | null {
   return tx.select().from(rules).where(eq(rules.id, id)).get() ?? null
+}
+
+// what a rule does, to tell an edit from a renumbering (reorders move priority)
+function ruleContent(rule: RuleSnapshot): string {
+  return JSON.stringify([rule.name, rule.enabled, rule.conditions, rule.action])
+}
+
+/** Redo of a rule delete, skipped (0) when the rule was edited since the undo. */
+export function redeleteRule(tx: Tx, snapshot: RuleSnapshot): number {
+  const current = snapshotRule(tx, snapshot.id)
+  if (!current || ruleContent(current) !== ruleContent(snapshot)) return 0
+  return tx.delete(rules).where(eq(rules.id, snapshot.id)).run().changes
 }
 
 /** Reinsert a deleted rule with its id and priority, unless its target category is gone. */

@@ -23,6 +23,7 @@ export function RulesPreviewPage({ onBack }: { onBack: () => void }): React.JSX.
   const [overrideCategories, setOverrideCategories] = useState(false)
 
   const previewQuery = useQuery({
+    meta: { silenceError: true },
     queryKey: ['rules', 'preview', overrideCategories],
     queryFn: () => window.api.rules.preview({ overrideCategories }),
     staleTime: 0,
@@ -36,6 +37,7 @@ export function RulesPreviewPage({ onBack }: { onBack: () => void }): React.JSX.
   const total = groups.reduce((sum, g) => sum + g.total, 0)
 
   const apply = useMutation({
+    meta: { silenceError: true },
     mutationFn: () => window.api.rules.apply({ overrideCategories }),
     onSuccess: onBack,
     onSettled: () =>

@@ -163,6 +163,23 @@ test.describe('connection alerts', () => {
     await expect(alert.getByRole('button', { name: 'Sync again' })).toBeVisible()
   })
 
+  test('a first sync that failed before this launch is retried shortly after it', async ({
+    app
+  }) => {
+    await breakConnection(
+      app,
+      `last_synced_at = NULL, last_sync_failed_at = ${NOW_SECONDS - HOUR}, last_sync_failure = 'Bridge unreachable'`
+    )
+    await app.page.clock.fastForward(11_000)
+    await expect
+      .poll(
+        async () =>
+          (await app.sql<{ at: number | null }>('SELECT last_synced_at AS at FROM connections'))[0]
+            .at
+      )
+      .not.toBeNull()
+  })
+
   test('data older than two days is flagged as stale', async ({ app }) => {
     // Let three days pass instead of rewriting the timestamp: the app syncs
     // itself once a day, and an old timestamp would trigger that at once.
@@ -286,11 +303,19 @@ test.describe('account detail', () => {
     await expect(symbols.last()).toContainText('VTI')
   })
 
-  // data-table.tsx:47-76 (DataTableColumnHeader): a sortable header never
-  // re-renders after its sort changes, so its icon stays neutral and every
-  // click passes the stale `sorted === false`, sorting ascending again. The
-  // transactions table's headers behave the same.
-  test.fixme('TRIAGE: clicking a sorted column header again does not reverse the sort', async () => {})
+  test('clicking a sorted column header again reverses the sort', async ({ app }) => {
+    const { page } = app
+    await app.open({ route: `/accounts/${BROKERAGE}` })
+    const panel = page.getByRole('tabpanel', { name: 'Holdings' })
+    const symbols = panel.getByRole('row').filter({ hasText: /VTI|VXUS|BND/ })
+    const symbol = panel.getByRole('button', { name: 'Symbol' })
+
+    await symbol.click()
+    await expect(symbols.first()).toContainText('BND')
+    await symbol.click()
+    await expect(symbols.first()).toContainText('VXUS')
+    await expect(symbols.last()).toContainText('BND')
+  })
 
   test('cost basis and gain are hidden when no holding reports a cost', async ({ app }) => {
     const { page } = app

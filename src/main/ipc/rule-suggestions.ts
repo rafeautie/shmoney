@@ -193,6 +193,8 @@ export async function detectRuleSuggestions(
 }
 
 function listSuggestions(): RuleSuggestion[] {
+  // pending rows stay put while disabled, so turning it back on shows them again
+  if (!suggestionsEnabled()) return []
   const rows = db
     .select({
       id: ruleSuggestions.id,

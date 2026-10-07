@@ -472,7 +472,28 @@ describe('rules pre-pass and the action-log run', () => {
 })
 
 describe('without a model', () => {
-  it.todo(
-    'TRIAGE: no server-side readiness gate: categorizeTransactions (src/main/llm/features/categorize.ts:82) and the llm:categorize handler (src/main/ipc/llm.ts:55) never check a model is on disk, so with none downloaded the rules pre-pass runs and writes a run, then every group fails inside the try/catch (categorize.ts:162) and the call resolves {categorized: <rules only>, cancelled: false} with one logged error per group instead of rejecting up front'
-  )
+  it('rejects up front, before the rules pre-pass, and writes nothing', async () => {
+    const salary = category('Cat salary no model')
+    rule('Payroll no model', 'PAYROLL', salary)
+    const rows = [
+      txn(checking, { description: 'ACME PAYROLL' }),
+      txn(checking, { description: 'LATTE BAR' })
+    ]
+    const asked = script({ 'LATTE BAR': answer(dining) })
+    const before = snapshot()
+
+    fakeLlm.setStage('notDownloaded')
+    await expect(api.llm.categorize()).rejects.toThrow('Model is not ready (notDownloaded)')
+    fakeLlm.setStage('downloading')
+    await expect(api.llm.categorize()).rejects.toThrow('Model is not ready (downloading)')
+
+    expect(snapshot()).toEqual(before)
+    expect(rows.map(categoryOf)).toEqual([null, null])
+    expect([count('action_runs'), count('action_log')]).toEqual([0, 0])
+    expect(asked).toEqual([])
+
+    // the gate holds no lock: a run goes through once the model is on disk
+    fakeLlm.ready()
+    expect(await api.llm.categorize()).toEqual({ categorized: 2, cancelled: false })
+  })
 })

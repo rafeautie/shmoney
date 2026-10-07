@@ -14,11 +14,13 @@ const log = createLogger('simplefin')
  * institutions, so loggers must record `codes` and never the message.
  */
 export class SfinErrlistError extends Error {
+  readonly errlist: { code: string; msg: string }[]
   readonly codes: string[]
 
   constructor(errlist: { code: string; msg: string }[]) {
     super(errlist.map((e) => e.msg).join('; '))
     this.name = 'SfinErrlistError'
+    this.errlist = errlist.map((e) => ({ code: e.code, msg: e.msg }))
     this.codes = errlist.map((e) => e.code)
   }
 }
@@ -53,7 +55,8 @@ const sfinAccountSchema = z.looseObject({
   // failing the parse — and with it the sync — for every account on the bridge
   balance: z.string().optional(),
   'available-balance': z.string().optional(),
-  'balance-date': z.number(),
+  // optional for the same reason; a balance without one is taken as of the sync
+  'balance-date': z.number().optional(),
   transactions: z.array(sfinTransactionSchema).default([]),
   holdings: z.array(sfinHoldingSchema).default([])
 })

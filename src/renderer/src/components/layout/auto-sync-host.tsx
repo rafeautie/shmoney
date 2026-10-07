@@ -31,22 +31,32 @@ export function AutoSyncHost(): null {
 
   const { data: connection } = useQuery(connectionOptions)
   const lastSyncedAt = connection?.lastSyncedAt ?? null
+  // a connection whose first sync failed has nothing to count a day from; it
+  // retries once on the next launch, like a failed daily sync (one that just
+  // failed in this session is the connect flow's to retry)
+  const firstSyncFailed =
+    connection != null &&
+    lastSyncedAt === null &&
+    connection.lastSyncFailedAt !== null &&
+    connection.lastSyncFailedAt * 1000 < launchedAt
 
   // the lastSyncedAt we last kicked a sync off for. After mutate() fires, the
   // connection query refetches and isPending flips before lastSyncedAt lands, so
   // guard on the timestamp itself to avoid re-firing for the same stale value.
   // A failed auto-sync leaves lastSyncedAt untouched, so it won't retry in a
   // loop; the next launch (fresh mount) gives it one more try.
-  const triggeredFor = useRef<number | null>(null)
+  const triggeredFor = useRef<number | 'never' | null>(null)
 
   useEffect(() => {
-    // never synced (or no connection): the connect flow owns the first sync
-    if (lastSyncedAt === null) return
+    // never attempted, or the connect flow's first sync is still running: that
+    // flow owns it
+    if (lastSyncedAt === null && !firstSyncFailed) return
 
     const check = (): void => {
-      if (Date.now() - lastSyncedAt * 1000 < DAY_MS) return
-      if (triggeredFor.current === lastSyncedAt) return
-      triggeredFor.current = lastSyncedAt
+      if (lastSyncedAt !== null && Date.now() - lastSyncedAt * 1000 < DAY_MS) return
+      const key = lastSyncedAt ?? 'never'
+      if (triggeredFor.current === key) return
+      triggeredFor.current = key
       mutate()
     }
 
@@ -56,7 +66,7 @@ export function AutoSyncHost(): null {
       window.clearTimeout(first)
       window.clearInterval(id)
     }
-  }, [lastSyncedAt, mutate])
+  }, [lastSyncedAt, firstSyncFailed, mutate])
 
   return null
 }

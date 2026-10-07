@@ -167,7 +167,13 @@ describe('CSV through preview', () => {
     ])
   })
 
-  it.todo('TRIAGE: European number format 1.234,56 parses silently wrong (as 1.235)')
+  it('reads European decimal commas in a semicolon file', async () => {
+    const file = await pickCsv(
+      ['Date;Description;Amount', '01/05/2024;Rent;-1.234,56', '01/06/2024;Bakery;-3,20'].join('\n')
+    )
+    const preview = await api.import.preview({ handle: file.handle, mapping: SINGLE })
+    expect(preview.rows.map((r) => r.amount)).toEqual([-1_234_560, -3_200])
+  })
 
   it('requires a mapping to preview a CSV', async () => {
     const file = await pickCsv('Date,Description,Amount\n01/05/2024,X,-1.00')

@@ -36,6 +36,7 @@ export function useConnectSimpleFin(options?: { onConnected?: () => void }) {
 
   const connect = useMutation({
     mutationFn: () => window.api.connection.connect({ setupToken }),
+    meta: { silenceError: true },
     onSuccess: () => {
       setSetupToken('')
       queryClient.invalidateQueries()

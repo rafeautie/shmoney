@@ -287,10 +287,16 @@ test.describe('inline fill editing', () => {
     await expect.poll(() => app.sql(HOBBIES_FILL)).toEqual([{ amount: 50_000 }])
   })
 
-  // src/renderer/src/components/budget/envelope-fields.tsx:50 commits whatever
-  // parseDollars returns, and parseDollars('') is 0, so clearing the field to
-  // retype it sets the fill to $0 instead of leaving it alone
-  test.fixme('TRIAGE: clearing the fill input and pressing Enter sets the fill to $0', async () => {})
+  test('clearing the fill input and pressing Enter leaves the fill alone', async ({ app }) => {
+    await openCards(app)
+    const card = envelopeCard(app, 'Hobbies')
+    const before = await app.sql(HOBBIES_FILL)
+    await card.getByRole('button', { name: '$75.00' }).click()
+    await card.getByRole('textbox').fill('')
+    await card.getByRole('textbox').press('Enter')
+    await expect(card.getByRole('button', { name: '$75.00' })).toBeVisible()
+    expect(await app.sql(HOBBIES_FILL)).toEqual(before)
+  })
 
   test('Ctrl+Z reverts a fill change and offers Redo', async ({ app }) => {
     await openTable(app)

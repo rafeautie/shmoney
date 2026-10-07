@@ -251,12 +251,12 @@ test.describe('opening statement files from the OS', () => {
     return desktop.launch(args)
   }
 
-  // src/main/index.ts:146 sends the file on did-finish-load, but the renderer
-  // only subscribes (import-file-host.tsx useEffect) after main.tsx's top-level
-  // await on settings.initial() and the first render, so the message is lost and
-  // the dialog never opens. The same payload sent after mount opens it (see the
-  // second-instance test below).
-  test.fixme('TRIAGE: a statement path on a cold launch is dropped before the renderer listens', async () => {})
+  test('a statement path on a cold launch opens the import dialog', async ({ desktop }) => {
+    const { window: page } = await returningUser(desktop, [ofx])
+    const dialog = importDialog(page)
+    await expect(dialog.getByText('Pick the account these transactions belong to.')).toBeVisible()
+    await expect(dialog.getByText('export.ofx · 2 transactions')).toBeVisible()
+  })
 
   test('a .csv path and a missing path are ignored on a cold launch', async ({ desktop }) => {
     const { window: page } = await returningUser(desktop, [csv, missing])

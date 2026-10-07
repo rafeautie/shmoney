@@ -166,10 +166,14 @@ test.describe('date range', () => {
     await expect(column(page, 2).filter({ hasText: 'Sep 13, 2026' })).toHaveCount(0)
   })
 
-  // filter-controls.tsx presetKey: a relative range that is not one of the presets
-  // falls through to 'all': loading the 'Eating out, last 90 days' preset keeps
-  // the rows to the last 90 days while the select reads "All time"
-  test.fixme('TRIAGE: a non-preset relative date range is labelled "All time"', async () => {})
+  test('a relative range outside the presets is labelled by what it is', async ({ app }) => {
+    const { page } = app
+    await openTransactions(app)
+    await savedButton(page).click()
+    await preset(page, 'Eating out, last 90 days').click()
+    await expect(selectBox(page, 'Last 90 days')).toBeVisible()
+    await expect(selectBox(page, 'All time')).toHaveCount(0)
+  })
 })
 
 test.describe('accounts and categories', () => {
@@ -534,9 +538,16 @@ test.describe('drill-down filters from the URL', () => {
     await expect(page.getByRole('button', { name: 'All categories' })).toBeVisible()
   })
 
-  // routes/accounts.index.tsx seedFilters returns {} on a failed parse, but the router
-  // still merges the raw param over the validated search, so an invalid filters value
-  // is applied as-is: direction "sideways" shows a bogus select (More 2, Reset), and
-  // {"foo":1} hits the page error boundary ("reading 'kind'" of an undefined dateRange)
-  test.fixme('TRIAGE: a filters URL param that fails validation is applied raw', async () => {})
+  for (const [name, filters] of [
+    ['an unknown shape', { foo: 1 }],
+    ['an invalid direction', { dateRange: { kind: 'all' }, direction: 'sideways' }]
+  ] as const) {
+    test(`ignores ${name} and opens unfiltered`, async ({ app }) => {
+      const { page } = app
+      await app.open({ route: `${ROUTE}&filters=${encodeURIComponent(JSON.stringify(filters))}` })
+      await expect(page.getByRole('row').nth(1)).toBeVisible()
+      await expect(resetButton(page)).toHaveCount(0)
+      await expect(moreButton(page)).toHaveAccessibleName('More')
+    })
+  }
 })

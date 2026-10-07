@@ -1,7 +1,7 @@
 import { expect } from 'vitest'
 import type { ActionChange, SyncResult } from '@shared/ipc'
 import { db } from '../../../demo/db'
-import { accounts, connections, rules } from '../../db/schema'
+import { accounts, connections, deletedSyncAccounts, rules } from '../../db/schema'
 import { api } from './api'
 import { query } from './db'
 
@@ -95,11 +95,12 @@ export async function guardedSync(): Promise<SyncResult> {
   return result
 }
 
-/** Back to a blank slate for the next spec: no connection, accounts, or rules. */
+/** Back to a blank slate for the next spec: no connection, accounts, tombstones, or rules. */
 export async function resetSyncState(): Promise<void> {
   await api.connection.disconnect()
   db.delete(accounts).run()
   db.delete(connections).run()
+  db.delete(deletedSyncAccounts).run()
   db.delete(rules).run()
   await api.settings.set('detectTransfers', true)
   await api.settings.set('applyRulesOnSync', true)

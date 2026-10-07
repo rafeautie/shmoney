@@ -47,7 +47,8 @@ export function EditableFill({
   }
 
   const commit = (): void => {
-    const amount = parseDollars(draft)
+    // an emptied field is a cancel, not $0 (parseDollars reads '' as 0); type 0 for that
+    const amount = draft.trim() === '' ? null : parseDollars(draft)
     if (amount !== null && amount !== envelope.fill)
       setFill.mutate({ categoryId: envelope.categoryId, month, amount })
     setDraft(null)

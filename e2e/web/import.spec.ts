@@ -392,8 +392,14 @@ test.describe('csv import', () => {
 
     await expect(mappingSelect(dialog, 'Date')).toHaveText('Select a column')
     await expect(next(dialog)).toBeDisabled()
+    // each role on its own leaves the mapping incomplete
     await chooseColumn(page, dialog, 'Date', 'When')
+    await expect(next(dialog)).toBeDisabled()
     await chooseColumn(page, dialog, 'Description', 'What')
+    await expect(next(dialog)).toBeDisabled()
+    await chooseColumn(page, dialog, 'Amount', 'Separate debit / credit columns')
+    await chooseColumn(page, dialog, 'Debit (money out)', 'How much')
+    await expect(next(dialog)).toBeDisabled()
     await chooseColumn(page, dialog, 'Amount', 'How much')
     await expect(next(dialog)).toBeEnabled()
     await next(dialog).click()
@@ -521,13 +527,6 @@ test.describe('csv import', () => {
     const [account] = await app.sql<{ id: number }>("SELECT id FROM accounts WHERE name = 'Picky'")
     expect((await transactionsOf(app, account.id)).map((t) => t.description)).toEqual(['PAYCHECK'])
   })
-
-  // import-dialog.tsx:447 and :596-618: a half-filled mapping is still sent
-  // upward (unset roles are -1) and `!mapping` is the only gate on Next, so
-  // picking just the Date column enables Next, and the preview then shows the
-  // raw zod issue list ("too_small ... mapping.descriptionColumn") after the
-  // query's retries instead of keeping Next disabled
-  test.fixme('TRIAGE: a partial CSV mapping enables Next and shows a raw ZodError', async () => {})
 
   // import-dialog.tsx:660-672: the Amount select's value is null whenever the
   // mapping isn't a single column, so with separate debit / credit columns

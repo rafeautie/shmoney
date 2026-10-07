@@ -130,6 +130,73 @@ describe('compare-and-set', () => {
     ])
   })
 
+  it('an undo that changes nothing leaves the entry applied, and redo leaves it undone', async () => {
+    const [a, b, c] = [category(), category(), category()]
+    const t = txn(checking, { categoryId: a })
+    await recategorize(t, b)
+    const first = newestEntry()
+    await recategorize(t, c)
+
+    expect((await api.actionLog.undoEntry(first)).applied).toBe(0)
+    expect(undoneAt(first)).toBeNull()
+
+    await recategorize(t, b)
+    expect((await api.actionLog.undoEntry(first)).applied).toBe(1)
+    const stamp = undoneAt(first)
+    await recategorize(t, c)
+    expect((await api.actionLog.redoEntry(first)).applied).toBe(0)
+    expect(undoneAt(first)).toBe(stamp)
+  })
+
+  it('undo of a category change skips a category deleted since', async () => {
+    const [gone, kept] = [category(), category()]
+    const t = txn(checking, { categoryId: gone })
+    await recategorize(t, kept)
+    const moved = newestEntry()
+    await api.categories.delete(gone)
+
+    const result = await api.actionLog.undoEntry(moved)
+
+    expect(result.applied).toBe(0)
+    expect(categoryOf(t)).toBe(kept)
+  })
+
+  it('redo of a rule delete skips a rule edited since the undo', async () => {
+    const id = rule('Coffee', 'coffee', category())
+    const deleted = (await api.rules.delete(id))!
+    await api.actionLog.undoEntry(deleted)
+    await api.rules.update({ id, name: 'Coffee shops' })
+
+    expect((await api.actionLog.redoEntry(deleted)).applied).toBe(0)
+    expect(query(`SELECT name FROM rules WHERE id = ${id}`)).toEqual([{ name: 'Coffee shops' }])
+
+    await api.rules.update({ id, name: 'Coffee' })
+    expect((await api.actionLog.redoEntry(deleted)).applied).toBe(1)
+    expect(count('rules', `id = ${id}`)).toBe(0)
+  })
+
+  it('redo of a category delete skips one renamed or budgeted since the undo', async () => {
+    const renamed = category('Hobbies')
+    const renameDelete = (await api.categories.delete(renamed))!
+    await api.actionLog.undoEntry(renameDelete)
+    await api.categories.rename({ id: renamed, name: 'Crafts' })
+    expect((await api.actionLog.redoEntry(renameDelete)).applied).toBe(0)
+    expect(count('categories', `id = ${renamed}`)).toBe(1)
+
+    const budgeted = category('Pets')
+    const budgetDelete = (await api.categories.delete(budgeted))!
+    await api.actionLog.undoEntry(budgetDelete)
+    await api.budgets.setFill({ categoryId: budgeted, month: '2026-09', amount: 50_000 })
+    expect((await api.actionLog.redoEntry(budgetDelete)).applied).toBe(0)
+    expect(count('budgets', `category_id = ${budgeted}`)).toBe(1)
+
+    const untouched = category('Untouched')
+    const plainDelete = (await api.categories.delete(untouched))!
+    await api.actionLog.undoEntry(plainDelete)
+    expect((await api.actionLog.redoEntry(plainDelete)).applied).toBe(1)
+    expect(count('categories', `id = ${untouched}`)).toBe(0)
+  })
+
   it('undo of a saved filter delete skips when a live preset took the name', async () => {
     const original = await api.savedFilters.create({
       name: 'Big spends',
@@ -328,6 +395,20 @@ describe('keyboard undo and redo', () => {
     }
     return { ids, entries }
   }
+
+  it('moves past a superseded entry instead of sticking on it', async () => {
+    const [a, b] = [category(), category()]
+    const { ids, entries } = await userEdits(1)
+    const t = txn(checking, { categoryId: a })
+    await recategorize(t, b)
+    const superseded = newestEntry()
+    query(`UPDATE transactions SET category_id = NULL WHERE id = ${t}`)
+
+    expect(await api.actionLog.undo()).toMatchObject({ id: superseded, applied: 0 })
+    expect(await api.actionLog.undo()).toMatchObject({ id: entries[0], applied: 1 })
+    expect(amountOf(ids[0])).toBe(-1000)
+    expect(undoneAt(superseded)).toBeNull()
+  })
 
   it('skips an automated entry that is newer than the user entry', async () => {
     const target = category()
@@ -733,15 +814,6 @@ describe('a random session', () => {
 // written up rather than asserted, so the suite stays green until someone
 // decides what the behavior should be.
 describe('triage', () => {
-  it.todo(
-    'TRIAGE: an undo that applied 0 rows still stamps undone_at. Repro: recategorize a row A to B (entry 1), then B to C; undoEntry(1) resolves { applied: 0 }, leaves the row on C, but entry 1 now has undone_at set, so Activity shows it as "Undone" although nothing was undone, and redo() will pick it up. applyEntry writes undoneAt unconditionally (action-log.ts, the tx.update(actionLog).set({ undoneAt ... }) after the change loop)'
-  )
-  it.todo(
-    'TRIAGE: undoing a categoryId change onto a since-deleted category throws a raw FK error. Repro: recategorize a row A to B (entry 1), delete category A, undoEntry(1) rejects with "FOREIGN KEY constraint failed"; the transaction rolls back so undone_at stays null and the entry cannot be undone until the category delete is undone first. setGuarded (action-log.ts) writes categoryId with no existence check, unlike setBudgetGuarded which skips when the category is gone and restoreRuleSnapshot which checks its target. Inside undoRun it fails the whole run'
-  )
-  it.todo(
-    'TRIAGE: redo of a rule or category delete is not compare-and-set. Repro: delete a rule (entry 1), undoEntry(1), edit the rule via rules.update, redoEntry(1) resolves { applied: 1 } and deletes the edited rule. Same for categories: after undo, rename the category and set a budget fill on it, redo deletes both (applyEntry redo branches: tx.delete(rules).where(eq(rules.id, snapshot.id)) and deleteCategorySnapshot in deletion-snapshots.ts delete by id with no guard against changes made since the undo)'
-  )
   it.todo(
     'TRIAGE: keyboard redo breaks ties on undone_at (milliseconds) by id DESC, which is the wrong end of an undo chain. Repro: two user entries E1 < E2, undo() twice inside one millisecond (E2 then E1), redo() picks E2 (applied 0, because E1 is still undone and E2 is guarded on the result of E1) instead of E1; E2 is then marked applied with its change missing. redoNewest orders by desc(undoneAt), desc(id) (action-log.ts). Needs sub-millisecond undos, so low severity, but a held Ctrl+Z autorepeat on a fast machine is close; the model test advances the clock between steps to avoid it'
   )

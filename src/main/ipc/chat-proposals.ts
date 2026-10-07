@@ -164,7 +164,8 @@ export function undoProposal(input: UndoProposalInput): ChatMessage {
     if (display.applied === 0) throw new Error('That proposal changed nothing to undo')
     if (display.actionId === null)
       throw new Error("That change is no longer in the Activity history, so it can't be undone")
-    undoAction(display.actionId, tx)
+    if (undoAction(display.actionId, tx).applied === 0)
+      throw new Error('Those transactions were changed since, so there is nothing to undo')
     const parts = withDisplay(message.parts, input.partIndex, undoneDisplay(display))
     tx.update(chatMessages).set({ parts }).where(eq(chatMessages.id, message.id)).run()
     return { ...message, parts }

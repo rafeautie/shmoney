@@ -156,6 +156,7 @@ export function ImportDialog({
   const { mutate: pickFile, ...pick } = useMutation({
     mutationFn: (dropped?: { fileName: string; bytes: Uint8Array }) =>
       window.api.import.pickFile(dropped ? { dropped } : undefined),
+    meta: { silenceError: true },
     onSuccess: (result) => {
       if (!result) return // canceled the native dialog
       setFile(result)
@@ -177,7 +178,8 @@ export function ImportDialog({
     pickFile({ fileName: dropped.name, bytes })
   }
 
-  const csvMapping = file?.kind === 'csv' ? (mapping ?? undefined) : undefined
+  const csvMapping =
+    file?.kind === 'csv' && mapping && mappingComplete(mapping) ? mapping : undefined
   const previewAccountId = mode === 'existing' && accountId !== null ? accountId : undefined
   const preview = useQuery({
     queryKey: ['import', 'preview', handle, csvMapping, previewAccountId],
@@ -188,6 +190,7 @@ export function ImportDialog({
         accountId: previewAccountId
       }),
     select: toPreviewData,
+    meta: { silenceError: true },
     enabled: open && step === 'preview' && !!handle && (file?.kind !== 'csv' || !!csvMapping),
     // the file is fixed under its handle, so Back -> Next can reuse the result;
     // closing the dialog drops it
@@ -223,6 +226,7 @@ export function ImportDialog({
       : newCurrency
 
   const apply = useMutation({
+    meta: { silenceError: true },
     mutationFn: () => {
       const excluded = (previewData?.rows ?? [])
         .filter((row) => row.status !== 'duplicate' && !isIncluded(row))
@@ -444,7 +448,7 @@ export function ImportDialog({
                 </Button>
               )}
               {step === 'mapping' && (
-                <Button className="w-16" onClick={next} disabled={!mapping}>
+                <Button className="w-16" onClick={next} disabled={!csvMapping}>
                   Next
                 </Button>
               )}
@@ -593,6 +597,14 @@ function ColumnSelect({
   )
 }
 
+/** every role has a column; until then the mapping can't preview or import */
+function mappingComplete(mapping: CsvMapping): boolean {
+  const { amount } = mapping
+  const columns =
+    amount.kind === 'single' ? [amount.column] : [amount.debitColumn, amount.creditColumn]
+  return [mapping.dateColumn, mapping.descriptionColumn, ...columns].every((c) => c >= 0)
+}
+
 function CsvMappingFields({
   headers,
   sampleRows,
@@ -607,8 +619,8 @@ function CsvMappingFields({
   onChange: (mapping: CsvMapping) => void
 }): React.JSX.Element {
   const invertId = useId()
-  // partial edits need somewhere to live before every role is filled; fall back
-  // to sentinel -1 indexes and only emit complete mappings upward
+  // partial edits need somewhere to live before every role is filled, so unset
+  // roles hold a sentinel -1 (see mappingComplete)
   const base: CsvMapping = mapping ?? {
     dateColumn: -1,
     dateFormat: CSV_DATE_FORMATS[0],

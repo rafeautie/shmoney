@@ -67,6 +67,9 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
   const connecting = connect.isPending
   const syncing = connect.isSuccess && !syncConnection.isSuccess && !syncConnection.isError
   const connected = syncConnection.isSuccess || (!flowStarted && connectionQuery.data != null)
+  // connected but the first sync failed: the token is spent, so the way on is a
+  // retry, or finishing and leaving it to the next launch's sync
+  const syncFailed = connect.isSuccess && syncConnection.isError
   const busy = connecting || syncing
 
   const viewAccounts = (): void => {
@@ -105,7 +108,7 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
               connecting={connecting}
               syncing={syncing}
               connected={connected}
-              syncError={syncConnection.isError ? ipcErrorMessage(syncConnection.error) : null}
+              syncError={syncFailed ? ipcErrorMessage(syncConnection.error) : null}
             />
           )}
         </div>
@@ -130,6 +133,13 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
               </Button>
             ) : connected ? (
               <Button onClick={viewAccounts}>View accounts</Button>
+            ) : syncFailed ? (
+              <>
+                <Button variant="ghost" onClick={viewAccounts}>
+                  Finish
+                </Button>
+                <Button onClick={() => syncConnection.mutate()}>Try again</Button>
+              </>
             ) : (
               <Button disabled={!setupToken.trim() || busy} onClick={() => connect.mutate()}>
                 {connecting ? 'Connecting…' : syncing ? 'Syncing…' : 'Connect'}
@@ -319,12 +329,16 @@ function PasteTokenStep({
     ? "You're all set!"
     : busy
       ? 'Setting up your accounts'
-      : 'Paste your setup token'
+      : syncError
+        ? 'Connected, but the first sync failed'
+        : 'Paste your setup token'
   const description = connected
     ? 'shmoney is connected and your accounts are synced.'
     : busy
       ? 'Hang tight while shmoney links your accounts and pulls in your data.'
-      : 'Almost done: paste the SimpleFIN token to link your accounts and run your first sync.'
+      : syncError
+        ? 'Try the sync again, or finish now and shmoney will retry the next time it starts.'
+        : 'Almost done: paste the SimpleFIN token to link your accounts and run your first sync.'
 
   return (
     <>
@@ -358,6 +372,8 @@ function PasteTokenStep({
             </p>
           </div>
         </div>
+      ) : syncError ? (
+        <p className="text-sm text-destructive">Sync failed: {syncError}</p>
       ) : (
         <div className="space-y-2">
           <Label htmlFor="onboarding-setup-token">Setup token</Label>
@@ -369,7 +385,6 @@ function PasteTokenStep({
             autoFocus
           />
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {syncError && <p className="text-sm text-destructive">Sync failed: {syncError}</p>}
         </div>
       )}
     </>

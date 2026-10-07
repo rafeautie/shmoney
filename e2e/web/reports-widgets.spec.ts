@@ -485,10 +485,23 @@ test.describe('widget states', () => {
     await expect(target.getByRole('row').nth(1)).toBeVisible()
   })
 
-  test.fixme('TRIAGE: a failing widget query shows the in-card error and also a toast', async () => {
-    // use-widget-data.ts useQuery has no meta.silenceError, so the global QueryCache handler
-    // (lib/query-client.ts) toasts while widget-renderer.tsx renders WidgetError. Confirmed:
-    // with runQuery rejecting, each failing widget leaves a toast beside its error card.
+  test('a failing widget query shows its error in the card only, with no toast', async ({
+    app
+  }) => {
+    const { page } = app
+    await app.open({ route: '/accounts' })
+    await page.evaluate(() => {
+      window.api.reports.runQuery = () => Promise.reject(new Error('query exploded'))
+    })
+    await page.evaluate(() => {
+      window.location.hash = '#/reports/2'
+    })
+    const target = card(page, 'Top categories')
+    await expect(async () => {
+      await page.clock.fastForward(5000)
+      await expect(target.getByText('This widget could not load')).toBeVisible({ timeout: 500 })
+    }).toPass()
+    await expect(page.locator('[data-sonner-toast]')).toHaveCount(0)
   })
 })
 
@@ -567,10 +580,23 @@ test.describe('drill down', () => {
     await expect(row).toHaveAttribute('tabindex', '0')
   })
 
-  test.fixme('TRIAGE: clicking an ungrouped category-group mark does nothing', async () => {
-    // shared/report-drill.ts returns null when a categoryGroup mark includes a null group id,
-    // so use-drill.ts silently skips the navigation. Confirmed on a summary table grouped by
-    // category group: Needs and Wants open their transactions, the Uncategorized row does not.
+  test('clicking the ungrouped row of a category-group table drills to it', async ({ app }) => {
+    const { page } = app
+    // regroup the table before the report page first reads it
+    await app.open({ route: '/accounts' })
+    await app.sql(
+      `UPDATE report_widgets SET config = json_set(config, '$.query.groupBy', 'categoryGroup')
+       WHERE title = 'Top categories'`
+    )
+    await page.evaluate(() => (location.hash = '/reports/2'))
+    const table = card(page, 'Top categories')
+    await table.getByRole('row', { name: /Uncategorized/ }).click()
+
+    await expect(page).toHaveURL(/#\/accounts\?tab=transactions/)
+    const filters = drilledFilters(page)
+    expect(filters).toMatchObject({ includeUncategorized: true, direction: 'expense' })
+    expect(filters.categoryGroupIds).toBeUndefined()
+    await expect(page.getByRole('row').nth(1)).toBeVisible()
   })
 })
 
