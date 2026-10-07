@@ -139,7 +139,7 @@ export function EntryRow({
           <HugeiconsIcon
             icon={ArrowDown01Icon}
             size={14}
-            className="shrink-0 text-muted-foreground transition-transform group-data-open/entry:rotate-180"
+            className="shrink-0 text-muted-foreground transition-transform group-data-open/entry:rotate-180 motion-reduce:transition-none"
           />
         </CollapsibleTrigger>
       </div>

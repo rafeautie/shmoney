@@ -14,10 +14,11 @@ function CollapsibleTrigger({ ...props }: CollapsiblePrimitive.Trigger.Props) {
 
 function CollapsibleContent({
   className,
-  animated = false,
+  animated = true,
   ...props
 }: CollapsiblePrimitive.Panel.Props & {
-  /** ease the panel's height and fade its content on open and close */
+  /** ease the panel's height and fade its content on open and close; every
+   * disclosure does, so pass false only for a panel that brings its own motion */
   animated?: boolean
 }) {
   return (

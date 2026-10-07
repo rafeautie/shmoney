@@ -30,11 +30,14 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { ReportGrid } from '@/components/reports/report-grid'
+import { CHROME_ENTER, CHROME_FADE, CHROME_FADE_MS } from '@/components/reports/edit-chrome'
 import { FilterBar } from '@/components/transactions/filter-bar'
 import { AddWidgetButton, WidgetEditor } from '@/components/reports/widget-editor'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { NotFoundScreen } from '@/components/error-screen'
 import { reportOptions } from '@/lib/queries'
+import { usePresence } from '@/lib/use-presence'
+import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/reports/$reportId')({
   loader: async ({ context, params }) => {
@@ -63,6 +66,7 @@ function ReportPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
+  const addPresent = usePresence(editing, CHROME_FADE_MS)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorWidget, setEditorWidget] = useState<ReportWidget | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -198,11 +202,18 @@ function ReportPage() {
   return (
     <Page className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        {editing ? (
+        {/* the title and its rename field share one cell and crossfade */}
+        <div className="grid min-w-0 flex-1 items-center *:col-start-1 *:row-start-1">
           <Input
-            key={detail.report.name}
+            // reseeds on every entry, so an abandoned draft never lingers
+            key={`${detail.report.name}-${editing}`}
             defaultValue={detail.report.name}
-            className="h-8 max-w-sm text-lg font-semibold"
+            inert={!editing}
+            className={cn(
+              'h-8 max-w-sm text-lg font-semibold',
+              CHROME_FADE,
+              !editing && 'opacity-0'
+            )}
             onBlur={(e) => {
               const name = e.target.value.trim()
               if (name && name !== detail.report.name) renameMutation.mutate(name)
@@ -211,18 +222,26 @@ function ReportPage() {
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
             }}
           />
-        ) : (
-          <h2 className="truncate text-2xl font-semibold tracking-tight select-text">
+          <h2
+            inert={editing}
+            className={cn(
+              'truncate text-2xl font-semibold tracking-tight select-text',
+              CHROME_FADE,
+              editing && 'opacity-0'
+            )}
+          >
             {detail.report.name}
           </h2>
-        )}
+        </div>
         <div className="flex shrink-0 items-center gap-2">
-          {editing && (
-            <AddWidgetButton
-              reportId={id}
-              reportFilters={detail.report.filters}
-              nextPosition={nextPosition}
-            />
+          {addPresent && (
+            <div inert={!editing} className={cn(CHROME_ENTER, !editing && 'opacity-0')}>
+              <AddWidgetButton
+                reportId={id}
+                reportFilters={detail.report.filters}
+                nextPosition={nextPosition}
+              />
+            </div>
           )}
           <Button variant={editing ? 'default' : 'outline'} onClick={() => setEditing(!editing)}>
             {editing ? 'Done' : 'Edit'}

@@ -97,7 +97,7 @@ export function ToolCallCard({
           className="-ml-0.5 size-3.5 transition-[rotate] duration-200 ease-out group-data-panel-open/tool:rotate-90 motion-reduce:transition-none"
         />
       </CollapsibleTrigger>
-      <CollapsibleContent animated>
+      <CollapsibleContent>
         <div className="mt-1.5 flex flex-col gap-2 rounded-lg border bg-muted/30 p-2 text-xs">
           {input !== undefined && <InputSection value={input} />}
           {output !== undefined && <OutputSection value={output} />}

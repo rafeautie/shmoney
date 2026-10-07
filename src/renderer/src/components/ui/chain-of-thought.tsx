@@ -51,7 +51,7 @@ export function ChainOfThoughtContent({
   // margin outside it, so it collapses with the panel and the first step's
   // connector (which reaches up into it) isn't clipped
   return (
-    <CollapsibleContent animated {...props}>
+    <CollapsibleContent {...props}>
       <div className={cn('space-y-3 pt-1.5', className)}>{children}</div>
     </CollapsibleContent>
   )

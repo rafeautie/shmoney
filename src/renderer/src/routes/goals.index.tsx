@@ -117,7 +117,7 @@ function GoalsPage() {
               >
                 Archived · {plural(archived.length, 'goal')}
               </CollapsibleTrigger>
-              <CollapsibleContent className="mt-4">
+              <CollapsibleContent className="pt-4">
                 {goalsView === 'table' ? (
                   <GoalsTable goals={archived} savedThisMonth={savedThisMonth} />
                 ) : (

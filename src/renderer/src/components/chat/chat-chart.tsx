@@ -8,6 +8,7 @@ import { formatBucketLabel } from '@/lib/format-date'
 import { Chart, type FormatValue } from '@/components/charts/chart'
 import { ChatTableViewport } from '@/components/chat/chat-table'
 import { PrivateText } from '@/components/amount'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 
 // A chart the model composed over its own query result, rendered from the
 // persisted part (or the streamed equivalent). Values are real amounts (the
@@ -66,7 +67,8 @@ export const ChatChart = memo(function ChatChart({
   series,
   data,
   currency,
-  asOf
+  asOf,
+  fadeIn = false
 }: {
   spec: ChartSpec
   /** resolved series labels; spec.series unless a pivot renamed the lines */
@@ -75,8 +77,12 @@ export const ChatChart = memo(function ChatChart({
   currency: string | null
   /** unix ms the chart was generated; omit while streaming (it's live) */
   asOf?: number
+  /** fade in on mount: the chart just arrived in a live turn */
+  fadeIn?: boolean
 }) {
   const [showData, setShowData] = useState(false)
+  // held from mount so the class can't drop mid-fade when the turn settles
+  const [arrived] = useState(fadeIn)
   const seriesIndexes = new Set(series.map((name) => data.columns.indexOf(name)))
   const formatValue: FormatValue = (v, opts) => formatChatValue(v, currency, opts?.compact)
 
@@ -130,9 +136,14 @@ export const ChatChart = memo(function ChatChart({
     statValue === null ? [] : [{ value: statValue, currency, colored: false, change: statChange }]
 
   return (
-    <div
+    <Collapsible
+      open={showData}
+      onOpenChange={setShowData}
       data-slot="chat-chart"
-      className="overflow-hidden rounded-lg border bg-muted/30 p-3 text-xs"
+      className={cn(
+        'overflow-hidden rounded-lg border bg-muted/30 p-3 text-xs',
+        arrived && 'animate-in duration-300 fade-in-0 motion-reduce:animate-none'
+      )}
     >
       <div className="flex items-start justify-between gap-2 pb-2">
         <div className="font-medium">{spec.title}</div>
@@ -140,18 +151,17 @@ export const ChatChart = memo(function ChatChart({
           {asOf !== undefined && (
             <span className="text-muted-foreground">as of {format(asOf, 'MMM d, yyyy')}</span>
           )}
-          <button
-            type="button"
-            onClick={() => setShowData((v) => !v)}
-            className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
-          >
+          <CollapsibleTrigger className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground">
             Data
             <HugeiconsIcon
               icon={ArrowDown01Icon}
               strokeWidth={2}
-              className={cn('size-3.5 transition-transform', showData && 'rotate-180')}
+              className={cn(
+                'size-3.5 transition-transform motion-reduce:transition-none',
+                showData && 'rotate-180'
+              )}
             />
-          </button>
+          </CollapsibleTrigger>
         </div>
       </div>
       {spec.type === 'stat' ? (
@@ -178,9 +188,10 @@ export const ChatChart = memo(function ChatChart({
           className="h-56"
         />
       )}
-      {showData && (
-        // escape the card's padding so the table runs flush to its edges
-        <div className="-mx-3 -mb-3 mt-3">
+      {/* escapes the card's padding so the table runs flush to its edges; the
+          bottom margin eases with the height so the card closes without a jump */}
+      <CollapsibleContent className="-mx-3 -mb-3 transition-[height,opacity,margin] data-ending-style:mb-0 data-starting-style:mb-0">
+        <div className="pt-3">
           <ChatTableViewport>
             <table>
               <thead>
@@ -207,7 +218,7 @@ export const ChatChart = memo(function ChatChart({
             </table>
           </ChatTableViewport>
         </div>
-      )}
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 })
