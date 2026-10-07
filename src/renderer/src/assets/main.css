@@ -73,8 +73,6 @@
   --tray: oklch(0.97 0 0);
   --tray-hover: oklch(0.94 0 0);
   --lifted: oklch(1 0 0);
-  /* section header bands inside long lists (the transaction day headers) */
-  --band: oklch(0.975 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -134,7 +132,6 @@
   --tray: oklch(0.24 0 0);
   --tray-hover: oklch(0.275 0 0);
   --lifted: oklch(0.165 0 0);
-  --band: oklch(0.21 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -150,7 +147,6 @@
   --color-tray: var(--tray);
   --color-tray-hover: var(--tray-hover);
   --color-lifted: var(--lifted);
-  --color-band: var(--band);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -219,14 +215,15 @@
   @apply bg-lifted shadow-[0_0_0_1px_var(--border)];
 }
 
-/* A band with a bottom rule. The rule is laid over the surface beneath the
- * band rather than the band, so the translucent border color comes out the
- * same as on the rows around it. --band-surface is that surface. */
+/* A band with a bottom rule, in the sidebar's color unless --band says
+ * otherwise. The rule is laid over the surface beneath the band rather than
+ * the band, so the translucent border color comes out the same as on the
+ * rows around it. --band-surface is that surface. */
 @utility band-rule {
   background:
     linear-gradient(var(--border), var(--border)) bottom / 100% 1px no-repeat,
     linear-gradient(var(--band-surface), var(--band-surface)) bottom / 100% 1px no-repeat,
-    var(--band);
+    var(--band, var(--sidebar));
 }
 
 @utility animate-shimmer {
