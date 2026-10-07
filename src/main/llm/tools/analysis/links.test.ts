@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { DatabaseSync } from 'node:sqlite'
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
 import type { TransactionsLink } from '@shared/chat'
@@ -6,7 +6,7 @@ import { resolveTransactionFilters } from '@shared/transaction-filters'
 import { buildWhere } from '../../../reports/filters'
 import { scopeViewsDdl } from '../sql-tool'
 import { ANALYSIS_RUNNERS, modelView, replayView } from './index'
-import { windowRange } from './links'
+import { linkRows, MAX_PINNED, windowRange } from './links'
 import { addEuroCard, fixtureContext, fixtureDb, noon } from './test-fixture'
 
 const dialect = new SQLiteSyncDialect()
@@ -188,6 +188,38 @@ describe('transaction links', () => {
   it('goals and balances link nothing', () => {
     expect(run('goals', { goal: null, view: 'status', chart: 'none' }).links).toEqual([])
     expect(run('balances', { account: null, chart: 'none' }).links).toEqual([])
+  })
+
+  it('links nothing rather than pin more rows than a filter can carry', () => {
+    const ctx = fixtureContext()
+    const ids = Array.from({ length: MAX_PINNED + 1 }, (_, i) => i + 1)
+    expect(
+      linkRows(ctx, ids, {
+        dateRange: { kind: 'all' },
+        direction: 'all',
+        includePending: true,
+        includeTransfers: true
+      })
+    ).toBeNull()
+  })
+
+  it('a failing link never fails the answer', () => {
+    const ctx = fixtureContext()
+    const db = ctx.db
+    const broken = {
+      ...ctx,
+      db: {
+        prepare: (sql: string) => {
+          if (sql.includes('main.transactions')) throw new Error('boom')
+          return db.prepare(sql)
+        }
+      }
+    }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const out = ANALYSIS_RUNNERS.totals(totals({}), broken)
+    warn.mockRestore()
+    expect(out.result.ok).toBe(true)
+    expect(out.links).toEqual([])
   })
 
   it('never reaches the model', () => {

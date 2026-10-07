@@ -94,9 +94,14 @@ function tableIds(ctx: AnalysisContext, filters: TransactionFilters): number[] {
   ).map((r) => r.id)
 }
 
+// the most ids a link pins: a filter carries them in the URL and the saved
+// message, and each one is a bound SQL variable (SQLite caps those at 32766)
+export const MAX_PINNED = 2000
+
 /**
  * The link to exactly these rows: the readable filter when the table agrees
- * with it, else that filter pinned to the ids, else the ids alone.
+ * with it, else that filter pinned to the ids, else the ids alone. No link
+ * when only a pin would do and there are too many rows to pin.
  */
 export function linkRows(
   ctx: AnalysisContext,
@@ -107,6 +112,7 @@ export function linkRows(
   if (ids.length === 0) return null
   const want = new Set(ids)
   const exact = (f: TransactionFilters): boolean => {
+    if ((f.transactionIds?.length ?? 0) > MAX_PINNED) return false
     const got = tableIds(ctx, f)
     return got.length === want.size && got.every((id) => want.has(id))
   }
@@ -115,12 +121,19 @@ export function linkRows(
     count: ids.length,
     ...(label ? { label } : {})
   })
-  if (exact(filters)) return link(filters)
-  // the tool's search is wider than the table's (it also matches merchants), so the pin replaces it
-  const { search: _search, ...rest } = filters
-  const pinned = { ...rest, transactionIds: [...want].sort((a, b) => a - b) }
-  if (exact(pinned)) return link(pinned)
-  return link({ ...DEFAULT_TRANSACTION_FILTERS, transactionIds: pinned.transactionIds })
+  // a link is extra: it must never fail the answer it belongs to
+  try {
+    if (exact(filters)) return link(filters)
+    if (want.size > MAX_PINNED) return null
+    // the tool's search is wider than the table's (it also matches merchants), so the pin replaces it
+    const { search: _search, ...rest } = filters
+    const pinned = { ...rest, transactionIds: [...want].sort((a, b) => a - b) }
+    if (exact(pinned)) return link(pinned)
+    return link({ ...DEFAULT_TRANSACTION_FILTERS, transactionIds: pinned.transactionIds })
+  } catch (err) {
+    console.warn(`transaction link failed: ${String((err as Error)?.message ?? err)}`)
+    return null
+  }
 }
 
 /** the links that exist, as a tool output carries them */
