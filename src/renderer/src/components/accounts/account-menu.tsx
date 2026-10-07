@@ -2,16 +2,10 @@ import { useRef, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
-import {
-  Delete02Icon,
-  PencilEdit02Icon,
-  Settings01Icon,
-  SlidersHorizontalIcon
-} from '@hugeicons/core-free-icons'
+import { Delete02Icon, PencilEdit02Icon, Settings01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { TransactionViewOptionsDialog } from '@/components/transactions/view-options'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 /**
- * The account page's gear: a menu of per-account actions and the view options. Rename hands off to
+ * The account page's gear: a menu of per-account actions. Rename hands off to
  * the page title (AccountName), which edits in place; delete opens one confirm.
  */
 export function AccountMenuButton({
@@ -37,7 +31,6 @@ export function AccountMenuButton({
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [optionsOpen, setOptionsOpen] = useState(false)
   // focus goes to the name field on Rename, so the closing menu mustn't pull it
   // back to the gear (that blur would end the edit at once)
   const renamePicked = useRef(false)
@@ -68,17 +61,12 @@ export function AccountMenuButton({
             <HugeiconsIcon icon={PencilEdit02Icon} />
             Rename
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setOptionsOpen(true)}>
-            <HugeiconsIcon icon={SlidersHorizontalIcon} />
-            View options…
-          </DropdownMenuItem>
           <DropdownMenuItem variant="destructive" onClick={() => setConfirmOpen(true)}>
             <HugeiconsIcon icon={Delete02Icon} />
             Delete account…
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <TransactionViewOptionsDialog open={optionsOpen} onOpenChange={setOptionsOpen} />
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}

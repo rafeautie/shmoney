@@ -18,11 +18,19 @@ interface FilterBarProps {
   /** per-account pages: the page's account scope is fixed, so the accounts
    * control is hidden (loaded accountIds are stripped by the parent) */
   hideAccounts?: boolean
+  /** offer the day grouping toggle (views with a transactions table) */
+  showGroupByDay?: boolean
 }
 
 /** The one filter bar, shared by the transactions views and the report page so
  * their filtering never drifts apart. */
-export function FilterBar({ filters, onChange, defaultFilters, hideAccounts }: FilterBarProps) {
+export function FilterBar({
+  filters,
+  onChange,
+  defaultFilters,
+  hideAccounts,
+  showGroupByDay
+}: FilterBarProps) {
   const isDefault = JSON.stringify(filters) === JSON.stringify(defaultFilters)
 
   return (
@@ -54,7 +62,12 @@ export function FilterBar({ filters, onChange, defaultFilters, hideAccounts }: F
         value={filters.direction}
         onChange={(direction) => onChange({ ...filters, direction })}
       />
-      <MoreFiltersPopover filters={filters} onChange={onChange} defaultFilters={defaultFilters} />
+      <MoreFiltersPopover
+        filters={filters}
+        onChange={onChange}
+        defaultFilters={defaultFilters}
+        showGroupByDay={showGroupByDay}
+      />
       <SavedFiltersMenu currentFilters={filters} onLoad={onChange} />
       {!isDefault && (
         <Button
