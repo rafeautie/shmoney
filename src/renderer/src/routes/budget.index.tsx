@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { groupEnvelopes, monthPace, type BudgetSummary } from '@shared/budgets'
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowLeft01Icon, ArrowRight01Icon, PiggyBankIcon } from '@hugeicons/core-free-icons'
 import { AddEnvelopeButton } from '@/components/budget/add-envelope-dialog'
@@ -22,9 +22,10 @@ import {
 } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useSavingsGoals, type SavingsGoals } from '@/hooks/use-savings-goals'
+import { monthlySavedOptions, useSavingsGoals, type SavingsGoals } from '@/hooks/use-savings-goals'
 import { currentMonth, formatMonthLong, shiftMonth } from '@/lib/format-date'
 import { useBudgetView } from '@/lib/settings'
+import { transitionView } from '@/lib/view-transition'
 
 export const Route = createFileRoute('/budget/')({
   component: BudgetPage
@@ -33,15 +34,18 @@ export const Route = createFileRoute('/budget/')({
 // planning horizon: fills inherit forward, so anything past a year out is noise
 const MAX_MONTHS_AHEAD = 12
 
+const summaryOptions = (month: string) =>
+  queryOptions({
+    queryKey: ['budget-summary', month],
+    queryFn: () => window.api.budgets.summary({ month })
+  })
+
 function BudgetPage() {
   const [month, setMonth] = useState(currentMonth)
   const { budgetView, setBudgetView } = useBudgetView()
+  const queryClient = useQueryClient()
 
-  const summaryQuery = useQuery({
-    queryKey: ['budget-summary', month],
-    queryFn: () => window.api.budgets.summary({ month }),
-    placeholderData: (prev) => prev
-  })
+  const summaryQuery = useQuery({ ...summaryOptions(month), placeholderData: (prev) => prev })
   const summary = summaryQuery.data
   const budgetedIds = summary?.envelopes.map((e) => e.categoryId) ?? []
   const goals = useSavingsGoals(month, summary?.currency ?? '')
@@ -52,6 +56,17 @@ function BudgetPage() {
   const prevDisabled = !hasEnvelopes || (summary.minMonth !== null && month <= summary.minMonth)
   const nextDisabled = !hasEnvelopes || month >= maxMonth
   const pace = summary === undefined ? null : monthPace(summary.month)
+
+  // the months either side are one click away; cached, the step can slide
+  useEffect(() => {
+    for (const next of [shiftMonth(month, -1), shiftMonth(month, 1)]) {
+      void queryClient.prefetchQuery(summaryOptions(next))
+      if (next <= currentMonth()) void queryClient.prefetchQuery(monthlySavedOptions(next))
+    }
+  }, [month, queryClient])
+
+  const stepTo = (next: string): void =>
+    transitionView(next < month ? 'month-prev' : 'month-next', () => setMonth(next))
 
   return (
     // full-height flex column so the envelope table can bleed to the app
@@ -69,7 +84,7 @@ function BudgetPage() {
           <div className="flex items-center gap-2">
             {/* leftmost, so appearing and going does not shift the month picker */}
             {month !== today && (
-              <Button variant="ghost" onClick={() => setMonth(today)}>
+              <Button variant="ghost" onClick={() => stepTo(today)}>
                 Today
               </Button>
             )}
@@ -77,7 +92,7 @@ function BudgetPage() {
               variant="outline"
               size="icon"
               disabled={prevDisabled}
-              onClick={() => setMonth((m) => shiftMonth(m, -1))}
+              onClick={() => stepTo(shiftMonth(month, -1))}
             >
               <HugeiconsIcon icon={ArrowLeft01Icon} className="size-4" />
               <span className="sr-only">Previous month</span>
@@ -87,7 +102,7 @@ function BudgetPage() {
               variant="outline"
               size="icon"
               disabled={nextDisabled}
-              onClick={() => setMonth((m) => shiftMonth(m, 1))}
+              onClick={() => stepTo(shiftMonth(month, 1))}
             >
               <HugeiconsIcon icon={ArrowRight01Icon} className="size-4" />
               <span className="sr-only">Next month</span>
@@ -98,69 +113,75 @@ function BudgetPage() {
         </div>
 
         {summary !== undefined && (summary.envelopes.length > 0 || goals.counted > 0) && (
-          <StatCards stats={statCards(summary, goals)} currency={summary.currency} />
+          <div data-view-panel>
+            <StatCards stats={statCards(summary, goals)} currency={summary.currency} />
+          </div>
         )}
       </div>
 
-      {summary === undefined ? (
-        <div className="space-y-4 px-6">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
-      ) : summary.envelopes.length === 0 ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
-          <Empty className="border">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <HugeiconsIcon icon={PiggyBankIcon} />
-              </EmptyMedia>
-              <EmptyTitle>No envelopes yet</EmptyTitle>
-              <EmptyDescription>
-                Budget a monthly amount per category. Leftovers roll forward; overspending carries a
-                negative balance.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent>
-              <AddEnvelopeButton month={month} budgetedIds={budgetedIds}>
-                Add your first envelope
-              </AddEnvelopeButton>
-            </EmptyContent>
-          </Empty>
-        </div>
-      ) : budgetView === 'table' ? (
-        <EnvelopeList summary={summary} pace={pace} className="min-h-0 flex-1" />
-      ) : (
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-6 px-6 pb-6">
-            {groupEnvelopes(summary.envelopes).map((section) => (
-              <section key={section.groupId ?? 'ungrouped'} className="space-y-3">
-                <SectionHeader section={section} currency={summary.currency} />
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {section.envelopes.map((envelope) => (
-                    <EnvelopeCard
-                      key={envelope.categoryId}
-                      envelope={envelope}
-                      month={summary.month}
-                      currency={summary.currency}
-                      pace={pace}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
-            {summary.unbudgetedSpent > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Unbudgeted spending{' '}
-                <Amount
-                  value={summary.unbudgetedSpent}
-                  currency={summary.currency}
-                  colored={false}
-                />
-              </p>
-            )}
+      {/* one stable box for whichever view shows, so a month step or view
+          switch animates as one panel */}
+      <div data-view-panel className="flex min-h-0 flex-1 flex-col">
+        {summary === undefined ? (
+          <div className="space-y-4 px-6">
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-64 w-full" />
           </div>
-        </ScrollArea>
-      )}
+        ) : summary.envelopes.length === 0 ? (
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+            <Empty className="border">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <HugeiconsIcon icon={PiggyBankIcon} />
+                </EmptyMedia>
+                <EmptyTitle>No envelopes yet</EmptyTitle>
+                <EmptyDescription>
+                  Budget a monthly amount per category. Leftovers roll forward; overspending carries
+                  a negative balance.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <AddEnvelopeButton month={month} budgetedIds={budgetedIds}>
+                  Add your first envelope
+                </AddEnvelopeButton>
+              </EmptyContent>
+            </Empty>
+          </div>
+        ) : budgetView === 'table' ? (
+          <EnvelopeList summary={summary} pace={pace} className="min-h-0 flex-1" />
+        ) : (
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="space-y-6 px-6 pb-6">
+              {groupEnvelopes(summary.envelopes).map((section) => (
+                <section key={section.groupId ?? 'ungrouped'} className="space-y-3">
+                  <SectionHeader section={section} currency={summary.currency} />
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {section.envelopes.map((envelope) => (
+                      <EnvelopeCard
+                        key={envelope.categoryId}
+                        envelope={envelope}
+                        month={summary.month}
+                        currency={summary.currency}
+                        pace={pace}
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+              {summary.unbudgetedSpent > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Unbudgeted spending{' '}
+                  <Amount
+                    value={summary.unbudgetedSpent}
+                    currency={summary.currency}
+                    colored={false}
+                  />
+                </p>
+              )}
+            </div>
+          </ScrollArea>
+        )}
+      </div>
     </div>
   )
 }

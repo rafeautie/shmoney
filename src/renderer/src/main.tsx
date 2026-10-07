@@ -12,6 +12,7 @@ import { TooltipProvider } from './components/ui/tooltip'
 import { ErrorScreen } from './components/error-screen'
 import { logRenderError } from './lib/errors'
 import { trackDevicePixel } from './lib/privacy-transition'
+import { routeTransitionTypes } from './lib/view-transition'
 
 // Electron loads the production build from a file:// URL, where
 // location.pathname is the on-disk path rather than "/". Hash-based
@@ -29,6 +30,7 @@ const router = createRouter({
   // let the query cache's own staleTime decide whether a preload refetches,
   // rather than the router keeping a second, separate freshness window
   defaultPreloadStaleTime: 0,
+  defaultViewTransition: { types: routeTransitionTypes },
   // a page that crashes renders this inside the shell, so the sidebar still works;
   // the root route's own errorComponent covers crashes in the shell itself
   defaultErrorComponent: ({ error }) => <ErrorScreen error={error} />,

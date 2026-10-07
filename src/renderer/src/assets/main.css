@@ -13,6 +13,11 @@
    * gentle hover timing. */
   --default-transition-duration: 120ms;
   --default-transition-timing-function: ease;
+  /* page, tab panel and budget month swaps (lib/view-transition.ts) */
+  --view-transition-duration: 150ms;
+  --view-transition-ease: cubic-bezier(0.2, 0, 0, 1);
+  --view-transition-rise: 6px;
+  --view-transition-slide: 16px;
   --radius: 0.45rem;
   /* tells the engine which way native widgets go: scrollbars in the few raw
    * overflow containers, date pickers, autofill. Paired with the .dark rule
@@ -559,6 +564,81 @@
   .private *,
   .private {
     transition: none !important;
+  }
+}
+
+/* View transitions (lib/view-transition.ts). Names exist only while a transition
+ * of their type runs: a page swap animates <main>, a tab or month swap the
+ * data-view-panel regions. Everything else (sidebar, header) swaps instantly. */
+html:active-view-transition-type(page) [data-view-page] {
+  view-transition-name: page;
+}
+
+html:active-view-transition-type(panel, month-prev, month-next) [data-view-panel] {
+  view-transition-name: match-element;
+  view-transition-class: panel;
+}
+
+::view-transition-group(root),
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-group(page),
+::view-transition-group(*.panel) {
+  animation-duration: var(--view-transition-duration);
+  animation-timing-function: var(--view-transition-ease);
+}
+
+::view-transition-old(page),
+::view-transition-old(*.panel) {
+  animation: view-out var(--view-transition-duration) var(--view-transition-ease) both;
+}
+
+::view-transition-new(page),
+::view-transition-new(*.panel) {
+  animation: view-in var(--view-transition-duration) var(--view-transition-ease) both;
+}
+
+html:active-view-transition-type(month-next)::view-transition-old(*.panel) {
+  --view-transition-to: calc(-1 * var(--view-transition-slide)) 0;
+}
+
+html:active-view-transition-type(month-next)::view-transition-new(*.panel) {
+  --view-transition-from: var(--view-transition-slide) 0;
+}
+
+html:active-view-transition-type(month-prev)::view-transition-old(*.panel) {
+  --view-transition-to: var(--view-transition-slide) 0;
+}
+
+html:active-view-transition-type(month-prev)::view-transition-new(*.panel) {
+  --view-transition-from: calc(-1 * var(--view-transition-slide)) 0;
+}
+
+@keyframes view-out {
+  to {
+    opacity: 0;
+    translate: var(--view-transition-to, 0 0);
+  }
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    translate: var(--view-transition-from, 0 var(--view-transition-rise));
+  }
+}
+
+/* lib/view-transition.ts never starts one under reduced motion; this covers a
+ * preference flipped mid-transition */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }
 
