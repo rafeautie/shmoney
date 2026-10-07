@@ -185,7 +185,7 @@ export function registerImportIpc(): void {
           accountName = account.name
         } else {
           // null connectionId/simplefinId marks the account as manual: sync
-          // never touches it and disconnect's cascade leaves it alone.
+          // never touches it and a disconnect has nothing to detach.
           // A manual account carries no anchor — it has complete history by
           // construction, so its balance is just the sum of its transactions and
           // the opening balance is the first of them (see main/accounts/balance.ts)

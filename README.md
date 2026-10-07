@@ -116,13 +116,11 @@ The builds are not signed with a paid developer certificate yet, so your OS asks
 - **Windows:** if SmartScreen says it protected your PC, click **More info → Run anyway**.
 - **Linux:** install the `.deb`, or make the AppImage executable with `chmod +x shmoney-*.AppImage`.
 
-**Coming soon:** European bank sync alongside SimpleFIN.
-
 ## Privacy
 
 - Data lives in a SQLite file in your OS user-data directory.
 - SimpleFIN credentials are encrypted with the OS keychain and never leave the Electron main process.
-- The only network calls are to your SimpleFIN bridge and the one-time model download.
+- shmoney connects to three places: your SimpleFIN bridge when you sync, Hugging Face when you download a model, and GitHub to check for app updates (at startup and every few hours). Nothing is uploaded to any of them; SimpleFIN only sends your bank data down.
 
 ## Status
 
