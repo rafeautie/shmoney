@@ -194,7 +194,7 @@ function DataTableGroupImpl<TData, TTail>({
       <TableRow className="sticky top-10 z-[5] border-b-0 hover:bg-transparent">
         <TableCell
           colSpan={columns.length}
-          className="h-8 bg-background py-0 shadow-[inset_0_-1px_0_0_var(--border)] in-data-[slot=card]:bg-card"
+          className="h-8 bg-tray py-0 shadow-[inset_0_-1px_0_0_var(--border)]"
         >
           {header(run.key, run.originals, tail)}
         </TableCell>
