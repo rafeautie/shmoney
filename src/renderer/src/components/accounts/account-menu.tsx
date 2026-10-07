@@ -6,15 +6,17 @@ import { Delete02Icon, PencilEdit02Icon, Settings01Icon } from '@hugeicons/core-
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { TransactionViewItems } from '@/components/transactions/view-options'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 
 /**
- * The account page's gear: a menu of per-account actions. Rename hands off to
+ * The account page's gear: a menu of per-account actions and the table's view toggles. Rename hands off to
  * the page title (AccountName), which edits in place; delete opens one confirm.
  */
 export function AccountMenuButton({
@@ -65,6 +67,8 @@ export function AccountMenuButton({
             <HugeiconsIcon icon={Delete02Icon} />
             Delete account…
           </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <TransactionViewItems />
         </DropdownMenuContent>
       </DropdownMenu>
       <ConfirmDialog

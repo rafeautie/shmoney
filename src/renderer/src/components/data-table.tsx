@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   flexRender,
   getCoreRowModel,
@@ -125,7 +125,114 @@ const DataTableRow = memo(
     prev.onClick === next.onClick
 ) as typeof DataTableRowImpl
 
-interface DataTableProps<TData> {
+/** Runs of consecutive rows sharing a key, each under a sticky header row */
+export interface DataTableGroups<TData, TTail = unknown> {
+  key: (row: TData) => string
+  /** keep stable: a new header re-renders every group */
+  header: (key: string, rows: TData[], tail: TTail | undefined) => React.ReactNode
+  /** handed only to the trailing group, which may continue on a page not loaded yet */
+  tail?: TTail
+}
+
+interface GroupRun<TData> {
+  /** React key: the group key, suffixed if it repeats */
+  id: string
+  key: string
+  rows: Row<TData>[]
+  originals: TData[]
+}
+
+function groupRuns<TData>(rows: Row<TData>[], key: (row: TData) => string): GroupRun<TData>[] {
+  const runs: GroupRun<TData>[] = []
+  const seen = new Map<string, number>()
+  for (const row of rows) {
+    const k = key(row.original)
+    const current = runs.at(-1)
+    if (current && current.key === k) {
+      current.rows.push(row)
+      current.originals.push(row.original)
+      continue
+    }
+    // an optimistic edit can briefly split a key's run; React keys must stay unique
+    const n = seen.get(k) ?? 0
+    seen.set(k, n + 1)
+    runs.push({ id: n === 0 ? k : `${k}#${n}`, key: k, rows: [row], originals: [row.original] })
+  }
+  return runs
+}
+
+interface DataTableGroupProps<TData, TTail> {
+  run: GroupRun<TData>
+  tail: TTail | undefined
+  header: DataTableGroups<TData, TTail>['header']
+  columns: ColumnDef<TData, unknown>[]
+  /** ids of the group's selected rows, so selecting elsewhere skips this group */
+  selected: string
+  rowClassName: string | undefined
+  rowClass: ((row: TData) => string | false | undefined) | undefined
+  onClick: ((row: TData) => void) | undefined
+}
+
+function DataTableGroupImpl<TData, TTail>({
+  run,
+  tail,
+  header,
+  columns,
+  rowClassName,
+  rowClass,
+  onClick
+}: DataTableGroupProps<TData, TTail>) {
+  // rows read selection off the table, which the compiler can't see change
+  'use no memo'
+  return (
+    // a bare tbody: TableBody's class merge would run per group, and without its
+    // last-row rule each group keeps its closing border
+    <tbody data-slot="table-body">
+      {/* top-10 parks it under the column header. Sticky rows are bounded by the
+          table, not their body, so passed headers pile up under the newest: the
+          cell stays opaque. The cell draws its own bottom rule, since a collapsed
+          border stays behind when the row sticks; the transparent one keeps the
+          row's share of the border grid, so later lines land on whole pixels */}
+      <TableRow className="sticky top-10 z-[5] border-b-transparent hover:bg-transparent">
+        <TableCell
+          colSpan={columns.length}
+          className="h-8 py-0 band-rule [--band-surface:var(--background)] in-data-[slot=card]:[--band:var(--tray)] in-data-[slot=card]:[--band-surface:var(--card)]"
+        >
+          {header(run.key, run.originals, tail)}
+        </TableCell>
+      </TableRow>
+      {run.rows.map((row) => (
+        <DataTableRow
+          key={row.id}
+          row={row}
+          selected={row.getIsSelected()}
+          canSelect={row.getCanSelect()}
+          columns={columns}
+          className={cn(rowClassName, rowClass?.(row.original))}
+          onClick={onClick}
+        />
+      ))}
+    </tbody>
+  )
+}
+
+// runs are regrouped whenever a page lands, so compare the records a run holds
+const DataTableGroup = memo(
+  DataTableGroupImpl,
+  (prev, next) =>
+    prev.run.id === next.run.id &&
+    prev.run.originals.length === next.run.originals.length &&
+    prev.run.originals.every((row, i) => row === next.run.originals[i]) &&
+    prev.tail === next.tail &&
+    prev.header === next.header &&
+    prev.columns === next.columns &&
+    prev.selected === next.selected &&
+    prev.rowClassName === next.rowClassName &&
+    prev.rowClass === next.rowClass &&
+    prev.onClick === next.onClick
+) as typeof DataTableGroupImpl
+
+interface DataTableProps<TData, TTail> {
   columns: ColumnDef<TData, unknown>[]
   data: TData[]
   sorting: SortingState
@@ -150,9 +257,11 @@ interface DataTableProps<TData> {
   bleed?: boolean
   /** e.g. "min-h-0 flex-1" to fill the parent's height; only the table body scrolls */
   className?: string
+  /** Group rows under sticky headers; only meaningful when the sort keeps groups together */
+  groups?: DataTableGroups<TData, TTail>
 }
 
-export function DataTable<TData>({
+export function DataTable<TData, TTail = undefined>({
   columns,
   data,
   sorting,
@@ -170,8 +279,9 @@ export function DataTable<TData>({
   onRowSelectionChange,
   getRowId,
   bleed,
-  className
-}: DataTableProps<TData>) {
+  className,
+  groups
+}: DataTableProps<TData, TTail>) {
   // the row a shift-click extends from: the last one toggled on its own
   const anchorRef = useRef<string | null>(null)
 
@@ -236,10 +346,36 @@ export function DataTable<TData>({
 
   // empty/loading renders a single spanning row; h-full on the table stretches
   // it to fill the viewport instead of collapsing to a fixed 96px box
-  const isEmpty = table.getRowModel().rows.length === 0
+  const rows = table.getRowModel().rows
+  const isEmpty = rows.length === 0
+  // the row model keeps its identity across selection and other re-renders
+  const groupKey = groups?.key
+  const runs = useMemo(() => (groupKey ? groupRuns(rows, groupKey) : []), [rows, groupKey])
+
+  const renderRow = (row: Row<TData>) => (
+    <DataTableRow
+      key={row.id}
+      row={row}
+      selected={row.getIsSelected()}
+      canSelect={row.getCanSelect()}
+      columns={columns}
+      className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row.original))}
+      onClick={onRowClick ? handleRowClick : undefined}
+    />
+  )
+  const fetchingMoreRow = isFetchingMore && (
+    <TableRow className="hover:bg-transparent">
+      {columns.map((_column, column) => (
+        <TableCell key={column}>
+          <Skeleton className="h-4 w-full" />
+        </TableCell>
+      ))}
+    </TableRow>
+  )
 
   return (
-    <ScrollArea viewportRef={scrollRef} className={className}>
+    // isolate: the sticky header and day rows layer within the viewport, under the scrollbar
+    <ScrollArea viewportRef={scrollRef} className={className} viewPortClassName="isolate">
       <table
         className={cn('w-full caption-bottom text-xs', isEmpty && 'h-full', bleed && TABLE_BLEED)}
       >
@@ -257,58 +393,61 @@ export function DataTable<TData>({
             </TableRow>
           ))}
         </TableHeader>
-        {/* the ! outweighs the base last-row border-0 rule, which shares specificity;
-            skip it when empty so the full-height empty state has no closing border */}
-        <TableBody className={cn(!isEmpty && '[&_tr:last-child]:border-b!')}>
-          {topRow}
-          {isEmpty && isLoading ? (
-            // placeholder rows rather than a centred word, so the table keeps
-            // its shape and the real rows drop straight in
-            Array.from({ length: SKELETON_ROWS }, (_, row) => (
-              <TableRow key={`skeleton-${row}`} className="hover:bg-transparent">
-                {columns.map((_column, column) => (
-                  <TableCell key={column}>
-                    <Skeleton className="h-4 w-full" />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : isEmpty ? (
-            <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={columns.length} className="h-full">
-                <Empty className="gap-2 py-2">
-                  <EmptyMedia variant="icon">
-                    <HugeiconsIcon icon={InboxIcon} />
-                  </EmptyMedia>
-                  <EmptyDescription>{emptyMessage}</EmptyDescription>
-                </Empty>
-              </TableCell>
-            </TableRow>
-          ) : (
-            table
-              .getRowModel()
-              .rows.map((row) => (
-                <DataTableRow
-                  key={row.id}
-                  row={row}
-                  selected={row.getIsSelected()}
-                  canSelect={row.getCanSelect()}
-                  columns={columns}
-                  className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row.original))}
-                  onClick={onRowClick ? handleRowClick : undefined}
-                />
+        {groups && !isEmpty ? (
+          <>
+            {topRow && <TableBody className="[&_tr:last-child]:border-b!">{topRow}</TableBody>}
+            {runs.map((run, i) => (
+              <DataTableGroup
+                key={run.id}
+                run={run}
+                tail={i === runs.length - 1 ? groups.tail : undefined}
+                header={groups.header}
+                columns={columns}
+                selected={run.rows
+                  .filter((row) => row.getIsSelected())
+                  .map((row) => row.id)
+                  .join()}
+                rowClassName={onRowClick ? 'cursor-pointer' : undefined}
+                rowClass={rowClassName}
+                onClick={onRowClick ? handleRowClick : undefined}
+              />
+            ))}
+            {fetchingMoreRow && <TableBody>{fetchingMoreRow}</TableBody>}
+          </>
+        ) : (
+          /* the ! outweighs the base last-row border-0 rule, which shares specificity;
+            skip it when empty so the full-height empty state has no closing border */
+          <TableBody className={cn(!isEmpty && '[&_tr:last-child]:border-b!')}>
+            {topRow}
+            {isEmpty && isLoading ? (
+              // placeholder rows rather than a centred word, so the table keeps
+              // its shape and the real rows drop straight in
+              Array.from({ length: SKELETON_ROWS }, (_, row) => (
+                <TableRow key={`skeleton-${row}`} className="hover:bg-transparent">
+                  {columns.map((_column, column) => (
+                    <TableCell key={column}>
+                      <Skeleton className="h-4 w-full" />
+                    </TableCell>
+                  ))}
+                </TableRow>
               ))
-          )}
-          {isFetchingMore && (
-            <TableRow className="hover:bg-transparent">
-              {columns.map((_column, column) => (
-                <TableCell key={column}>
-                  <Skeleton className="h-4 w-full" />
+            ) : isEmpty ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="h-full">
+                  <Empty className="gap-2 py-2">
+                    <EmptyMedia variant="icon">
+                      <HugeiconsIcon icon={InboxIcon} />
+                    </EmptyMedia>
+                    <EmptyDescription>{emptyMessage}</EmptyDescription>
+                  </Empty>
                 </TableCell>
-              ))}
-            </TableRow>
-          )}
-        </TableBody>
+              </TableRow>
+            ) : (
+              rows.map(renderRow)
+            )}
+            {fetchingMoreRow}
+          </TableBody>
+        )}
       </table>
       {hasMore && <div ref={sentinelRef} className="h-px" />}
     </ScrollArea>

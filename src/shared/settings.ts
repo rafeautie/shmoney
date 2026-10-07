@@ -38,6 +38,8 @@ export const settingSchemas = {
   goalsView: z.enum(['cards', 'table']),
   // the same choice for the Budget page's envelopes
   budgetView: z.enum(['cards', 'table']),
+  // date-sorted transaction tables group rows under sticky day headers
+  groupTransactionsByDay: z.boolean(),
   // AI usage stats count from here (unix ms); resetting moves it, rows stay
   llmUsageSince: z.number().nullable()
 }
@@ -63,6 +65,7 @@ export const SETTINGS_DEFAULTS: Settings = {
   goalsView: 'cards',
   // the envelope table is what the page has always opened as
   budgetView: 'table',
+  groupTransactionsByDay: true,
   llmUsageSince: null
 }
 

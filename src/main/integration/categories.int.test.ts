@@ -1,8 +1,11 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { eq } from 'drizzle-orm'
 import type { ImportApplyResult } from '@shared/import'
+import type { Transaction } from '@shared/ipc'
+import { DEFAULT_TRANSACTION_FILTERS, resolveTransactionFilters } from '@shared/transaction-filters'
 import { db } from '../../demo/db'
 import { DEFAULT_CATEGORY_GROUPS } from '../db/defaults'
-import { ruleSuggestions } from '../db/schema'
+import { ruleSuggestions, transactions } from '../db/schema'
 import { api } from './harness/api'
 import { account, category, group, noon, rule, systemCategory, txn } from './harness/builders'
 import { count, query } from './harness/db'
@@ -38,6 +41,25 @@ const importedRow = (accountId: number, description: string): number =>
   query<{ id: number }>(
     `SELECT id FROM transactions WHERE account_id = ${accountId} AND description = '${description}'`
   )[0].id
+
+const pairOf = (id: number): number | null =>
+  query<{ p: number | null }>(`SELECT transfer_pair_id AS p FROM transactions WHERE id = ${id}`)[0]
+    .p
+
+/** every row in these accounts, by id */
+async function listed(accountIds: number[]): Promise<Map<number, Transaction>> {
+  const page = await api.transactions.list({
+    page: 0,
+    pageSize: 100,
+    sortBy: 'date',
+    sortDir: 'desc',
+    filters: resolveTransactionFilters(
+      { ...DEFAULT_TRANSACTION_FILTERS, accountIds },
+      noon(2026, 9, 15)
+    )
+  })
+  return new Map(page.rows.map((row) => [row.id, row]))
+}
 
 const categoryOf = (id: number): number | null =>
   query<{ c: number | null }>(`SELECT category_id AS c FROM transactions WHERE id = ${id}`)[0].c
@@ -303,6 +325,70 @@ describe('transfer detection on import', () => {
     await api.actionLog.undoEntry(detector)
     expect(categoryOf(importedRow(from, 'Undo out'))).toBeNull()
     expect(categoryOf(importedRow(to, 'Undo in'))).toBeNull()
+  })
+
+  it('labels each leg with the account on its other side', async () => {
+    const from = account({ name: 'Everyday Checking' })
+    const to = account({ name: 'High-Yield Savings' })
+    await importInto(from, [['03/10/2024', 'Label out', '-745.00']])
+    await importInto(to, [['03/11/2024', 'Label in', '745.00']])
+
+    const rows = await listed([from, to])
+    expect(rows.get(importedRow(from, 'Label out'))?.transferAccountName).toBe('High-Yield Savings')
+    expect(rows.get(importedRow(to, 'Label in'))?.transferAccountName).toBe('Everyday Checking')
+  })
+
+  it('pairs a hand-marked leg with its detected partner', async () => {
+    const from = account()
+    const to = account({ name: 'Hand marked' })
+    const marked = txn(to, {
+      posted: noon(2024, 3, 20),
+      amount: 664_000,
+      categoryId: systemCategory('transfers')
+    })
+    await importInto(from, [['03/20/2024', 'Joins hand', '-664.00']])
+
+    const out = importedRow(from, 'Joins hand')
+    expect(pairOf(out)).toBe(marked)
+    expect(pairOf(marked)).toBe(out)
+  })
+
+  it('undo unpairs both legs and redo pairs them again', async () => {
+    const from = account()
+    const to = account()
+    await importInto(from, [['04/10/2024', 'Relink out', '-613.00']])
+    await importInto(to, [['04/10/2024', 'Relink in', '613.00']])
+    const out = importedRow(from, 'Relink out')
+    const into = importedRow(to, 'Relink in')
+    const detector = query<{ id: number }>(
+      "SELECT max(id) AS id FROM action_log WHERE source = 'detector'"
+    )[0].id
+
+    await api.actionLog.undoEntry(detector)
+    expect([pairOf(out), pairOf(into)]).toEqual([null, null])
+    expect((await listed([from, to])).get(out)?.transferAccountName).toBeNull()
+
+    await api.actionLog.redoEntry(detector)
+    expect([pairOf(out), pairOf(into)]).toEqual([into, out])
+  })
+
+  it('drops the label once either leg leaves Transfers or is deleted', async () => {
+    const from = account()
+    const to = account()
+    const third = account()
+    await importInto(from, [['04/20/2024', 'Moved out', '-614.00']])
+    await importInto(to, [['04/20/2024', 'Moved in', '614.00']])
+    await importInto(third, [['04/22/2024', 'Gone out', '-615.00']])
+    await importInto(from, [['04/22/2024', 'Gone in', '615.00']])
+    const moved = importedRow(to, 'Moved in')
+    const gone = importedRow(third, 'Gone out')
+
+    await api.transactions.setCategories({ changes: [{ transactionId: moved, categoryId: null }] })
+    db.update(transactions).set({ deletedAt: 1 }).where(eq(transactions.id, gone)).run()
+
+    const rows = await listed([from])
+    expect(rows.get(importedRow(from, 'Moved out'))?.transferAccountName).toBeNull()
+    expect(rows.get(importedRow(from, 'Gone in'))?.transferAccountName).toBeNull()
   })
 
   it('leaves legs more than three days apart alone', async () => {

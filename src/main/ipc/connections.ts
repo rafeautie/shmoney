@@ -257,6 +257,16 @@ function markTransferPairs(
       .where(inArray(transactions.id, part))
       .run()
   }
+  const partnerOf = new Map<number, number>()
+  for (const {
+    ids: [a, b]
+  } of pairs) {
+    partnerOf.set(a, b)
+    partnerOf.set(b, a)
+  }
+  for (const [id, partner] of partnerOf) {
+    tx.update(transactions).set({ transferPairId: partner }).where(eq(transactions.id, id)).run()
+  }
   recordAction(tx, {
     source: 'detector',
     label: `Detected ${pairs.length} transfer${pairs.length === 1 ? '' : 's'}`,
@@ -264,7 +274,8 @@ function markTransferPairs(
       transactionId: id,
       field: 'categoryId',
       before: null,
-      after: transfersCategoryId
+      after: transfersCategoryId,
+      transferPairId: partnerOf.get(id)
     }))
   })
   return pairs.length

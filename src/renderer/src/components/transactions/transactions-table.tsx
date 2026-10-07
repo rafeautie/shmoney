@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react'
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query'
 import type { ColumnDef, RowSelectionState, SortingState } from '@tanstack/react-table'
-import type { Page, PageCursor, Transaction, TransactionSortBy } from '@shared/ipc'
+import type { CurrencyTotal, Page, PageCursor, Transaction, TransactionSortBy } from '@shared/ipc'
 import type { ResolvedTransactionFilters } from '@shared/transaction-filters'
 import { PAGE_SIZE, cn, sortQuery } from '@/lib/utils'
 import { DEFAULT_TRANSACTION_SORTING } from '@/lib/transaction-filters'
+import { dayKey } from '@/lib/day-groups'
+import { useSetting } from '@/lib/settings'
 import { CategoryCell } from './category-cell'
-import { DataTable, DataTableColumnHeader } from '@/components/data-table'
+import { DayHeader } from './day-header'
+import { DataTable, DataTableColumnHeader, type DataTableGroups } from '@/components/data-table'
 import { selectColumn } from '@/components/data-table-select-column'
 import {
   EditableAmountCell,
@@ -20,6 +23,11 @@ import {
   TransactionEditsContext,
   useTransactionEdits
 } from './use-transaction-edits'
+
+// transfers are neither income nor expense, so dim the whole row to de-emphasize them.
+// Module scope keeps it stable for the memoized rows and day groups
+const transferRowClass = (transaction: Transaction): string | false =>
+  transaction.isTransfer && 'opacity-60'
 
 interface TransactionsTableProps {
   /** Base query key; the current sort is appended to it */
@@ -76,6 +84,24 @@ export function TransactionsTable({
     () => transactionsQuery.data?.pages.flatMap((page) => page.rows) ?? [],
     [transactionsQuery.data]
   )
+
+  // the rest of the trailing day sits on pages not loaded yet
+  const pages = transactionsQuery.data?.pages
+  const dayRest = transactionsQuery.hasNextPage ? pages?.at(-1)?.dayRest : undefined
+  const groupByDay = useSetting('groupTransactionsByDay')
+  const grouped = groupByDay && sort.sortBy === 'date'
+  // the callbacks stay stable, so memoized groups skip renders that don't touch their day
+  const dayGroups = useMemo<DataTableGroups<Transaction, CurrencyTotal[]> | undefined>(
+    () =>
+      grouped
+        ? {
+            key: (transaction) => dayKey(transaction.date),
+            header: (key, rows, rest) => <DayHeader day={key} rows={rows} rest={rest} />
+          }
+        : undefined,
+    [grouped]
+  )
+  const groups = dayGroups && { ...dayGroups, tail: dayRest }
 
   const edits = useTransactionEdits({
     listKey,
@@ -152,13 +178,13 @@ export function TransactionsTable({
               <TransactionCreateRow showAccount={showAccount} accountId={createAccountId} />
             )
           }
-          // transfers are neither income nor expense, so dim the whole row to de-emphasize them
-          rowClassName={(transaction) => transaction.isTransfer && 'opacity-60'}
+          rowClassName={transferRowClass}
           // pending rows can't be selected: sync drops and re-inserts them, so bulk edits would be lost
           enableRowSelection={(row) => !row.original.pending}
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           getRowId={(transaction) => String(transaction.id)}
+          groups={groups}
         />
         {/* a fixed box for the bar: adding it as the table's own sibling restyles the
             whole loaded table (about 150ms at 1000 rows) on the first and last selection */}

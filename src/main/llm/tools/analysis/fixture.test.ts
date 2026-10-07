@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fixtureContext } from './test-fixture'
-import { merchantOf } from './merchant'
+import { merchantOf } from '@shared/merchant'
 import { completeMonths, resolveComparison, resolvePeriod } from './period'
 
 describe('analysis fixture', () => {

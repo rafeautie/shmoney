@@ -2,6 +2,7 @@ import * as React from 'react'
 import { Menu as MenuPrimitive } from '@base-ui/react/menu'
 
 import { cn } from '@/lib/utils'
+import { Switch } from '@/components/ui/switch'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Tick02Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons'
 
@@ -177,6 +178,30 @@ function DropdownMenuCheckboxItem({
   )
 }
 
+/** A checkbox item drawn as a switch, for on/off settings in a menu */
+function DropdownMenuSwitchItem({
+  className,
+  children,
+  checked,
+  ...props
+}: MenuPrimitive.CheckboxItem.Props) {
+  return (
+    <MenuPrimitive.CheckboxItem
+      data-slot="dropdown-menu-switch-item"
+      className={cn(
+        'relative flex min-h-7 cursor-default items-center justify-between gap-3 rounded-[6px] py-1.5 pr-2 pl-2 text-xs outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50',
+        className
+      )}
+      checked={checked}
+      {...props}
+    >
+      {children}
+      {/* the item carries the checked state; the switch only shows it */}
+      <Switch checked={checked} aria-hidden tabIndex={-1} className="pointer-events-none" />
+    </MenuPrimitive.CheckboxItem>
+  )
+}
+
 function DropdownMenuRadioGroup({ ...props }: MenuPrimitive.RadioGroup.Props) {
   return <MenuPrimitive.RadioGroup data-slot="dropdown-menu-radio-group" {...props} />
 }
@@ -236,6 +261,7 @@ function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<'spa
 }
 
 export {
+  DropdownMenuSwitchItem,
   DropdownMenu,
   DropdownMenuPortal,
   DropdownMenuTrigger,
