@@ -44,24 +44,14 @@ describe('app fire-and-forget channels', () => {
     expect(() => api.app.notify('', '')).not.toThrow()
   })
 
-  it('accepts dimming on and off', async () => {
-    expect(() => api.app.dimChrome(true, 20)).not.toThrow()
-    expect(() => api.app.dimChrome(false, 20)).not.toThrow()
-    // let the fade tween finish so no interval outlives the spec
-    await new Promise((resolve) => setTimeout(resolve, 60))
-  })
-
   it('accepts the renderer-ready signal', () => {
     expect(() => api.app.ready()).not.toThrow()
   })
 
-  it('drops an invalid notify or dimChrome payload instead of throwing in main', () => {
+  it('drops an invalid notify payload instead of throwing in main', () => {
     focused(false)
     expect(() => api.app.notify(42 as never, 'body')).not.toThrow()
     expect(() => api.app.notify('title', undefined as never)).not.toThrow()
-    expect(() => api.app.dimChrome('yes' as never, 20)).not.toThrow()
-    expect(() => api.app.dimChrome(true, -1)).not.toThrow()
-    expect(() => api.app.dimChrome(true, undefined as never)).not.toThrow()
   })
 })
 

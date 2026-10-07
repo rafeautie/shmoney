@@ -4,7 +4,6 @@ import * as React from 'react'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 
 import { cn } from '@/lib/utils'
-import { ChromeDimmingBackdrop } from '@/lib/dim-chrome'
 import { useDialogStackPosition, useStackedDialog } from '@/lib/dialog-stack'
 import { Button } from '@/components/ui/button'
 import { HugeiconsIcon } from '@hugeicons/react'
@@ -45,9 +44,6 @@ function DialogOverlay({
       // base-ui skips this for a dialog nested in another's React tree; keep it
       // so nested and sibling stacks behave the same
       forceRender
-      render={(backdrop, state) => (
-        <ChromeDimmingBackdrop {...backdrop} open={state.open} fadeMs={100} />
-      )}
       {...props}
     />
   )
