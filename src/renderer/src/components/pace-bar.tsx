@@ -32,15 +32,18 @@ export function PaceBar({
         ? { from: tick, to: pct }
         : offPace === 'under' && pct < tick
           ? { from: pct, to: tick }
-          : null
+          : // on pace: an empty hatch at the tick, kept mounted so it can grow from there
+            { from: tick, to: tick }
+  const offTrack = hatch !== null && hatch.to > hatch.from
 
   return (
     <div className="relative">
       <Progress
         value={pct}
-        aria-label={hatch === null ? label : `${label}, off pace`}
+        aria-label={offTrack ? `${label}, off pace` : label}
         className={cn(
           '[&_[data-slot=progress-track]]:h-2',
+          '[&_[data-slot=progress-indicator]]:transition-[width,background-color] [&_[data-slot=progress-indicator]]:duration-400 [&_[data-slot=progress-indicator]]:ease-meter motion-reduce:[&_[data-slot=progress-indicator]]:transition-none',
           destructive && '[&_[data-slot=progress-indicator]]:bg-destructive'
         )}
       />
@@ -48,7 +51,7 @@ export function PaceBar({
         <div aria-hidden className="absolute inset-0 overflow-hidden rounded-md">
           <div
             className={cn(
-              'absolute inset-y-0',
+              'absolute inset-y-0 transition-[left,width] duration-400 ease-meter motion-reduce:transition-none',
               // over: gaps cut into the fill; under: stripes drawn on the empty track
               offPace === 'over'
                 ? 'bg-[repeating-linear-gradient(-45deg,transparent_0_2px,var(--background)_2px_4px)] opacity-70'
@@ -61,7 +64,7 @@ export function PaceBar({
       {tick !== null && (
         <div
           aria-hidden
-          className="absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded-full bg-foreground shadow-[0_0_0_1px_var(--background)]"
+          className="absolute -top-1 -bottom-1 w-0.5 -translate-x-1/2 rounded-full bg-foreground shadow-[0_0_0_1px_var(--background)] transition-[left] duration-400 ease-meter motion-reduce:transition-none"
           style={{ left: `${tick}%` }}
         />
       )}

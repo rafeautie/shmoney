@@ -27,7 +27,7 @@ export function StatCards({ stats, currency }: { stats: Stat[]; currency: string
           <CardContent className="px-4">
             <p className="text-sm text-muted-foreground">{stat.label}</p>
             <p className="text-2xl font-semibold tracking-tight">
-              <Amount value={stat.value} currency={currency} colored={stat.colored} />
+              <Amount value={stat.value} currency={currency} colored={stat.colored} tween />
             </p>
             {stat.sub !== undefined && <p className="text-xs text-muted-foreground">{stat.sub}</p>}
           </CardContent>

@@ -264,6 +264,12 @@
   }
 }
 
+/* Figures counting to a new value (Amount's tween) and the meters easing
+ * beside them share one ease-out cubic. */
+@theme {
+  --ease-meter: cubic-bezier(0.33, 1, 0.68, 1);
+}
+
 /* Status-line crossfade: labels swap in place, with a touch of blur so two
  * words mid-fade read as one soft morph rather than overlapping text. */
 @theme {

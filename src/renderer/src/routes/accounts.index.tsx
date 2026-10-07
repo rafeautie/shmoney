@@ -192,7 +192,7 @@ function NetWorth() {
       <p className="text-sm text-muted-foreground">Net worth</p>
       <h2 className="flex flex-col items-start text-2xl font-semibold tracking-tight">
         {totals.map(([currency, total]) => (
-          <Amount key={currency} value={total} currency={currency} />
+          <Amount key={currency} value={total} currency={currency} tween />
         ))}
       </h2>
     </div>
