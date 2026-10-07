@@ -72,11 +72,12 @@ export function SettingsDialog(): React.JSX.Element {
       }}
     >
       <DialogContent
-        className="flex h-[min(720px,calc(100vh-4rem))] gap-0 overflow-hidden p-0 sm:max-w-4xl"
+        // centered, so clearing the native caption buttons up top takes the same margin below
+        className="flex h-[min(1120px,calc(100vh_-_2_*_max(2rem,env(titlebar-area-height,0px)_+_1rem)))] gap-0 overflow-hidden p-0 sm:max-w-[min(90rem,calc(100%-4rem))]"
         // base-ui otherwise focuses the first section, even when opened at another
         initialFocus={activeRef}
       >
-        <nav className="flex w-48 shrink-0 flex-col gap-0.5 border-r bg-muted/40 px-2.5 py-4.5">
+        <nav className="flex w-56 shrink-0 flex-col gap-0.5 border-r bg-muted/40 px-2.5 py-4.5">
           <DialogTitle className="px-2 pb-2.5">Settings</DialogTitle>
           {SETTINGS_NAV.map(({ id, label, icon }) => {
             const status = statuses[id]

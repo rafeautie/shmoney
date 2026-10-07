@@ -29,7 +29,12 @@ import { registerDiagnosticsIpc } from './ipc/diagnostics'
 import { registerDebugIpc } from './ipc/debug'
 import { registerDemoIpc } from './ipc/demo'
 import { registerAppIpc } from './ipc/app'
-import { initChromeTheme, resolvedChrome, USES_TITLE_BAR_OVERLAY } from './chrome-theme'
+import {
+  initChromeTheme,
+  resolvedChrome,
+  TITLE_BAR_OVERLAY_COLOR,
+  USES_TITLE_BAR_OVERLAY
+} from './chrome-theme'
 import { sendImportFile, statementPathFrom } from './file-open'
 import { installApplicationMenu } from './menu'
 import { readSettings } from './settings-store'
@@ -73,7 +78,7 @@ function createWindow(): void {
     ...(USES_TITLE_BAR_OVERLAY
       ? {
           titleBarOverlay: {
-            color: chrome.background,
+            color: TITLE_BAR_OVERLAY_COLOR,
             symbolColor: chrome.symbol,
             height: TITLE_BAR_OVERLAY_HEIGHT
           }

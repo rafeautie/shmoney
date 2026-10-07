@@ -1,5 +1,5 @@
 import { BrowserWindow, nativeTheme } from 'electron'
-import { MODAL_BACKDROP_OPACITY, THEME_CHROME } from '@shared/theme'
+import { THEME_CHROME } from '@shared/theme'
 import type { Settings } from '@shared/settings'
 
 /** Windows and Linux draw the caption buttons; macOS draws traffic lights. */
@@ -14,48 +14,17 @@ export function resolvedChrome(): (typeof THEME_CHROME)[keyof typeof THEME_CHROM
   return nativeTheme.shouldUseDarkColors ? THEME_CHROME.dark : THEME_CHROME.light
 }
 
-// how far the caption buttons have faded toward the modal backdrop's black,
-// 0 to 1; they sit above the page, so the backdrop itself cannot cover them
-let dim = 0
-let fade: ReturnType<typeof setInterval> | undefined
-
-function darken(hex: string, amount: number): string {
-  const channels = [1, 3, 5].map((i) =>
-    Math.round(parseInt(hex.slice(i, i + 2), 16) * (1 - amount))
-  )
-  return '#' + channels.map((c) => c.toString(16).padStart(2, '0')).join('')
-}
-
-function paintOverlay(): void {
-  if (!USES_TITLE_BAR_OVERLAY) return
-  const chrome = resolvedChrome()
-  const amount = dim * MODAL_BACKDROP_OPACITY
-  for (const window of BrowserWindow.getAllWindows()) {
-    window.setTitleBarOverlay({
-      color: darken(chrome.background, amount),
-      symbolColor: darken(chrome.symbol, amount)
-    })
-  }
-}
+/** The caption buttons have no fill of their own; the header shows through. */
+export const TITLE_BAR_OVERLAY_COLOR = '#00000000'
 
 function paintChrome(): void {
   const chrome = resolvedChrome()
-  for (const window of BrowserWindow.getAllWindows()) window.setBackgroundColor(chrome.background)
-  paintOverlay()
-}
-
-/** Tweens the caption buttons alongside the backdrop's CSS fade (ease-out). */
-export function setChromeDimmed(value: boolean, fadeMs: number): void {
-  clearInterval(fade)
-  const from = dim
-  const to = value ? 1 : 0
-  const start = Date.now()
-  fade = setInterval(() => {
-    const t = Math.min(1, (Date.now() - start) / fadeMs)
-    dim = from + (to - from) * (1 - (1 - t) ** 2)
-    paintOverlay()
-    if (t === 1) clearInterval(fade)
-  }, 16)
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.setBackgroundColor(chrome.background)
+    if (USES_TITLE_BAR_OVERLAY) {
+      window.setTitleBarOverlay({ color: TITLE_BAR_OVERLAY_COLOR, symbolColor: chrome.symbol })
+    }
+  }
 }
 
 export function applyTheme(theme: Settings['theme']): void {
