@@ -47,7 +47,7 @@ export function NavChat() {
             measures 0px tall and the shared fade would hold it shut */}
         <CollapsibleContent
           animated={false}
-          className="flex h-(--collapsible-panel-height) min-h-0 flex-col overflow-hidden transition-[height] duration-300 ease-smooth data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none"
+          className="flex h-(--collapsible-panel-height) min-h-0 flex-col overflow-hidden transition-[height] duration-200 ease-smooth data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none"
         >
           {conversations?.length === 0 && (
             // Pinned to the expanded width (the sidebar less the group's px-2.5

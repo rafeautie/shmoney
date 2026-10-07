@@ -117,16 +117,18 @@ function GoalsPage() {
               >
                 Archived · {plural(archived.length, 'goal')}
               </CollapsibleTrigger>
-              <CollapsibleContent className="pt-4">
-                {goalsView === 'table' ? (
-                  <GoalsTable goals={archived} savedThisMonth={savedThisMonth} />
-                ) : (
-                  <div className="grid gap-4 px-6 md:grid-cols-2 xl:grid-cols-3">
-                    {archived.map((goal) => (
-                      <GoalCard key={goal.id} goal={goal} />
-                    ))}
-                  </div>
-                )}
+              <CollapsibleContent>
+                <div className="pt-4">
+                  {goalsView === 'table' ? (
+                    <GoalsTable goals={archived} savedThisMonth={savedThisMonth} />
+                  ) : (
+                    <div className="grid gap-4 px-6 md:grid-cols-2 xl:grid-cols-3">
+                      {archived.map((goal) => (
+                        <GoalCard key={goal.id} goal={goal} />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CollapsibleContent>
             </Collapsible>
           )}

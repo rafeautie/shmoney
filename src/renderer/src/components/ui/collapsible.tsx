@@ -31,7 +31,7 @@ function CollapsibleContent({
       className={cn(
         'transition-none duration-0',
         animated &&
-          'h-(--collapsible-panel-height) overflow-hidden transition-[height,opacity] duration-400 ease-smooth data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0 motion-reduce:transition-none',
+          'h-(--collapsible-panel-height) overflow-hidden transition-[height,opacity] duration-300 ease-smooth data-ending-style:h-0 data-ending-style:opacity-0 data-starting-style:h-0 data-starting-style:opacity-0 motion-reduce:transition-none',
         className
       )}
       {...props}

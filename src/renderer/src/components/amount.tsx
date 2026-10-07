@@ -92,7 +92,7 @@ interface AmountProps {
   className?: string
 }
 
-const TWEEN_MS = 400
+const TWEEN_MS = 500
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
 
 /**

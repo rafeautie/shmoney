@@ -76,10 +76,12 @@ export function RunCard({
           />
         </CollapsibleTrigger>
       </div>
-      <CollapsibleContent className="divide-y border-t">
-        {entries.map((entry) => (
-          <EntryRow key={entry.id} entry={entry} categoryName={categoryName} nested />
-        ))}
+      <CollapsibleContent>
+        <div className="divide-y border-t">
+          {entries.map((entry) => (
+            <EntryRow key={entry.id} entry={entry} categoryName={categoryName} nested />
+          ))}
+        </div>
       </CollapsibleContent>
     </Collapsible>
   )
