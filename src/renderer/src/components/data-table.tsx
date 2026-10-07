@@ -190,13 +190,13 @@ function DataTableGroupImpl<TData, TTail>({
     <tbody data-slot="table-body">
       {/* top-10 parks it under the column header. Sticky rows are bounded by the
           table, not their body, so passed headers pile up under the newest: the
-          cell stays opaque. A shadow draws the border, since a collapsed border
-          stays behind when the row sticks; the transparent one keeps the row's
-          share of the border grid, so later lines land on whole pixels */}
+          cell stays opaque. The cell draws its own bottom rule, since a collapsed
+          border stays behind when the row sticks; the transparent one keeps the
+          row's share of the border grid, so later lines land on whole pixels */}
       <TableRow className="sticky top-10 z-[5] border-b-transparent hover:bg-transparent">
         <TableCell
           colSpan={columns.length}
-          className="h-8 bg-band py-0 shadow-[inset_0_-1px_0_0_var(--border)] in-data-[slot=card]:bg-tray"
+          className="h-8 py-0 band-rule [--band-surface:var(--background)] in-data-[slot=card]:[--band:var(--tray)] in-data-[slot=card]:[--band-surface:var(--card)]"
         >
           {header(run.key, run.originals, tail)}
         </TableCell>

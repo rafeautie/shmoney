@@ -219,6 +219,16 @@
   @apply bg-lifted shadow-[0_0_0_1px_var(--border)];
 }
 
+/* A band with a bottom rule. The rule is laid over the surface beneath the
+ * band rather than the band, so the translucent border color comes out the
+ * same as on the rows around it. --band-surface is that surface. */
+@utility band-rule {
+  background:
+    linear-gradient(var(--border), var(--border)) bottom / 100% 1px no-repeat,
+    linear-gradient(var(--band-surface), var(--band-surface)) bottom / 100% 1px no-repeat,
+    var(--band);
+}
+
 @utility animate-shimmer {
   mask-image: linear-gradient(
     90deg,
