@@ -1,6 +1,8 @@
 import { and, asc, count, desc, eq, isNull, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
 import { db } from '../db'
 import { accounts, categories, transactions } from '../db/schema'
+import { buildWhere } from '../reports/filters'
+import type { ResolvedTransactionFilters } from '@shared/transaction-filters'
 import {
   isSyncOwned,
   type CurrencyTotal,
@@ -91,6 +93,56 @@ export function transactionsPage(
           .where(visible)
           .get()?.value ?? 0)
   return { rows, total, next }
+}
+
+/**
+ * The table's filter predicate. An account-scoped view ignores accountIds from
+ * a loaded saved filter: the page's account is authoritative
+ */
+export function filteredWhere(
+  filters: ResolvedTransactionFilters,
+  accountId: number | undefined
+): SQL | undefined {
+  const scoped = accountId !== undefined
+  const filterWhere = buildWhere(scoped ? { ...filters, accountIds: undefined } : filters, {
+    keepUnknownDates: true,
+    keepOpeningBalances: true
+  })
+  return scoped ? and(eq(transactions.accountId, accountId), filterWhere) : filterWhere
+}
+
+export interface ExportRow {
+  date: number
+  accountName: string
+  description: string
+  categoryName: string | null
+  amount: number
+  currency: string
+  pending: boolean
+}
+
+/** every row {@link transactionsPage} would list, in its order, unpaged */
+export function transactionRows(
+  where: SQL | undefined,
+  sortBy: keyof typeof transactionSortColumns,
+  sortDir: 'asc' | 'desc'
+): ExportRow[] {
+  return db
+    .select({
+      date: transactions.effectiveDate,
+      accountName: accounts.name,
+      description: transactions.description,
+      categoryName: categories.name,
+      amount: transactions.amount,
+      currency: accounts.currency,
+      pending: transactions.pending
+    })
+    .from(transactions)
+    .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+    .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    .where(and(where, isNull(transactions.deletedAt)))
+    .orderBy(order(transactionSortColumns[sortBy], sortDir), order(transactions.id, sortDir))
+    .all()
 }
 
 /**

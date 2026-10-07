@@ -63,6 +63,7 @@ function AccountDetailPage() {
       filterState={filterState}
       queryKey={['accounts', id, 'transactions']}
       fetchPage={(query) => window.api.accounts.transactions({ accountId: id, ...query })}
+      accountId={id}
       lockedAccount
       showCreateRow={creating}
       createAccountId={id}

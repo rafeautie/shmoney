@@ -26,7 +26,13 @@ export const SETTINGS_SECTIONS = [
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 
 // pages that open within a section's pane instead of as a dialog over Settings
-export const SETTINGS_PAGES = ['licenses', 'report-bug', 'suggestions', 'apply-rules'] as const
+export const SETTINGS_PAGES = [
+  'licenses',
+  'report-bug',
+  'suggestions',
+  'apply-rules',
+  'backups'
+] as const
 
 export type SettingsPage = (typeof SETTINGS_PAGES)[number]
 

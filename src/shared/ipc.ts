@@ -634,6 +634,7 @@ export const IPC = {
   transactionsList: 'transactions:list',
   transactionsStats: 'transactions:stats',
   transactionsSums: 'transactions:sums',
+  transactionsExportCsv: 'transactions:exportCsv',
   transactionsSetCategories: 'transactions:setCategories',
   transactionsBulkDelete: 'transactions:bulkDelete',
   transactionsCreate: 'transactions:create',

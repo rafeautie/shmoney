@@ -6,6 +6,7 @@ import { app, shell, BrowserWindow } from 'electron'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { initLogging, createLogger } from './logging'
 import { runMigrations } from './db'
+import { backupBeforeMigrations, startDailyBackups } from './backups'
 import { registerConnectionsIpc } from './ipc/connections'
 import { registerCategoriesIpc } from './ipc/categories'
 import { registerTransactionsIpc } from './ipc/transactions'
@@ -177,7 +178,7 @@ if (!app.requestSingleInstanceLock()) {
     }
   })
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     electronApp.setAppUserModelId('com.shmoney.app')
 
     app.on('browser-window-created', (_, window) => {
@@ -200,6 +201,7 @@ if (!app.requestSingleInstanceLock()) {
       })
     })
 
+    await backupBeforeMigrations()
     runMigrations()
     registerConnectionsIpc()
     registerCategoriesIpc()
@@ -243,6 +245,7 @@ if (!app.requestSingleInstanceLock()) {
     healAcceptedSuggestionsOnLaunch()
 
     startUpdateChecks()
+    startDailyBackups()
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()

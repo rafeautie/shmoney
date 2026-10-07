@@ -6,6 +6,29 @@ export interface DatabaseSize {
   tables: { name: string; bytes: number }[]
 }
 
+// daily and pre-migration snapshots are automatic and pruned on a schedule;
+// manual and pre-restore ones are kept until newer ones of their kind push them out
+export const BACKUP_KINDS = ['daily', 'pre-migration', 'manual', 'pre-restore'] as const
+export type BackupKind = (typeof BACKUP_KINDS)[number]
+
+export interface Backup {
+  // the file name inside the backups folder, which is also its id
+  name: string
+  kind: BackupKind
+  // unix ms
+  createdAt: number
+  bytes: number
+}
+
+// where a full export landed; null when the folder picker was cancelled
+export type ExportResult = { path: string } | null
+
 export const STORAGE_IPC = {
-  getDatabaseSize: 'storage:getDatabaseSize'
+  getDatabaseSize: 'storage:getDatabaseSize',
+  listBackups: 'storage:listBackups',
+  backupNow: 'storage:backupNow',
+  restoreBackup: 'storage:restoreBackup',
+  showBackupsFolder: 'storage:showBackupsFolder',
+  exportAll: 'storage:exportAll',
+  showInFolder: 'storage:showInFolder'
 } as const

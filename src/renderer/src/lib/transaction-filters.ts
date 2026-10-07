@@ -5,7 +5,13 @@ import {
   type ResolvedTransactionFilters,
   type TransactionFilters
 } from '@shared/transaction-filters'
+import type { TransactionSortBy } from '@shared/ipc'
 import { startOfTodayEpoch } from './utils'
+
+// newest first, the order every transactions table opens in
+export const DEFAULT_TRANSACTION_SORTING: [{ id: TransactionSortBy; desc: boolean }] = [
+  { id: 'date', desc: true }
+]
 
 export interface TransactionFilterState {
   filters: TransactionFilters

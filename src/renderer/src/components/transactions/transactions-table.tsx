@@ -4,6 +4,7 @@ import type { ColumnDef, RowSelectionState, SortingState } from '@tanstack/react
 import type { Page, PageCursor, Transaction, TransactionSortBy } from '@shared/ipc'
 import type { ResolvedTransactionFilters } from '@shared/transaction-filters'
 import { PAGE_SIZE, cn, sortQuery } from '@/lib/utils'
+import { DEFAULT_TRANSACTION_SORTING } from '@/lib/transaction-filters'
 import { CategoryCell } from './category-cell'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { selectColumn } from '@/components/data-table-select-column'
@@ -37,6 +38,9 @@ interface TransactionsTableProps {
   showCreateRow?: boolean
   /** Fixed account for the entry row; omitted = pick from an account cell */
   createAccountId?: number
+  /** Controlled sort, for a parent that needs it too (the CSV export); omitted = own state */
+  sorting?: SortingState
+  onSortingChange?: React.Dispatch<React.SetStateAction<SortingState>>
   emptyMessage?: string
   className?: string
 }
@@ -48,11 +52,15 @@ export function TransactionsTable({
   showAccount,
   showCreateRow,
   createAccountId,
+  sorting: controlledSorting,
+  onSortingChange,
   emptyMessage = 'No transactions yet. Try syncing.',
   className
 }: TransactionsTableProps) {
-  const [sorting, setSorting] = useState<SortingState>([{ id: 'date', desc: true }])
-  const sort = sortQuery<TransactionSortBy>(sorting, { id: 'date', desc: true })
+  const [ownSorting, setOwnSorting] = useState<SortingState>(DEFAULT_TRANSACTION_SORTING)
+  const sorting = controlledSorting ?? ownSorting
+  const setSorting = onSortingChange ?? setOwnSorting
+  const sort = sortQuery<TransactionSortBy>(sorting, DEFAULT_TRANSACTION_SORTING[0])
   // keyed by transaction id, so selection survives refetches and filter changes
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
 

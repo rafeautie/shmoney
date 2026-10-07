@@ -7,7 +7,7 @@ import { afterAll, afterEach, inject, vi } from 'vitest'
 // through `api` (window.api), exactly as the renderer does.
 vi.mock('electron', () => import('../../../demo/shims/electron'))
 vi.mock('@electron-toolkit/utils', () => import('../../../demo/shims/toolkit-utils'))
-vi.mock('../../db', () => import('../../../demo/db'))
+vi.mock('../../db', () => import('./db-module'))
 vi.mock('../../logging', () => import('../../../demo/shims/logging'))
 vi.mock('../../access-url', () => import('./fakes/access-url'))
 vi.mock('../../llm/manager', () => import('./fakes/llm'))
@@ -33,6 +33,7 @@ const modules = await Promise.all([
   import('../../ipc/rules'),
   import('../../ipc/rule-suggestions'),
   import('../../ipc/settings'),
+  import('../../ipc/storage'),
   import('../../ipc/import'),
   import('../../ipc/app'),
   import('../../ipc/llm'),

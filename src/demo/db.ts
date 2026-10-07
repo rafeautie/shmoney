@@ -73,3 +73,19 @@ export function databaseBytes(): number {
   )
   return Number(result?.values[0]?.[0] ?? 0)
 }
+
+/**
+ * The database as file bytes. export() reopens the connection, which drops the
+ * per-connection state set up above, so that is restored after.
+ */
+export function databaseFile(): Uint8Array {
+  const bytes = sqlite.export()
+  sqlite.run('PRAGMA foreign_keys = ON')
+  sqlite.create_function('MERCHANT', merchantOf)
+  return bytes
+}
+
+// the demo's export overrides never write files; the test harness supplies its own
+export async function backupDatabase(): Promise<void> {
+  throw new Error('The web demo keeps its data in memory')
+}
