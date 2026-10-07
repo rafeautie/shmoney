@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
-import type {
-  QueryRow,
-  ReportWidget,
-  ResolvedQuery,
-  TimeGrain,
-  WidgetConfig
+import {
+  bucketLabelFor,
+  type QueryRow,
+  type ReportWidget,
+  type ResolvedQuery,
+  type TimeGrain,
+  type WidgetConfig
 } from '@shared/reports'
 import { formatBucketLabel } from '@/lib/format-date'
 import { Chart } from '@/components/charts/chart'
@@ -64,6 +65,9 @@ export function TimeSeriesChart({
   const measure = displayMeasure(config)
   const fv = makeFormatValue(measure, currency)
   const chartSeries = series.map((s) => ({ key: s.key, label: s.label, currency: s.currency }))
+  // the bucket holding today is still filling up, like chat's partial months
+  const current = bucketLabelFor(grain, new Date())
+  const inProgressIndex = data.findIndex((row) => row.bucket === current)
   const kind = widget.type === 'line' ? 'line' : widget.type === 'area' ? 'area' : 'bar'
 
   return (
@@ -79,6 +83,7 @@ export function TimeSeriesChart({
         stacked={config.display?.stacked ?? false}
         legend={config.display?.showLegend ?? false}
         sensitive={measure !== 'count'}
+        inProgressIndex={inProgressIndex}
         onSelect={
           onDrill &&
           ((index, key) => {
