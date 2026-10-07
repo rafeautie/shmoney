@@ -3,8 +3,8 @@ import { Settings01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuSwitchItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { useSetSetting, useSetting } from '@/lib/settings'
@@ -14,12 +14,12 @@ export function TransactionViewItems() {
   const groupByDay = useSetting('groupTransactionsByDay')
   const setSetting = useSetSetting()
   return (
-    <DropdownMenuCheckboxItem
+    <DropdownMenuSwitchItem
       checked={groupByDay}
       onCheckedChange={(checked) => void setSetting('groupTransactionsByDay', checked)}
     >
       Group by day
-    </DropdownMenuCheckboxItem>
+    </DropdownMenuSwitchItem>
   )
 }
 
