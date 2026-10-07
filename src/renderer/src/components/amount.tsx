@@ -119,7 +119,7 @@ function useCountUp(
     const step = (now: number): void => {
       // a frame can be stamped a little before the effect ran
       const t = Math.min(1, Math.max(0, (now - start) / TWEEN_MS))
-      const eased = 1 - (1 - t) ** 3
+      const eased = t < 0.5 ? 4 * t ** 3 : 1 - (2 - 2 * t) ** 3 / 2
       shown.current = t === 1 ? value : Math.round((from + (value - from) * eased) / 10) * 10
       node.nodeValue = formatAmount(shown.current, currency)
       if (t < 1) frame = requestAnimationFrame(step)
