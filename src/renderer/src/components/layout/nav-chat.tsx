@@ -39,7 +39,7 @@ export function NavChat() {
           render={<Link to="/chat" />}
           aria-label="New chat"
           // fade with the group label instead of the built-in instant hidden
-          className="right-8.5 top-2.5 text-sidebar-foreground/70 transition-[opacity,background-color,color] duration-200 ease-in-out group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:opacity-0"
+          className="right-8.5 top-2.5 text-sidebar-foreground/70 transition-[opacity,background-color,color] duration-200 group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:opacity-0"
         >
           <HugeiconsIcon icon={Add01Icon} size={16} />
         </SidebarGroupAction>
@@ -50,7 +50,7 @@ export function NavChat() {
             // its lines instead of reflowing as the sidebar narrows, and the
             // group clips the overflow while it fades out on the same timing as
             // the New chat action above.
-            <Empty className="mx-2 mt-3 w-[calc(var(--sidebar-width)-2.25rem)] gap-2 border px-2 py-4 transition-opacity duration-200 ease-in-out group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
+            <Empty className="mx-2 mt-3 w-[calc(var(--sidebar-width)-2.25rem)] gap-2 border px-2 py-4 transition-opacity duration-200 group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
               <EmptyHeader>
                 <EmptyDescription>
                   No chats yet. Start one to ask about your money.

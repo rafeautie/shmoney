@@ -6,25 +6,32 @@ import { toGlyphs } from '@/lib/mask-glyphs'
 
 function MaskedGlyphs({ text }: { text: string }) {
   return toGlyphs(text).map((glyph, i) => {
-    if (glyph.kind === 'fixed') return glyph.char
+    if (glyph.kind === 'fixed')
+      return glyph.gap ? (
+        <span key={`gap${i}`} className={`private-gap-${glyph.gap}`}>
+          {glyph.char}
+        </span>
+      ) : (
+        glyph.char
+      )
     const style = { '--i': glyph.index } as CSSProperties
     if (glyph.kind === 'digit')
       return (
-        <span key={i} className="private-slot" style={style}>
+        <span key={`slot${i}`} className="private-slot" style={style}>
           <span className="private-glyph">{glyph.char}</span>
           <span className="private-dot" />
         </span>
       )
     if (glyph.kind === 'drop')
       return (
-        <span key={i} className="private-drop" style={style}>
+        <span key={`drop${i}`} className="private-drop" style={style}>
           <span>
             <span className="private-glyph">{glyph.char}</span>
           </span>
         </span>
       )
     return (
-      <span key={i} className="private-pad" style={style}>
+      <span key={`pad${i}`} className="private-pad" style={style}>
         <span>
           <span className="private-slot">
             <span className="invisible">0</span>

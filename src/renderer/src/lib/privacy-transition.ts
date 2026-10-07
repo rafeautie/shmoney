@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from 'react'
 
 /** Longest single digit transition plus the per-digit stagger, see .private-* in main.css. */
-const SETTLE_MS = 950
+const SETTLE_MS = 850
 /** ms of delay per px of distance from the toggle: the ripple's speed. */
-const RIPPLE_MS_PER_PX = 0.35
-const MAX_DELAY_MS = 600
+const RIPPLE_MS_PER_PX = 0.2
+const MAX_DELAY_MS = 300
 
 let settling = false
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -65,4 +65,16 @@ export function startPrivacyTransition(): void {
   })
   setSettling(true)
   timer = setTimeout(() => setSettling(false), longest + SETTLE_MS)
+}
+
+/** Keeps --device-px (one screen pixel in CSS px) current across display scale
+ * changes, so the mask's dots can size to whole screen pixels. */
+export function trackDevicePixel(): void {
+  const update = (): void => {
+    document.documentElement.style.setProperty('--device-px', `${1 / devicePixelRatio}px`)
+    matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener('change', update, {
+      once: true
+    })
+  }
+  update()
 }

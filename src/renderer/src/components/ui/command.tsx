@@ -50,7 +50,9 @@ function CommandList({
       className={cn('overflow-hidden', className)}
       {...props}
     >
-      {/* the viewport is the scroll container, so cmdk's scrollIntoView lands there */}
+      {/* the viewport is the scroll container, so cmdk's scrollIntoView lands there.
+          Items must sit in a CommandGroup: cmdk re-sorts ungrouped items into its own
+          list element, which this wrapper breaks (it throws and typing is dropped) */}
       <ScrollArea viewPortClassName={cn('max-h-[300px] scroll-py-1', viewPortClassName)}>
         {children}
       </ScrollArea>

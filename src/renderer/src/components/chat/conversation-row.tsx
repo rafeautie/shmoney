@@ -81,7 +81,7 @@ export const ConversationRow = memo(function ConversationRow({
                 showOnHover
                 aria-label="Conversation actions"
                 // fade in on row hover with the same gentle timing as button hovers
-                className="transition-[opacity,transform,background-color,color] ease-in-out"
+                className="transition-[opacity,transform,background-color,color]"
               />
             }
           >
