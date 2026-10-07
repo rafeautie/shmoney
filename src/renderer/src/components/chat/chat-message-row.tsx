@@ -1,9 +1,17 @@
 import { memo, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Target02Icon } from '@hugeicons/core-free-icons'
-import { messageText, type ChatMessage, type StreamingChatPart } from '@shared/chat'
+import { Invoice01Icon, Target02Icon } from '@hugeicons/core-free-icons'
+import {
+  ANALYSIS_TOOL_NAMES,
+  messageText,
+  type AnalysisDisplay,
+  type ChatMessage,
+  type StreamingChatPart,
+  type TransactionsLink
+} from '@shared/chat'
 import { useActiveReply } from '@/lib/chat'
+import { plural } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Message, MessageContent, MessageFooter } from '@/components/ui/message'
@@ -102,6 +110,25 @@ function queriedGoals(parts: StreamingChatPart[]): boolean {
   })
 }
 
+/** the rows behind each typed call the turn ran, one per distinct filter */
+function transactionLinks(parts: StreamingChatPart[]): TransactionsLink[] {
+  const seen = new Set<string>()
+  return parts.flatMap((part) => {
+    if (
+      part.type !== 'functionCall' ||
+      !(ANALYSIS_TOOL_NAMES as readonly string[]).includes(part.name)
+    )
+      return []
+    const links = (part as { display?: AnalysisDisplay }).display?.links ?? []
+    return links.filter((link) => {
+      const key = JSON.stringify(link.filters)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  })
+}
+
 /**
  * One message row: a user bubble, an error bubble, or an assistant turn. The
  * same component renders a turn live and settled; it takes its items from the
@@ -156,6 +183,8 @@ export const ChatMessageRow = memo(function ChatMessageRow({ message }: { messag
   const stats = streaming ? (reply?.stats ?? null) : message.stats
   const stopped = message.status === 'interrupted'
   const showStats = stats !== null && stats.outputTokens > 0
+  const links = streaming ? [] : transactionLinks(parts)
+  const goals = !streaming && queriedGoals(parts)
 
   return (
     // the fade-in only runs on mount, i.e. when the turn is accepted; dropping
@@ -169,15 +198,33 @@ export const ChatMessageRow = memo(function ChatMessageRow({ message }: { messag
           asOf={message.createdAt}
           messageId={streaming ? undefined : message.id}
         />
-        {!streaming && queriedGoals(parts) && (
-          <Badge
-            variant="outline"
-            className="gap-1"
-            render={<Link to="/goals" aria-label="Open Goals" />}
-          >
-            <HugeiconsIcon icon={Target02Icon} strokeWidth={2} data-icon="inline-start" />
-            Goals
-          </Badge>
+        {(links.length > 0 || goals) && (
+          <div className="flex flex-wrap gap-1.5">
+            {links.map((link) => (
+              <Badge
+                key={JSON.stringify(link.filters)}
+                variant="outline"
+                className="gap-1"
+                render={
+                  <Link to="/accounts" search={{ tab: 'transactions', filters: link.filters }} />
+                }
+              >
+                <HugeiconsIcon icon={Invoice01Icon} strokeWidth={2} data-icon="inline-start" />
+                View {plural(link.count, 'transaction')}
+                {links.length > 1 && link.label ? `, ${link.label}` : ''}
+              </Badge>
+            ))}
+            {goals && (
+              <Badge
+                variant="outline"
+                className="gap-1"
+                render={<Link to="/goals" aria-label="Open Goals" />}
+              >
+                <HugeiconsIcon icon={Target02Icon} strokeWidth={2} data-icon="inline-start" />
+                Goals
+              </Badge>
+            )}
+          </div>
         )}
         {(stopped || showStats) && (
           <MessageFooter className="gap-1.5">

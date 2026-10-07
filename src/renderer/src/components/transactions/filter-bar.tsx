@@ -1,5 +1,8 @@
+import { HugeiconsIcon } from '@hugeicons/react'
+import { Cancel01Icon } from '@hugeicons/core-free-icons'
 import type { TransactionFilters } from '@shared/transaction-filters'
 import { Button } from '@/components/ui/button'
+import { plural } from '@/lib/utils'
 import {
   AccountsControl,
   CategoriesControl,
@@ -55,6 +58,18 @@ export function FilterBar({ filters, onChange, defaultFilters, hideAccounts }: F
         onChange={(direction) => onChange({ ...filters, direction })}
       />
       <MoreFiltersPopover filters={filters} onChange={onChange} defaultFilters={defaultFilters} />
+      {/* a chat answer's exact rows; clearing the pin keeps the rest of the filter */}
+      {filters.transactionIds?.length ? (
+        <Button
+          variant="field"
+          size="lg"
+          aria-label="Clear pinned transactions"
+          onClick={() => onChange({ ...filters, transactionIds: undefined })}
+        >
+          {plural(filters.transactionIds.length, 'pinned transaction')}
+          <HugeiconsIcon icon={Cancel01Icon} className="text-muted-foreground" />
+        </Button>
+      ) : null}
       <SavedFiltersMenu currentFilters={filters} onLoad={onChange} />
       {!isDefault && (
         <Button

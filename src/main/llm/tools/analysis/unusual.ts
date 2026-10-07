@@ -17,6 +17,7 @@ import {
   type Window
 } from './period'
 import { detectRecurring } from './recurring'
+import { linkRows, links, windowRange } from './links'
 
 type FlagKind =
   | 'possible duplicate'
@@ -294,6 +295,17 @@ export function runUnusual(args: Record<string, unknown>, ctx: AnalysisContext):
     )
   )
 
+  // the flagged charges themselves; category- and goal-level flags have no one row
+  const charged = flags.flatMap((f) => (f.txId != null && inWindow(f) ? [f.txId] : []))
+  const chargesLink = linkRows(ctx, charged, {
+    dateRange: windowRange(w),
+    ...(ctx.accountId !== null ? { accountIds: [ctx.accountId] } : {}),
+    direction: 'expense',
+    includePending: false,
+    includeTransfers: false,
+    transactionIds: [...charged].sort((a, b) => a - b)
+  })
+
   return {
     result: {
       ok: true,
@@ -305,6 +317,7 @@ export function runUnusual(args: Record<string, unknown>, ctx: AnalysisContext):
       notes: flags.length === 0 ? [`Nothing unusual in ${w.label}.`] : [],
       durationMs: Date.now() - started
     },
-    chart: null
+    chart: null,
+    links: links(chargesLink)
   }
 }

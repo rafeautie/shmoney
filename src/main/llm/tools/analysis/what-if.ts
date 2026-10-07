@@ -11,7 +11,8 @@ import {
   type TxFilter,
   type ToolOutput
 } from './common'
-import { completeMonths, monthEnd, monthStart, resolvePeriod } from './period'
+import { filtersFor, linkRows, links, txIds } from './links'
+import { completeMonths, monthEnd, monthStart, resolvePeriod, type Window } from './period'
 
 export interface MonthlyAverages {
   /** the complete months averaged over, at most the last six */
@@ -150,6 +151,24 @@ export function runWhatIf(args: Record<string, unknown>, ctx: AnalysisContext): 
     }
   }
 
+  // the spending averaged into current_monthly_spending
+  const averaged: TxFilter & { window: Window } = {
+    category,
+    search,
+    currency: target.currency,
+    window: {
+      start: monthStart(all.months[0]),
+      end: monthEnd(all.months[n - 1]),
+      label: period,
+      partial: false
+    }
+  }
+  const spentLink = linkRows(
+    ctx,
+    txIds(ctx, averaged, 'spending'),
+    filtersFor(ctx, averaged, 'spending')
+  )
+
   return {
     result: {
       ok: true,
@@ -158,6 +177,7 @@ export function runWhatIf(args: Record<string, unknown>, ctx: AnalysisContext): 
       ...(notes.length ? { notes } : {}),
       durationMs: Date.now() - started
     },
-    chart: null
+    chart: null,
+    links: links(spentLink)
   }
 }

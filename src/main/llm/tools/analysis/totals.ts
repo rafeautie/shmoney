@@ -11,6 +11,7 @@ import {
   type ToolOutput,
   type TxFilter
 } from './common'
+import { filtersFor, linkRows, links, txIds, type Direction } from './links'
 import {
   completeMonths,
   coverageNote,
@@ -552,6 +553,19 @@ export function runTotals(args: Record<string, unknown>, ctx: AnalysisContext): 
     notes.push('Amounts in different currencies are never added together.')
   }
 
+  // the rows behind each period's figure; a comparison links both
+  const direction: Direction = measure === 'net' ? 'all' : measure
+  const linkFor = (w: Window, label?: string): ReturnType<typeof linkRows> =>
+    linkRows(
+      ctx,
+      txIds(ctx, { ...base, window: w }, direction),
+      filtersFor(ctx, { ...base, window: w }, direction),
+      label
+    )
+  const rowLinks = compare
+    ? links(linkFor(window, short(window.label)), linkFor(compare, short(compare.label)))
+    : links(linkFor(window))
+
   return {
     result: {
       ok: true,
@@ -564,6 +578,7 @@ export function runTotals(args: Record<string, unknown>, ctx: AnalysisContext): 
       notes,
       durationMs: Date.now() - started
     },
-    chart
+    chart,
+    links: rowLinks
   }
 }

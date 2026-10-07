@@ -71,5 +71,6 @@ export function buildWhere(
     )
   }
   if (!f.includePending) preds.push(eq(transactions.pending, false))
+  if (f.transactionIds?.length) preds.push(inArray(transactions.id, f.transactionIds))
   return and(...preds)
 }

@@ -1,7 +1,8 @@
 import type { ChartSpec } from '@shared/chat'
 import { fail, leftOutNote, round2, type AnalysisContext, type ToolOutput } from './common'
 import { savedInMonth } from './goals'
-import { monthEnd, monthOfDay } from './period'
+import { linkRows, links, windowRange } from './links'
+import { monthEnd, monthOfDay, monthStart } from './period'
 
 interface StatusRow {
   category: string
@@ -122,6 +123,30 @@ export function runBudgets(args: Record<string, unknown>, ctx: AnalysisContext):
           group: null
         }
       : null
+  // the charges behind spent: the budgeted categories' spending that month, pending included
+  const budgeted = (
+    ctx.db
+      .prepare('SELECT category_id AS id FROM temp.budget_status WHERE month = ?')
+      .all(month) as { id: number }[]
+  ).map((r) => r.id)
+  const spentIds = (
+    ctx.db
+      .prepare(
+        `SELECT t.id FROM temp.transactions t
+         WHERE t.amount < 0 AND t.system_key IS NOT 'opening' AND t.month = ? AND t.currency IS ?
+           AND t.category_id IN (SELECT category_id FROM temp.budget_status WHERE month = ?)`
+      )
+      .all(month, currency, month) as { id: number }[]
+  ).map((r) => r.id)
+  const spentLink = linkRows(ctx, spentIds, {
+    dateRange: windowRange({ start: monthStart(month), end: monthEnd(month) }),
+    ...(ctx.accountId !== null ? { accountIds: [ctx.accountId] } : {}),
+    categoryIds: budgeted,
+    direction: 'expense',
+    includePending: true,
+    includeTransfers: false
+  })
+
   return {
     result: {
       ok: true,
@@ -151,6 +176,7 @@ export function runBudgets(args: Record<string, unknown>, ctx: AnalysisContext):
         : {}),
       durationMs: Date.now() - started
     },
-    chart
+    chart,
+    links: links(spentLink)
   }
 }

@@ -232,6 +232,7 @@ export function fixtureContext(db: DatabaseSync = fixtureDb()): AnalysisContext 
       accounts: ['Everyday Checking', 'High-Yield Savings', 'Rewards Visa'],
       goals: GOALS.map((g) => g.name)
     },
-    goalPace: GOALS
+    goalPace: GOALS,
+    accountId: null
   }
 }
