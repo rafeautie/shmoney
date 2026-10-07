@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { SETTINGS_DEFAULTS, settingSchemas, type SettingKey } from '@shared/settings'
 import { nativeTheme } from '../../demo/shims/electron'
+import { applyRulesOnSyncEnabled, detectTransfersEnabled } from '../ipc/connections'
 import { api } from './harness/api'
+import { account, category, txn } from './harness/builders'
 import { count, query } from './harness/db'
 
 const stored = (key: string): string[] =>
@@ -182,7 +184,34 @@ describe('settings read by main as raw flags', () => {
     ])
   })
 
-  it.todo(
-    'TRIAGE: detectTransfersEnabled/applyRulesOnSyncEnabled/suggestionsEnabled count any stored non-false value (0, "off", null) as on (connections.ts:59-68, rule-suggestions.ts:23-27); harmless today only because every default is true and readSettings falls back to it, but they bypass the zod schema readSettings applies'
-  )
+  it('main reads the sync flags through the schema, so an invalid stored value means the default', async () => {
+    const acct = account()
+    const target = category()
+    for (let i = 0; i < 3; i++) txn(acct, { description: 'SETTINGS FLAG', categoryId: target })
+    query(
+      `INSERT INTO rule_suggestions (description_key, phrase, category_id, match_count, source, created_at, updated_at) VALUES ('SETTINGS FLAG', 'SETTINGS FLAG', ${target}, 3, 'user', 0, 0)`
+    )
+    const listed = async (): Promise<string[]> =>
+      (await api.ruleSuggestions.list()).map((s) => s.descriptionKey)
+    forceRaw('detectTransfers', '"off"')
+    forceRaw('applyRulesOnSync', '0')
+    forceRaw('ruleSuggestionsEnabled', 'null')
+
+    expect([detectTransfersEnabled(), applyRulesOnSyncEnabled()]).toEqual([true, true])
+    expect(await listed()).toEqual(['SETTINGS FLAG'])
+
+    // every default is on, so flip them to tell "fell back to the default" from "anything but false is on"
+    const defaults = { ...SETTINGS_DEFAULTS }
+    Object.assign(SETTINGS_DEFAULTS, {
+      detectTransfers: false,
+      applyRulesOnSync: false,
+      ruleSuggestionsEnabled: false
+    })
+    try {
+      expect([detectTransfersEnabled(), applyRulesOnSyncEnabled()]).toEqual([false, false])
+      expect(await listed()).toEqual([])
+    } finally {
+      Object.assign(SETTINGS_DEFAULTS, defaults)
+    }
+  })
 })

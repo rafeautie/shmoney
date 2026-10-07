@@ -13,7 +13,7 @@ const field = (dialog: Locator, label: string): Locator =>
     .filter({ has: dialog.page().getByText(label, { exact: true }) })
     .getByRole('combobox')
 
-/** a select trigger by the value it currently shows (the triggers have no accessible name) */
+/** a select trigger by the value it currently shows (stable when the same control repeats) */
 const combo = (page: Page, shown: string): Locator =>
   page.getByRole('combobox').filter({ hasText: shown })
 

@@ -75,7 +75,11 @@ export async function applyEmbedConfig(config: EmbedConfig): Promise<void> {
   // renderer as a data attribute.
   history.replaceState(null, '', `${location.pathname}#${config.route ?? route()}`)
   if (config.shot) document.documentElement.dataset.shot = ''
-  if (config.dataset) await window.api.demo.seed(config.dataset)
+  if (config.dataset) {
+    // a mistyped id falls back to the default rather than failing the boot
+    const known = (await window.api.demo.datasets()).some((d) => d.id === config.dataset)
+    await window.api.demo.seed(known ? config.dataset : 'household')
+  }
   if (config.theme) await window.api.settings.set('theme', config.theme)
   if (config.sidebar) await window.api.settings.set('sidebarOpen', config.sidebar === 'open')
 }

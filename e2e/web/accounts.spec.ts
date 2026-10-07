@@ -344,7 +344,7 @@ test.describe('account detail', () => {
       await app.open({ route: `/accounts/${id}` })
       await expect(page.getByText('Account not found')).toBeVisible()
       await expect(page.getByText('This account may have been deleted.')).toBeVisible()
-      await page.getByRole('button', { name: 'Back to Accounts' }).click()
+      await page.getByRole('link', { name: 'Back to Accounts' }).click()
       await expect(page).toHaveURL(/#\/accounts$/)
       await expect(page.getByRole('heading', { name: '$89,979.56' })).toBeVisible()
     })

@@ -364,7 +364,7 @@ export function ImportDialog({
                   accounts.map((account) => [String(account.id), accountLabel(account)])
                 )}
               >
-                <SelectTrigger className="w-80">
+                <SelectTrigger aria-label="Account" className="w-80">
                   <SelectValue placeholder="Select an account" />
                 </SelectTrigger>
                 <SelectContent>
@@ -561,28 +561,34 @@ function columnLabel(headers: string[], index: number): string {
 }
 
 function ColumnSelect({
+  id,
   headers,
   value,
   onChange,
   extraOption
 }: {
+  id: string
   headers: string[]
   value: number | null
   onChange: (index: number) => void
-  extraOption?: { value: string; label: string; onSelect: () => void }
+  /** an option beyond the columns; `selected` shows it as the current choice */
+  extraOption?: { value: string; label: string; selected: boolean; onSelect: () => void }
 }): React.JSX.Element {
   return (
     <Select
-      value={value === null ? undefined : String(value)}
+      value={extraOption?.selected ? extraOption.value : value === null ? undefined : String(value)}
       onValueChange={(v) => {
         if (extraOption && v === extraOption.value) extraOption.onSelect()
         else onChange(Number(v))
       }}
       // without an items map, base-ui's Value renders the raw value — the
       // column index — instead of the header name
-      items={Object.fromEntries(headers.map((_, i) => [String(i), columnLabel(headers, i)]))}
+      items={{
+        ...Object.fromEntries(headers.map((_, i) => [String(i), columnLabel(headers, i)])),
+        ...(extraOption && { [extraOption.value]: extraOption.label })
+      }}
     >
-      <SelectTrigger className="w-56">
+      <SelectTrigger id={id} className="w-56">
         <SelectValue placeholder="Select a column" />
       </SelectTrigger>
       <SelectContent>
@@ -619,6 +625,12 @@ function CsvMappingFields({
   onChange: (mapping: CsvMapping) => void
 }): React.JSX.Element {
   const invertId = useId()
+  const dateId = useId()
+  const dateFormatId = useId()
+  const descriptionId = useId()
+  const amountId = useId()
+  const debitId = useId()
+  const creditId = useId()
   // partial edits need somewhere to live before every role is filled, so unset
   // roles hold a sentinel -1 (see mappingComplete)
   const base: CsvMapping = mapping ?? {
@@ -634,20 +646,21 @@ function CsvMappingFields({
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="grid gap-3">
         <div className="flex items-center justify-between gap-3">
-          <Label>Date</Label>
+          <Label htmlFor={dateId}>Date</Label>
           <ColumnSelect
+            id={dateId}
             headers={headers}
             value={base.dateColumn === -1 ? null : base.dateColumn}
             onChange={(dateColumn) => set({ dateColumn })}
           />
         </div>
         <div className="flex items-center justify-between gap-3">
-          <Label>Date format</Label>
+          <Label htmlFor={dateFormatId}>Date format</Label>
           <Select
             value={base.dateFormat}
             onValueChange={(dateFormat) => set({ dateFormat: dateFormat as string })}
           >
-            <SelectTrigger className="w-56">
+            <SelectTrigger id={dateFormatId} className="w-56">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -660,16 +673,18 @@ function CsvMappingFields({
           </Select>
         </div>
         <div className="flex items-center justify-between gap-3">
-          <Label>Description</Label>
+          <Label htmlFor={descriptionId}>Description</Label>
           <ColumnSelect
+            id={descriptionId}
             headers={headers}
             value={base.descriptionColumn === -1 ? null : base.descriptionColumn}
             onChange={(descriptionColumn) => set({ descriptionColumn })}
           />
         </div>
         <div className="flex items-center justify-between gap-3">
-          <Label>Amount</Label>
+          <Label htmlFor={amountId}>Amount</Label>
           <ColumnSelect
+            id={amountId}
             headers={headers}
             value={single && single.column !== -1 ? single.column : null}
             onChange={(column) =>
@@ -678,6 +693,7 @@ function CsvMappingFields({
             extraOption={{
               value: 'debitCredit',
               label: 'Separate debit / credit columns',
+              selected: base.amount.kind === 'debitCredit',
               onSelect: () =>
                 set({ amount: { kind: 'debitCredit', debitColumn: -1, creditColumn: -1 } })
             }}
@@ -705,8 +721,9 @@ function CsvMappingFields({
         {base.amount.kind === 'debitCredit' && (
           <>
             <div className="flex items-center justify-between gap-3">
-              <Label>Debit (money out)</Label>
+              <Label htmlFor={debitId}>Debit (money out)</Label>
               <ColumnSelect
+                id={debitId}
                 headers={headers}
                 value={base.amount.debitColumn === -1 ? null : base.amount.debitColumn}
                 onChange={(debitColumn) =>
@@ -724,8 +741,9 @@ function CsvMappingFields({
               />
             </div>
             <div className="flex items-center justify-between gap-3">
-              <Label>Credit (money in)</Label>
+              <Label htmlFor={creditId}>Credit (money in)</Label>
               <ColumnSelect
+                id={creditId}
                 headers={headers}
                 value={base.amount.creditColumn === -1 ? null : base.amount.creditColumn}
                 onChange={(creditColumn) =>

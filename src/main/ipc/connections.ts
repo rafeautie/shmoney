@@ -25,10 +25,10 @@ import {
   categories,
   deletedSyncAccounts,
   holdings,
-  transactions,
-  settings
+  transactions
 } from '../db/schema'
 import type { ConnectionRow } from '../db/schema'
+import { readSettings } from '../settings-store'
 import {
   claimAccessUrl,
   fetchAccounts,
@@ -65,15 +65,11 @@ const RESYNC_OVERLAP_SECONDS = 7 * 24 * 60 * 60
 const log = createLogger('sync')
 
 export function detectTransfersEnabled(): boolean {
-  const row = db.select().from(settings).where(eq(settings.key, 'detectTransfers')).get()
-  // default on; only an explicit stored `false` disables it
-  return row ? row.value !== false : true
+  return readSettings().detectTransfers
 }
 
 export function applyRulesOnSyncEnabled(): boolean {
-  const row = db.select().from(settings).where(eq(settings.key, 'applyRulesOnSync')).get()
-  // default on; only an explicit stored `false` disables it
-  return row ? row.value !== false : true
+  return readSettings().applyRulesOnSync
 }
 
 // the bridge's own site, where the user re-authorizes banks; the origin alone
@@ -651,7 +647,8 @@ export function registerConnectionsIpc(): void {
 
   ipcMain.handle(IPC.accountsRename, (_event, input: unknown) => {
     const { id, name } = accountRenameSchema.parse(input)
-    db.update(accounts).set({ name }).where(eq(accounts.id, id)).run()
+    const { changes } = db.update(accounts).set({ name }).where(eq(accounts.id, id)).run()
+    if (changes === 0) throw new Error('Account not found')
     return true
   })
 

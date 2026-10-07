@@ -83,9 +83,17 @@ export function parseAmount(value: string): number {
   return milliunits
 }
 
+// Sample datasets stand in for a bridge only where seeding exists too (the dev
+// app's Debug page, the web demo); a packaged app reads demo: as a bad token
+let demoTokensAllowed = false
+
+export function allowDemoTokens(allowed = true): void {
+  demoTokensAllowed = allowed
+}
+
 export async function claimAccessUrl(setupToken: string): Promise<string> {
   // a sample dataset stands in for a bridge: the token is its own access URL
-  if (setupToken.startsWith(DEMO_TOKEN_PREFIX)) {
+  if (demoTokensAllowed && setupToken.startsWith(DEMO_TOKEN_PREFIX)) {
     getDataset(setupToken.slice(DEMO_TOKEN_PREFIX.length))
     return setupToken
   }
@@ -116,6 +124,7 @@ export async function claimAccessUrl(setupToken: string): Promise<string> {
 
 export async function fetchAccounts(accessUrl: string, startDate: number): Promise<SfinAccountSet> {
   if (accessUrl.startsWith(DEMO_TOKEN_PREFIX)) {
+    if (!demoTokensAllowed) throw new Error('Sample data is not available in this build')
     return accountSetSchema.parse(demoAccountSet(accessUrl.slice(DEMO_TOKEN_PREFIX.length)))
   }
   // fetch() rejects URLs with embedded credentials, so move them to a header

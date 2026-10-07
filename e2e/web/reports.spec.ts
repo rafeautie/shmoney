@@ -199,7 +199,7 @@ test.describe('report page', () => {
     await app.open({ route: '/reports/999' })
     await expect(page.getByText('Report not found')).toBeVisible()
     await expect(page.getByText('This report may have been deleted.')).toBeVisible()
-    await page.getByRole('button', { name: 'Back to Reports' }).click()
+    await page.getByRole('link', { name: 'Back to Reports' }).click()
     await expect(page).toHaveURL(/#\/reports$/)
     await expect(reportCards(page)).toHaveCount(3)
   })

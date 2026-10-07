@@ -310,8 +310,27 @@ describe('widgets', () => {
     expect((await api.reports.get(report.id))!.widgets[0]).toMatchObject({ x: 0, w: 4, h: 3 })
   })
 
-  // the schema bounds x and w separately, so a widget can overflow the 12-column grid
-  it.todo('TRIAGE: widgetLayouts accepts x + w > 12 (src/shared/reports.ts:454 widgetLayoutSchema)')
+  it('rejects a widget that overflows the grid, on layout and on create', async () => {
+    const report = await api.reports.create({ name: 'Overflow', widgets: [widget()] })
+    const [w] = (await api.reports.get(report.id))!.widgets
+    await expect(
+      api.reports.widgetLayouts({
+        reportId: report.id,
+        layouts: [{ id: w.id, x: 8, y: 0, w: 5, h: 3 }]
+      })
+    ).rejects.toThrow()
+    // the right edge itself is fine
+    expect(
+      await api.reports.widgetLayouts({
+        reportId: report.id,
+        layouts: [{ id: w.id, x: 8, y: 0, w: 4, h: 3 }]
+      })
+    ).toBe(true)
+    await expect(
+      api.reports.create({ name: 'Too wide', widgets: [widget({ x: 6, w: 7 })] })
+    ).rejects.toThrow()
+    expect((await api.reports.get(report.id))!.widgets[0]).toMatchObject({ x: 8, w: 4 })
+  })
 })
 
 describe('stored configs', () => {

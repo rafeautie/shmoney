@@ -114,10 +114,11 @@ test.describe('embed parameters', () => {
     await expect(page.getByPlaceholder('Search transactions...')).toBeVisible()
   })
 
-  // applyEmbedConfig in src/demo/embed.tsx awaits seed(), which rejects for an
-  // unknown id, so the top-level await in src/demo/main.tsx throws before the
-  // renderer ever mounts: an uncaught page error and a blank page
-  test.fixme('TRIAGE: an unknown dataset id leaves the demo blank', async () => {})
+  test('an unknown dataset id falls back to the household data', async ({ app }) => {
+    const { page } = app
+    await openDemo(page, 'dataset=nope&bar=0', '#/accounts')
+    await expect(page.getByRole('row', { name: /Everyday Checking/ })).toBeVisible()
+  })
 })
 
 test.describe('every named screen', () => {
@@ -126,7 +127,7 @@ test.describe('every named screen', () => {
       test(`${screen.name} renders in ${theme}`, async ({ app }) => {
         const { page } = app
         await openDemo(page, `screen=${screen.name}&theme=${theme}&bar=0`)
-        const main = page.locator('main main')
+        const main = page.locator('main')
         await expect(main).toBeVisible()
         await expect
           .poll(async () => (await main.innerText()).trim().length, { message: 'content rendered' })

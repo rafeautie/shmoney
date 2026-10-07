@@ -449,6 +449,26 @@ describe('keyboard undo and redo', () => {
     expect(await api.actionLog.redo()).toBeNull()
   })
 
+  it('redo after two undos in one millisecond takes the one undone last', async () => {
+    const t = txn(checking, { amount: -1000 })
+    await api.transactions.update({ id: t, amount: -2000 })
+    const first = newestEntry()
+    tick()
+    await api.transactions.update({ id: t, amount: -3000 })
+    const second = newestEntry()
+    tick()
+
+    // Date is frozen, so both undos stamp the same undone_at
+    await api.actionLog.undo()
+    await api.actionLog.undo()
+    expect(undoneAt(first)).toBe(undoneAt(second))
+    expect(amountOf(t)).toBe(-1000)
+
+    expect(await api.actionLog.redo()).toMatchObject({ id: first, applied: 1 })
+    expect(await api.actionLog.redo()).toMatchObject({ id: second, applied: 1 })
+    expect(amountOf(t)).toBe(-3000)
+  })
+
   it('new work does not clear the redo stack', async () => {
     const { ids, entries } = await userEdits(1)
     await api.actionLog.undo()
@@ -810,14 +830,21 @@ describe('a random session', () => {
   }
 })
 
-// Suspected engine bugs, each reproduced by hand against this harness. They are
-// written up rather than asserted, so the suite stays green until someone
-// decides what the behavior should be.
-describe('triage', () => {
-  it.todo(
-    'TRIAGE: keyboard redo breaks ties on undone_at (milliseconds) by id DESC, which is the wrong end of an undo chain. Repro: two user entries E1 < E2, undo() twice inside one millisecond (E2 then E1), redo() picks E2 (applied 0, because E1 is still undone and E2 is guarded on the result of E1) instead of E1; E2 is then marked applied with its change missing. redoNewest orders by desc(undoneAt), desc(id) (action-log.ts). Needs sub-millisecond undos, so low severity, but a held Ctrl+Z autorepeat on a fast machine is close; the model test advances the clock between steps to avoid it'
-  )
-  it.todo(
-    'TRIAGE (observation): savedFilters.create writes no action-log entry while savedFilters.delete does, so a session that creates presets cannot be unwound to its starting state with keyboard undo (the preset stays). Probably intended since create is not offered as undoable, but the asymmetry means Ctrl+Z after "save preset, delete preset" restores the deleted one and never removes the new one'
-  )
+describe('saved filter logging', () => {
+  beforeEach(clearLog)
+
+  // intended: creating a preset isn't offered as undoable (its undo would just
+  // be the delete, which exists), so only the delete is logged
+  it('logs a preset delete but not its create', async () => {
+    const saved = await api.savedFilters.create({
+      name: 'Logged preset',
+      filters: DEFAULT_TRANSACTION_FILTERS
+    })
+    expect(count('action_log')).toBe(0)
+
+    await api.savedFilters.delete(saved.id)
+    expect(query<{ label: string }>('SELECT label FROM action_log')).toEqual([
+      { label: 'Delete saved filter' }
+    ])
+  })
 })

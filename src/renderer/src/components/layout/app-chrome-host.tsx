@@ -8,6 +8,7 @@ const APP_NAME = 'shmoney'
 const PAGE_TITLES: Record<string, string> = {
   accounts: 'Accounts',
   budget: 'Budget',
+  goals: 'Goals',
   reports: 'Reports',
   activity: 'Activity',
   chat: 'Chat',

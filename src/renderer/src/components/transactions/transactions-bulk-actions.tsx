@@ -56,6 +56,8 @@ export function TransactionsBulkActions({
     mutationFn: () => window.api.transactions.bulkDelete({ transactionIds }),
     onSuccess: () => {
       setConfirmDelete(false)
+      // the rows are gone; an undo shouldn't bring them back still selected
+      onClearSelection()
     },
     onSettled: () => invalidateTransactionData(queryClient)
   })

@@ -332,9 +332,16 @@ describe('dismiss and accept', () => {
     expect(statusOf(found.id)).toBe('dismissed')
   })
 
-  it.todo(
-    'TRIAGE: ruleSuggestions.dismiss and accept resolve true for an id that does not exist (src/main/ipc/rule-suggestions.ts:251-257, setStatus ignores the update count)'
-  )
+  it('dismiss and accept resolve false for an unknown id, true for a real one', async () => {
+    expect(await api.ruleSuggestions.dismiss(999_999)).toBe(false)
+    expect(await api.ruleSuggestions.accept(999_999)).toBe(false)
+    expect(count('rule_suggestions', 'id = 999999')).toBe(0)
+
+    await categorize(rowsLike('KNOWN ID'), category())
+    const found = (await suggestionFor('KNOWN ID'))!
+    expect(await api.ruleSuggestions.dismiss(found.id)).toBe(true)
+    expect(statusOf(found.id)).toBe('dismissed')
+  })
 })
 
 describe('list', () => {

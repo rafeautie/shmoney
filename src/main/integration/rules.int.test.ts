@@ -105,9 +105,19 @@ describe('rules create', () => {
     await expect(createRule('  ', contains('a'), category())).rejects.toThrow()
   })
 
-  it.todo(
-    'TRIAGE: rules.create accepts an action whose target category does not exist (src/main/ipc/rules.ts:343, no existence check; the rules table has no FK)'
-  )
+  it('rejects an action whose category does not exist, on create and update', async () => {
+    await expect(createRule('Ghost target', contains('a'), 999_999)).rejects.toThrow(
+      'Category not found'
+    )
+    expect(count('rules')).toBe(0)
+
+    const target = category()
+    const created = await createRule('Real target', contains('a'), target)
+    await expect(
+      api.rules.update({ id: created.id, action: setCategory(999_999) })
+    ).rejects.toThrow('Category not found')
+    expect((await api.rules.list())[0].action).toEqual(setCategory(target))
+  })
 })
 
 describe('rules list, update and reorder', () => {
@@ -136,9 +146,24 @@ describe('rules list, update and reorder', () => {
     ])
   })
 
-  it.todo(
-    'TRIAGE: reorder with a partial id list leaves the omitted rules at their old priority, so priorities collide (src/main/ipc/rules.ts:406-414)'
-  )
+  it('reorder with a partial list renumbers every rule, omitted ones after in their old order', async () => {
+    const target = category()
+    const a = await createRule('A', contains('a'), target)
+    const b = await createRule('B', contains('b'), target)
+    const c = await createRule('C', contains('c'), target)
+    const d = await createRule('D', contains('d'), target)
+
+    // a stale list: d is missing and 999999 was deleted elsewhere
+    expect(await api.rules.reorder({ orderedIds: [c.id, 999_999, a.id] })).toBe(true)
+
+    const listed = await api.rules.list()
+    expect(listed.map((r) => [r.id, r.priority])).toEqual([
+      [c.id, 0],
+      [a.id, 1],
+      [b.id, 2],
+      [d.id, 3]
+    ])
+  })
 
   it('toggles enabled through update and keeps everything else', async () => {
     const target = category()

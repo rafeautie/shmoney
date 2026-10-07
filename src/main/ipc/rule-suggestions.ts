@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { ipcMain } from 'electron'
 import { and, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm'
 import { db } from '../db'
-import { categories, ruleSuggestions, settings, transactions } from '../db/schema'
+import { categories, ruleSuggestions, transactions } from '../db/schema'
 import { notOpeningSql, notTransferSql } from '../db/system-categories'
 import { compileConditions } from '../rules'
 import { createPhraseCounter } from '../phrase-counts'
@@ -21,9 +21,7 @@ import {
 const MIN_IDENTICAL = 3
 
 function suggestionsEnabled(): boolean {
-  const row = db.select().from(settings).where(eq(settings.key, 'ruleSuggestionsEnabled')).get()
-  // default on; only an explicit stored `false` disables it
-  return row ? row.value !== false : true
+  return readSettings().ruleSuggestionsEnabled
 }
 
 // the SQL predicate for the transactions a suggestion's would-be rule matches
@@ -251,11 +249,12 @@ export function pruneOrphanedSuggestions(): number {
 }
 
 function setStatus(id: number, status: 'dismissed' | 'accepted'): boolean {
-  db.update(ruleSuggestions)
+  const { changes } = db
+    .update(ruleSuggestions)
     .set({ status, updatedAt: Date.now() })
     .where(eq(ruleSuggestions.id, id))
     .run()
-  return true
+  return changes > 0
 }
 
 /**

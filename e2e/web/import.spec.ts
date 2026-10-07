@@ -146,9 +146,8 @@ async function newAccount(dialog: Locator, name: string, balance?: string): Prom
   if (balance !== undefined) await dialog.getByLabel('Opening balance (optional)').fill(balance)
 }
 
-// the mapping labels aren't tied to their selects, so reach each through its row
 function mappingSelect(dialog: Locator, label: string): Locator {
-  return dialog.getByText(label, { exact: true }).locator('xpath=..').getByRole('combobox')
+  return dialog.getByRole('combobox', { name: label, exact: true })
 }
 
 async function chooseColumn(
@@ -324,6 +323,7 @@ test.describe('csv import', () => {
     await expect(mappingSelect(dialog, 'Description')).toHaveText('Payee')
     await expect(mappingSelect(dialog, 'Debit (money out)')).toHaveText('Withdrawal')
     await expect(mappingSelect(dialog, 'Credit (money in)')).toHaveText('Deposit')
+    await expect(mappingSelect(dialog, 'Amount')).toHaveText('Separate debit / credit columns')
     // the direction comes from the columns, so there is nothing to flip
     await expect(dialog.getByRole('switch')).toBeHidden()
     await next(dialog).click()
@@ -527,12 +527,6 @@ test.describe('csv import', () => {
     const [account] = await app.sql<{ id: number }>("SELECT id FROM accounts WHERE name = 'Picky'")
     expect((await transactionsOf(app, account.id)).map((t) => t.description)).toEqual(['PAYCHECK'])
   })
-
-  // import-dialog.tsx:660-672: the Amount select's value is null whenever the
-  // mapping isn't a single column, so with separate debit / credit columns
-  // (detected or chosen) it still reads "Select a column" over the two
-  // selects that are filled
-  test.fixme('TRIAGE: the Amount select shows its placeholder in debit / credit mode', async () => {})
 })
 
 test.describe('account step', () => {

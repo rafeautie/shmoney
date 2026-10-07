@@ -23,7 +23,7 @@ test.describe('routing', () => {
     const { page } = app
     await app.open({ route: '/nowhere' })
     await expect(page.getByText('Page not found')).toBeVisible()
-    await page.getByRole('button', { name: 'Go to Accounts' }).click()
+    await page.getByRole('link', { name: 'Go to Accounts' }).click()
     await expect(page).toHaveURL(/#\/accounts/)
     await expect(page.getByText('Page not found')).toBeHidden()
   })
@@ -53,6 +53,7 @@ test.describe('routing', () => {
     const titles: [string, string][] = [
       ['Accounts', 'Accounts · shmoney'],
       ['Budget', 'Budget · shmoney'],
+      ['Goals', 'Goals · shmoney'],
       ['Reports', 'Reports · shmoney'],
       ['Activity', 'Activity · shmoney']
     ]
@@ -63,10 +64,6 @@ test.describe('routing', () => {
     await page.goto('/#/chat')
     await expect(page).toHaveTitle('Chat · shmoney')
   })
-
-  // app-chrome-host.tsx:9 PAGE_TITLES has no 'goals' entry, so the Goals page
-  // shows the bare app name like an unknown page
-  test.fixme('TRIAGE: the Goals page has no window title', async () => {})
 
   test('a main-process navigation push routes the page, and /settings opens Settings', async ({
     app
@@ -300,9 +297,9 @@ test.describe('privacy', () => {
 
     for (const route of MAIN_ROUTES) {
       await page.evaluate((to) => (location.hash = to), route)
-      await expect(page.locator('main main')).toBeVisible()
+      await expect(page.locator('main')).toBeVisible()
       await expect
-        .poll(async () => (await page.locator('main main').innerText()).trim().length, {
+        .poll(async () => (await page.locator('main').innerText()).trim().length, {
           message: `${route} rendered`
         })
         .toBeGreaterThan(40)
@@ -324,6 +321,37 @@ test.describe('privacy', () => {
 
     await page.getByRole('button', { name: 'Show amounts' }).click()
     await expect.poll(() => readableText(page)).toMatch(/\$\d/)
+  })
+})
+
+test.describe('accessibility', () => {
+  const expectNamedComboboxes = async (scope: Locator | Page): Promise<void> => {
+    const combos = scope.getByRole('combobox')
+    await expect(combos.first()).toBeVisible()
+    for (const combo of await combos.all()) await expect(combo).toHaveAccessibleName(/\S/)
+  }
+
+  test('accounts has a single main landmark', async ({ app }) => {
+    const { page } = app
+    await app.open({ route: '/accounts' })
+    await expect(page.getByRole('main')).toHaveCount(1)
+  })
+
+  test('the transaction filter bar selects are named', async ({ app }) => {
+    const { page } = app
+    await app.open({ route: '/accounts?tab=transactions' })
+    await expectNamedComboboxes(page)
+  })
+
+  test('the widget editor selects are named', async ({ app }) => {
+    const { page } = app
+    await app.open({ route: '/reports' })
+    await page.getByRole('button', { name: 'New report' }).click()
+    await page.getByRole('menuitem', { name: 'Blank report' }).click()
+    await page.getByRole('button', { name: 'Add widget' }).first().click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByRole('heading', { name: 'Add widget' })).toBeVisible()
+    await expectNamedComboboxes(dialog)
   })
 })
 

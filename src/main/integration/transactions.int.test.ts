@@ -239,9 +239,16 @@ describe('saved filters', () => {
     )
   })
 
-  // update has no deletedAt guard (src/main/ipc/saved-filters.ts:73), so it edits
-  // and returns a preset the user has already deleted
-  it.todo('TRIAGE: savedFilters.update works on a soft-deleted preset')
+  it('refuses to update a deleted preset, and leaves it restorable as it was', async () => {
+    const saved = await create('SF deleted edit')
+    const entry = await api.savedFilters.delete(saved.id)
+    await expect(api.savedFilters.update({ id: saved.id, name: 'SF ghost' })).rejects.toThrow(
+      `Saved filter ${saved.id} not found`
+    )
+    await api.actionLog.undoEntry(entry!)
+    expect(await names()).toContain('SF deleted edit')
+    expect(await names()).not.toContain('SF ghost')
+  })
 
   it('delete is soft, drops the preset from the list, and undoes and redoes', async () => {
     const saved = await create('SF delete')

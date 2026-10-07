@@ -495,9 +495,11 @@ function applyNewest(direction: 'undo' | 'redo'): UndoResult | null {
       )
     )
     .orderBy(
+      // an undo chain runs newest first, so among undos in the same millisecond
+      // the lowest id was undone last
       ...(direction === 'undo'
         ? [desc(actionLog.id)]
-        : [desc(actionLog.undoneAt), desc(actionLog.id)])
+        : [desc(actionLog.undoneAt), asc(actionLog.id)])
     )
     .limit(1)
     .get()

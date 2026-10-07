@@ -125,7 +125,7 @@ export function DateRangeControl({
           }
         }}
       >
-        <SelectTrigger size="lg" className="w-40">
+        <SelectTrigger size="lg" aria-label="Date range" className="w-40">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -486,7 +486,7 @@ export function DirectionControl({
       onValueChange={(v) => onChange(v as Direction)}
       disabled={disabled}
     >
-      <SelectTrigger size="lg" className="w-36">
+      <SelectTrigger size="lg" aria-label="Direction" className="w-36">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

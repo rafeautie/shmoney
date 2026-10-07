@@ -393,7 +393,21 @@ describe('summary', () => {
     expect(await api.budgets.summary({ month: '2026-09' })).toEqual(before)
   })
 
-  it.todo(
-    'TRIAGE: multi-currency spend is summed as one number with no conversion (src/main/budgets/summary.ts:23, :77, :111)'
-  )
+  // intended for now: the app has no exchange rates, so spend in every currency
+  // is added as-is and shown in the dominant one
+  it('sums spend across currencies with no conversion', async () => {
+    const euros = account({ name: 'Euro card', currency: 'EUR' })
+    account({ name: 'Savings' })
+    const other = category('Other')
+    await fill(food, '2026-09', 50_000)
+    txn(checking, { categoryId: food, amount: -10_000, posted: noon(2026, 9, 2) })
+    txn(euros, { categoryId: food, amount: -3000, posted: noon(2026, 9, 3) })
+    txn(checking, { categoryId: other, amount: -1000, posted: noon(2026, 9, 4) })
+    txn(euros, { categoryId: other, amount: -2000, posted: noon(2026, 9, 5) })
+
+    const summary = await api.budgets.summary({ month: '2026-09' })
+    expect(summary.currency).toBe('USD')
+    expect(summary.envelopes[0]).toMatchObject({ spent: 13_000, balance: 37_000 })
+    expect(summary.unbudgetedSpent).toBe(3000)
+  })
 })

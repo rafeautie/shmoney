@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Link, type LinkProps } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Alert02Icon, FileNotFoundIcon } from '@hugeicons/core-free-icons'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Empty,
   EmptyContent,
@@ -89,9 +89,9 @@ export function NotFoundScreen({
         <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>
       </EmptyHeader>
-      <Button nativeButton={false} render={<Link to={backTo} />}>
+      <Link to={backTo} className={buttonVariants()}>
         {backLabel}
-      </Button>
+      </Link>
     </Empty>
   )
 }

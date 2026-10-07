@@ -451,14 +451,23 @@ export interface ReportDetail {
 const reportNameSchema = z.string().trim().min(1).max(100)
 const widgetTitleSchema = z.string().trim().min(1).max(100)
 
-export const widgetLayoutSchema = z.object({
-  x: z.number().int().min(0).max(11),
-  y: z.number().int().min(0),
-  w: z.number().int().min(1).max(12),
-  h: z.number().int().min(1).max(50)
-})
+/** columns in a report's widget grid */
+export const REPORT_GRID_COLUMNS = 12
 
-const newWidgetSchema = widgetLayoutSchema.extend({
+export const widgetLayoutSchema = z
+  .object({
+    // x + w is bounded below, which keeps x inside the grid too
+    x: z.number().int().min(0),
+    y: z.number().int().min(0),
+    w: z.number().int().min(1).max(REPORT_GRID_COLUMNS),
+    h: z.number().int().min(1).max(50)
+  })
+  .refine((l) => l.x + l.w <= REPORT_GRID_COLUMNS, {
+    message: `Widget extends past the ${REPORT_GRID_COLUMNS}-column grid`,
+    path: ['w']
+  })
+
+const newWidgetSchema = widgetLayoutSchema.safeExtend({
   title: widgetTitleSchema,
   type: widgetTypeSchema,
   config: widgetConfigSchema
@@ -480,7 +489,7 @@ export const reportUpdateSchema = z.object({
 })
 export type ReportUpdateInput = z.infer<typeof reportUpdateSchema>
 
-export const widgetCreateSchema = newWidgetSchema.extend({
+export const widgetCreateSchema = newWidgetSchema.safeExtend({
   reportId: idSchema
 })
 export type WidgetCreateInput = z.infer<typeof widgetCreateSchema>
@@ -496,7 +505,7 @@ export type WidgetUpdateInput = z.infer<typeof widgetUpdateSchema>
 export const widgetLayoutsSchema = z.object({
   reportId: idSchema,
   layouts: z
-    .array(widgetLayoutSchema.extend({ id: idSchema }))
+    .array(widgetLayoutSchema.safeExtend({ id: idSchema }))
     .min(1)
     .max(50)
 })

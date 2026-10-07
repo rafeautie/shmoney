@@ -516,6 +516,9 @@ test.describe('selection and bulk actions', () => {
     await expect.poll(live).toBe(before)
     await expect(toast(page).getByRole('button', { name: 'Redo' })).toBeVisible()
     await expect(rowFor(page, first).first()).toBeVisible()
+    // the delete cleared the selection, so the restored rows come back unselected
+    await expect(selectBoxes(page).nth(0)).not.toBeChecked()
+    await expect(selectBoxes(page).nth(1)).not.toBeChecked()
 
     await page.locator('body').press(`${app.mod}+y`)
     await expect.poll(live).toBe(before - 2)

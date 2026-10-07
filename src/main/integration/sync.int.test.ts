@@ -4,7 +4,7 @@ import { account, category, noon, rule, systemCategory, txn } from './harness/bu
 import { count, query } from './harness/db'
 import { accessUrlKeychain } from './harness/fakes/access-url'
 import { installBridge, sfinAccount, sfinTxn, type FakeBridge } from './harness/fakes/simplefin'
-import type { SfinAccountSet } from '../simplefin'
+import { allowDemoTokens, type SfinAccountSet } from '../simplefin'
 import { actionNeededErrors } from '@shared/ipc'
 import { beginSyncGuard, guardedSync, resetSyncState } from './harness/sync'
 
@@ -161,7 +161,17 @@ describe('connect', () => {
     expect(count('connections')).toBe(0)
   })
 
-  it.todo('TRIAGE: demo: tokens connect outside dev builds (claimAccessUrl never checks the build)')
+  it('reads a demo token as an invalid one where sample data is off (packaged builds)', async () => {
+    allowDemoTokens(false)
+    try {
+      await expect(api.connection.connect({ setupToken: 'demo:household' })).rejects.toThrow(
+        /Setup token is not valid/
+      )
+      expect(count('connections')).toBe(0)
+    } finally {
+      allowDemoTokens()
+    }
+  })
 })
 
 describe('sync', () => {
@@ -815,9 +825,10 @@ describe('accounts', () => {
     expect((await api.accounts.get(a))!.name).toBe('Keep me')
   })
 
-  it.todo(
-    'TRIAGE: accounts.rename of a missing id silently resolves true (connections.ts accountsRename has no existence check, unlike delete)'
-  )
+  it('rename rejects a missing account, like delete', async () => {
+    await expect(api.accounts.rename(999_999, 'Ghost')).rejects.toThrow('Account not found')
+    expect(count('accounts', "name = 'Ghost'")).toBe(0)
+  })
   it('delete of a missing account errors', async () => {
     await expect(api.accounts.delete(987_654)).rejects.toThrow('Account not found')
   })

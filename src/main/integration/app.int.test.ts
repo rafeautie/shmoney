@@ -55,9 +55,14 @@ describe('app fire-and-forget channels', () => {
     expect(() => api.app.ready()).not.toThrow()
   })
 
-  it.todo(
-    'TRIAGE: app:notify and app:dimChrome parse with zod.parse inside ipcMain.on listeners, so an invalid payload throws (an uncaught exception in main under Electron) instead of being dropped; log:write uses safeParse and drops (ipc/app.ts:11-18 vs ipc/log.ts:13)'
-  )
+  it('drops an invalid notify or dimChrome payload instead of throwing in main', () => {
+    focused(false)
+    expect(() => api.app.notify(42 as never, 'body')).not.toThrow()
+    expect(() => api.app.notify('title', undefined as never)).not.toThrow()
+    expect(() => api.app.dimChrome('yes' as never, 20)).not.toThrow()
+    expect(() => api.app.dimChrome(true, -1)).not.toThrow()
+    expect(() => api.app.dimChrome(true, undefined as never)).not.toThrow()
+  })
 })
 
 describe('log:write', () => {

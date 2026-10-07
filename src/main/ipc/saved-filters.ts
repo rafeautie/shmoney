@@ -71,7 +71,7 @@ export function registerSavedFiltersIpc(): void {
         ...(filters !== undefined ? { filters } : {}),
         updatedAt: nowSec()
       })
-      .where(eq(savedFilters.id, id))
+      .where(and(eq(savedFilters.id, id), isNull(savedFilters.deletedAt)))
       .returning()
       .all()
     if (!row) throw new Error(`Saved filter ${id} not found`)

@@ -453,7 +453,7 @@ test('the web demo explains that chat runs on the desktop and keeps seeded chats
   const { page } = app
   await app.open({ route: '/chat', desktop: false })
   await expect(page.getByText('Chat runs on your computer')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Get shmoney' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Get shmoney' })).toBeVisible()
 
   await page.getByRole('link', { name: 'Chart my income versus spending by month' }).click()
   await expect(page.getByText('Income vs. spending by month')).toBeVisible()
