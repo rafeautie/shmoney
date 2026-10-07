@@ -209,7 +209,7 @@ function toStepView(part: ChainPart): StepView | null {
 }
 
 /** the drawn chart for a settled chart call, or null when there's nothing to draw */
-function chartDeliverable(part: ChainPart, asOf?: number): ReactNode {
+function chartDeliverable(part: ChainPart, asOf: number | undefined, live: boolean): ReactNode {
   if (part.type !== 'functionCall' || part.result === undefined || part.name !== 'chart')
     return null
   const { args: spec, display, result } = part
@@ -223,6 +223,7 @@ function chartDeliverable(part: ChainPart, asOf?: number): ReactNode {
       data={display.data}
       currency={display.currency}
       asOf={asOf}
+      fadeIn={live}
     />
   )
 }
@@ -580,7 +581,7 @@ export function ThoughtChain({
       </ChainOfThought>
       {parts.map((part, i) => {
         const deliverable =
-          chartDeliverable(part, asOf) ??
+          chartDeliverable(part, asOf, messageId === undefined) ??
           proposalDeliverable(
             part,
             messageId === undefined ? null : { messageId, partIndex: startIndex + i }

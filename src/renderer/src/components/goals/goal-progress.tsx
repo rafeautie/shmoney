@@ -29,7 +29,7 @@ export function GoalBar({ goal, className }: { goal: GoalSummary; className?: st
     <div className={cn('space-y-1.5', className)}>
       <GoalMeter goal={goal} />
       <div className="text-xs text-muted-foreground">
-        <Amount value={goal.progress} currency={goal.currency} colored={false} /> of{' '}
+        <Amount value={goal.progress} currency={goal.currency} colored={false} tween /> of{' '}
         <Amount value={goal.targetAmount} currency={goal.currency} colored={false} />
       </div>
     </div>

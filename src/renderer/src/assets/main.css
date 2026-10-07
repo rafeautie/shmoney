@@ -264,6 +264,12 @@
   }
 }
 
+/* One ease-in-out cubic for in-place change: figures counting to a new value
+ * (Amount's tween), meters easing beside them, and disclosures opening. */
+@theme {
+  --ease-smooth: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
 /* Status-line crossfade: labels swap in place, with a touch of blur so two
  * words mid-fade read as one soft morph rather than overlapping text. */
 @theme {

@@ -70,7 +70,7 @@ export function GoalsTable({
                 {saved === undefined ? (
                   <span className="text-muted-foreground">—</span>
                 ) : (
-                  <Amount value={saved} currency={goal.currency} colored={false} />
+                  <Amount value={saved} currency={goal.currency} colored={false} tween />
                 )}
                 {goal.neededPerMonth !== null && (
                   <span className="text-muted-foreground">

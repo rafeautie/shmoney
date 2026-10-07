@@ -139,33 +139,34 @@ export function EntryRow({
           <HugeiconsIcon
             icon={ArrowDown01Icon}
             size={14}
-            className="shrink-0 text-muted-foreground transition-transform group-data-open/entry:rotate-180"
+            className="shrink-0 text-muted-foreground transition-transform group-data-open/entry:rotate-180 motion-reduce:transition-none"
           />
         </CollapsibleTrigger>
       </div>
 
-      <CollapsibleContent
-        className={cn('border-t bg-muted/40 pr-3 pb-1', nested ? 'pl-22' : 'pl-13')}
-      >
-        {lines.map((change, i) => (
-          <ChangeLine
-            key={i}
-            change={change}
-            categoryName={categoryName}
-            className={cn(i > 0 && 'border-t border-dashed')}
-          />
-        ))}
-        {hidden > 0 && (
-          <Button
-            variant="link"
-            size="sm"
-            className="-ml-2 text-muted-foreground"
-            disabled={allChanges.isFetching}
-            onClick={() => setShowAll(true)}
-          >
-            Show {hidden} more
-          </Button>
-        )}
+      {/* padding and border sit inside the panel so it can close to a true 0 */}
+      <CollapsibleContent>
+        <div className={cn('border-t bg-muted/40 pr-3 pb-1', nested ? 'pl-22' : 'pl-13')}>
+          {lines.map((change, i) => (
+            <ChangeLine
+              key={i}
+              change={change}
+              categoryName={categoryName}
+              className={cn(i > 0 && 'border-t border-dashed')}
+            />
+          ))}
+          {hidden > 0 && (
+            <Button
+              variant="link"
+              size="sm"
+              className="-ml-2 text-muted-foreground"
+              disabled={allChanges.isFetching}
+              onClick={() => setShowAll(true)}
+            >
+              Show {hidden} more
+            </Button>
+          )}
+        </div>
       </CollapsibleContent>
     </Collapsible>
   )

@@ -92,7 +92,7 @@ function AccountDetailPage() {
               {account && (
                 <>
                   {account.institutionName ? `${account.institutionName} · ` : ''}
-                  <Amount value={account.balance} currency={account.currency} />
+                  <Amount value={account.balance} currency={account.currency} tween />
                 </>
               )}
             </p>

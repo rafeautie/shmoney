@@ -55,7 +55,7 @@ export function EnvelopeBar({
 export function BalanceBadge({ balance, currency }: { balance: number; currency: string }) {
   return (
     <Badge variant={balance < 0 ? 'destructive' : 'secondary'}>
-      <Amount value={balance} currency={currency} colored={false} />
+      <Amount value={balance} currency={currency} colored={false} tween />
     </Badge>
   )
 }

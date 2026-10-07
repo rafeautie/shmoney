@@ -41,7 +41,7 @@ export function GoalCard({ goal }: { goal: GoalSummary }) {
         <div className="flex min-h-8 flex-wrap items-center text-xs text-muted-foreground">
           <span>
             <span className="font-medium text-foreground">
-              <Amount value={goal.progress} currency={goal.currency} colored={false} />
+              <Amount value={goal.progress} currency={goal.currency} colored={false} tween />
             </span>{' '}
             saved of
           </span>

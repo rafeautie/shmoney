@@ -55,7 +55,7 @@ function SpendStatus({ envelope, currency }: { envelope: EnvelopeSummary; curren
     return (
       <span>
         <span className="font-medium text-destructive">
-          <Amount value={spent - fill} currency={currency} colored={false} /> over
+          <Amount value={spent - fill} currency={currency} colored={false} tween /> over
         </span>{' '}
         a fill of
       </span>
@@ -63,7 +63,7 @@ function SpendStatus({ envelope, currency }: { envelope: EnvelopeSummary; curren
   return (
     <span>
       <span className="font-medium text-foreground">
-        <Amount value={fill - spent} currency={currency} colored={false} />
+        <Amount value={fill - spent} currency={currency} colored={false} tween />
       </span>{' '}
       left of
     </span>

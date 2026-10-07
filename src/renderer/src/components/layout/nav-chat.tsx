@@ -32,7 +32,7 @@ export function NavChat() {
           <HugeiconsIcon
             icon={ArrowRight01Icon}
             size={16}
-            className="absolute right-2.5 transition-transform group-data-panel-open/chat-section:rotate-90"
+            className="absolute right-2.5 transition-transform group-data-panel-open/chat-section:rotate-90 motion-reduce:transition-none"
           />
         </SidebarGroupLabel>
         <SidebarGroupAction
@@ -43,7 +43,12 @@ export function NavChat() {
         >
           <HugeiconsIcon icon={Add01Icon} size={16} />
         </SidebarGroupAction>
-        <CollapsibleContent className="flex h-(--collapsible-panel-height) min-h-0 flex-col overflow-hidden transition-[height] duration-200 ease-out data-ending-style:h-0 data-starting-style:h-0">
+        {/* its own height ease: the menu inside is min-h-0, so the panel
+            measures 0px tall and the shared fade would hold it shut */}
+        <CollapsibleContent
+          animated={false}
+          className="flex h-(--collapsible-panel-height) min-h-0 flex-col overflow-hidden transition-[height] duration-200 ease-smooth data-ending-style:h-0 data-starting-style:h-0 motion-reduce:transition-none"
+        >
           {conversations?.length === 0 && (
             // Pinned to the expanded width (the sidebar less the group's px-2.5
             // and this box's mx-2) rather than the base w-full: the text keeps

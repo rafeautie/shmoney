@@ -4,6 +4,8 @@ import { Delete02Icon } from '@hugeicons/core-free-icons'
 import type { ReportFilters, ReportWidget } from '@shared/reports'
 import { overriddenFilterKeys } from '@shared/reports'
 import { cn } from '@/lib/utils'
+import { usePresence } from '@/lib/use-presence'
+import { CHROME_ENTER, CHROME_FADE_MS } from './edit-chrome'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -69,6 +71,7 @@ export const WidgetCard = memo(function WidgetCard({
   onEdit,
   onDelete
 }: WidgetCardProps) {
+  const chrome = usePresence(editing, CHROME_FADE_MS)
   // widgets own their edge padding, so the card only pads the header
   return (
     <Card
@@ -80,8 +83,15 @@ export const WidgetCard = memo(function WidgetCard({
       <div className="flex h-6 shrink-0 items-center gap-2 px-4">
         <h3 className="min-w-0 truncate text-sm font-medium">{widget.title}</h3>
         <OverrideBadge widget={widget} />
-        {editing && (
-          <div className="ml-auto flex shrink-0 items-center gap-1">
+        {chrome && (
+          <div
+            inert={!editing}
+            className={cn(
+              'ml-auto flex shrink-0 items-center gap-1',
+              CHROME_ENTER,
+              !editing && 'opacity-0'
+            )}
+          >
             <Button variant="ghost" size="sm" onClick={() => onEdit(widget)}>
               Edit
             </Button>
