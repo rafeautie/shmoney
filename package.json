@@ -41,6 +41,7 @@
     "test:int": "vitest run --project integration",
     "pretest:e2e": "npm run licenses:generate",
     "test:e2e": "vite build -c vite.e2e.config.ts && playwright test --project web",
+    "test:electron": "npm run build && playwright test --project electron",
     "format": "prettier --write .",
     "db:generate": "drizzle-kit generate",
     "db:studio": "drizzle-kit studio",
