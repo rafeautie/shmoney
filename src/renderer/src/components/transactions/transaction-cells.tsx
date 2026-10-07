@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDataTransferHorizontalIcon } from '@hugeicons/core-free-icons'
 import type { Transaction } from '@shared/ipc'
+import { merchantOf } from '@shared/merchant'
 import { cn, currencySymbol, ipcErrorMessage, parseSignedAmount } from '@/lib/utils'
 import { invalidateTransactionData } from '@/lib/invalidate'
 import { useAccountCurrency } from '@/lib/currency'
@@ -23,6 +24,27 @@ import { TableCell, TableRow } from '@/components/ui/table'
 
 const SYNCED_TITLE = 'Synced from your bank'
 
+function merchantInitial(description: string): string {
+  return (merchantOf(description) ?? description).match(/[\p{L}\p{N}]/u)?.[0].toUpperCase() ?? '?'
+}
+
+/** A small round mark leading the description: the merchant's initial, or arrows for a transfer */
+function MerchantMark({ transaction }: { transaction: Transaction }) {
+  return (
+    <span
+      aria-hidden={!transaction.isTransfer}
+      title={transaction.isTransfer ? 'Transfer' : undefined}
+      className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
+    >
+      {transaction.isTransfer ? (
+        <HugeiconsIcon icon={ArrowDataTransferHorizontalIcon} className="size-3" />
+      ) : (
+        merchantInitial(transaction.description)
+      )}
+    </span>
+  )
+}
+
 /** Description cell: click to edit in place. Pending/synced rows are plain text. */
 export const EditableTextCell = memo(function EditableTextCell({
   transaction
@@ -32,18 +54,16 @@ export const EditableTextCell = memo(function EditableTextCell({
   const [draft, setDraft] = useState<string | null>(null)
   const { update } = useTransactionEditsContext()
 
+  const transferAccount = transaction.isTransfer ? transaction.transferAccountName : null
   const display = (
-    <div className="flex min-w-0 items-center gap-1.5" title={transaction.description}>
-      {transaction.isTransfer && (
-        <span title="Transfer" className="flex shrink-0">
-          <HugeiconsIcon
-            icon={ArrowDataTransferHorizontalIcon}
-            size={14}
-            className="text-muted-foreground"
-          />
+    <div className="flex min-w-0 items-center gap-2" title={transaction.description}>
+      <MerchantMark transaction={transaction} />
+      <span className="truncate">{transaction.description}</span>
+      {transferAccount && (
+        <span className="shrink-0 text-muted-foreground">
+          {transaction.amount < 0 ? 'to' : 'from'} {transferAccount}
         </span>
       )}
-      <span className="truncate">{transaction.description}</span>
       {transaction.pending && (
         <Badge variant="secondary" className="shrink-0">
           Pending

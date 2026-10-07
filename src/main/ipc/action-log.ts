@@ -381,6 +381,27 @@ function setGoalGuarded(
   }
 }
 
+// a detector filing's pair link follows its category: undo unpairs the leg
+// from whichever row points at it, redo pairs the two legs again
+function relinkTransfer(
+  tx: Tx,
+  change: Extract<TransactionActionChange, { field: ActionField }>,
+  direction: 'undo' | 'redo'
+): void {
+  const id = change.transactionId
+  if (direction === 'undo') {
+    tx.update(transactions)
+      .set({ transferPairId: null })
+      .where(or(eq(transactions.id, id), eq(transactions.transferPairId, id)))
+      .run()
+    return
+  }
+  const partner = change.transferPairId
+  if (partner === undefined) return
+  tx.update(transactions).set({ transferPairId: partner }).where(eq(transactions.id, id)).run()
+  tx.update(transactions).set({ transferPairId: id }).where(eq(transactions.id, partner)).run()
+}
+
 /** [target, guard]: undo writes before over after, redo the reverse */
 export function sides<T>(change: { before: T; after: T }, direction: 'undo' | 'redo'): [T, T] {
   return direction === 'undo' ? [change.before, change.after] : [change.after, change.before]
@@ -433,7 +454,11 @@ function applyEntry(entryId: number, direction: 'undo' | 'redo', runner: Runner 
           entry.source === 'import' && change.field === 'deletedAt' && direction === 'undo'
             ? stillImported
             : undefined
-        applied += setGuarded(tx, change.field, change.transactionId, target, guard, extra)
+        const changed = setGuarded(tx, change.field, change.transactionId, target, guard, extra)
+        if (changed > 0 && entry.source === 'detector' && change.field === 'categoryId') {
+          relinkTransfer(tx, change, direction)
+        }
+        applied += changed
       }
     }
 

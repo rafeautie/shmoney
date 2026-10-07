@@ -5,8 +5,10 @@ import type { Page, PageCursor, Transaction, TransactionSortBy } from '@shared/i
 import type { ResolvedTransactionFilters } from '@shared/transaction-filters'
 import { PAGE_SIZE, cn, sortQuery } from '@/lib/utils'
 import { DEFAULT_TRANSACTION_SORTING } from '@/lib/transaction-filters'
+import { dayKey } from '@/lib/day-groups'
 import { CategoryCell } from './category-cell'
-import { DataTable, DataTableColumnHeader } from '@/components/data-table'
+import { DayHeader } from './day-header'
+import { DataTable, DataTableColumnHeader, type DataTableGroups } from '@/components/data-table'
 import { selectColumn } from '@/components/data-table-select-column'
 import {
   EditableAmountCell,
@@ -76,6 +78,19 @@ export function TransactionsTable({
     () => transactionsQuery.data?.pages.flatMap((page) => page.rows) ?? [],
     [transactionsQuery.data]
   )
+
+  // the rest of the trailing day sits on pages not loaded yet
+  const pages = transactionsQuery.data?.pages
+  const dayRest = transactionsQuery.hasNextPage ? pages?.at(-1)?.dayRest : undefined
+  const groups: DataTableGroups<Transaction> | undefined =
+    sort.sortBy === 'date'
+      ? {
+          key: (transaction) => dayKey(transaction.date),
+          header: (key, rows, last) => (
+            <DayHeader day={key} rows={rows} rest={last ? dayRest : undefined} />
+          )
+        }
+      : undefined
 
   const edits = useTransactionEdits({
     listKey,
@@ -159,6 +174,7 @@ export function TransactionsTable({
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           getRowId={(transaction) => String(transaction.id)}
+          groups={groups}
         />
         {/* a fixed box for the bar: adding it as the table's own sibling restyles the
             whole loaded table (about 150ms at 1000 rows) on the first and last selection */}

@@ -117,6 +117,8 @@ export interface Transaction {
   categoryName: string | null
   /** derived: in the Transfers system category — excluded from income/expense */
   isTransfer: boolean
+  /** a paired transfer's other account, while both legs are still transfers */
+  transferAccountName: string | null
   /** sync overwrites amount/description/date on these rows; only the category is user-editable */
   syncOwned: boolean
 }
@@ -160,6 +162,8 @@ export interface Page<T> {
   total: number | null
   /** where the next page starts; null after the last */
   next: PageCursor | null
+  /** date sort only: the net of the last row's day on pages not loaded yet */
+  dayRest?: CurrencyTotal[]
 }
 
 /** Counts over the visible (non-deleted) transactions; uncategorized = category_id IS NULL. */
@@ -297,6 +301,8 @@ export type TransactionActionChange =
       /** raw stored values (number|null) */
       before: number | null
       after: number | null
+      /** a detector filing: the leg it paired this one with, relinked on redo */
+      transferPairId?: number
     }
   | {
       transactionId: number

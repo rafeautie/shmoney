@@ -1,5 +1,13 @@
 import { sql } from 'drizzle-orm'
-import { sqliteTable, integer, text, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core'
+import {
+  sqliteTable,
+  integer,
+  text,
+  uniqueIndex,
+  index,
+  primaryKey,
+  type AnySQLiteColumn
+} from 'drizzle-orm/sqlite-core'
 // type-only imports: erased at compile time, so drizzle-kit never resolves them at runtime
 import type { GoalMode } from '../../shared/goals'
 import type { ReportFilters, WidgetConfig, WidgetType } from '../../shared/reports'
@@ -132,6 +140,11 @@ export const transactions = sqliteTable(
     // soft delete (unix seconds): read paths exclude these rows; sync upserts
     // must never touch this column or deletes would revert on every sync
     deletedAt: integer('deleted_at'),
+    // the other leg of a transfer the detector paired; shown only while both
+    // legs stay in Transfers, and cleared when the detector's run is undone
+    transferPairId: integer('transfer_pair_id').references((): AnySQLiteColumn => transactions.id, {
+      onDelete: 'set null'
+    }),
     // transactionDate (db/expressions.ts) as a column, so the list sort and
     // date ranges can use an index. VIRTUAL: ALTER TABLE can't add STORED.
     effectiveDate: integer('effective_date')

@@ -1,4 +1,17 @@
-import { and, asc, count, desc, eq, isNull, sql, type SQL, type SQLWrapper } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  isNull,
+  lt,
+  sql,
+  type SQL,
+  type SQLWrapper
+} from 'drizzle-orm'
+import { alias } from 'drizzle-orm/sqlite-core'
 import { db } from '../db'
 import { accounts, categories, transactions } from '../db/schema'
 import { buildWhere } from '../reports/filters'
@@ -18,6 +31,18 @@ export const transactionSortColumns = {
   description: transactions.description,
   amount: transactions.amount
 } as const
+
+const pair = alias(transactions, 'pair')
+const pairAccount = alias(accounts, 'pair_account')
+
+/** Unix seconds bounding the local calendar day that contains `date` */
+export function localDayBounds(date: number): [number, number] {
+  const start = new Date(date * 1000)
+  start.setHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 1)
+  return [start.getTime() / 1000, end.getTime() / 1000]
+}
 
 export function order(column: SQLWrapper, dir: 'asc' | 'desc'): SQL {
   return dir === 'asc' ? asc(column) : desc(column)
@@ -55,11 +80,22 @@ export function transactionsPage(
       categoryName: categories.name,
       categorySystemKey: categories.systemKey,
       connectionId: accounts.connectionId,
-      simplefinId: transactions.simplefinId
+      simplefinId: transactions.simplefinId,
+      pairAccountName: pairAccount.name
     })
     .from(transactions)
     .innerJoin(accounts, eq(transactions.accountId, accounts.id))
     .leftJoin(categories, eq(transactions.categoryId, categories.id))
+    // the partner counts only while it's live and filed alongside this leg
+    .leftJoin(
+      pair,
+      and(
+        eq(pair.id, transactions.transferPairId),
+        isNull(pair.deletedAt),
+        eq(pair.categoryId, transactions.categoryId)
+      )
+    )
+    .leftJoin(pairAccount, eq(pairAccount.id, pair.accountId))
     .where(and(visible, seek))
     // id is a stable tiebreaker so pages don't dup or skip rows when the sort
     // column ties (manual/imported rows all share local-noon dates)
@@ -70,11 +106,15 @@ export function transactionsPage(
     .all()
     // isTransfer is derived for display: membership in the Transfers system category;
     // syncOwned tells the edit dialog which fields sync would overwrite
-    .map(({ categorySystemKey, connectionId, simplefinId, ...row }) => ({
-      ...row,
-      isTransfer: categorySystemKey === 'transfers',
-      syncOwned: isSyncOwned(connectionId, simplefinId)
-    }))
+    .map(({ categorySystemKey, connectionId, simplefinId, pairAccountName, ...row }) => {
+      const isTransfer = categorySystemKey === 'transfers'
+      return {
+        ...row,
+        isTransfer,
+        transferAccountName: isTransfer ? pairAccountName : null,
+        syncOwned: isSyncOwned(connectionId, simplefinId)
+      }
+    })
   const more = rows.length > q.pageSize
   rows.length = Math.min(rows.length, q.pageSize)
   const last = rows.at(-1)
@@ -92,7 +132,17 @@ export function transactionsPage(
           .leftJoin(categories, eq(transactions.categoryId, categories.id))
           .where(visible)
           .get()?.value ?? 0)
-  return { rows, total, next }
+  // day headers net a whole day, and the rest of the last row's day is on pages
+  // not loaded yet
+  let dayRest: CurrencyTotal[] | undefined
+  if (q.sortBy === 'date' && more && last) {
+    const [start, end] = localDayBounds(last.date)
+    const after = sql`(${transactions.effectiveDate}, ${transactions.id}) ${sql.raw(q.sortDir === 'asc' ? '>' : '<')} (${last.date}, ${last.id})`
+    dayRest = transactionSums(
+      and(where, after, gte(transactions.effectiveDate, start), lt(transactions.effectiveDate, end))
+    )
+  }
+  return { rows, total, next, dayRest }
 }
 
 /**

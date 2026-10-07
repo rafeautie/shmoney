@@ -3,7 +3,7 @@
 import Database from 'better-sqlite3'
 import type { QueryToolResult } from '@shared/chat'
 import { registerStatFunctions } from '../stat-functions'
-import { merchantOf } from '../tools/analysis/merchant'
+import { merchantOf } from '@shared/merchant'
 import {
   GOAL_HISTORY_INSERT_SQL,
   GOAL_INSERT_SQL,

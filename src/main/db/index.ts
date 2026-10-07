@@ -7,7 +7,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { is } from '@electron-toolkit/utils'
 import { createLogger } from '../logging'
 import * as schema from './schema'
-import { merchantOf } from '../llm/tools/analysis/merchant'
+import { merchantOf } from '@shared/merchant'
 import { applyPendingRestore } from '../backups/restore'
 
 const log = createLogger('db')

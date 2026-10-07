@@ -125,6 +125,34 @@ const DataTableRow = memo(
     prev.onClick === next.onClick
 ) as typeof DataTableRowImpl
 
+/** Runs of consecutive rows sharing a key, each under a sticky header row */
+export interface DataTableGroups<TData> {
+  key: (row: TData) => string
+  /** `last`: the trailing group, which may continue on a page not loaded yet */
+  header: (key: string, rows: TData[], last: boolean) => React.ReactNode
+}
+
+function groupRuns<TData>(
+  rows: Row<TData>[],
+  key: (row: TData) => string
+): { id: string; key: string; rows: Row<TData>[] }[] {
+  const runs: { id: string; key: string; rows: Row<TData>[] }[] = []
+  const seen = new Map<string, number>()
+  for (const row of rows) {
+    const k = key(row.original)
+    const current = runs.at(-1)
+    if (current && current.key === k) {
+      current.rows.push(row)
+      continue
+    }
+    // an optimistic edit can briefly split a key's run; React keys must stay unique
+    const n = seen.get(k) ?? 0
+    seen.set(k, n + 1)
+    runs.push({ id: n === 0 ? k : `${k}#${n}`, key: k, rows: [row] })
+  }
+  return runs
+}
+
 interface DataTableProps<TData> {
   columns: ColumnDef<TData, unknown>[]
   data: TData[]
@@ -150,6 +178,8 @@ interface DataTableProps<TData> {
   bleed?: boolean
   /** e.g. "min-h-0 flex-1" to fill the parent's height; only the table body scrolls */
   className?: string
+  /** Group rows under sticky headers; only meaningful when the sort keeps groups together */
+  groups?: DataTableGroups<TData>
 }
 
 export function DataTable<TData>({
@@ -170,7 +200,8 @@ export function DataTable<TData>({
   onRowSelectionChange,
   getRowId,
   bleed,
-  className
+  className,
+  groups
 }: DataTableProps<TData>) {
   // the row a shift-click extends from: the last one toggled on its own
   const anchorRef = useRef<string | null>(null)
@@ -236,7 +267,29 @@ export function DataTable<TData>({
 
   // empty/loading renders a single spanning row; h-full on the table stretches
   // it to fill the viewport instead of collapsing to a fixed 96px box
-  const isEmpty = table.getRowModel().rows.length === 0
+  const rows = table.getRowModel().rows
+  const isEmpty = rows.length === 0
+
+  const renderRow = (row: Row<TData>) => (
+    <DataTableRow
+      key={row.id}
+      row={row}
+      selected={row.getIsSelected()}
+      canSelect={row.getCanSelect()}
+      columns={columns}
+      className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row.original))}
+      onClick={onRowClick ? handleRowClick : undefined}
+    />
+  )
+  const fetchingMoreRow = isFetchingMore && (
+    <TableRow className="hover:bg-transparent">
+      {columns.map((_column, column) => (
+        <TableCell key={column}>
+          <Skeleton className="h-4 w-full" />
+        </TableCell>
+      ))}
+    </TableRow>
+  )
 
   return (
     <ScrollArea viewportRef={scrollRef} className={className}>
@@ -257,58 +310,65 @@ export function DataTable<TData>({
             </TableRow>
           ))}
         </TableHeader>
-        {/* the ! outweighs the base last-row border-0 rule, which shares specificity;
-            skip it when empty so the full-height empty state has no closing border */}
-        <TableBody className={cn(!isEmpty && '[&_tr:last-child]:border-b!')}>
-          {topRow}
-          {isEmpty && isLoading ? (
-            // placeholder rows rather than a centred word, so the table keeps
-            // its shape and the real rows drop straight in
-            Array.from({ length: SKELETON_ROWS }, (_, row) => (
-              <TableRow key={`skeleton-${row}`} className="hover:bg-transparent">
-                {columns.map((_column, column) => (
-                  <TableCell key={column}>
-                    <Skeleton className="h-4 w-full" />
+        {groups && !isEmpty ? (
+          <>
+            {topRow && <TableBody className="[&_tr:last-child]:border-b!">{topRow}</TableBody>}
+            {groupRuns(rows, groups.key).map((run, i, runs) => (
+              <TableBody key={run.id} className="[&_tr:last-child]:border-b!">
+                {/* top-10 parks it under the column header. Sticky rows are bounded by the
+                    table, not their body, so passed headers pile up under the newest:
+                    the cell stays opaque, and a shadow draws its border */}
+                <TableRow className="sticky top-10 z-[5] border-b-0 hover:bg-transparent">
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-8 bg-background py-0 shadow-[inset_0_-1px_0_0_var(--border)] in-data-[slot=card]:bg-card"
+                  >
+                    {groups.header(
+                      run.key,
+                      run.rows.map((row) => row.original),
+                      i === runs.length - 1
+                    )}
                   </TableCell>
-                ))}
-              </TableRow>
-            ))
-          ) : isEmpty ? (
-            <TableRow className="hover:bg-transparent">
-              <TableCell colSpan={columns.length} className="h-full">
-                <Empty className="gap-2 py-2">
-                  <EmptyMedia variant="icon">
-                    <HugeiconsIcon icon={InboxIcon} />
-                  </EmptyMedia>
-                  <EmptyDescription>{emptyMessage}</EmptyDescription>
-                </Empty>
-              </TableCell>
-            </TableRow>
-          ) : (
-            table
-              .getRowModel()
-              .rows.map((row) => (
-                <DataTableRow
-                  key={row.id}
-                  row={row}
-                  selected={row.getIsSelected()}
-                  canSelect={row.getCanSelect()}
-                  columns={columns}
-                  className={cn(onRowClick && 'cursor-pointer', rowClassName?.(row.original))}
-                  onClick={onRowClick ? handleRowClick : undefined}
-                />
+                </TableRow>
+                {run.rows.map(renderRow)}
+              </TableBody>
+            ))}
+            {fetchingMoreRow && <TableBody>{fetchingMoreRow}</TableBody>}
+          </>
+        ) : (
+          /* the ! outweighs the base last-row border-0 rule, which shares specificity;
+            skip it when empty so the full-height empty state has no closing border */
+          <TableBody className={cn(!isEmpty && '[&_tr:last-child]:border-b!')}>
+            {topRow}
+            {isEmpty && isLoading ? (
+              // placeholder rows rather than a centred word, so the table keeps
+              // its shape and the real rows drop straight in
+              Array.from({ length: SKELETON_ROWS }, (_, row) => (
+                <TableRow key={`skeleton-${row}`} className="hover:bg-transparent">
+                  {columns.map((_column, column) => (
+                    <TableCell key={column}>
+                      <Skeleton className="h-4 w-full" />
+                    </TableCell>
+                  ))}
+                </TableRow>
               ))
-          )}
-          {isFetchingMore && (
-            <TableRow className="hover:bg-transparent">
-              {columns.map((_column, column) => (
-                <TableCell key={column}>
-                  <Skeleton className="h-4 w-full" />
+            ) : isEmpty ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="h-full">
+                  <Empty className="gap-2 py-2">
+                    <EmptyMedia variant="icon">
+                      <HugeiconsIcon icon={InboxIcon} />
+                    </EmptyMedia>
+                    <EmptyDescription>{emptyMessage}</EmptyDescription>
+                  </Empty>
                 </TableCell>
-              ))}
-            </TableRow>
-          )}
-        </TableBody>
+              </TableRow>
+            ) : (
+              rows.map(renderRow)
+            )}
+            {fetchingMoreRow}
+          </TableBody>
+        )}
       </table>
       {hasMore && <div ref={sentinelRef} className="h-px" />}
     </ScrollArea>

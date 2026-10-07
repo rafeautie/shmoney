@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest'
-import type { Transaction, TransactionSortBy } from '@shared/ipc'
+import type { Page, Transaction, TransactionSortBy } from '@shared/ipc'
 import type { ResolvedFilters } from '@shared/reports'
 import type { SavedFilter } from '@shared/transaction-filters'
 import {
@@ -144,6 +144,33 @@ describe('transaction list', () => {
     })
     expect(second.total).toBeNull()
     expect(second.next).toBeNull()
+  })
+
+  it("nets the rest of a page's last day across the pages after it", async () => {
+    const acct = account({ name: 'Day rest' })
+    const day = (h: number): number => noon(2026, 8, 20) + h * 3600
+    txn(acct, { posted: day(3), amount: -1_000 })
+    txn(acct, { posted: day(2), amount: -2_000 })
+    txn(acct, { posted: day(1), amount: -4_000 })
+    txn(acct, { posted: day(-1), amount: 8_000 })
+    txn(acct, { posted: noon(2026, 8, 19), amount: -16_000 })
+    const page = (cursor: number | { date: number; id: number }): Promise<Page<Transaction>> =>
+      api.transactions.list({
+        page: cursor,
+        pageSize: 2,
+        sortBy: 'date',
+        sortDir: 'desc',
+        filters: resolved({ accountIds: [acct] })
+      })
+
+    const first = await page(0)
+    expect(first.dayRest).toEqual([{ currency: 'USD', total: 4_000 }])
+    // ends on the day's last row, so nothing of it is left
+    const second = await page(first.next!)
+    expect(second.dayRest).toEqual([])
+    const third = await page(second.next!)
+    expect(third.next).toBeNull()
+    expect(third.dayRest).toBeUndefined()
   })
 
   it('marks rows in the Transfers category as transfers', async () => {
