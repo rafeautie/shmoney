@@ -348,7 +348,11 @@ export function ImportDialog({
                 ? plural(file.rowCount, 'row')
                 : plural(file.rowCount, 'transaction')}
             </p>
-            <Tabs value={mode} onValueChange={(v) => setMode(v as 'existing' | 'new')}>
+            <Tabs
+              value={mode}
+              onValueChange={(v) => setMode(v as 'existing' | 'new')}
+              viewTransition={false}
+            >
               <TabsList>
                 <TabsTrigger value="existing">Existing account</TabsTrigger>
                 <TabsTrigger value="new">New account</TabsTrigger>

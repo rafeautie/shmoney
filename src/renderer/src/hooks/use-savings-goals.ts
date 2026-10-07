@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery } from '@tanstack/react-query'
 import type { GoalSummary } from '@shared/goals'
 import { currentMonth, shiftMonth } from '@/lib/format-date'
 
@@ -12,6 +12,19 @@ export interface SavingsGoals {
   showSaved: boolean
 }
 
+export const monthlySavedOptions = (month: string) =>
+  queryOptions({
+    queryKey: ['goals', 'series', month],
+    queryFn: () => {
+      const [y, m] = month.split('-').map(Number)
+      return window.api.goals.series({
+        timeGrain: 'month',
+        dateStart: Math.floor(new Date(y, m - 2, 1).getTime() / 1000),
+        dateEnd: Math.floor(new Date(y, m, 0, 23, 59, 59).getTime() / 1000)
+      })
+    }
+  })
+
 /**
  * Milliunits saved per goal over `month`, as the delta of two `goals:series`
  * month-end levels, so there is no second formula for a month's saving to
@@ -21,15 +34,7 @@ export function useMonthlySaved(month: string, enabled = true): Map<number, numb
   const previous = shiftMonth(month, -1)
 
   const seriesQuery = useQuery({
-    queryKey: ['goals', 'series', month],
-    queryFn: () => {
-      const [y, m] = month.split('-').map(Number)
-      return window.api.goals.series({
-        timeGrain: 'month',
-        dateStart: Math.floor(new Date(y, m - 2, 1).getTime() / 1000),
-        dateEnd: Math.floor(new Date(y, m, 0, 23, 59, 59).getTime() / 1000)
-      })
-    },
+    ...monthlySavedOptions(month),
     enabled,
     placeholderData: (prev) => prev
   })

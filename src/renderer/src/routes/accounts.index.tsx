@@ -101,7 +101,13 @@ function AccountsPage() {
     if (q !== undefined || create) void navigate({ search: { tab: 'transactions' }, replace: true })
   }, [q, create, navigate])
   return (
-    <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
+    // the tab lives in the URL, so the router runs its transition
+    <Tabs
+      value={tab}
+      onValueChange={setTab}
+      viewTransition={false}
+      className="flex min-h-0 flex-1 flex-col gap-0"
+    >
       <div className="space-y-4 px-6 pt-6 pb-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-8">

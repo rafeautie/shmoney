@@ -92,7 +92,7 @@ function GoalsPage() {
           </Empty>
         </div>
       ) : (
-        <ScrollArea horizontal className="min-h-0 flex-1">
+        <ScrollArea horizontal data-view-panel className="min-h-0 flex-1">
           {active.length > 0 &&
             (goalsView === 'table' ? (
               <>

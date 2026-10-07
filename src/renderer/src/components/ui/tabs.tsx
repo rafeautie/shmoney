@@ -1,12 +1,28 @@
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs'
 
 import { cn } from '@/lib/utils'
+import { transitionView } from '@/lib/view-transition'
 
-function Tabs({ className, ...props }: TabsPrimitive.Root.Props) {
+/**
+ * Switching tabs crossfades every `data-view-panel` on the page: the panels
+ * here, or the region a view toggle swaps. `viewTransition={false}` opts out
+ * where nothing should animate or the router already does it.
+ */
+function Tabs({
+  className,
+  onValueChange,
+  viewTransition = true,
+  ...props
+}: TabsPrimitive.Root.Props & { viewTransition?: boolean }) {
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
       className={cn('flex flex-col gap-2', className)}
+      onValueChange={
+        onValueChange && viewTransition
+          ? (value, details) => transitionView('panel', () => onValueChange(value, details))
+          : onValueChange
+      }
       {...props}
     />
   )
@@ -43,7 +59,10 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
       data-slot="tabs-content"
-      className={cn('flex-1 outline-none', className)}
+      data-view-panel
+      // base-ui keeps the outgoing panel mounted a frame after the switch; laid
+      // out, it would stack above the new one and end the view transition early
+      className={cn('flex-1 outline-none data-ending-style:hidden', className)}
       {...props}
     />
   )
