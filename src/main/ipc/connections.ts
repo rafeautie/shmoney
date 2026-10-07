@@ -1,4 +1,5 @@
-import { ipcMain } from 'electron'
+import fs from 'node:fs'
+import { app, dialog, ipcMain } from 'electron'
 import {
   and,
   asc,
@@ -39,7 +40,13 @@ import {
 import { IMPORT_ID_PREFIX, matchImportedRows } from '../import/dedupe'
 import { balanceDeltaWhere, withDerivedBalance } from '../accounts/balance'
 import { transactionDate } from '../db/expressions'
-import { transactionsPage, transactionSums } from './transactions-page'
+import {
+  filteredWhere,
+  transactionRows,
+  transactionsPage,
+  transactionSums
+} from './transactions-page'
+import { transactionsCsv } from '../export'
 import { inRun, newRun, recordAction } from './action-log'
 import { applyRulesInTx, chunked } from './rules'
 import { pruneOrphanedSuggestions } from './rule-suggestions'
@@ -55,7 +62,8 @@ import {
 import {
   filteredAccountTransactionsQuerySchema,
   filteredTransactionsQuerySchema,
-  transactionSumsQuerySchema
+  transactionSumsQuerySchema,
+  transactionsExportQuerySchema
 } from '@shared/transaction-filters'
 import { buildWhere } from '../reports/filters'
 
@@ -712,13 +720,25 @@ export function registerConnectionsIpc(): void {
   // so it always totals exactly the rows the table is showing
   ipcMain.handle(IPC.transactionsSums, (_event, input: unknown) => {
     const { filters, accountId } = transactionSumsQuerySchema.parse(input)
-    const scoped = accountId !== undefined
-    const filterWhere = buildWhere(scoped ? { ...filters, accountIds: undefined } : filters, {
-      keepUnknownDates: true,
-      keepOpeningBalances: true
-    })
-    return transactionSums(
-      scoped ? and(eq(transactions.accountId, accountId), filterWhere) : filterWhere
+    return transactionSums(filteredWhere(filters, accountId))
+  })
+
+  ipcMain.handle(IPC.transactionsExportCsv, async (_event, input: unknown) => {
+    const q = transactionsExportQuerySchema.parse(input)
+    const filePath =
+      !app.isPackaged && q.filePath
+        ? q.filePath
+        : (
+            await dialog.showSaveDialog({
+              defaultPath: `shmoney transactions ${new Date().toLocaleDateString('en-CA')}.csv`,
+              filters: [{ name: 'CSV', extensions: ['csv'] }]
+            })
+          ).filePath
+    if (!filePath) return null
+    fs.writeFileSync(
+      filePath,
+      transactionsCsv(transactionRows(filteredWhere(q.filters, q.accountId), q.sortBy, q.sortDir))
     )
+    return filePath
   })
 }

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { accountIdSchema, idSchema, transactionsQuerySchema } from './ipc'
+import { accountIdSchema, idSchema, transactionSortBySchema, transactionsQuerySchema } from './ipc'
 import {
   reportFiltersSchema,
   resolvedFiltersSchema,
@@ -63,6 +63,15 @@ export const transactionSumsQuerySchema = z.object({
   accountId: accountIdSchema.optional()
 })
 export type TransactionSumsQuery = z.infer<typeof transactionSumsQuerySchema>
+
+// Export CSV: the same rows again, in the table's order, unpaged
+export const transactionsExportQuerySchema = transactionSumsQuerySchema.extend({
+  sortBy: transactionSortBySchema,
+  sortDir: z.enum(['asc', 'desc']),
+  // dev builds only: skips the save dialog so verification can drive it
+  filePath: z.string().optional()
+})
+export type TransactionsExportQuery = z.infer<typeof transactionsExportQuerySchema>
 
 // ---------- saved filters ----------
 

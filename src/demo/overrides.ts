@@ -1,3 +1,7 @@
+import { IPC } from '@shared/ipc'
+import { transactionsExportQuerySchema } from '@shared/transaction-filters'
+import { transactionsCsv } from '../main/export'
+import { filteredWhere, transactionRows } from '../main/ipc/transactions-page'
 import { DIAGNOSTICS_IPC } from '@shared/diagnostics'
 import type { DatabaseSize } from '@shared/storage'
 import { STORAGE_IPC } from '@shared/storage'
@@ -30,4 +34,24 @@ export function registerOverrides(): void {
     totalBytes: databaseBytes(),
     tables: []
   }))
+
+  // backups and full exports need the desktop app's database file; the
+  // Storage section hides them in the demo
+  ipcMain.handle(STORAGE_IPC.listBackups, () => [])
+  ipcMain.handle(STORAGE_IPC.showInFolder, () => {})
+
+  // the browser's own download stands in for the save dialog
+  ipcMain.handle(IPC.transactionsExportCsv, (_event, input) => {
+    const q = transactionsExportQuerySchema.parse(input)
+    const csv = transactionsCsv(
+      transactionRows(filteredWhere(q.filters, q.accountId), q.sortBy, q.sortDir)
+    )
+    const name = `shmoney transactions ${new Date().toLocaleDateString('en-CA')}.csv`
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    link.download = name
+    link.click()
+    URL.revokeObjectURL(link.href)
+    return name
+  })
 }

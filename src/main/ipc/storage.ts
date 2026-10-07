@@ -1,8 +1,12 @@
 import fs from 'node:fs'
-import { ipcMain } from 'electron'
+import { dialog, ipcMain, shell } from 'electron'
+import { is } from '@electron-toolkit/utils'
+import { z } from 'zod'
 import { sql } from 'drizzle-orm'
 import { db, dbPath } from '../db'
-import { STORAGE_IPC, type DatabaseSize } from '@shared/storage'
+import { backupsFolder, listBackups, restoreBackup, takeBackup } from '../backups'
+import { exportEverything } from '../export'
+import { STORAGE_IPC, type Backup, type DatabaseSize, type ExportResult } from '@shared/storage'
 
 type TableSizes = DatabaseSize['tables']
 
@@ -45,5 +49,39 @@ export function registerStorageIpc(): void {
     }
 
     return { totalBytes, tables: tableSizes(key.join('|')) }
+  })
+
+  ipcMain.handle(STORAGE_IPC.listBackups, (): Backup[] => listBackups())
+
+  ipcMain.handle(STORAGE_IPC.backupNow, (): Promise<Backup> => takeBackup('manual'))
+
+  ipcMain.handle(STORAGE_IPC.restoreBackup, (_event, name: unknown) =>
+    restoreBackup(z.string().parse(name))
+  )
+
+  ipcMain.handle(STORAGE_IPC.showBackupsFolder, async () => {
+    fs.mkdirSync(backupsFolder(), { recursive: true })
+    await shell.openPath(backupsFolder())
+  })
+
+  ipcMain.handle(STORAGE_IPC.exportAll, async (_event, input: unknown): Promise<ExportResult> => {
+    // dev builds only: a folder in place of the picker, so verification can drive it
+    const devFolder = z.string().optional().parse(input)
+    const parent =
+      is.dev && devFolder
+        ? devFolder
+        : (
+            await dialog.showOpenDialog({
+              title: 'Export to folder',
+              buttonLabel: 'Export here',
+              properties: ['openDirectory', 'createDirectory']
+            })
+          ).filePaths[0]
+    if (!parent) return null
+    return { path: await exportEverything(parent) }
+  })
+
+  ipcMain.handle(STORAGE_IPC.showInFolder, (_event, target: unknown) => {
+    shell.showItemInFolder(z.string().parse(target))
   })
 }

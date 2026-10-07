@@ -1,6 +1,13 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { SettingsSection } from './settings-controls'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import type { Backup, BackupKind } from '@shared/storage'
+import { Button } from '@/components/ui/button'
+import { ConfirmButton } from '@/components/confirm-dialog'
+import { isDemo } from '@/lib/platform'
+import { useSettingsDialog } from '@/lib/settings-dialog'
+import { ipcErrorMessage } from '@/lib/utils'
+import { SettingAction, SettingsGroup, SettingsSection, SettingsSubpage } from './settings-controls'
 
 // Fixed table→bucket→color mapping so a bucket keeps its color no matter how
 // sizes shift. The bucket order is also the display order; adjacent-color
@@ -40,7 +47,7 @@ function formatShare(bytes: number, totalBytes: number): string {
   return pct < 50 ? '<0.0001%' : '>99.9999%'
 }
 
-export function StorageSettings() {
+function DatabaseUsage() {
   const size = useQuery({
     queryKey: ['storage', 'databaseSize'],
     queryFn: () => window.api.storage.getDatabaseSize()
@@ -163,5 +170,180 @@ export function StorageSettings() {
         </div>
       )}
     </SettingsSection>
+  )
+}
+
+const BACKUPS_KEY = ['storage', 'backups']
+
+const KIND_LABELS: Record<BackupKind, string> = {
+  daily: 'Daily',
+  'pre-migration': 'Before an update',
+  manual: 'Backed up by you',
+  'pre-restore': 'Before a restore'
+}
+
+const formatWhen = (ms: number): string =>
+  new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+
+function BackupsSection() {
+  const queryClient = useQueryClient()
+  const { open } = useSettingsDialog()
+  const backups = useQuery({
+    queryKey: BACKUPS_KEY,
+    queryFn: () => window.api.storage.listBackups()
+  })
+  const backupNow = useMutation({
+    mutationFn: () => window.api.storage.backupNow(),
+    onSuccess: () => toast('Backup saved'),
+    onError: (error) => toast.error(ipcErrorMessage(error)),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: BACKUPS_KEY })
+  })
+  const latest = backups.data?.[0]
+
+  return (
+    <SettingsSection
+      title="Backups"
+      description="shmoney snapshots your database every day and before an update changes it, keeping the last 7 days and one a week for the last 4 weeks."
+    >
+      <SettingsGroup>
+        <SettingAction
+          label="Back up now"
+          description={latest ? `Last backup ${formatWhen(latest.createdAt)}` : 'No backups yet'}
+        >
+          <Button
+            variant="outline"
+            disabled={backupNow.isPending}
+            onClick={() => backupNow.mutate()}
+          >
+            {backupNow.isPending ? 'Backing up…' : 'Back up now'}
+          </Button>
+        </SettingAction>
+        <SettingAction label="Restore" description="Roll your data back to an earlier backup.">
+          <Button
+            variant="outline"
+            disabled={!backups.data?.length}
+            onClick={() => open('storage', 'backups')}
+          >
+            Choose backup
+          </Button>
+        </SettingAction>
+        <SettingAction
+          label="Backups folder"
+          description="Copy backups somewhere else, like another drive, to keep them safe from this one."
+        >
+          <Button variant="outline" onClick={() => void window.api.storage.showBackupsFolder()}>
+            Show in folder
+          </Button>
+        </SettingAction>
+      </SettingsGroup>
+    </SettingsSection>
+  )
+}
+
+function ExportSection() {
+  const exportAll = useMutation({
+    mutationFn: () => window.api.storage.exportAll(),
+    onSuccess: (result) => {
+      if (!result) return
+      toast('Export saved', {
+        description: result.path,
+        action: {
+          label: 'Show in folder',
+          onClick: () => void window.api.storage.showInFolder(result.path)
+        }
+      })
+    },
+    onError: (error) => toast.error(ipcErrorMessage(error))
+  })
+
+  return (
+    <SettingsSection title="Export">
+      <SettingsGroup>
+        <SettingAction
+          label="Export everything"
+          description="One CSV file per table plus a copy of the database, saved to a folder you choose."
+        >
+          <Button
+            variant="outline"
+            disabled={exportAll.isPending}
+            onClick={() => exportAll.mutate()}
+          >
+            {exportAll.isPending ? 'Exporting…' : 'Export'}
+          </Button>
+        </SettingAction>
+      </SettingsGroup>
+    </SettingsSection>
+  )
+}
+
+function BackupRow({ backup }: { backup: Backup }) {
+  const restore = useMutation({
+    mutationFn: () => window.api.storage.restoreBackup(backup.name),
+    onError: (error) => toast.error(ipcErrorMessage(error))
+  })
+  const when = formatWhen(backup.createdAt)
+
+  return (
+    <SettingAction
+      label={when}
+      description={`${KIND_LABELS[backup.kind]} · ${formatBytes(backup.bytes)}`}
+    >
+      <ConfirmButton
+        variant="outline"
+        title="Restore this backup?"
+        description={`shmoney restarts with your data as it was on ${when}. What you have now is backed up first, so you can switch back.`}
+        confirmLabel="Restore and restart"
+        confirmVariant="default"
+        pendingLabel="Restoring…"
+        pending={restore.isPending}
+        onConfirm={() => restore.mutate()}
+      >
+        Restore
+      </ConfirmButton>
+    </SettingAction>
+  )
+}
+
+function BackupsPage({ onBack }: { onBack: () => void }) {
+  const backups = useQuery({
+    queryKey: BACKUPS_KEY,
+    queryFn: () => window.api.storage.listBackups()
+  })
+
+  return (
+    <SettingsSubpage
+      parent="Storage"
+      title="Restore a backup"
+      description="Restoring replaces your current data with the backup’s and restarts shmoney."
+      onBack={onBack}
+    >
+      {backups.data && backups.data.length > 0 ? (
+        <SettingsGroup>
+          {backups.data.map((backup) => (
+            <BackupRow key={backup.name} backup={backup} />
+          ))}
+        </SettingsGroup>
+      ) : (
+        backups.data && <p className="text-xs text-muted-foreground">No backups yet.</p>
+      )}
+    </SettingsSubpage>
+  )
+}
+
+export function StorageSettings() {
+  const { page, open } = useSettingsDialog()
+  if (page === 'backups') return <BackupsPage onBack={() => open('storage')} />
+
+  return (
+    <>
+      <DatabaseUsage />
+      {/* the demo's data lives in the page, with no file to copy */}
+      {!isDemo && (
+        <>
+          <BackupsSection />
+          <ExportSection />
+        </>
+      )}
+    </>
   )
 }

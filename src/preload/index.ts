@@ -36,10 +36,11 @@ import {
   type SavedFilter,
   type SavedFilterCreateInput,
   type SavedFilterUpdateInput,
-  type TransactionSumsQuery
+  type TransactionSumsQuery,
+  type TransactionsExportQuery
 } from '@shared/transaction-filters'
 import { SETTINGS_IPC, type SettingKey, type Settings } from '@shared/settings'
-import { STORAGE_IPC, type DatabaseSize } from '@shared/storage'
+import { STORAGE_IPC, type Backup, type DatabaseSize, type ExportResult } from '@shared/storage'
 import {
   LLM_IPC,
   type CategorizeProgress,
@@ -168,6 +169,10 @@ const api = {
     /** Net total of every row the filters match (all pages), one entry per currency */
     sums: (query: TransactionSumsQuery): Promise<CurrencyTotal[]> =>
       ipcRenderer.invoke(IPC.transactionsSums, query),
+    /** Writes the rows the filters match, in the given order, to a CSV the user
+     * picks; resolves to its path, or null when the save dialog was cancelled */
+    exportCsv: (query: TransactionsExportQuery): Promise<string | null> =>
+      ipcRenderer.invoke(IPC.transactionsExportCsv, query),
     /** Per-row category values; skips pending rows, resolves to rows updated */
     setCategories: (input: TransactionsSetCategoriesInput): Promise<number> =>
       ipcRenderer.invoke(IPC.transactionsSetCategories, input),
@@ -328,7 +333,19 @@ const api = {
   },
   storage: {
     /** On-disk size of the SQLite database with a per-table breakdown */
-    getDatabaseSize: (): Promise<DatabaseSize> => ipcRenderer.invoke(STORAGE_IPC.getDatabaseSize)
+    getDatabaseSize: (): Promise<DatabaseSize> => ipcRenderer.invoke(STORAGE_IPC.getDatabaseSize),
+    /** Snapshots in the backups folder, newest first */
+    listBackups: (): Promise<Backup[]> => ipcRenderer.invoke(STORAGE_IPC.listBackups),
+    backupNow: (): Promise<Backup> => ipcRenderer.invoke(STORAGE_IPC.backupNow),
+    /** Snapshots the current data, then relaunches the app into the chosen backup */
+    restoreBackup: (name: string): Promise<void> =>
+      ipcRenderer.invoke(STORAGE_IPC.restoreBackup, name),
+    showBackupsFolder: (): Promise<void> => ipcRenderer.invoke(STORAGE_IPC.showBackupsFolder),
+    /** Every table as CSV plus a copy of the database, into a folder the user picks */
+    exportAll: (devFolder?: string): Promise<ExportResult> =>
+      ipcRenderer.invoke(STORAGE_IPC.exportAll, devFolder),
+    showInFolder: (path: string): Promise<void> =>
+      ipcRenderer.invoke(STORAGE_IPC.showInFolder, path)
   },
   llm: {
     getStatus: (): Promise<LlmStatus> => ipcRenderer.invoke(LLM_IPC.getStatus),
