@@ -79,7 +79,9 @@ const filterFieldsSchema = z.object({
   search: z.string().trim().optional(),
   includePending: z.boolean(),
   /** rows in the Transfers system category; reports exclude them by default */
-  includeTransfers: z.boolean()
+  includeTransfers: z.boolean(),
+  /** pins exact rows (a chat answer's), ANDed with the rest of the filter */
+  transactionIds: z.array(idSchema).optional()
 })
 
 export const reportFiltersSchema = filterFieldsSchema.extend({

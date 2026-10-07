@@ -4,6 +4,7 @@
 // a monthly taco night is not a bill.
 import type { ChartSpec } from '@shared/chat'
 import { round2, type AnalysisContext, type ToolOutput } from './common'
+import { linkRows, links, windowRange } from './links'
 import { daysBetween, monthOfDay, monthStart, shiftMonth, ymd } from './period'
 
 export type Cadence = 'monthly' | 'quarterly' | 'annual'
@@ -26,6 +27,9 @@ export interface RecurringCharge {
   lastCharged: string
   nextExpected: string
   priceChange: PriceChange | null
+  /** the charges the cadence was read from, and the first one's date */
+  ids: number[]
+  firstCharged: string
 }
 
 const EVERYDAY = /grocer|dining|restaurant|food|coffee|shopping|gas|fuel|transport/i
@@ -42,6 +46,7 @@ const MIN_IN_BAND = 0.7
 const MAX_CV = 0.35
 
 interface Charge {
+  id: number
   date: string
   amount: number
 }
@@ -108,11 +113,12 @@ export function detectRecurring(ctx: AnalysisContext): RecurringCharge[] {
   const annualSince = monthStart(shiftMonth(current, -24))
   const rows = ctx.db
     .prepare(
-      `SELECT merchant, category, txn_date, -amount AS amount FROM temp.tx
+      `SELECT id, merchant, category, txn_date, -amount AS amount FROM temp.tx
        WHERE amount < 0 AND merchant IS NOT NULL AND txn_date >= ? AND txn_date <= ?
        ORDER BY merchant, txn_date, id`
     )
     .all(annualSince, ctx.today) as {
+    id: number
     merchant: string
     category: string | null
     txn_date: string
@@ -123,7 +129,7 @@ export function detectRecurring(ctx: AnalysisContext): RecurringCharge[] {
   for (const r of rows) {
     const entry = byMerchant.get(r.merchant) ?? { category: null, charges: [] }
     entry.category = r.category
-    entry.charges.push({ date: r.txn_date, amount: r.amount })
+    entry.charges.push({ id: r.id, date: r.txn_date, amount: r.amount })
     byMerchant.set(r.merchant, entry)
   }
 
@@ -162,7 +168,9 @@ export function detectRecurring(ctx: AnalysisContext): RecurringCharge[] {
       monthlyCost: round2(typical / band.months),
       lastCharged: last,
       nextExpected: addMonths(last, band.months),
-      priceChange: priceChangeOf(charges)
+      priceChange: priceChangeOf(charges),
+      ids: charges.map((c) => c.id),
+      firstCharged: charges[0].date
     })
   }
   return found.sort((a, b) => b.monthlyCost - a.monthlyCost)
@@ -230,10 +238,26 @@ export function runRecurring(args: Record<string, unknown>, ctx: AnalysisContext
         }
       : null
 
+  // a merchant's charges, not its whole history: the ones the cadence was read from
+  const since = monthStart(shiftMonth(monthOfDay(ctx.today), -12))
+  const first = charges.reduce((min, c) => (c.firstCharged < min ? c.firstCharged : min), since)
+  const chargesLink = linkRows(
+    ctx,
+    charges.flatMap((c) => c.ids),
+    {
+      dateRange: windowRange({ start: first, end: ctx.today }),
+      ...(ctx.accountId !== null ? { accountIds: [ctx.accountId] } : {}),
+      direction: 'expense',
+      includePending: false,
+      includeTransfers: false,
+      transactionIds: charges.flatMap((c) => c.ids).sort((a, b) => a - b)
+    }
+  )
+
   return {
     result: {
       ok: true,
-      period: `${monthStart(shiftMonth(monthOfDay(ctx.today), -12))} to ${ctx.today}`,
+      period: `${since} to ${ctx.today}`,
       columns,
       rows,
       rowCount: rows.length,
@@ -241,6 +265,7 @@ export function runRecurring(args: Record<string, unknown>, ctx: AnalysisContext
       notes,
       durationMs: Date.now() - started
     },
-    chart
+    chart,
+    links: links(chargesLink)
   }
 }

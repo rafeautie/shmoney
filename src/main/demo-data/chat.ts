@@ -54,7 +54,8 @@ function scriptContext(today: string, goalPace: GoalPaceInput[]): AnalysisContex
       accounts: names('SELECT name FROM accounts ORDER BY name'),
       goals: goalPace.map((goal) => goal.name)
     },
-    goalPace
+    goalPace,
+    accountId: null
   }
 }
 
@@ -107,7 +108,8 @@ export class Turn {
       durationMs: CALL_MS,
       name,
       args,
-      result: { ...output.result, durationMs: CALL_MS }
+      result: { ...output.result, durationMs: CALL_MS },
+      ...(output.links?.length ? { display: { links: output.links } } : {})
     })
     const { columns, rows } = output.result
     if (columns && rows) {

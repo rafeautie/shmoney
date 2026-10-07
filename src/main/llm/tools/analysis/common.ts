@@ -3,7 +3,7 @@
 // temp views the query tool reads (scoping, milliunit division, the transfer
 // and opening-balance exclusions all come with them), so a typed figure and a
 // hand-written query can't disagree about what counts.
-import type { AnalysisToolResult, ChartSpec } from '@shared/chat'
+import type { AnalysisToolResult, ChartSpec, TransactionsLink } from '@shared/chat'
 import type { DateRange, Window } from './period'
 import type { ToolVocab } from './schemas'
 
@@ -37,6 +37,8 @@ export interface AnalysisContext {
   data: DateRange | null
   vocab: ToolVocab
   goalPace: GoalPaceInput[]
+  /** the conversation's account scope, which the temp views already apply; null = all */
+  accountId: number | null
 }
 
 /** persisted whole on the part; the model reads modelView() of it */
@@ -46,6 +48,8 @@ export interface ToolOutput {
   result: AnalysisResult
   /** the chart this result draws when the call asked for one */
   chart: ChartSpec | null
+  /** the rows behind the result, for the answer's chips; never shown to the model */
+  links?: TransactionsLink[]
 }
 
 /** the most rows a result sends the model; the transcript keeps them all */

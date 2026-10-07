@@ -229,7 +229,16 @@ function chatFunctions(ctx: {
         const output = reason
           ? failed(reason)
           : guarded(() => ANALYSIS_RUNNERS[name](args, analysis), failed)
-        turn.settleCall({ name, args, result: output.result }, callDurationMs())
+        // links ride in display, so the model never reads them
+        turn.settleCall(
+          {
+            name,
+            args,
+            result: output.result,
+            ...(output.links?.length ? { display: { links: output.links } } : {})
+          },
+          callDurationMs()
+        )
         const source = asQueryResult(output.result)
         // an empty result replaces the last one too, so a chart can't draw
         // stale rows under an answer about something else
@@ -430,7 +439,8 @@ export async function runChatTurn(
       today,
       data: span.min && span.max ? { min: span.min, max: span.max } : null,
       vocab: tools.vocab,
-      goalPace: tools.goalPace
+      goalPace: tools.goalPace,
+      accountId: toolScope.accountId
     }
     seedLastResult(tools.seed, analysis, state)
     // wall-clock when the tool call being written opened; each handler reads the

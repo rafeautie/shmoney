@@ -9,9 +9,8 @@ import {
   type ToolOutput,
   type TxFilter
 } from './common'
+import { filtersFor, linkRows, links, txIds, type Direction } from './links'
 import { coverageNote, resolvePeriod } from './period'
-
-type Direction = 'spending' | 'income' | 'all'
 
 const text = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() ? value.trim() : null
@@ -121,6 +120,13 @@ export function runTransactions(args: Record<string, unknown>, ctx: AnalysisCont
       ...(notes.length ? { notes } : {}),
       durationMs: Date.now() - started
     },
-    chart: null
+    chart: null,
+    links: links(
+      linkRows(
+        ctx,
+        txIds(ctx, filter, direction),
+        filtersFor(ctx, { ...filter, window }, direction)
+      )
+    )
   }
 }

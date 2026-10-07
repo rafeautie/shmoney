@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { GenerationStats } from './llm'
+import type { TransactionFilters } from './transaction-filters'
 
 // Chat with the local model: multiple conversations, each a persisted message
 // history. Sending with a null conversationId creates the conversation
@@ -178,6 +179,20 @@ export interface AnalysisToolResult {
   durationMs: number
 }
 
+/** the rows behind a typed result, as the All transactions filter that lists exactly them */
+export interface TransactionsLink {
+  filters: TransactionFilters
+  /** how many rows the filter lists */
+  count: number
+  /** which rows these are, when one call links more than one set (a comparison's two periods) */
+  label?: string
+}
+
+/** a typed call's render payload; absent on calls with no rows to link and on older history */
+export interface AnalysisDisplay {
+  links: TransactionsLink[]
+}
+
 // ---------- proposals (action tools) ----------
 
 /** mirrors the AI SDK's tool-approval states, plus undone after an applied change is reverted */
@@ -286,7 +301,12 @@ export type ChatToolCall =
       args: { unit: DateUnit; count: number; includeCurrent: boolean }
       result: DateWindowToolResult
     }
-  | { name: AnalysisToolName; args: Record<string, unknown>; result: AnalysisToolResult }
+  | {
+      name: AnalysisToolName
+      args: Record<string, unknown>
+      result: AnalysisToolResult
+      display?: AnalysisDisplay
+    }
   // display is null when the proposal failed (result.error says why)
   | {
       name: ActionToolName
