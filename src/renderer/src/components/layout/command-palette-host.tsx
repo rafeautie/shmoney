@@ -181,8 +181,14 @@ function CommandPalette({
     run(() => void navigate({ to: '/accounts', search: { tab: 'transactions', q: search } }))
 
   return (
-    <Command filter={filterByKeywords} loop className="bg-transparent">
+    <Command
+      filter={filterByKeywords}
+      loop
+      className="bg-transparent [&_[data-slot=command-group]]:px-2 [&_[data-slot=command-group]]:py-1.5 [&_[data-slot=command-item]]:min-h-8 [&_[data-slot=command-item]]:gap-3"
+    >
       <CommandInput
+        wrapperClassName="h-11 gap-3 px-4"
+        className="h-11"
         value={query}
         onValueChange={setQuery}
         placeholder="Search pages, actions, and transactions..."
@@ -366,7 +372,7 @@ function CommandPalette({
           </CommandGroup>
         )}
       </CommandList>
-      <div className="flex items-center gap-4 border-t bg-tray px-3 py-2 text-xs text-muted-foreground">
+      <div className="flex items-center gap-4 border-t bg-tray px-4 py-2.5 text-xs text-muted-foreground">
         <span>
           <Key>↑</Key> <Key>↓</Key> to move
         </span>
