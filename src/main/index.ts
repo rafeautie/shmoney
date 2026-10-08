@@ -38,9 +38,9 @@ import {
 import { sendImportFile, statementPathFrom } from './file-open'
 import { installApplicationMenu } from './menu'
 import { readSettings } from './settings-store'
+import { routeZoomInput, titleBarOverlayHeight, trafficLightPosition } from './ui-scale'
 import { loadWindowState, trackWindowState } from './window-state'
 import { IPC } from '@shared/ipc'
-import { TITLE_BAR_OVERLAY_HEIGHT } from '@shared/theme'
 import icon from '../../build/icon.png?asset'
 
 // before anything else can log or crash: dev-paths (hoisted above) has already
@@ -59,6 +59,7 @@ let pendingImportFile: string | null = null
 function createWindow(): void {
   const state = loadWindowState()
   const chrome = resolvedChrome()
+  const { uiScale } = readSettings()
 
   const mainWindow = new BrowserWindow({
     x: state.x,
@@ -80,10 +81,10 @@ function createWindow(): void {
           titleBarOverlay: {
             color: TITLE_BAR_OVERLAY_COLOR,
             symbolColor: chrome.symbol,
-            height: TITLE_BAR_OVERLAY_HEIGHT
+            height: titleBarOverlayHeight(uiScale)
           }
         }
-      : { trafficLightPosition: { x: 16, y: 16 } }),
+      : { trafficLightPosition: trafficLightPosition(uiScale) }),
     // packaged Windows/macOS builds take the icon from the executable;
     // this covers dev mode and Linux
     icon,
@@ -92,11 +93,13 @@ function createWindow(): void {
       preload: join(__dirname, '../preload/index.cjs'),
       sandbox: true,
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      zoomFactor: uiScale
     }
   })
 
   trackWindowState(mainWindow)
+  routeZoomInput(mainWindow)
 
   // shown once the renderer reports its first real screen rather than at first
   // paint, which is only the blank backdrop; ready-to-show stays the floor and

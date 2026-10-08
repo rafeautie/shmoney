@@ -44,10 +44,10 @@ export function writeChannelLog(dir: string): void {
 
 // Channels only the desktop app can serve (real fs, updater, the keychain-backed
 // debug fetch) or that only Electron's main process and the real model manager
-// push (menu navigation, OS file opens, download progress, usage). Tier C covers
+// push (menu navigation, OS file opens, download progress, usage, zoom keys). Tier C covers
 // them; the gate lists them separately.
 const ELECTRON_ONLY =
-  /^(updates|diagnostics|storage|debug):|^app:(navigate|openImportFile)$|^llm:(downloadProgress|usageChanged)$/
+  /^(updates|diagnostics|storage|debug):|^app:(navigate|openImportFile)$|^llm:(downloadProgress|usageChanged)$|^settings:changed$/
 
 async function declaredChannels(): Promise<string[]> {
   const modules = await Promise.all([

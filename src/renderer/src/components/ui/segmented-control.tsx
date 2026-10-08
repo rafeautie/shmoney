@@ -16,7 +16,7 @@ function SegmentedControl<Value extends string>({
     <RadioGroup
       data-slot="segmented-control"
       className={cn(
-        'inline-flex h-8 w-fit items-center gap-0.5 rounded-lg bg-tray p-[3px] text-muted-foreground',
+        'inline-flex h-7 w-fit items-center gap-0.5 rounded-lg bg-tray p-[3px] text-muted-foreground',
         className
       )}
       onValueChange={(value) => onValueChange?.(value as Value)}

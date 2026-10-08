@@ -77,7 +77,7 @@ export function SettingsDialog(): React.JSX.Element {
         // base-ui otherwise focuses the first section, even when opened at another
         initialFocus={activeRef}
       >
-        <nav className="flex w-56 shrink-0 flex-col gap-0.5 border-r bg-muted/40 px-2.5 py-4.5">
+        <nav className="flex w-56 shrink-0 flex-col gap-1 border-r bg-muted/40 px-2.5 py-4.5">
           <DialogTitle className="px-2 pb-2.5">Settings</DialogTitle>
           {SETTINGS_NAV.map(({ id, label, icon }) => {
             const status = statuses[id]
@@ -90,7 +90,7 @@ export function SettingsDialog(): React.JSX.Element {
                 title={status?.tooltip}
                 onClick={() => open(id)}
                 className={cn(
-                  'flex h-8 items-center gap-[9px] rounded-[6px] px-2 py-1.5 text-left text-xs outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/50',
+                  'flex h-7 items-center gap-[9px] rounded-[6px] px-2 py-1 text-left text-xs outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/50',
                   id === active.id && 'bg-sidebar-accent'
                 )}
               >
@@ -104,7 +104,7 @@ export function SettingsDialog(): React.JSX.Element {
         {/* keyed so switching sections starts at the top; sub-pages scroll back
             up without a remount, so a section keeps its state across them */}
         <ScrollArea key={active.id} viewportRef={viewportRef} className="min-h-0 min-w-0 flex-1">
-          <div className="space-y-8 p-6 pr-12">{CONTENT[active.id]()}</div>
+          <div className="space-y-8 p-5 pr-10">{CONTENT[active.id]()}</div>
         </ScrollArea>
       </DialogContent>
     </Dialog>

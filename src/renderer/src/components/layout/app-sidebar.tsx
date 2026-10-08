@@ -24,7 +24,7 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       {/* on macOS the traffic lights are drawn over this corner; push past them */}
-      <SidebarHeader className={isMac ? 'pt-9' : undefined}>
+      <SidebarHeader className={isMac ? 'pt-8' : undefined}>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<div />}>

@@ -55,10 +55,10 @@ function ReportsPage() {
   const reports = reportsQuery.data ?? []
 
   return (
-    <Page className="space-y-6">
+    <Page className="space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Reports</h2>
+          <h2 className="text-xl font-semibold tracking-tight">Reports</h2>
           <p className="text-muted-foreground">
             Build custom dashboards of charts and tables over your transactions.
           </p>

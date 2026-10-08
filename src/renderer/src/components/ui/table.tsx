@@ -74,7 +74,7 @@ function TableHead({ className, ...props }: React.ComponentProps<'th'>) {
     <th
       data-slot="table-head"
       className={cn(
-        'h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground',
+        'h-8 px-2 text-left align-middle text-footnote font-medium whitespace-nowrap text-foreground',
         className
       )}
       {...props}
@@ -89,7 +89,7 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
       className={cn(
         // body cells carry the user's own data, so they stay selectable while
         // the rest of the chrome (including the th labels above) does not
-        'h-10 p-2 align-middle whitespace-nowrap select-text',
+        'h-8 px-2 py-0 align-middle whitespace-nowrap select-text',
         className
       )}
       {...props}

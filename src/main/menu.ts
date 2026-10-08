@@ -1,6 +1,7 @@
 import { app, BrowserWindow, Menu, shell, type MenuItemConstructorOptions } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import { IPC } from '@shared/ipc'
+import { stepUiScale } from './ui-scale'
 
 const REPO_URL = 'https://github.com/rafeautie/shmoney'
 
@@ -61,9 +62,26 @@ export function installApplicationMenu(): void {
         ...(is.dev
           ? ([{ role: 'reload' }, { role: 'toggleDevTools' }, { type: 'separator' }] as const)
           : []),
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
+        // shown for discoverability; routeZoomInput handles the keys on every
+        // platform so they step the Interface size setting, not Chromium's zoom
+        {
+          label: 'Actual Size',
+          accelerator: 'Cmd+0',
+          registerAccelerator: false,
+          click: () => stepUiScale(0)
+        },
+        {
+          label: 'Zoom In',
+          accelerator: 'Cmd+=',
+          registerAccelerator: false,
+          click: () => stepUiScale(1)
+        },
+        {
+          label: 'Zoom Out',
+          accelerator: 'Cmd+-',
+          registerAccelerator: false,
+          click: () => stepUiScale(-1)
+        },
         { type: 'separator' },
         { role: 'togglefullscreen' }
       ]

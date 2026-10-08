@@ -558,7 +558,7 @@ function AmountField({
   const currency = useAccountCurrency()
   return (
     <NumberInput
-      className="h-8 w-24"
+      className="h-7 w-24"
       prefix={currencySymbol(currency)}
       min={0}
       placeholder={placeholder}

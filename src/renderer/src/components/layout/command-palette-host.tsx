@@ -406,7 +406,7 @@ function PaletteItem({
 
 function Key({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="lifted inline-flex h-5 min-w-5 items-center justify-center rounded-[4px] px-1 font-sans text-[11px] text-foreground">
+    <kbd className="lifted inline-flex h-5 min-w-5 items-center justify-center rounded-[4px] px-1 font-sans text-caption text-foreground">
       {children}
     </kbd>
   )

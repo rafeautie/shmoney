@@ -39,7 +39,7 @@ import {
   type TransactionSumsQuery,
   type TransactionsExportQuery
 } from '@shared/transaction-filters'
-import { SETTINGS_IPC, type SettingKey, type Settings } from '@shared/settings'
+import { SETTINGS_IPC, type SettingChange, type SettingKey, type Settings } from '@shared/settings'
 import { STORAGE_IPC, type Backup, type DatabaseSize, type ExportResult } from '@shared/storage'
 import {
   LLM_IPC,
@@ -329,7 +329,14 @@ const api = {
     initial: (): Promise<Settings> =>
       initialSettings.catch(() => ipcRenderer.invoke(SETTINGS_IPC.getAll)),
     set: <K extends SettingKey>(key: K, value: Settings[K]): Promise<boolean> =>
-      ipcRenderer.invoke(SETTINGS_IPC.set, { key, value })
+      ipcRenderer.invoke(SETTINGS_IPC.set, { key, value }),
+    /** Fires when main changes a setting itself (zoom shortcuts); returns an unsubscribe */
+    onChanged: (callback: (change: SettingChange) => void): (() => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, change: SettingChange): void =>
+        callback(change)
+      ipcRenderer.on(SETTINGS_IPC.changed, listener)
+      return () => ipcRenderer.removeListener(SETTINGS_IPC.changed, listener)
+    }
   },
   storage: {
     /** On-disk size of the SQLite database with a per-table breakdown */

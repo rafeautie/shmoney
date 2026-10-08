@@ -6,10 +6,10 @@ export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
 }
 
-/** Aligns first/last cell content with p-6 chrome when a table bleeds to its container's edges;
+/** Aligns first/last cell content with p-5 chrome when a table bleeds to its container's edges;
  * set --table-edge on an ancestor to match tighter chrome (e.g. a px-4 card) */
 export const TABLE_BLEED =
-  '[&_th:first-child]:pl-[var(--table-edge,1.5rem)] [&_td:first-child]:pl-[var(--table-edge,1.5rem)] [&_th:last-child]:pr-[var(--table-edge,1.5rem)] [&_td:last-child]:pr-[var(--table-edge,1.5rem)]'
+  '[&_th:first-child]:pl-[var(--table-edge,1.25rem)] [&_td:first-child]:pl-[var(--table-edge,1.25rem)] [&_th:last-child]:pr-[var(--table-edge,1.25rem)] [&_td:last-child]:pr-[var(--table-edge,1.25rem)]'
 
 /** Global shortcuts stand down while focus is in a text field, so typing keeps
  * its native behavior (editing undo, letters typed as text). */

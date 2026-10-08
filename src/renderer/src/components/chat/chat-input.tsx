@@ -70,7 +70,7 @@ export function ChatInput({
           send()
         }}
       >
-        <InputGroup className="rounded-2xl hover:border-ring/60 overflow-hidden">
+        <InputGroup className="rounded-xl hover:border-ring/60 overflow-hidden">
           {/* the textarea grows with its content (field-sizing); the scroll
               area viewport caps the height and owns the scrolling */}
           <ScrollArea
@@ -90,7 +90,7 @@ export function ChatInput({
                       ? 'Write a message...'
                       : 'How can I help you?'
               }
-              className="min-h-11 p-4 pb-0"
+              className="min-h-11 p-3 pb-0 text-sm/5"
               value={text}
               disabled={disabled}
               onChange={(e) => {

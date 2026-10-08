@@ -58,9 +58,9 @@ function DebugPage() {
   }
 
   return (
-    <Page className="space-y-6">
+    <Page className="space-y-5">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Debug</h2>
+        <h2 className="text-xl font-semibold tracking-tight">Debug</h2>
         <p className="text-muted-foreground">
           Developer-only diagnostics. This page is hidden and unreachable in production builds.
         </p>

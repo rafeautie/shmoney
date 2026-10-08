@@ -103,7 +103,7 @@ export function AccountName({
   onDone: () => void
 }) {
   if (!editing) {
-    return <h2 className="text-2xl font-semibold tracking-tight select-text">{name}</h2>
+    return <h2 className="text-xl font-semibold tracking-tight select-text">{name}</h2>
   }
   // mounted per edit, so the draft starts from the current name each time
   return <NameField accountId={accountId} name={name} onDone={onDone} />
@@ -154,7 +154,7 @@ function NameField({
         if (e.key === 'Escape') finish(false)
       }}
       // sized and offset so the name keeps the heading's line and position
-      className="-ml-2.5 h-8 w-80 text-2xl font-semibold tracking-tight md:text-2xl"
+      className="-ml-2.5 h-8 w-80 text-xl font-semibold tracking-tight md:text-xl"
     />
   )
 }

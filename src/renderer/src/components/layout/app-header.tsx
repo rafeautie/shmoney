@@ -3,7 +3,7 @@ import { isMac } from '@/lib/platform'
 import { cn } from '@/lib/utils'
 
 /**
- * The 48px title bar. Its whole width is the window's drag region, so both ends
+ * The 40px title bar. Its whole width is the window's drag region, so both ends
  * have to stay clear of whatever the OS draws on top of it, and which end that
  * is differs by platform.
  */
@@ -19,7 +19,7 @@ export function AppHeader(): React.JSX.Element {
   return (
     <header
       className={cn(
-        'relative flex h-12 shrink-0 items-center gap-2 border-b bg-background pl-4 [-webkit-app-region:drag]',
+        'relative flex h-10 shrink-0 items-center gap-2 border-b bg-background pl-4 [-webkit-app-region:drag]',
         clearTrafficLights && 'pl-9'
       )}
       // Windows and Linux draw the caption buttons over the right end of this

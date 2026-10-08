@@ -338,16 +338,24 @@
  * buttons rendered their label a pixel high in one spot and a pixel low in
  * another. Fractional boxes are the problem, not fractional font sizes.
  * Integer line-heights keep stacked text on whole-pixel rows for the same
- * reason; they sit near 1.45x, which keeps small text easy to scan. */
+ * reason, and even ones center on whole pixels in the even control heights.
+ * The scale mirrors the Claude desktop app's compact density; larger sizes
+ * come from the Interface size setting (page zoom), never from these. */
 @theme {
+  --text-caption: 11px;
+  --text-caption--line-height: 16px;
+  --text-footnote: 12px;
+  --text-footnote--line-height: 16px;
   --text-xs: 13px;
   --text-xs--line-height: 18px;
-  --text-sm: 15px;
-  --text-sm--line-height: 22px;
-  --text-base: 16px;
+  --text-sm: 14px;
+  --text-sm--line-height: 18px;
+  --text-base: 15px;
   --text-base--line-height: 22px;
-  --text-lg: 17px;
-  --text-lg--line-height: 25px;
+  --text-lg: 16px;
+  --text-lg--line-height: 24px;
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
   --text-2xl: 24px;
   --text-2xl--line-height: 32px;
   --text-3xl: 30px;
@@ -361,8 +369,9 @@
 
   body {
     @apply bg-background text-foreground;
-    /* Unclassed text gets the base size, not the 16px root. */
-    font-size: var(--text-base);
+    /* Unclassed text gets the body size, not the 16px root. */
+    font-size: var(--text-xs);
+    line-height: var(--text-xs--line-height);
     /* Selection follows the native-app convention: the interface itself —
      * headings, labels, buttons, nav, badges — is inert, so a drag across it
      * never leaves a smear of highlighted chrome. Anything holding the user's
