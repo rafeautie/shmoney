@@ -18,9 +18,7 @@ import { ImportButton } from '@/lib/import-ui'
 import { FilteredTotal } from '@/components/transactions/filtered-total'
 import { FilteredTransactionsTable } from '@/components/transactions/filtered-transactions-table'
 import { useTransactionFilters } from '@/lib/transaction-filters'
-import { accountsOptions, connectionOptions } from '@/lib/queries'
-import { useConnectSimpleFin } from '@/hooks/use-connect-simplefin'
-import { ConnectionAlerts } from '@/components/connection/connection-alerts'
+import { accountsOptions } from '@/lib/queries'
 import { TABLE_BLEED, cn, plural } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -124,7 +122,6 @@ function AccountsPage() {
             <TransactionViewOptionsButton />
           </div>
         </div>
-        <ConnectionAlert />
         <TabsList>
           <TabsTrigger value="accounts">Accounts</TabsTrigger>
           <TabsTrigger value="transactions">All transactions</TabsTrigger>
@@ -146,27 +143,6 @@ function AccountsPage() {
         />
       </TabsContent>
     </Tabs>
-  )
-}
-
-// The landing page, so a sync problem is seen without a trip to Settings.
-function ConnectionAlert() {
-  const { data: connection } = useQuery(connectionOptions)
-  const { syncConnection } = useConnectSimpleFin()
-  if (!connection) return null
-  return (
-    <ConnectionAlerts
-      connection={connection}
-      action={
-        <Button
-          variant="outline"
-          disabled={syncConnection.isPending}
-          onClick={() => syncConnection.mutate()}
-        >
-          {syncConnection.isPending ? 'Syncing…' : 'Sync again'}
-        </Button>
-      }
-    />
   )
 }
 
