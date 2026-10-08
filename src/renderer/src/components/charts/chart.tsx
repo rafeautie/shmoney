@@ -1,4 +1,4 @@
-import { useId, useMemo, type ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import {
   Area,
   AreaChart,
@@ -11,7 +11,6 @@ import {
   Pie,
   PieChart,
   Rectangle,
-  ReferenceArea,
   XAxis,
   YAxis,
   type BarShapeProps,
@@ -101,8 +100,9 @@ interface CartesianProps {
   /** false for counts: skip the y-axis privacy mask. Default true. */
   sensitive?: boolean
   onSelect?: OnSelect
-  /** the datum for a period still in progress (this month so far): drawn hatched
-   * and noted in its tooltip so its short total doesn't read as a drop */
+  /** the datum for a period still in progress (this month so far): drawn faded
+   * (bars) or dashed (lines) and noted in its tooltip so its short total doesn't
+   * read as a drop */
   inProgressIndex?: number
 }
 
@@ -216,20 +216,10 @@ function ChartNote({ children }: { children: ReactNode }) {
 
 const BAR_TOP_RADIUS: [number, number, number, number] = [2, 2, 0, 0]
 
-function HatchPattern({ id, color }: { id: string; color: string }) {
-  return (
-    <pattern
-      id={id}
-      width={6}
-      height={6}
-      patternUnits="userSpaceOnUse"
-      patternTransform="rotate(45)"
-    >
-      <rect width={6} height={6} style={{ fill: color, fillOpacity: 0.3 }} />
-      <rect width={2.5} height={6} style={{ fill: color }} />
-    </pattern>
-  )
-}
+const IN_PROGRESS_OPACITY = 0.4
+const IN_PROGRESS_DASH = '4 3'
+const SOLID = '__solid'
+const TAIL = '__tail'
 
 function CartesianView({
   kind,
@@ -247,8 +237,6 @@ function CartesianView({
   inProgressIndex,
   className
 }: CartesianProps & CommonProps) {
-  // pattern ids are document-global, so scope them to this chart
-  const hatchPrefix = `hatch-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   if (data.length === 0 || series.length === 0) return <ChartNote>Nothing to chart.</ChartNote>
 
   const chartConfig: ChartConfig = Object.fromEntries(
@@ -263,11 +251,26 @@ function CartesianView({
   // minTickGap={0} on the category axis skips a label only when its row is
   // shorter than the text, which beats piling labels on top of each other
   const horizontal = kind === 'bar' && colorByPoint && singleSeries
-  const inProgress =
+  const inProgressLabel =
     inProgressIndex !== undefined && inProgressIndex >= 0 && inProgressIndex < data.length
-      ? inProgressIndex
+      ? data[inProgressIndex][xKey]
       : null
-  const inProgressLabel = inProgress === null ? null : data[inProgress][xKey]
+  // a lone point has nothing to read as a drop against, so it stays solid
+  const inProgress = inProgressLabel !== null && data.length > 1 ? inProgressIndex! : null
+  // a line or area dashes the stretch leading into the period in progress: each
+  // series splits into a solid run and a tail sharing the point before it
+  const splitLine = inProgress !== null && inProgress > 0 && kind !== 'bar'
+  const lineData = splitLine
+    ? data.map((row, i) => ({
+        ...row,
+        ...Object.fromEntries(
+          series.flatMap((s) => [
+            [s.key + SOLID, i < inProgress ? row[s.key] : null],
+            [s.key + TAIL, i >= inProgress - 1 ? row[s.key] : null]
+          ])
+        )
+      }))
+    : data
   // per row, the last series with a value: the segment drawn at the top of its stack
   const stackTops = data.map(
     (row) => series.findLast((s) => Number(row[s.key] ?? 0) !== 0)?.key ?? null
@@ -349,31 +352,109 @@ function CartesianView({
         }
       />
     )
-  const hatches =
-    inProgress === null ? null : (
-      <defs>
-        <HatchPattern id={`${hatchPrefix}-band`} color="var(--muted-foreground)" />
-        {series.map((s) => (
-          <HatchPattern
-            key={s.key}
-            id={`${hatchPrefix}-${s.key}`}
-            color={`var(--color-${s.key})`}
-          />
-        ))}
-      </defs>
-    )
-  // a line or area has no mark of its own per period, so shade the stretch
-  // leading into the period in progress instead
-  const inProgressBand =
-    inProgress === null || kind === 'bar' ? null : (
-      <ReferenceArea
-        x1={data[Math.max(0, inProgress - 1)][xKey] ?? undefined}
-        x2={inProgressLabel ?? undefined}
-        fill={`url(#${hatchPrefix}-band)`}
-        fillOpacity={0.25}
-        strokeWidth={0}
+  // split series draw as a solid run and a dashed tail, plus an unstroked copy
+  // over the whole range that carries the tooltip, legend entry and hover dot
+  const lineMarks = series.flatMap((s) => {
+    const color = `var(--color-${s.key})`
+    // a single-bucket range has no segment to stroke, so the chart looks
+    // empty; show the dot in that case while keeping multi-point lines clean
+    const dot = data.length <= 1
+    if (!splitLine) {
+      return [
+        <Line
+          key={s.key}
+          dataKey={s.key}
+          type="monotone"
+          stroke={color}
+          strokeWidth={2}
+          dot={dot}
+          isAnimationActive={false}
+        />
+      ]
+    }
+    const part = (suffix: string, dash?: string) => (
+      <Line
+        key={s.key + suffix}
+        dataKey={s.key + suffix}
+        type="monotone"
+        stroke={color}
+        strokeWidth={2}
+        strokeDasharray={dash}
+        dot={false}
+        activeDot={false}
+        tooltipType="none"
+        legendType="none"
+        isAnimationActive={false}
       />
     )
+    return [
+      part(SOLID),
+      part(TAIL, IN_PROGRESS_DASH),
+      <Line
+        key={s.key}
+        dataKey={s.key}
+        type="monotone"
+        stroke={color}
+        strokeOpacity={0}
+        strokeWidth={2}
+        dot={false}
+        isAnimationActive={false}
+      />
+    ]
+  })
+  const areaMarks = series.flatMap((s) => {
+    const color = `var(--color-${s.key})`
+    // a single-bucket range has no area to draw; show the dot so it's visible
+    const dot = data.length <= 1
+    if (!splitLine) {
+      return [
+        <Area
+          key={s.key}
+          dataKey={s.key}
+          type="monotone"
+          stroke={color}
+          fill={color}
+          fillOpacity={0.3}
+          stackId={stacked ? 'stack' : s.key}
+          dot={dot}
+          isAnimationActive={false}
+        />
+      ]
+    }
+    // each part stacks only with its own kind, so every stack sums the same series
+    const part = (suffix: string, fillOpacity: number, dash?: string) => (
+      <Area
+        key={s.key + suffix}
+        dataKey={s.key + suffix}
+        type="monotone"
+        stroke={color}
+        strokeDasharray={dash}
+        fill={color}
+        fillOpacity={fillOpacity}
+        stackId={stacked ? suffix : s.key + suffix}
+        dot={false}
+        activeDot={false}
+        tooltipType="none"
+        legendType="none"
+        isAnimationActive={false}
+      />
+    )
+    return [
+      part(SOLID, 0.3),
+      part(TAIL, 0.3 * IN_PROGRESS_OPACITY, IN_PROGRESS_DASH),
+      <Area
+        key={s.key}
+        dataKey={s.key}
+        type="monotone"
+        stroke={color}
+        strokeOpacity={0}
+        fill="none"
+        stackId={stacked ? 'stack' : s.key}
+        dot={false}
+        isAnimationActive={false}
+      />
+    ]
+  })
   const legendEl = showLegend ? <ChartLegend content={<ChartLegendContent />} /> : null
   // bars report their own series; a line or area click picks the hovered x position
   const barClick = (key: string) =>
@@ -400,47 +481,18 @@ function CartesianView({
       )}
     >
       {kind === 'line' ? (
-        <LineChart data={data} margin={{ top: 16, right: 8 }} onClick={chartClick}>
-          {hatches}
+        <LineChart data={lineData} margin={{ top: 16, right: 8 }} onClick={chartClick}>
           {axes}
-          {inProgressBand}
           {tooltip}
           {legendEl}
-          {series.map((s) => (
-            <Line
-              key={s.key}
-              dataKey={s.key}
-              type="monotone"
-              stroke={`var(--color-${s.key})`}
-              strokeWidth={2}
-              // a single-bucket range has no segment to stroke, so the chart looks
-              // empty; show the dot in that case while keeping multi-point lines clean
-              dot={data.length <= 1}
-              isAnimationActive={false}
-            />
-          ))}
+          {lineMarks}
         </LineChart>
       ) : kind === 'area' ? (
-        <AreaChart data={data} margin={{ top: 16, right: 8 }} onClick={chartClick}>
-          {hatches}
+        <AreaChart data={lineData} margin={{ top: 16, right: 8 }} onClick={chartClick}>
           {axes}
-          {inProgressBand}
           {tooltip}
           {legendEl}
-          {series.map((s) => (
-            <Area
-              key={s.key}
-              dataKey={s.key}
-              type="monotone"
-              stroke={`var(--color-${s.key})`}
-              fill={`var(--color-${s.key})`}
-              fillOpacity={0.3}
-              stackId={stacked ? 'stack' : s.key}
-              // a single-bucket range has no area to draw; show the dot so it's visible
-              dot={data.length <= 1}
-              isAnimationActive={false}
-            />
-          ))}
+          {areaMarks}
         </AreaChart>
       ) : (
         <BarChart
@@ -448,7 +500,6 @@ function CartesianView({
           layout={horizontal ? 'vertical' : 'horizontal'}
           margin={{ top: 16, right: 8 }}
         >
-          {hatches}
           {axes}
           {tooltip}
           {legendEl}
@@ -479,11 +530,7 @@ function CartesianView({
                         <Rectangle
                           {...props}
                           radius={!stacked || stackTops[props.index] === s.key ? BAR_TOP_RADIUS : 0}
-                          fill={
-                            props.index === inProgress
-                              ? `url(#${hatchPrefix}-${s.key})`
-                              : props.fill
-                          }
+                          fillOpacity={props.index === inProgress ? IN_PROGRESS_OPACITY : undefined}
                         />
                       )
                     : undefined
