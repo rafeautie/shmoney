@@ -37,7 +37,7 @@ export function FilterSearchInput({
   }, [text, value])
 
   return (
-    <InputGroup className="h-8 w-56">
+    <InputGroup className="h-7 w-56">
       <InputGroupAddon>
         <HugeiconsIcon icon={Search01Icon} size={14} />
       </InputGroupAddon>

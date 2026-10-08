@@ -64,7 +64,7 @@ export function DataTableColumnHeader<TData, TValue>({
     <Button
       variant="ghost"
       size="sm"
-      className={cn('-ml-3 h-8', className)}
+      className={cn('-ml-2.5 h-6', className)}
       onClick={() => column.toggleSorting(sorted === 'asc')}
     >
       {title}
@@ -188,15 +188,15 @@ function DataTableGroupImpl<TData, TTail>({
     // a bare tbody: TableBody's class merge would run per group, and without its
     // last-row rule each group keeps its closing border
     <tbody data-slot="table-body">
-      {/* top-10 parks it under the column header. Sticky rows are bounded by the
+      {/* top-8 parks it under the column header. Sticky rows are bounded by the
           table, not their body, so passed headers pile up under the newest: the
           cell stays opaque. The cell draws its own bottom rule, since a collapsed
           border stays behind when the row sticks; the transparent one keeps the
           row's share of the border grid, so later lines land on whole pixels */}
-      <TableRow className="sticky top-10 z-[5] border-b-transparent hover:bg-transparent">
+      <TableRow className="sticky top-8 z-[5] border-b-transparent hover:bg-transparent">
         <TableCell
           colSpan={columns.length}
-          className="h-8 py-0 band-rule [--band-surface:var(--background)] in-data-[slot=card]:[--band:var(--tray)] in-data-[slot=card]:[--band-surface:var(--card)]"
+          className="h-7 py-0 text-footnote band-rule [--band-surface:var(--background)] in-data-[slot=card]:[--band:var(--tray)] in-data-[slot=card]:[--band-surface:var(--card)]"
         >
           {header(run.key, run.originals, tail)}
         </TableCell>

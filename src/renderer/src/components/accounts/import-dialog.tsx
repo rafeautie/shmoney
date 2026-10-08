@@ -801,8 +801,8 @@ function CsvMappingFields({
   )
 }
 
-// h-10 cells plus the row's bottom border; rows are measured once rendered
-const PREVIEW_ROW_HEIGHT = 41
+// h-8 cells plus the row's bottom border; rows are measured once rendered
+const PREVIEW_ROW_HEIGHT = 33
 
 const PreviewTableRow = memo(function PreviewTableRow({
   row,

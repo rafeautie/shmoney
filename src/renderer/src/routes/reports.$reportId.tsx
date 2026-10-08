@@ -225,7 +225,7 @@ function ReportPage() {
           <h2
             inert={editing}
             className={cn(
-              'truncate text-2xl font-semibold tracking-tight select-text',
+              'truncate text-xl font-semibold tracking-tight select-text',
               CHROME_FADE,
               editing && 'opacity-0'
             )}

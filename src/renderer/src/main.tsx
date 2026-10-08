@@ -7,7 +7,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createHashHistory, createRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
 import { queryClient } from './lib/query-client'
-import { SETTINGS_QUERY_KEY, ThemeSync } from './lib/settings'
+import { SETTINGS_QUERY_KEY, SettingsChangeSync, ThemeSync } from './lib/settings'
 import { TooltipProvider } from './components/ui/tooltip'
 import { ErrorScreen } from './components/error-screen'
 import { logRenderError } from './lib/errors'
@@ -68,6 +68,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <ThemeSync />
+      <SettingsChangeSync />
       <TooltipProvider>
         <RouterProvider router={router} />
       </TooltipProvider>

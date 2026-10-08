@@ -32,7 +32,7 @@ function undoneLabel(undoneAt: number): string {
 /** The pill that marks an undone entry or run. */
 export function UndoneTag({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded-full bg-muted px-2 py-0.5 text-[0.6875rem] font-medium whitespace-nowrap text-muted-foreground">
+    <span className="rounded-full bg-muted px-2 py-0.5 text-caption font-medium whitespace-nowrap text-muted-foreground">
       {children}
     </span>
   )

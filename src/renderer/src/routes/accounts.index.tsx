@@ -103,7 +103,7 @@ function AccountsPage() {
   }, [q, create, navigate])
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-      <div className="space-y-4 px-6 pt-6 pb-4">
+      <div className="space-y-4 px-5 pt-5 pb-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-8">
             <NetWorth />
@@ -186,13 +186,13 @@ function NetWorth() {
 
   // Until accounts exist there is no net worth to show; fall back to the page name.
   if (totals.length === 0) {
-    return <h2 className="text-2xl font-semibold tracking-tight">Accounts</h2>
+    return <h2 className="text-xl font-semibold tracking-tight">Accounts</h2>
   }
 
   return (
     <div>
       <p className="text-sm text-muted-foreground">Net worth</p>
-      <h2 className="flex flex-col items-start text-2xl font-semibold tracking-tight">
+      <h2 className="flex flex-col items-start text-xl font-semibold tracking-tight">
         {totals.map(([currency, total]) => (
           <Amount key={currency} value={total} currency={currency} tween />
         ))}
@@ -224,7 +224,7 @@ function AccountsList() {
   return (
     <TooltipProvider>
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-6 px-6 pb-6 py-1">
+        <div className="space-y-6 px-5 pb-5 py-1">
           {accountsQuery.isLoading ? (
             <Card className="overflow-hidden">
               <CardHeader>

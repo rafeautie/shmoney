@@ -34,7 +34,7 @@ function MerchantMark({ transaction }: { transaction: Transaction }) {
     <span
       aria-hidden={!transaction.isTransfer}
       title={transaction.isTransfer ? 'Transfer' : undefined}
-      className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
+      className="flex size-4.5 shrink-0 items-center justify-center rounded-full bg-muted text-caption font-medium text-muted-foreground"
     >
       {transaction.isTransfer ? (
         <HugeiconsIcon icon={ArrowDataTransferHorizontalIcon} className="size-3" />

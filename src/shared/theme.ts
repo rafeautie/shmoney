@@ -12,13 +12,5 @@ export const THEME_CHROME = {
   dark: { background: '#0a0a0a', symbol: '#a1a1a1' }
 } as const
 
-/** Height of the app header (h-12), border included: the box is border-box. */
-export const TITLE_BAR_HEIGHT = 48
-
-/**
- * Height the native caption buttons are drawn at. One pixel short of the header
- * so its bottom border runs unbroken beneath them, the way a Windows 11 title
- * bar separator does. At the full header height the OS paints the buttons'
- * background over that row and the border stops short of the window edge.
- */
-export const TITLE_BAR_OVERLAY_HEIGHT = TITLE_BAR_HEIGHT - 1
+/** Height of the app header (h-10), border included: the box is border-box. */
+export const TITLE_BAR_HEIGHT = 40

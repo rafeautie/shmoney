@@ -50,10 +50,10 @@ function GoalsPage() {
     // full-height flex column so the goals table can bleed to the app edges and
     // own its scrolling, like the budget page's envelopes
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="space-y-6 px-6 pt-6 pb-4">
+      <div className="space-y-5 px-5 pt-5 pb-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight">Goals</h2>
+            <h2 className="text-xl font-semibold tracking-tight">Goals</h2>
             <p className="text-muted-foreground">
               A target amount and the accounts the money lands in. Progress comes from your
               transactions, never typed in.
@@ -69,12 +69,12 @@ function GoalsPage() {
       </div>
 
       {goals === undefined ? (
-        <div className="space-y-4 px-6">
+        <div className="space-y-4 px-5">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
       ) : empty ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
           <Empty className="border">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -97,13 +97,13 @@ function GoalsPage() {
             (goalsView === 'table' ? (
               <>
                 <GoalsTable goals={active} savedThisMonth={savedThisMonth} />
-                <p className="px-6 pt-2 text-xs text-muted-foreground">
+                <p className="px-5 pt-2 text-xs text-muted-foreground">
                   This month is what you saved of what you planned: the amount to put away this
                   month to stay on pace, which rises if you fall behind.
                 </p>
               </>
             ) : (
-              <div className="grid gap-4 px-6 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-4 px-5 md:grid-cols-2 xl:grid-cols-3">
                 {active.map((goal) => (
                   <GoalCard key={goal.id} goal={goal} />
                 ))}
@@ -122,7 +122,7 @@ function GoalsPage() {
                   {goalsView === 'table' ? (
                     <GoalsTable goals={archived} savedThisMonth={savedThisMonth} />
                   ) : (
-                    <div className="grid gap-4 px-6 md:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid gap-4 px-5 md:grid-cols-2 xl:grid-cols-3">
                       {archived.map((goal) => (
                         <GoalCard key={goal.id} goal={goal} />
                       ))}

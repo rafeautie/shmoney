@@ -98,7 +98,7 @@ export const AssistantBubble = memo(function AssistantBubble({
     // full width (not the default shrink-wrap) so markdown tables span the column
     <Bubble variant="ghost" className="w-full">
       <BubbleContent className="w-full">
-        <div ref={ref} className="contents">
+        <div ref={ref} className="contents [&_pre]:text-footnote">
           <Streamdown
             mode={isStreaming ? 'streaming' : 'static'}
             isAnimating={isStreaming}

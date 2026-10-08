@@ -1,6 +1,17 @@
 import { z } from 'zod'
 import { ACTION_SOURCES } from './ipc'
 
+// Interface size steps; 1.2 matches the Claude desktop app at its common zoom
+export const UI_SCALES = [0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.5] as const
+export type UiScale = (typeof UI_SCALES)[number]
+
+/** The neighboring step in a direction, clamped at the ends; 0 resets. */
+export function nextUiScale(current: UiScale, direction: -1 | 0 | 1): UiScale {
+  if (direction === 0) return 1
+  const index = UI_SCALES.indexOf(current) + direction
+  return UI_SCALES[Math.min(Math.max(index, 0), UI_SCALES.length - 1)]
+}
+
 // one entry per user preference; adding a setting = a line here + a default below
 export const settingSchemas = {
   // 'system' defers to the OS; main mirrors this onto nativeTheme.themeSource,
@@ -41,11 +52,15 @@ export const settingSchemas = {
   // date-sorted transaction tables group rows under sticky day headers
   groupTransactionsByDay: z.boolean(),
   // AI usage stats count from here (unix ms); resetting moves it, rows stay
-  llmUsageSince: z.number().nullable()
+  llmUsageSince: z.number().nullable(),
+  // page zoom for the whole interface; the type and spacing tokens stay at 1x
+  uiScale: z.literal(UI_SCALES)
 }
 
 export type SettingKey = keyof typeof settingSchemas
 export type Settings = { [K in SettingKey]: z.infer<(typeof settingSchemas)[K]> }
+
+export type SettingChange = { [K in SettingKey]: { key: K; value: Settings[K] } }[SettingKey]
 
 export const settingKeySchema = z.enum(Object.keys(settingSchemas) as [SettingKey, ...SettingKey[]])
 
@@ -66,10 +81,13 @@ export const SETTINGS_DEFAULTS: Settings = {
   // the envelope table is what the page has always opened as
   budgetView: 'table',
   groupTransactionsByDay: true,
-  llmUsageSince: null
+  llmUsageSince: null,
+  uiScale: 1
 }
 
 export const SETTINGS_IPC = {
   getAll: 'settings:getAll',
-  set: 'settings:set'
+  set: 'settings:set',
+  // main changed a setting itself (zoom shortcuts); payload { key, value }
+  changed: 'settings:changed'
 } as const

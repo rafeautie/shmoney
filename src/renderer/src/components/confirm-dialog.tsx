@@ -167,7 +167,7 @@ export function ConfirmButton({
 // text color so it reads on both the outline and destructive variants
 function KeyHint({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (
-    <kbd className="pointer-events-none inline-flex h-4 min-w-4 items-center justify-center rounded border border-current/30 px-1 font-sans text-[0.625rem] leading-none opacity-70">
+    <kbd className="pointer-events-none inline-flex h-4 min-w-4 items-center justify-center rounded border border-current/30 px-1 font-sans text-caption leading-none opacity-70">
       {children}
     </kbd>
   )

@@ -8,7 +8,7 @@ export const SETTINGS_QUERY_KEY = ['settings'] as const
 const settingsOptions = {
   queryKey: SETTINGS_QUERY_KEY,
   queryFn: () => window.api.settings.getAll(),
-  // settings only change through setSetting, which updates the cache itself
+  // setSetting and SettingsChangeSync update the cache themselves
   staleTime: Infinity
 }
 
@@ -41,6 +41,21 @@ export function useSettings() {
   if (!settings) throw new Error('settings cache not seeded; await loadInitialSettings() first')
 
   return { settings, setSetting }
+}
+
+// rendered once at the root; main changes a few settings itself (zoom shortcuts)
+export function SettingsChangeSync() {
+  const queryClient = useQueryClient()
+  useEffect(
+    () =>
+      window.api.settings.onChanged(({ key, value }) =>
+        queryClient.setQueryData<Settings>(SETTINGS_QUERY_KEY, (prev) =>
+          prev ? { ...prev, [key]: value } : prev
+        )
+      ),
+    [queryClient]
+  )
+  return null
 }
 
 // rendered once at the root; keeps the dark class in sync with the theme setting

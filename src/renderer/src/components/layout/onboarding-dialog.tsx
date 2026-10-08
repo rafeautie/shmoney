@@ -448,7 +448,7 @@ function NumberedItem({
 }): React.JSX.Element {
   return (
     <li className="flex gap-2.5">
-      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[0.65rem] font-medium text-muted-foreground">
+      <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-caption font-medium text-muted-foreground">
         {n}
       </span>
       <span className="pt-0.5">{children}</span>

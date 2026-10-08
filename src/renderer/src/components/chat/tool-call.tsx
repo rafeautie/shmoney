@@ -35,7 +35,7 @@ function IOSection({ label, children }: { label: string; children: React.ReactNo
 const InputSection = memo(function InputSection({ value }: { value: unknown }) {
   return (
     <IOSection label="Input">
-      <pre className="max-h-56 overflow-y-auto font-mono whitespace-pre-wrap wrap-break-word text-muted-foreground">
+      <pre className="max-h-56 overflow-y-auto font-mono text-footnote whitespace-pre-wrap wrap-break-word text-muted-foreground">
         {ioText(value)}
       </pre>
     </IOSection>
@@ -51,7 +51,7 @@ const OutputSection = memo(function OutputSection({ value }: { value: unknown })
   return (
     <IOSection label="Output">
       <ScrollArea className="rounded-md border bg-background" viewPortClassName="max-h-56">
-        <pre className="p-2 font-mono whitespace-pre-wrap wrap-break-word text-muted-foreground">
+        <pre className="p-2 font-mono text-footnote whitespace-pre-wrap wrap-break-word text-muted-foreground">
           {ioText(value)}
         </pre>
       </ScrollArea>

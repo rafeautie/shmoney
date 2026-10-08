@@ -59,12 +59,19 @@ export const contextBridge = {
   }
 }
 
-const webContents = { send: push }
+const webContents = {
+  send: push,
+  // the browser has no page zoom API; CSS zoom on the root scales the same way
+  setZoomFactor: (factor: number): void => {
+    document.documentElement.style.zoom = String(factor)
+  }
+}
 const theWindow = {
   webContents,
   isFocused: (): boolean => document.hasFocus(),
   setProgressBar: (): void => {},
   setTitleBarOverlay: (): void => {},
+  setWindowButtonPosition: (): void => {},
   setBackgroundColor: (): void => {}
 }
 

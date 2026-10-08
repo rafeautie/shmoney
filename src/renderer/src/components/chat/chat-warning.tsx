@@ -63,7 +63,7 @@ export function ChatWarning({
         >
           <HugeiconsIcon icon={Alert02Icon} size={16} className="shrink-0 text-warning" />
           <div className="min-w-0 flex-1 space-y-0.5">
-            <p className="text-[0.8125rem] text-foreground">{children}</p>
+            <p className="text-xs text-foreground">{children}</p>
             {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
           </div>
           {action && (

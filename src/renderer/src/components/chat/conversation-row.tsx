@@ -45,7 +45,7 @@ export const ConversationRow = memo(function ConversationRow({
       <SidebarMenuItem>
         <Input
           autoFocus
-          className="h-8 px-2 text-xs"
+          className="h-7 px-2 text-xs"
           defaultValue={conversation.title ?? ''}
           onBlur={(e) => commitRename(e.currentTarget.value)}
           onKeyDown={(e) => {

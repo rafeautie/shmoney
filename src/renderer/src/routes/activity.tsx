@@ -112,9 +112,9 @@ function ActivityPage() {
   }
 
   return (
-    <Page className="space-y-6">
+    <Page className="space-y-5">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">Activity</h2>
+        <h2 className="text-xl font-semibold tracking-tight">Activity</h2>
         <p className="text-muted-foreground">
           Every change to your money, by you or by shmoney. Undo anything.
         </p>
@@ -179,7 +179,7 @@ function ActivityPage() {
           </Empty>
         )
       ) : (
-        <div className={cn('space-y-6', query.isPlaceholderData && 'opacity-60')}>
+        <div className={cn('space-y-5', query.isPlaceholderData && 'opacity-60')}>
           {days.map((day) => (
             <div key={day.date.toDateString()} className="space-y-2">
               <DayHeading date={day.date} />

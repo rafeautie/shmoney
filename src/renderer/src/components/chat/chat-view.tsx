@@ -113,7 +113,7 @@ export function ChatView({
                   <Marker
                     variant="separator"
                     role="separator"
-                    className="mb-6 text-warning before:bg-warning-fill/30 after:bg-warning-fill/30"
+                    className="mb-5 text-warning before:bg-warning-fill/30 after:bg-warning-fill/30"
                   >
                     <MarkerIcon>
                       <HugeiconsIcon icon={Alert02Icon} strokeWidth={2} />

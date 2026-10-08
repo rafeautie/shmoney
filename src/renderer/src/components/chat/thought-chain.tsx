@@ -557,7 +557,7 @@ export function ThoughtChain({
               // no icon: the header's brain stands for the thought, and the rail
               // runs beside its text as a quote bar (see ChainOfThoughtStep)
               <ChainOfThoughtStep key={i} status={step.active ? 'active' : 'complete'}>
-                <div className="text-xs/relaxed whitespace-pre-wrap text-muted-foreground select-text">
+                <div className="text-xs whitespace-pre-wrap text-muted-foreground select-text">
                   {step.text}
                 </div>
               </ChainOfThoughtStep>
