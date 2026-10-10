@@ -21,16 +21,16 @@ export function dayLabel(key: string): string {
   return format(date, isThisYear(date) ? 'EEE, MMM d' : 'EEE, MMM d, yyyy')
 }
 
-/** Net per currency of the day's rows, plus any of the day still unloaded */
+/** Net per currency of the day's non-transfer rows, plus any of the day still unloaded */
 export function dayNet(
-  rows: { currency: string; amount: number }[],
+  rows: { currency: string; amount: number; isTransfer?: boolean }[],
   rest: CurrencyTotal[] = []
 ): CurrencyTotal[] {
   const totals = new Map<string, number>()
   const add = (currency: string, value: number): void => {
     totals.set(currency, (totals.get(currency) ?? 0) + value)
   }
-  for (const row of rows) add(row.currency, row.amount)
+  for (const row of rows) if (!row.isTransfer) add(row.currency, row.amount)
   for (const part of rest) add(part.currency, part.total)
   return [...totals].map(([currency, total]) => ({ currency, total }))
 }
