@@ -14,7 +14,8 @@ export function DayHeader({
   return (
     <div className="flex items-center justify-between gap-4 font-medium text-muted-foreground">
       <span>{dayLabel(day)}</span>
-      <span className="flex gap-3">
+      {/* dimmer than the rows' own amounts, so the day total reads as a summary */}
+      <span className="flex gap-3 opacity-70">
         {dayNet(rows, rest).map(({ currency, total }) => (
           <Amount key={currency} value={total} currency={currency} />
         ))}
