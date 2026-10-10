@@ -196,7 +196,7 @@ function DataTableGroupImpl<TData, TTail>({
       <TableRow className="sticky top-8 z-[5] border-b-transparent hover:bg-transparent">
         <TableCell
           colSpan={columns.length}
-          className="h-7 py-0 text-footnote band-rule [--band-surface:var(--background)] in-data-[slot=card]:[--band:var(--tray)] in-data-[slot=card]:[--band-surface:var(--card)]"
+          className="h-6 py-0 text-footnote band-rule [--band-surface:var(--background)] in-data-[slot=card]:[--band:var(--tray)] in-data-[slot=card]:[--band-surface:var(--card)]"
         >
           {header(run.key, run.originals, tail)}
         </TableCell>
