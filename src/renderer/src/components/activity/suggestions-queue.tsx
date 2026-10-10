@@ -47,7 +47,7 @@ export function SuggestionsQueue({ suggestions }: { suggestions: RuleSuggestion[
                 <div className="truncate text-sm font-medium">
                   {group.categoryName}
                   {group.rule && (
-                    <span className="font-normal text-muted-foreground">
+                    <span className="font-normal text-muted-foreground" title={group.rule.name}>
                       {' '}
                       · adds to “{group.rule.name}”
                     </span>

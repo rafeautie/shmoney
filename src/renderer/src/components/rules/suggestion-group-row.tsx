@@ -66,7 +66,13 @@ export function SuggestionGroupRow({
     <SettingsGroup>
       <SettingAction
         label={<span className="truncate text-sm font-medium">{group.categoryName}</span>}
-        description={group.rule && `Adds to “${group.rule.name}”`}
+        description={
+          group.rule && (
+            <span className="block truncate" title={group.rule.name}>
+              Adds to “{group.rule.name}”
+            </span>
+          )
+        }
       >
         {/* min-w-20 keeps the pair the same width */}
         <Button size="sm" className="min-w-20" onClick={() => createRule(group)}>
