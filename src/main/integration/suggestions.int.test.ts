@@ -280,6 +280,51 @@ describe('dismiss and accept', () => {
     expect(statusOf(found.id)).toBe('accepted')
   })
 
+  it('creating a rule that covers a suggestion accepts it', async () => {
+    const target = category()
+    await categorize(rowsLike('ACCEPT BY RULE'), target)
+    const found = (await suggestionFor('ACCEPT BY RULE'))!
+    await api.rules.create({
+      name: 'From suggestion',
+      conditions: { description: { op: 'contains', phrases: ['ACCEPT BY RULE'] } },
+      action: { type: 'setCategory', categoryId: target }
+    })
+    expect(statusOf(found.id)).toBe('accepted')
+    expect(await suggestionFor('ACCEPT BY RULE')).toBeUndefined()
+  })
+
+  it("points a category's suggestion at its existing rule, and extending that rule accepts it", async () => {
+    const target = category()
+    const existing = await api.rules.create({
+      name: 'Existing',
+      conditions: { description: { op: 'contains', phrases: ['OLD PHRASE'] } },
+      action: { type: 'setCategory', categoryId: target }
+    })
+    await categorize(rowsLike('NEW PHRASE 1'), target)
+    const found = (await suggestionFor('NEW PHRASE 1'))!
+    expect(found.rule).toEqual({ id: existing.id, name: 'Existing' })
+
+    await api.rules.update({
+      id: existing.id,
+      conditions: { description: { op: 'contains', phrases: ['OLD PHRASE', 'NEW PHRASE 1'] } }
+    })
+    expect(statusOf(found.id)).toBe('accepted')
+  })
+
+  it('never points at a rule narrowed by other conditions', async () => {
+    const target = category()
+    await api.rules.create({
+      name: 'Narrowed',
+      conditions: {
+        description: { op: 'contains', phrases: ['OTHER'] },
+        amount: { op: 'gt', value: 1_000 }
+      },
+      action: { type: 'setCategory', categoryId: target }
+    })
+    await categorize(rowsLike('NARROW PHRASE'), target)
+    expect((await suggestionFor('NARROW PHRASE'))?.rule).toBeNull()
+  })
+
   it('deleting the covering rule reopens an accepted suggestion', async () => {
     const target = category()
     await categorize(rowsLike('REOPEN ON DELETE'), target)

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import type { Rule } from '@shared/rules'
 import type { RuleSuggestionGroup } from '@shared/rule-suggestions'
 import { useSuggestionsUi } from '@/lib/suggestions-ui'
 import { RuleEditor, type RuleDraft } from './rules-editor'
-import { draftFromGroup, useAcceptCoveredSuggestions } from './use-accept-suggestions'
+import { draftFromGroup, extendRule } from './suggestion-drafts'
 
 /**
  * Globally mounted rule editor for turning a suggestion group into a rule from
@@ -10,42 +12,55 @@ import { draftFromGroup, useAcceptCoveredSuggestions } from './use-accept-sugges
  * without navigating. Settings has its own suggestions page and edits inline.
  */
 export function RuleSuggestionsHost(): React.JSX.Element {
+  const queryClient = useQueryClient()
   const { registerCreateRule } = useSuggestionsUi()
-  const acceptCovered = useAcceptCoveredSuggestions()
 
   const [editorOpen, setEditorOpen] = useState(false)
-  // a suggestion group being turned into one multi-phrase rule: prefills the
-  // editor, and its members are marked accepted once the rule is actually saved
-  const [draft, setDraft] = useState<RuleDraft | null>(null)
-  const [pendingAccept, setPendingAccept] = useState<RuleSuggestionGroup | null>(null)
+  // the category's existing rule with the group's phrases added, or else a new
+  // rule drafted from the group
+  const [rule, setRule] = useState<Rule | null>(null)
+  const [draft, setDraft] = useState<{ draft: RuleDraft; key: string } | null>(null)
 
-  const createFromGroup = useCallback((group: RuleSuggestionGroup): void => {
-    setDraft(draftFromGroup(group))
-    setPendingAccept(group)
-    setEditorOpen(true)
-  }, [])
+  const createFromGroup = useCallback(
+    async (group: RuleSuggestionGroup): Promise<void> => {
+      const rules = group.rule
+        ? await queryClient.fetchQuery({
+            queryKey: ['rules'],
+            queryFn: () => window.api.rules.list()
+          })
+        : []
+      const existing = rules.find((r) => r.id === group.rule?.id)
+      if (existing) {
+        setRule(extendRule(existing, group))
+        setDraft(null)
+      } else {
+        setRule(null)
+        setDraft({
+          draft: draftFromGroup(group),
+          key: `sug:${group.suggestions.map((s) => s.id).join('.')}`
+        })
+      }
+      setEditorOpen(true)
+    },
+    [queryClient]
+  )
 
   useEffect(() => {
-    registerCreateRule(createFromGroup)
+    registerCreateRule((group) => void createFromGroup(group))
   }, [registerCreateRule, createFromGroup])
 
   return (
     <RuleEditor
-      rule={null}
-      draft={draft}
-      draftKey={
-        pendingAccept ? `sug:${pendingAccept.suggestions.map((s) => s.id).join('.')}` : undefined
-      }
+      rule={rule}
+      draft={draft?.draft}
+      draftKey={draft?.key}
       open={editorOpen}
       onOpenChange={(open) => {
         setEditorOpen(open)
         if (!open) {
+          setRule(null)
           setDraft(null)
-          setPendingAccept(null)
         }
-      }}
-      onSaved={(saved, wasCreate) => {
-        if (wasCreate && pendingAccept) acceptCovered(saved, pendingAccept)
       }}
     />
   )
