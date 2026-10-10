@@ -123,7 +123,8 @@ export function RulesSettings(): React.JSX.Element {
   }, [accountsQuery.data])
 
   const [editing, setEditing] = useState<Editing | null>(null)
-  // the new-rule form opens at the end of the list, often below the fold (and
+  // the new-rule form opens at the end of the list, often below the fold, as can
+  // a rule extended from a suggestion (and
   // Settings scrolls to the top when coming back from Suggestions), so bring it
   // into view once that has settled
   const revealNewRule = useCallback((el: HTMLDivElement | null) => {
@@ -229,13 +230,19 @@ export function RulesSettings(): React.JSX.Element {
           <div className="divide-y rounded-lg border">
             {rules.map((rule, index) =>
               editing && 'ruleId' in editing && editing.ruleId === rule.id ? (
-                <RuleForm
+                // a rule extended from Suggestions can be anywhere in the list
+                <div
                   key={rule.id}
-                  inline
-                  rule={editing.extended ?? rule}
-                  draft={null}
-                  onDone={() => setEditing(null)}
-                />
+                  ref={editing.extended ? revealNewRule : undefined}
+                  className="scroll-mt-6"
+                >
+                  <RuleForm
+                    inline
+                    rule={editing.extended ?? rule}
+                    draft={null}
+                    onDone={() => setEditing(null)}
+                  />
+                </div>
               ) : (
                 <div key={rule.id} className="px-3 py-3">
                   <RuleRow
