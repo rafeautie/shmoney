@@ -15,6 +15,7 @@ import { alias } from 'drizzle-orm/sqlite-core'
 import { db } from '../db'
 import { accounts, categories, transactions } from '../db/schema'
 import { buildWhere } from '../reports/filters'
+import { notTransferSql } from '../db/system-categories'
 import type { ResolvedTransactionFilters } from '@shared/transaction-filters'
 import {
   isSyncOwned,
@@ -132,14 +133,20 @@ export function transactionsPage(
           .leftJoin(categories, eq(transactions.categoryId, categories.id))
           .where(visible)
           .get()?.value ?? 0)
-  // day headers net a whole day, and the rest of the last row's day is on pages
-  // not loaded yet
+  // day headers net a whole day minus transfers, and the rest of the last row's
+  // day is on pages not loaded yet
   let dayRest: CurrencyTotal[] | undefined
   if (q.sortBy === 'date' && more && last) {
     const [start, end] = localDayBounds(last.date)
     const after = sql`(${transactions.effectiveDate}, ${transactions.id}) ${sql.raw(q.sortDir === 'asc' ? '>' : '<')} (${last.date}, ${last.id})`
     dayRest = transactionSums(
-      and(where, after, gte(transactions.effectiveDate, start), lt(transactions.effectiveDate, end))
+      and(
+        where,
+        after,
+        notTransferSql(),
+        gte(transactions.effectiveDate, start),
+        lt(transactions.effectiveDate, end)
+      )
     )
   }
   return { rows, total, next, dayRest }

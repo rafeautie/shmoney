@@ -152,6 +152,7 @@ describe('transaction list', () => {
     txn(acct, { posted: day(3), amount: -1_000 })
     txn(acct, { posted: day(2), amount: -2_000 })
     txn(acct, { posted: day(1), amount: -4_000 })
+    txn(acct, { posted: day(0), amount: 32_000, categoryId: systemCategory('transfers') })
     txn(acct, { posted: day(-1), amount: 8_000 })
     txn(acct, { posted: noon(2026, 8, 19), amount: -16_000 })
     const page = (cursor: number | { date: number; id: number }): Promise<Page<Transaction>> =>
@@ -164,10 +165,10 @@ describe('transaction list', () => {
       })
 
     const first = await page(0)
+    // the transfer doesn't count
     expect(first.dayRest).toEqual([{ currency: 'USD', total: 4_000 }])
-    // ends on the day's last row, so nothing of it is left
     const second = await page(first.next!)
-    expect(second.dayRest).toEqual([])
+    expect(second.dayRest).toEqual([{ currency: 'USD', total: 8_000 }])
     const third = await page(second.next!)
     expect(third.next).toBeNull()
     expect(third.dayRest).toBeUndefined()

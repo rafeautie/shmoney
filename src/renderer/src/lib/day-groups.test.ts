@@ -45,4 +45,13 @@ describe('dayNet', () => {
       { currency: 'EUR', total: 2_000 }
     ])
   })
+
+  it('ignores transfers', () => {
+    const rows = [
+      { currency: 'USD', amount: -5_000 },
+      { currency: 'USD', amount: -10_000, isTransfer: true },
+      { currency: 'EUR', amount: 3_000, isTransfer: true }
+    ]
+    expect(dayNet(rows)).toEqual([{ currency: 'USD', total: -5_000 }])
+  })
 })
