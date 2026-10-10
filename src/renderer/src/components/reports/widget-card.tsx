@@ -76,7 +76,7 @@ export const WidgetCard = memo(function WidgetCard({
   return (
     <Card
       className={cn(
-        'relative flex h-full flex-col gap-2 pt-3 pb-0 overflow-visible',
+        'relative flex h-full flex-col gap-1 pt-3 pb-0 overflow-visible',
         editing && 'border-dashed cursor-grab active:cursor-grabbing'
       )}
     >

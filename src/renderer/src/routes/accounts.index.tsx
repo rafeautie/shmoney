@@ -229,7 +229,10 @@ function AccountsList() {
             </Empty>
           ) : (
             institutions.map(([institution, accounts]) => (
-              <Card key={institution} className="overflow-hidden pb-0">
+              <Card
+                key={institution}
+                className="gap-1 overflow-hidden pb-0 [--table-edge:var(--card-spacing)]"
+              >
                 <CardHeader>
                   {/* the institution's name is the user's data, unlike the card labels */}
                   <CardTitle className="text-base select-text">{institution}</CardTitle>

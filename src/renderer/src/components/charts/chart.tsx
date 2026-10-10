@@ -482,14 +482,14 @@ function CartesianView({
       )}
     >
       {kind === 'line' ? (
-        <LineChart data={lineData} margin={{ top: 16, right: 8 }} onClick={chartClick}>
+        <LineChart data={lineData} margin={{ top: 8, right: 8 }} onClick={chartClick}>
           {axes}
           {tooltip}
           {legendEl}
           {lineMarks}
         </LineChart>
       ) : kind === 'area' ? (
-        <AreaChart data={lineData} margin={{ top: 16, right: 8 }} onClick={chartClick}>
+        <AreaChart data={lineData} margin={{ top: 8, right: 8 }} onClick={chartClick}>
           {axes}
           {tooltip}
           {legendEl}
@@ -499,7 +499,7 @@ function CartesianView({
         <BarChart
           data={data}
           layout={horizontal ? 'vertical' : 'horizontal'}
-          margin={{ top: 16, right: 8 }}
+          margin={{ top: 8, right: 8 }}
         >
           {axes}
           {tooltip}
