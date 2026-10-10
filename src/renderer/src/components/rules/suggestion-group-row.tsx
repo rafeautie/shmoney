@@ -1,8 +1,8 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { RuleSuggestionGroup } from '@shared/rule-suggestions'
 import { plural } from '@/lib/utils'
 import { useSuggestionsUi } from '@/lib/suggestions-ui'
 import { Button } from '@/components/ui/button'
+import { useDismissSuggestions } from './suggestion-drafts'
 import { SettingAction, SettingsGroup } from '@/components/settings/settings-controls'
 
 // The sample description with the rule phrase highlighted in place: what the
@@ -46,7 +46,9 @@ export function MatchSample({
  * extracted phrase highlighted, and the reach as a right-aligned count.
  * Create rule sends the whole group to a rule editor (one rule, all phrases
  * as contains matches) where unwanted phrases can be removed: Settings' inline
- * one via onCreateRule, else the global one. Dismiss drops the group.
+ * one via onCreateRule, else the global one. When the category already has a
+ * rule, Add to rule opens that rule with the phrases added instead. Dismiss
+ * drops the group.
  */
 export function SuggestionGroupRow({
   group,
@@ -56,24 +58,19 @@ export function SuggestionGroupRow({
   /** where Create rule sends the group; defaults to the global rule editor */
   onCreateRule?: (group: RuleSuggestionGroup) => void
 }): React.JSX.Element {
-  const queryClient = useQueryClient()
   const { createRule: createInEditor } = useSuggestionsUi()
   const createRule = onCreateRule ?? createInEditor
-
-  const dismiss = useMutation({
-    mutationFn: (ids: number[]) =>
-      Promise.all(ids.map((id) => window.api.ruleSuggestions.dismiss(id))),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['ruleSuggestions'] })
-  })
+  const dismiss = useDismissSuggestions()
 
   return (
     <SettingsGroup>
       <SettingAction
         label={<span className="truncate text-sm font-medium">{group.categoryName}</span>}
+        description={group.rule && `Adds to “${group.rule.name}”`}
       >
         {/* min-w-20 keeps the pair the same width */}
         <Button size="sm" className="min-w-20" onClick={() => createRule(group)}>
-          Create rule
+          {group.rule ? 'Add to rule' : 'Create rule'}
         </Button>
         <Button
           variant="ghost"

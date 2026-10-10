@@ -22,6 +22,13 @@ export function invalidateTransactionData(queryClient: QueryClient): Promise<voi
   return queryClient.invalidateQueries({ predicate: isTransactionDerived })
 }
 
+/** Saving or removing a rule can accept or reopen rule suggestions. */
+export function invalidateRuleData(queryClient: QueryClient): Promise<void> {
+  return queryClient.invalidateQueries({
+    predicate: (query) => ['rules', 'ruleSuggestions'].includes(query.queryKey[0] as string)
+  })
+}
+
 const CATEGORY_ROOTS = new Set(['categories', 'rules', 'reports', 'report', 'saved-filters'])
 
 /** A category change shows up in transaction rows, budgets, reports, rules and saved filters. */

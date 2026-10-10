@@ -4,6 +4,7 @@ import { endOfDay, format, startOfDay } from 'date-fns'
 import type { Rule, RuleAction, RuleConditions } from '@shared/rules'
 import { cn, currencySymbol, ipcErrorMessage } from '@/lib/utils'
 import { useAccountCurrency } from '@/lib/currency'
+import { invalidateRuleData } from '@/lib/invalidate'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
@@ -215,7 +216,7 @@ export function RuleForm({
       onSaved?.(saved, !rule)
       onDone()
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['rules'] })
+    onSettled: () => invalidateRuleData(queryClient)
   })
 
   const categories = categoriesQuery.data

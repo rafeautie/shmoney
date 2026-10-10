@@ -17,6 +17,7 @@ import { useApplyRulesOnSync, useRuleSuggestionsEnabled } from '@/lib/settings'
 import { useSettingsDialog } from '@/lib/settings-dialog'
 import { toastUndoable } from '@/lib/undo-toast'
 import { ipcErrorMessage } from '@/lib/utils'
+import { invalidateRuleData } from '@/lib/invalidate'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
@@ -26,8 +27,9 @@ import { RulesPreviewPage } from '@/components/rules/rules-preview-page'
 import { SuggestionGroupRow } from '@/components/rules/suggestion-group-row'
 import {
   draftFromGroup,
-  useAcceptCoveredSuggestions
-} from '@/components/rules/use-accept-suggestions'
+  extendRule,
+  useDismissSuggestions
+} from '@/components/rules/suggestion-drafts'
 import {
   SettingsGroup,
   SettingToggle,
@@ -79,16 +81,15 @@ function describeRule(conditions: RuleConditions, accountName: Map<number, strin
   return parts
 }
 
-// what the rules list is editing in place: an existing rule, or a new one
-// (blank, or drafted from a suggestion group whose members get accepted on save)
-type Editing = { ruleId: number } | { draft: RuleDraft | null; group: RuleSuggestionGroup | null }
+// what the rules list is editing in place: an existing rule (maybe extended with
+// a suggestion group's phrases), or a new one (blank, or drafted from a group)
+type Editing = { ruleId: number; extended?: Rule } | { draft: RuleDraft | null; key: string }
 
 export function RulesSettings(): React.JSX.Element {
   const queryClient = useQueryClient()
   const { applyRulesOnSync, setApplyRulesOnSync } = useApplyRulesOnSync()
   const { ruleSuggestionsEnabled, setRuleSuggestionsEnabled } = useRuleSuggestionsEnabled()
   const { page, open } = useSettingsDialog()
-  const acceptCovered = useAcceptCoveredSuggestions()
 
   const rulesQuery = useQuery({ queryKey: ['rules'], queryFn: () => window.api.rules.list() })
   const categoriesQuery = useQuery({
@@ -155,7 +156,12 @@ export function RulesSettings(): React.JSX.Element {
         groups={groupSuggestions(suggestions)}
         onBack={back}
         onCreateRule={(group) => {
-          setEditing({ draft: draftFromGroup(group), group })
+          const existing = group.rule && rules.find((r) => r.id === group.rule!.id)
+          setEditing(
+            existing
+              ? { ruleId: existing.id, extended: extendRule(existing, group) }
+              : { draft: draftFromGroup(group), key: `sug:${group.categoryId}` }
+          )
           back()
         }}
       />
@@ -226,7 +232,7 @@ export function RulesSettings(): React.JSX.Element {
                 <RuleForm
                   key={rule.id}
                   inline
-                  rule={rule}
+                  rule={editing.extended ?? rule}
                   draft={null}
                   onDone={() => setEditing(null)}
                 />
@@ -250,13 +256,10 @@ export function RulesSettings(): React.JSX.Element {
         {newRule ? (
           <div ref={revealNewRule} className="scroll-mt-6 rounded-lg border">
             <RuleForm
-              key={newRule.group ? `sug:${newRule.group.categoryId}` : 'new'}
+              key={newRule.key}
               inline
               rule={null}
               draft={newRule.draft}
-              onSaved={(saved) => {
-                if (newRule.group) acceptCovered(saved, newRule.group)
-              }}
               onDone={() => setEditing(null)}
             />
           </div>
@@ -264,7 +267,7 @@ export function RulesSettings(): React.JSX.Element {
           <Button
             variant="outline"
             className="w-full"
-            onClick={() => setEditing({ draft: null, group: null })}
+            onClick={() => setEditing({ draft: null, key: 'new' })}
           >
             <HugeiconsIcon icon={PlusSignIcon} className="size-3.5" />
             Add rule
@@ -290,11 +293,24 @@ function SuggestionsPage({
   onBack: () => void
   onCreateRule: (group: RuleSuggestionGroup) => void
 }): React.JSX.Element {
+  const dismiss = useDismissSuggestions()
   return (
     <SettingsSubpage
       parent="Rules"
       title="Suggestions"
       description="You've categorized transactions like these repeatedly. Create one rule per category to do it automatically from now on; the highlighted part of each sample is what the rule will match."
+      action={
+        groups.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={dismiss.isPending}
+            onClick={() => dismiss.mutate(groups.flatMap((g) => g.suggestions.map((s) => s.id)))}
+          >
+            Dismiss all
+          </Button>
+        )
+      }
       onBack={onBack}
     >
       {groups.length === 0 ? (
@@ -342,14 +358,14 @@ function RuleRow({
   const queryClient = useQueryClient()
   const toggle = useMutation({
     mutationFn: (enabled: boolean) => window.api.rules.update({ id: rule.id, enabled }),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['rules'] })
+    onSettled: () => invalidateRuleData(queryClient)
   })
   const remove = useMutation({
     mutationFn: () => window.api.rules.delete(rule.id),
     onSuccess: (actionId) => {
       if (actionId !== null) toastUndoable(`Deleted “${rule.name}”`, actionId, queryClient)
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['rules'] })
+    onSettled: () => invalidateRuleData(queryClient)
   })
 
   return (

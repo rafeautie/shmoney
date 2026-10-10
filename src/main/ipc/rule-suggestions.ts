@@ -11,6 +11,7 @@ import { loadEnabledRules } from './rules'
 import { extractRuleTerm } from '../llm/features/extract-rule-term'
 import { sendToRenderer } from '../llm/manager'
 import { idSchema } from '@shared/ipc'
+import type { Rule } from '@shared/rules'
 import {
   RULE_SUGGESTIONS_CREATED,
   RULE_SUGGESTIONS_IPC,
@@ -190,6 +191,18 @@ export async function detectRuleSuggestions(
   if (created > 0) sendToRenderer(RULE_SUGGESTIONS_CREATED, { count: created })
 }
 
+// the rule a category's suggestions extend instead of making a second one: the
+// first enabled rule that sets the category on description phrases alone, so
+// adding a phrase can't be narrowed by amount, account or date conditions
+function extendableRule(categoryId: number, rules: Rule[]): Rule | undefined {
+  return rules.find(
+    (rule) =>
+      rule.action.categoryId === categoryId &&
+      rule.conditions.description?.op === 'contains' &&
+      Object.keys(rule.conditions).length === 1
+  )
+}
+
 function listSuggestions(): RuleSuggestion[] {
   // pending rows stay put while disabled, so turning it back on shows them again
   if (!suggestionsEnabled()) return []
@@ -209,13 +222,18 @@ function listSuggestions(): RuleSuggestion[] {
     .all()
   if (rows.length === 0) return []
   const countMatching = phraseCounter()
+  const rules = loadEnabledRules()
   return (
     rows
-      .map((r) => ({
-        ...r,
-        source: r.source as 'user' | 'llm',
-        matchCount: countMatching(r.phrase)
-      }))
+      .map((r) => {
+        const rule = extendableRule(r.categoryId, rules)
+        return {
+          ...r,
+          source: r.source as 'user' | 'llm',
+          matchCount: countMatching(r.phrase),
+          rule: rule ? { id: rule.id, name: rule.name } : null
+        }
+      })
       // a pending row whose cluster shrank below the threshold (e.g. the synced
       // account it came from was disconnected) is hidden, not deleted: it stays
       // suppressed and resurfaces here if the cluster ever grows back
@@ -290,6 +308,27 @@ export function reopenUncoveredAcceptedSuggestions(): void {
   }
   writeSetting('ruleSuggestionsHealedFor', rulesFingerprint(rules))
   if (reopened > 0) sendToRenderer(RULE_SUGGESTIONS_CREATED, { count: reopened })
+}
+
+/**
+ * Accept every pending suggestion an enabled rule now covers, however the rule
+ * got there: made from the suggestion, extended with its phrase, or written by
+ * hand. Called after a rule is created or edited.
+ */
+export function acceptCoveredSuggestions(): void {
+  const rules = loadEnabledRules()
+  const now = Date.now()
+  for (const row of db
+    .select()
+    .from(ruleSuggestions)
+    .where(eq(ruleSuggestions.status, 'pending'))
+    .all()) {
+    if (!alreadyCovered(row.phrase, row.categoryId, rules)) continue
+    db.update(ruleSuggestions)
+      .set({ status: 'accepted', updatedAt: now })
+      .where(eq(ruleSuggestions.id, row.id))
+      .run()
+  }
 }
 
 function rulesFingerprint(rules: ReturnType<typeof loadEnabledRules>): string {

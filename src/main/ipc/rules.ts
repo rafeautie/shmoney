@@ -6,7 +6,7 @@ import { notOpeningSql, notTransferSql } from '../db/system-categories'
 import type { RuleRow } from '../db/schema'
 import { inRun, newRun, recordAction } from './action-log'
 import { snapshotRule } from '../db/deletion-snapshots'
-import { reopenUncoveredAcceptedSuggestions } from './rule-suggestions'
+import { acceptCoveredSuggestions, reopenUncoveredAcceptedSuggestions } from './rule-suggestions'
 import { transactionDate } from '../db/expressions'
 import { compileConditions } from '../rules'
 import { idSchema, type ActionChange } from '@shared/ipc'
@@ -354,7 +354,7 @@ export function registerRulesIpc(): void {
   ipcMain.handle(RULES_IPC.create, (_event, input: unknown): Rule => {
     const { name, conditions, action } = ruleCreateSchema.parse(input)
     const now = nowSec()
-    return db.transaction((tx) => {
+    const created = db.transaction((tx) => {
       assertActionCategory(tx, action)
       const next =
         tx
@@ -370,6 +370,8 @@ export function registerRulesIpc(): void {
       if (!rule) throw new Error('Failed to create rule')
       return rule
     })
+    acceptCoveredSuggestions()
+    return created
   })
 
   ipcMain.handle(RULES_IPC.update, (_event, input: unknown): Rule => {
@@ -394,6 +396,7 @@ export function registerRulesIpc(): void {
     // accepted suggestion (a disabled rule isn't "in force"), so reconcile here
     // too, the same as the delete path does
     reopenUncoveredAcceptedSuggestions()
+    acceptCoveredSuggestions()
     return rule
   })
 

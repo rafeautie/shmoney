@@ -19,15 +19,18 @@ export interface RuleSuggestion {
   matchCount: number
   source: 'user' | 'llm'
   createdAt: number
+  /** the category's existing rule, which accepting extends instead of making another */
+  rule: { id: number; name: string } | null
 }
 
 // Rules OR their phrases, so all of a category's pending suggestions belong in
 // ONE rule with multiple contains phrases, not one rule each. The surfaces
 // therefore display per-category groups, and accepting a group creates a
-// single multi-phrase rule.
+// single multi-phrase rule, or adds its phrases to the category's existing one.
 export interface RuleSuggestionGroup {
   categoryId: number
   categoryName: string
+  rule: RuleSuggestion['rule']
   /** at least one; keeps the list's matchCount-desc order */
   suggestions: RuleSuggestion[]
 }
@@ -42,6 +45,7 @@ export function groupSuggestions(suggestions: RuleSuggestion[]): RuleSuggestionG
       byCategory.set(s.categoryId, {
         categoryId: s.categoryId,
         categoryName: s.categoryName,
+        rule: s.rule,
         suggestions: [s]
       })
     }
