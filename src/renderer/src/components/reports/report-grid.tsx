@@ -138,7 +138,7 @@ export function ReportGrid({
           gridConfig={{
             cols: GRID_COLS,
             rowHeight: GRID_ROW_HEIGHT,
-            margin: [16, 16],
+            margin: [20, 20],
             containerPadding: [0, 0]
           }}
           dragConfig={{ enabled: editing, cancel: 'button, a, input, select, textarea' }}
