@@ -217,6 +217,7 @@ function ChartNote({ children }: { children: ReactNode }) {
 const BAR_TOP_RADIUS: [number, number, number, number] = [2, 2, 0, 0]
 
 const IN_PROGRESS_OPACITY = 0.4
+const IN_PROGRESS_BAR_OPACITY = 0.6
 const IN_PROGRESS_DASH = '4 3'
 const SOLID = '__solid'
 const TAIL = '__tail'
@@ -530,7 +531,9 @@ function CartesianView({
                         <Rectangle
                           {...props}
                           radius={!stacked || stackTops[props.index] === s.key ? BAR_TOP_RADIUS : 0}
-                          fillOpacity={props.index === inProgress ? IN_PROGRESS_OPACITY : undefined}
+                          fillOpacity={
+                            props.index === inProgress ? IN_PROGRESS_BAR_OPACITY : undefined
+                          }
                         />
                       )
                     : undefined
