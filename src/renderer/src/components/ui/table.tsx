@@ -89,7 +89,7 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
       className={cn(
         // body cells carry the user's own data, so they stay selectable while
         // the rest of the chrome (including the th labels above) does not
-        'h-8 px-2 py-0 align-middle whitespace-nowrap select-text',
+        'h-9 px-2 py-2 align-middle whitespace-nowrap select-text',
         className
       )}
       {...props}

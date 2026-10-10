@@ -101,7 +101,7 @@ function AccountsPage() {
   }, [q, create, navigate])
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-      <div className="space-y-4 px-5 pt-5 pb-4">
+      <div className="space-y-5 px-page pt-page pb-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-8">
             <NetWorth />
@@ -200,7 +200,7 @@ function AccountsList() {
   return (
     <TooltipProvider>
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-6 px-5 pb-5 py-1">
+        <div className="space-y-8 px-page pb-page py-1">
           {accountsQuery.isLoading ? (
             <Card className="overflow-hidden">
               <CardHeader>
@@ -229,7 +229,10 @@ function AccountsList() {
             </Empty>
           ) : (
             institutions.map(([institution, accounts]) => (
-              <Card key={institution} className="overflow-hidden pb-0">
+              <Card
+                key={institution}
+                className="gap-1 overflow-hidden pb-0 [--table-edge:var(--card-spacing)]"
+              >
                 <CardHeader>
                   {/* the institution's name is the user's data, unlike the card labels */}
                   <CardTitle className="text-base select-text">{institution}</CardTitle>

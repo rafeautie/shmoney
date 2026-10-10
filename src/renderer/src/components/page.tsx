@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 export function Page({ className, children }: { className?: string; children: ReactNode }) {
   return (
     <ScrollArea className="min-h-0 flex-1">
-      <div className={cn('p-5', className)}>{children}</div>
+      <div className={cn('p-page', className)}>{children}</div>
     </ScrollArea>
   )
 }

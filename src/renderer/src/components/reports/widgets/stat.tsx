@@ -156,7 +156,7 @@ export function StatCardWidget({
   if (config.query.source === 'goals') {
     return (
       <ScrollArea className="h-full">
-        <div className="space-y-3 p-4">
+        <div className="space-y-3 px-4 pt-2 pb-4">
           {rows.map((row) => (
             <div key={`${row.groupId}-${row.currency}`} className="min-w-0">
               <div className="truncate text-xs text-muted-foreground">{row.groupLabel}</div>
@@ -186,7 +186,7 @@ export function StatCardWidget({
   return (
     <div
       className={cn(
-        'flex h-full flex-col items-start justify-center gap-2 overflow-hidden p-4',
+        'flex h-full flex-col items-start justify-start gap-2 overflow-hidden px-4 pt-2 pb-4',
         onDrill && cn(DRILL_TARGET, 'rounded-xl focus-visible:ring-2 focus-visible:ring-ring/50')
       )}
       {...(onDrill && {

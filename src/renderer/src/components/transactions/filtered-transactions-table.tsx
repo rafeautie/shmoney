@@ -53,7 +53,7 @@ export function FilteredTransactionsTable({
 
   return (
     <div className={cn('flex min-h-0 flex-col gap-3', className)}>
-      <div className="flex items-start gap-2 px-5">
+      <div className="flex items-start gap-2 px-page">
         <div className="min-w-0 flex-1">
           <FilterBar
             filters={filters}

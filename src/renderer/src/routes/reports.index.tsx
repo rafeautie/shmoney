@@ -55,7 +55,7 @@ function ReportsPage() {
   const reports = reportsQuery.data ?? []
 
   return (
-    <Page className="space-y-5">
+    <Page className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Reports</h2>
@@ -122,7 +122,7 @@ function ReportsPage() {
           </EmptyContent>
         </Empty>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {reports.map((report) => (
             <ReportCard
               key={report.id}

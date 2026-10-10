@@ -342,6 +342,8 @@
  * The scale mirrors the Claude desktop app's compact density; larger sizes
  * come from the Interface size setting (page zoom), never from these. */
 @theme {
+  /* the gutter between page content and the window edges */
+  --spacing-page: 2rem;
   --text-caption: 11px;
   --text-caption--line-height: 16px;
   --text-footnote: 12px;

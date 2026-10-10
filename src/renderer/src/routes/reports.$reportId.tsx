@@ -200,7 +200,7 @@ function ReportPage() {
   }
 
   return (
-    <Page className="space-y-4">
+    <Page className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         {/* the title and its rename field share one cell and crossfade */}
         <div className="grid min-w-0 flex-1 items-center *:col-start-1 *:row-start-1">

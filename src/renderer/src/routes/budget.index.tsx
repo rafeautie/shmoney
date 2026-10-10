@@ -57,7 +57,7 @@ function BudgetPage() {
     // full-height flex column so the envelope table can bleed to the app
     // edges and own its scrolling, like the transactions table
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="space-y-5 px-5 pt-5 pb-4">
+      <div className="space-y-6 px-page pt-page pb-5">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-semibold tracking-tight">Budget</h2>
@@ -103,12 +103,12 @@ function BudgetPage() {
       </div>
 
       {summary === undefined ? (
-        <div className="space-y-4 px-5">
+        <div className="space-y-5 px-page">
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
       ) : summary.envelopes.length === 0 ? (
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-page pb-page">
           <Empty className="border">
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -131,11 +131,11 @@ function BudgetPage() {
         <EnvelopeList summary={summary} pace={pace} className="min-h-0 flex-1" />
       ) : (
         <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-5 px-5 pb-5">
+          <div className="space-y-8 px-page pb-page">
             {groupEnvelopes(summary.envelopes).map((section) => (
               <section key={section.groupId ?? 'ungrouped'} className="space-y-3">
                 <SectionHeader section={section} currency={summary.currency} />
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                   {section.envelopes.map((envelope) => (
                     <EnvelopeCard
                       key={envelope.categoryId}

@@ -18,7 +18,7 @@ export function EnvelopeList({
 }) {
   return (
     // full-bleed like the transactions table: rows and hover reach the app
-    // edges, while TABLE_BLEED keeps edge-cell content aligned with p-5 chrome
+    // edges, while TABLE_BLEED keeps edge-cell content aligned with the page gutter
     <ScrollArea className={cn('min-h-0 flex-1', className)}>
       <table className={cn('w-full caption-bottom text-xs', TABLE_BLEED)}>
         {/* box-shadows stand in for the header's borders, which collapse drops while sticky */}

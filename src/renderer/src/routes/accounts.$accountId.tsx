@@ -74,8 +74,8 @@ function AccountDetailPage() {
   if (accountQuery.isSuccess && !account) return <AccountNotFound />
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="flex items-start justify-between gap-4 px-5 pt-5">
+    <div className="flex min-h-0 flex-1 flex-col gap-5">
+      <div className="flex items-start justify-between gap-4 px-page pt-page">
         {/* bottom-aligned: the title block leads with 2xl text and the total
             with its label, so aligning tops would leave the amount floating
             between the two lines on the left. Bottom edges put its baseline on
@@ -122,8 +122,8 @@ function AccountDetailPage() {
       </div>
 
       {hasHoldings && account ? (
-        <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-4">
-          <div className="px-5">
+        <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-5">
+          <div className="px-page">
             <TabsList>
               <TabsTrigger value="holdings">Holdings</TabsTrigger>
               <TabsTrigger value="transactions">Transactions</TabsTrigger>
