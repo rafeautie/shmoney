@@ -41,7 +41,7 @@ export function SuggestionsQueue({ suggestions }: { suggestions: RuleSuggestion[
           return (
             <div
               key={group.categoryId}
-              className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 bg-background py-2 pr-3 pl-4"
+              className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 bg-background px-3 py-2"
             >
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">

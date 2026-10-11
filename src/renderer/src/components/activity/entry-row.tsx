@@ -86,6 +86,7 @@ export function EntryRow({
   })
   const lines = (showAll && allChanges.data) || entry.changes
   const hidden = entry.changeCount - lines.length
+  const inset = cn('pr-3', nested ? 'pl-22' : 'pl-13')
 
   const toggle = useMutation({
     mutationFn: () =>
@@ -146,25 +147,28 @@ export function EntryRow({
 
       {/* padding and border sit inside the panel so it can close to a true 0 */}
       <CollapsibleContent>
-        <div className={cn('border-t bg-muted/40 pr-3 pb-1', nested ? 'pl-22' : 'pl-13')}>
+        {/* lines carry the inset themselves so their dividers run edge to edge */}
+        <div className="border-t bg-muted/40 py-1">
           {lines.map((change, i) => (
             <ChangeLine
               key={i}
               change={change}
               categoryName={categoryName}
-              className={cn(i > 0 && 'border-t border-dashed')}
+              className={cn(inset, i > 0 && 'border-t border-dashed')}
             />
           ))}
           {hidden > 0 && (
-            <Button
-              variant="link"
-              size="sm"
-              className="-ml-2 text-muted-foreground"
-              disabled={allChanges.isFetching}
-              onClick={() => setShowAll(true)}
-            >
-              Show {hidden} more
-            </Button>
+            <div className={inset}>
+              <Button
+                variant="link"
+                size="sm"
+                className="-ml-2 h-8 text-muted-foreground"
+                disabled={allChanges.isFetching}
+                onClick={() => setShowAll(true)}
+              >
+                Show {hidden} more
+              </Button>
+            </div>
           )}
         </div>
       </CollapsibleContent>
