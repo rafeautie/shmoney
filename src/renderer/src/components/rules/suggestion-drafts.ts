@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Rule } from '@shared/rules'
-import { plural } from '@/lib/utils'
 import type { RuleSuggestionGroup } from '@shared/rule-suggestions'
 import type { RuleDraft } from './rules-editor'
 
@@ -8,19 +7,11 @@ import type { RuleDraft } from './rules-editor'
 // pending suggestion a saved rule covers, so phrases removed in the editor (or a
 // retargeted category) stay pending.
 
-// rule names are capped at 80 chars (ruleNameSchema); when the phrases don't
-// fit, fall back to a count
-function draftName(group: RuleSuggestionGroup): string {
-  const joined = `${group.suggestions.map((s) => s.phrase).join(', ')} → ${group.categoryName}`
-  if (joined.length <= 80) return joined
-  return `${plural(group.suggestions.length, 'merchant')} → ${group.categoryName}`.slice(0, 80)
-}
-
 /** A suggestion group as a new rule: one contains phrase per suggestion (rules
  *  OR their phrases), matching how each suggestion's count was computed. */
 export function draftFromGroup(group: RuleSuggestionGroup): RuleDraft {
   return {
-    name: draftName(group),
+    name: group.categoryName,
     conditions: {
       description: { op: 'contains', phrases: group.suggestions.map((s) => s.phrase) }
     },
