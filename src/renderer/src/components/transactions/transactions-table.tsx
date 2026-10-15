@@ -5,7 +5,7 @@ import type { CurrencyTotal, Page, PageCursor, Transaction, TransactionSortBy } 
 import type { ResolvedTransactionFilters } from '@shared/transaction-filters'
 import { PAGE_SIZE, cn, sortQuery } from '@/lib/utils'
 import { DEFAULT_TRANSACTION_SORTING } from '@/lib/transaction-filters'
-import { dayKey } from '@/lib/day-groups'
+import { dayKey } from '@shared/days'
 import { useSetting } from '@/lib/settings'
 import { CategoryCell } from './category-cell'
 import { DayHeader } from './day-header'
@@ -85,9 +85,6 @@ export function TransactionsTable({
     [transactionsQuery.data]
   )
 
-  // the rest of the trailing day sits on pages not loaded yet
-  const pages = transactionsQuery.data?.pages
-  const dayRest = transactionsQuery.hasNextPage ? pages?.at(-1)?.dayRest : undefined
   const groupByDay = useSetting('groupTransactionsByDay')
   const grouped = groupByDay && sort.sortBy === 'date'
   // the callbacks stay stable, so memoized groups skip renders that don't touch their day
@@ -96,12 +93,19 @@ export function TransactionsTable({
       grouped
         ? {
             key: (transaction) => dayKey(transaction.date),
-            header: (key, rows, rest) => <DayHeader day={key} rows={rows} rest={rest} />
+            header: (key, _rows, balances) => <DayHeader day={key} balances={balances} />
           }
         : undefined,
     [grouped]
   )
-  const groups = dayGroups && { ...dayGroups, tail: dayRest }
+  // structural sharing keeps an unchanged day's entry identical across refetches,
+  // so only the days an edit moved re-render
+  const pages = transactionsQuery.data?.pages
+  const dayBalances = useMemo<Record<string, CurrencyTotal[]>>(
+    () => Object.assign({}, ...(pages ?? []).map((page) => page.dayBalances).reverse()),
+    [pages]
+  )
+  const groups = dayGroups && { ...dayGroups, meta: dayBalances }
 
   const edits = useTransactionEdits({
     listKey,

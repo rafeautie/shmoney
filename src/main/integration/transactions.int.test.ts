@@ -146,32 +146,40 @@ describe('transaction list', () => {
     expect(second.next).toBeNull()
   })
 
-  it("nets the rest of a page's last day across the pages after it", async () => {
-    const acct = account({ name: 'Day rest' })
+  it('closes each listed day on the account balance, whatever the filters', async () => {
     const day = (h: number): number => noon(2026, 8, 20) + h * 3600
+    // a synced-style anchor mid-day: day(2) and day(3) land after it
+    const acct = account({ name: 'Closing', balance: 50_000, balanceDate: day(1.5) })
     txn(acct, { posted: day(3), amount: -1_000 })
     txn(acct, { posted: day(2), amount: -2_000 })
     txn(acct, { posted: day(1), amount: -4_000 })
     txn(acct, { posted: day(0), amount: 32_000, categoryId: systemCategory('transfers') })
-    txn(acct, { posted: day(-1), amount: 8_000 })
+    txn(acct, { posted: day(-1), amount: 8_000, categoryId: food })
     txn(acct, { posted: noon(2026, 8, 19), amount: -16_000 })
-    const page = (cursor: number | { date: number; id: number }): Promise<Page<Transaction>> =>
+    txn(acct, { posted: 0, transactedAt: day(4), amount: -500, pending: true })
+    account({ name: 'Elsewhere', balance: 7_000 })
+    const page = (
+      cursor: number | { date: number; id: number },
+      over: Partial<TransactionFilters> = {}
+    ): Promise<Page<Transaction>> =>
       api.transactions.list({
         page: cursor,
-        pageSize: 2,
+        pageSize: 4,
         sortBy: 'date',
         sortDir: 'desc',
-        filters: resolved({ accountIds: [acct] })
+        filters: resolved({ accountIds: [acct], ...over })
       })
 
     const first = await page(0)
-    // the transfer doesn't count
-    expect(first.dayRest).toEqual([{ currency: 'USD', total: 4_000 }])
+    // pending rows don't move the balance
+    expect(first.dayBalances).toEqual({ '2026-08-20': [{ currency: 'USD', total: 47_000 }] })
     const second = await page(first.next!)
-    expect(second.dayRest).toEqual([{ currency: 'USD', total: 8_000 }])
-    const third = await page(second.next!)
-    expect(third.next).toBeNull()
-    expect(third.dayRest).toBeUndefined()
+    expect(second.dayBalances).toEqual({
+      '2026-08-20': [{ currency: 'USD', total: 47_000 }],
+      '2026-08-19': [{ currency: 'USD', total: 14_000 }]
+    })
+    const filtered = await page(0, { categoryIds: [food] })
+    expect(filtered.dayBalances).toEqual({ '2026-08-20': [{ currency: 'USD', total: 47_000 }] })
   })
 
   it('marks rows in the Transfers category as transfers', async () => {

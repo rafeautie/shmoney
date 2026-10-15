@@ -162,8 +162,8 @@ export interface Page<T> {
   total: number | null
   /** where the next page starts; null after the last */
   next: PageCursor | null
-  /** date sort only: the net of the last row's day on pages not loaded yet */
-  dayRest?: CurrencyTotal[]
+  /** date sort only: each listed day's closing balance, keyed by dayKey() */
+  dayBalances?: Record<string, CurrencyTotal[]>
 }
 
 /** Counts over the visible (non-deleted) transactions; uncategorized = category_id IS NULL. */

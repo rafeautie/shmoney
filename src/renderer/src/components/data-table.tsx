@@ -126,12 +126,12 @@ const DataTableRow = memo(
 ) as typeof DataTableRowImpl
 
 /** Runs of consecutive rows sharing a key, each under a sticky header row */
-export interface DataTableGroups<TData, TTail = unknown> {
+export interface DataTableGroups<TData, TMeta = unknown> {
   key: (row: TData) => string
   /** keep stable: a new header re-renders every group */
-  header: (key: string, rows: TData[], tail: TTail | undefined) => React.ReactNode
-  /** handed only to the trailing group, which may continue on a page not loaded yet */
-  tail?: TTail
+  header: (key: string, rows: TData[], meta: TMeta | undefined) => React.ReactNode
+  /** extra per-group data by key; a group re-renders when its entry's identity changes */
+  meta?: Record<string, TMeta>
 }
 
 interface GroupRun<TData> {
@@ -161,10 +161,10 @@ function groupRuns<TData>(rows: Row<TData>[], key: (row: TData) => string): Grou
   return runs
 }
 
-interface DataTableGroupProps<TData, TTail> {
+interface DataTableGroupProps<TData, TMeta> {
   run: GroupRun<TData>
-  tail: TTail | undefined
-  header: DataTableGroups<TData, TTail>['header']
+  meta: TMeta | undefined
+  header: DataTableGroups<TData, TMeta>['header']
   columns: ColumnDef<TData, unknown>[]
   /** ids of the group's selected rows, so selecting elsewhere skips this group */
   selected: string
@@ -173,15 +173,15 @@ interface DataTableGroupProps<TData, TTail> {
   onClick: ((row: TData) => void) | undefined
 }
 
-function DataTableGroupImpl<TData, TTail>({
+function DataTableGroupImpl<TData, TMeta>({
   run,
-  tail,
+  meta,
   header,
   columns,
   rowClassName,
   rowClass,
   onClick
-}: DataTableGroupProps<TData, TTail>) {
+}: DataTableGroupProps<TData, TMeta>) {
   // rows read selection off the table, which the compiler can't see change
   'use no memo'
   return (
@@ -198,7 +198,7 @@ function DataTableGroupImpl<TData, TTail>({
           colSpan={columns.length}
           className="h-6 py-0 text-footnote band-rule [--band-surface:var(--background)] in-data-[slot=card]:[--band:var(--tray)] in-data-[slot=card]:[--band-surface:var(--card)]"
         >
-          {header(run.key, run.originals, tail)}
+          {header(run.key, run.originals, meta)}
         </TableCell>
       </TableRow>
       {run.rows.map((row) => (
@@ -223,7 +223,7 @@ const DataTableGroup = memo(
     prev.run.id === next.run.id &&
     prev.run.originals.length === next.run.originals.length &&
     prev.run.originals.every((row, i) => row === next.run.originals[i]) &&
-    prev.tail === next.tail &&
+    prev.meta === next.meta &&
     prev.header === next.header &&
     prev.columns === next.columns &&
     prev.selected === next.selected &&
@@ -232,7 +232,7 @@ const DataTableGroup = memo(
     prev.onClick === next.onClick
 ) as typeof DataTableGroupImpl
 
-interface DataTableProps<TData, TTail> {
+interface DataTableProps<TData, TMeta> {
   columns: ColumnDef<TData, unknown>[]
   data: TData[]
   sorting: SortingState
@@ -258,10 +258,10 @@ interface DataTableProps<TData, TTail> {
   /** e.g. "min-h-0 flex-1" to fill the parent's height; only the table body scrolls */
   className?: string
   /** Group rows under sticky headers; only meaningful when the sort keeps groups together */
-  groups?: DataTableGroups<TData, TTail>
+  groups?: DataTableGroups<TData, TMeta>
 }
 
-export function DataTable<TData, TTail = undefined>({
+export function DataTable<TData, TMeta = undefined>({
   columns,
   data,
   sorting,
@@ -281,7 +281,7 @@ export function DataTable<TData, TTail = undefined>({
   bleed,
   className,
   groups
-}: DataTableProps<TData, TTail>) {
+}: DataTableProps<TData, TMeta>) {
   // the row a shift-click extends from: the last one toggled on its own
   const anchorRef = useRef<string | null>(null)
 
@@ -396,11 +396,11 @@ export function DataTable<TData, TTail = undefined>({
         {groups && !isEmpty ? (
           <>
             {topRow && <TableBody className="[&_tr:last-child]:border-b!">{topRow}</TableBody>}
-            {runs.map((run, i) => (
+            {runs.map((run) => (
               <DataTableGroup
                 key={run.id}
                 run={run}
-                tail={i === runs.length - 1 ? groups.tail : undefined}
+                meta={groups.meta?.[run.key]}
                 header={groups.header}
                 columns={columns}
                 selected={run.rows

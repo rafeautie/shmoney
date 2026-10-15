@@ -5,6 +5,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   isNull,
   lt,
   sql,
@@ -15,7 +16,8 @@ import { alias } from 'drizzle-orm/sqlite-core'
 import { db } from '../db'
 import { accounts, categories, transactions } from '../db/schema'
 import { buildWhere } from '../reports/filters'
-import { notTransferSql } from '../db/system-categories'
+import { balanceDeltaWhere, settledRowsWhere } from '../accounts/balance'
+import { dayKey } from '@shared/days'
 import type { ResolvedTransactionFilters } from '@shared/transaction-filters'
 import {
   isSyncOwned,
@@ -56,7 +58,9 @@ export function transactionsPage(
     pageSize: number
     sortBy: keyof typeof transactionSortColumns
     sortDir: 'asc' | 'desc'
-  }
+  },
+  /** the accounts whose closing balances the day headers show; omitted = all */
+  balanceAccountIds?: number[]
 ): Page<Transaction> {
   // soft-deleted rows are invisible everywhere; buildWhere() repeats this for
   // the report aggregates, which don't go through this function
@@ -133,23 +137,76 @@ export function transactionsPage(
           .leftJoin(categories, eq(transactions.categoryId, categories.id))
           .where(visible)
           .get()?.value ?? 0)
-  // day headers net a whole day minus transfers, and the rest of the last row's
-  // day is on pages not loaded yet
-  let dayRest: CurrencyTotal[] | undefined
-  if (q.sortBy === 'date' && more && last) {
-    const [start, end] = localDayBounds(last.date)
-    const after = sql`(${transactions.effectiveDate}, ${transactions.id}) ${sql.raw(q.sortDir === 'asc' ? '>' : '<')} (${last.date}, ${last.id})`
-    dayRest = transactionSums(
+  const dayBalances =
+    q.sortBy === 'date'
+      ? closingBalances(
+          rows.map((row) => row.date),
+          balanceAccountIds
+        )
+      : undefined
+  return { rows, total, next, dayBalances }
+}
+
+/**
+ * Each listed day's closing balance per currency over the accounts in view: the
+ * live balance (see accounts/balance.ts) stepped back past everything settled
+ * after the day. Like a bank register it ignores the other filters
+ */
+export function closingBalances(
+  dates: number[],
+  accountIds: number[] | undefined
+): Record<string, CurrencyTotal[]> {
+  const days = [...new Set(dates.filter(Boolean))].sort((a, b) => b - a)
+  if (!days.length) return {}
+  const ids = accountIds?.length ? accountIds : undefined
+  const scope = ids ? inArray(transactions.accountId, ids) : undefined
+  const [, newestEnd] = localDayBounds(days[0])
+  const [oldestStart] = localDayBounds(days.at(-1)!)
+  const balances = new Map<string, number>()
+  const add = (currency: string, value: number): void => {
+    balances.set(currency, (balances.get(currency) ?? 0) + value)
+  }
+  const anchors = db
+    .select({ currency: accounts.currency, total: sql<number>`sum(${accounts.balance})` })
+    .from(accounts)
+    .where(ids ? inArray(accounts.id, ids) : undefined)
+    .groupBy(accounts.currency)
+    .orderBy(asc(accounts.currency))
+    .all()
+  for (const { currency, total } of anchors) add(currency, total)
+  for (const { currency, total } of transactionSums(balanceDeltaWhere(ids))) add(currency, total)
+  for (const { currency, total } of transactionSums(
+    and(settledRowsWhere(), scope, gte(transactions.effectiveDate, newestEnd))
+  ))
+    add(currency, -total)
+  // balances now close the newest day; step back through the span between
+  const moves = db
+    .select({
+      date: transactions.effectiveDate,
+      currency: accounts.currency,
+      total: sql<number>`sum(${transactions.amount})`
+    })
+    .from(transactions)
+    .innerJoin(accounts, eq(transactions.accountId, accounts.id))
+    .where(
       and(
-        where,
-        after,
-        notTransferSql(),
-        gte(transactions.effectiveDate, start),
-        lt(transactions.effectiveDate, end)
+        settledRowsWhere(),
+        scope,
+        gte(transactions.effectiveDate, oldestStart),
+        lt(transactions.effectiveDate, newestEnd)
       )
     )
+    .groupBy(transactions.effectiveDate, accounts.currency)
+    .orderBy(desc(transactions.effectiveDate))
+    .all()
+  const closing: Record<string, CurrencyTotal[]> = {}
+  let i = 0
+  for (const day of days) {
+    const [, end] = localDayBounds(day)
+    for (; i < moves.length && moves[i].date >= end; i++) add(moves[i].currency, -moves[i].total)
+    closing[dayKey(day)] ??= [...balances].map(([currency, total]) => ({ currency, total }))
   }
-  return { rows, total, next, dayRest }
+  return closing
 }
 
 /**

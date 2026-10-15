@@ -198,6 +198,6 @@ export function registerReportsIpc(): void {
 
   ipcMain.handle(REPORTS_IPC.transactions, (_event, input: unknown) => {
     const q = reportTransactionsQuerySchema.parse(input)
-    return transactionsPage(buildWhere(q.filters), q)
+    return transactionsPage(buildWhere(q.filters), q, q.filters.accountIds)
   })
 }

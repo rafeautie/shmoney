@@ -714,7 +714,9 @@ export function registerConnectionsIpc(): void {
           { keepUnknownDates: true, keepOpeningBalances: true }
         )
       : undefined
-    return transactionsPage(and(eq(transactions.accountId, q.accountId), filterWhere), q)
+    return transactionsPage(and(eq(transactions.accountId, q.accountId), filterWhere), q, [
+      q.accountId
+    ])
   })
 
   ipcMain.handle(IPC.transactionsList, (_event, input: unknown) => {
@@ -723,7 +725,8 @@ export function registerConnectionsIpc(): void {
       q.filters
         ? buildWhere(q.filters, { keepUnknownDates: true, keepOpeningBalances: true })
         : undefined,
-      q
+      q,
+      q.filters?.accountIds
     )
   })
 
