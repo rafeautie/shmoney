@@ -2,7 +2,6 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } fr
 import { HugeiconsIcon, type IconSvgElement } from '@hugeicons/react'
 import {
   Analytics01Icon,
-  ArrowRight01Icon,
   BrainIcon,
   Calculator01Icon,
   Calendar03Icon,
@@ -20,12 +19,13 @@ import {
 import { cn } from '@/lib/utils'
 import { useLlmStatus } from '@/lib/llm'
 import { PENDING_LABELS, actionToolLabel, analysisToolLabel } from '@/lib/chat-tools'
-import { CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
-  ChainOfThought,
-  ChainOfThoughtContent,
-  ChainOfThoughtStep
-} from '@/components/ui/chain-of-thought'
+  Trace,
+  TraceCollapsible,
+  TraceCollapsibleContent,
+  TraceCollapsibleTrigger,
+  TraceLine
+} from '@/components/ui/trace'
 import { ToolCallCard } from '@/components/chat/tool-call'
 import { ChatChart } from '@/components/chat/chat-chart'
 import { ProposalCard } from '@/components/chat/proposal-card'
@@ -54,7 +54,7 @@ interface ToolView {
   output?: unknown
 }
 
-/** one step on the rail: a thought (quote bar) or a tool call (icon + card) */
+/** one step on the rail: a thought (plain text) or a tool call (its own expandable row) */
 type StepView =
   | { kind: 'reasoning'; active: boolean; label: string; text: string }
   | ({ kind: 'tool' } & ToolView)
@@ -499,8 +499,8 @@ function StatusLine({ view, now }: { view: ShownHeader; now: number }) {
  * in-flight step with a per-step elapsed timer, crossfading each new step; once
  * the run settles it becomes a summary of the whole section: how long it took
  * (thinking and tool calls alike) and how many calls ran, e.g. "Thought for 6s
- * · 3 calls". Expanded it lays every step on a rail: thoughts as quote-bar
- * text, tool calls as an icon beside their own expandable input/output card.
+ * · 3 calls". Expanded it lays every step on the trace's rail: thoughts as
+ * plain text, tool calls as their own expandable input/output rows.
  * The user's toggle always wins. Chart and proposal deliverables follow the
  * chain, still visible when it's collapsed, since a chart or a change to
  * approve is the answer, not a step.
@@ -534,51 +534,45 @@ export function ThoughtChain({
 
   return (
     <>
-      <ChainOfThought open={open} onOpenChange={setUserOpen} disabled={steps.length === 0}>
-        <CollapsibleTrigger
-          className={cn(
-            'group/cot flex w-fit items-center gap-1.5 text-xs text-muted-foreground not-disabled:hover:text-foreground',
-            header.failed && 'text-destructive not-disabled:hover:text-destructive'
-          )}
-        >
-          <StatusLine view={header} now={now} />
-          <HugeiconsIcon
-            icon={ArrowRight01Icon}
-            strokeWidth={2}
-            className={cn(
-              '-ml-0.5 size-3.5 transition-[rotate,opacity] duration-200 ease-out group-data-panel-open/cot:rotate-90 motion-reduce:transition-none',
-              steps.length === 0 && 'opacity-0'
-            )}
-          />
-        </CollapsibleTrigger>
-        <ChainOfThoughtContent>
-          {steps.map((step, i) =>
-            step.kind === 'reasoning' ? (
-              // no icon: the header's brain stands for the thought, and the rail
-              // runs beside its text as a quote bar (see ChainOfThoughtStep)
-              <ChainOfThoughtStep key={i} status={step.active ? 'active' : 'complete'}>
-                <div className="text-xs whitespace-pre-wrap text-muted-foreground select-text">
-                  {step.text}
-                </div>
-              </ChainOfThoughtStep>
-            ) : (
-              <ChainOfThoughtStep
-                key={i}
-                icon={step.icon}
-                status={step.active ? 'active' : 'complete'}
-              >
-                <ToolCallCard
-                  label={step.label}
-                  active={step.active}
-                  failed={step.failed}
-                  input={step.input}
-                  output={step.output}
-                />
-              </ChainOfThoughtStep>
-            )
-          )}
-        </ChainOfThoughtContent>
-      </ChainOfThought>
+      <Trace>
+        <TraceCollapsible open={open} onOpenChange={setUserOpen} disabled={steps.length === 0}>
+          <TraceCollapsibleTrigger
+            className={cn(steps.length === 0 && '*:data-[slot=trace-icon]:opacity-0')}
+          >
+            {/* the status line brings its own shimmer, so the line takes no running status */}
+            <TraceLine status={header.failed ? 'error' : undefined} className="gap-1.5">
+              <StatusLine view={header} now={now} />
+            </TraceLine>
+          </TraceCollapsibleTrigger>
+          <TraceCollapsibleContent>
+            <Trace className="gap-3">
+              {steps.map((step, i) =>
+                step.kind === 'reasoning' ? (
+                  <div
+                    key={i}
+                    className={cn(
+                      'text-xs whitespace-pre-wrap text-muted-foreground select-text',
+                      step.active && 'animate-shimmer'
+                    )}
+                  >
+                    {step.text}
+                  </div>
+                ) : (
+                  <ToolCallCard
+                    key={i}
+                    icon={step.icon}
+                    label={step.label}
+                    active={step.active}
+                    failed={step.failed}
+                    input={step.input}
+                    output={step.output}
+                  />
+                )
+              )}
+            </Trace>
+          </TraceCollapsibleContent>
+        </TraceCollapsible>
+      </Trace>
       {parts.map((part, i) => {
         const deliverable =
           chartDeliverable(part, asOf, messageId === undefined) ??
