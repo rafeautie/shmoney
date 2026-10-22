@@ -61,9 +61,9 @@ describe('goal input schemas', () => {
     ).toBe(true)
   })
 
-  it('has no mode on update: it cannot change after creation', () => {
-    const parsed = goalUpdateSchema.parse({ id: 1, mode: 'balance' })
-    expect(parsed).not.toHaveProperty('mode')
+  it('accepts a mode on update, and only a known one', () => {
+    expect(goalUpdateSchema.parse({ id: 1, mode: 'balance' }).mode).toBe('balance')
+    expect(() => goalUpdateSchema.parse({ id: 1, mode: 'other' })).toThrow()
   })
 })
 
