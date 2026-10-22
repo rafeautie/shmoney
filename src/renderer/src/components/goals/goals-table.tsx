@@ -1,11 +1,10 @@
 import type { GoalSummary } from '@shared/goals'
 import { Amount } from '@/components/amount'
 import {
-  EditableName,
-  EditableTarget,
   GoalAccounts,
   GoalActionsMenu,
-  TargetDatePicker
+  GoalTarget,
+  GoalTargetDate
 } from '@/components/goals/goal-fields'
 import { modeLabel } from '@/components/goals/goal-labels'
 import { GoalBar, GoalStatusBadge } from '@/components/goals/goal-progress'
@@ -13,7 +12,7 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/compon
 import { cn, TABLE_BLEED } from '@/lib/utils'
 
 /**
- * One row per goal, editing the same fields the card does, laid out like the
+ * One row per goal, showing the same fields the card does, laid out like the
  * budget's envelope table. This month reads saved of planned; `saved` is what
  * landed, so a goal with no month-end level yet reads as a dash, not zero.
  */
@@ -48,7 +47,7 @@ export function GoalsTable({
               <TableCell>
                 <div className="flex min-w-0 flex-col">
                   <div className="flex min-w-0 items-center gap-2">
-                    <EditableName goal={goal} className="min-w-0 truncate text-left" />
+                    <span className="min-w-0 truncate">{goal.name}</span>
                     <GoalStatusBadge status={goal.status} />
                   </div>
                   <span className="truncate text-xs text-muted-foreground">{modeLabel(goal)}</span>
@@ -58,10 +57,10 @@ export function GoalsTable({
                 <GoalBar goal={goal} />
               </TableCell>
               <TableCell>
-                <EditableTarget goal={goal} />
+                <GoalTarget goal={goal} />
               </TableCell>
               <TableCell>
-                <TargetDatePicker goal={goal} />
+                <GoalTargetDate goal={goal} />
               </TableCell>
               <TableCell>
                 <GoalAccounts goal={goal} />

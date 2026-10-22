@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { idSchema } from './ipc'
 import { timeGrainSchema, type ResolvedQuery, type WidgetConfig } from './reports'
 
-/** Fixed at creation: switching would mean recomputing the baseline and reinterpreting history. */
+/** Switching recomputes the baseline, so progress is recounted under the new reading. */
 export type GoalMode = 'balance' | 'contributions'
 
 export type GoalStatus = 'reached' | 'on-track' | 'behind' | 'overdue' | 'no-date'
@@ -82,10 +82,10 @@ export const goalCreateSchema = z.object({
 })
 export type GoalCreateInput = z.infer<typeof goalCreateSchema>
 
-// `mode` is absent on purpose: it can't change after creation
 export const goalUpdateSchema = z.object({
   id: idSchema,
   name: goalNameSchema.optional(),
+  mode: z.enum(['balance', 'contributions']).optional(),
   targetAmount: z.number().int().positive().optional(),
   targetDate: daySchema.nullish(),
   startedAt: z.number().int().positive().optional(),

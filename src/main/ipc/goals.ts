@@ -110,7 +110,7 @@ export function createGoal({
 /**
  * Apply a goal edit. Target amount, target date and archived state are
  * recorded as one undoable action-log entry (null actionId when none of them
- * changed); name, start and accounts aren't undoable.
+ * changed); name, mode, start and accounts aren't undoable.
  */
 export function updateGoal(
   patch: GoalUpdateInput,
@@ -125,6 +125,7 @@ export function updateGoal(
   if (!existing) throw new Error(`Goal ${patch.id} not found`)
 
   const now = nowSec()
+  const mode = patch.mode ?? existing.mode
   const start = patch.startedAt ?? existing.startedAt
   if (start > now) throw new Error("A goal can't start in the future")
   const targetDate = patch.targetDate === undefined ? existing.targetDate : patch.targetDate
@@ -168,6 +169,7 @@ export function updateGoal(
     tx.update(savingsGoals)
       .set({
         ...(patch.name !== undefined ? { name: patch.name } : {}),
+        mode,
         ...(patch.targetAmount !== undefined ? { targetAmount: patch.targetAmount } : {}),
         ...(patch.targetDate !== undefined ? { targetDate: patch.targetDate ?? null } : {}),
         ...(patch.startedAt !== undefined ? { startedAt: patch.startedAt } : {}),
@@ -186,8 +188,9 @@ export function updateGoal(
     return changes.length > 0 ? recordAction(tx, { source: 'user', label, changes }) : null
   })
 
-  if (patch.startedAt !== undefined || accountIds)
-    setBaseline(patch.id, existing.mode, accountIds ?? linkedAccountIds(patch.id))
+  // the baseline depends on all three, and reads them from the stored row
+  if (patch.startedAt !== undefined || accountIds || mode !== existing.mode)
+    setBaseline(patch.id, mode, accountIds ?? linkedAccountIds(patch.id))
   return { id: patch.id, actionId }
 }
 

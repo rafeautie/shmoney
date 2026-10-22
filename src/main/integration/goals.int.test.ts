@@ -218,11 +218,32 @@ describe('update', () => {
     expect(count('action_log')).toBe(before)
   })
 
-  it('ignores a mode key, since the mode is fixed at creation', async () => {
-    const goal = await makeGoal([account()], { mode: 'balance' })
-    const updated = await api.goals.update({ id: goal.id, mode: 'contributions' } as never)
+  it('switches a balance goal to contributions, dropping the baseline', async () => {
+    const a = account({ balance: 500_000 })
+    txn(a, { posted: noon(2026, 7, 10), amount: 50_000 })
+    const goal = await makeGoal([a], { mode: 'balance' })
+    expect(goal.baselineAmount).toBe(500_000)
+    const before = count('action_log')
+
+    const updated = await api.goals.update({ id: goal.id, mode: 'contributions' })
+
+    expect(updated.mode).toBe('contributions')
+    expect(goalRow(goal.id).mode).toBe('contributions')
+    expect(updated.baselineAmount).toBe(0)
+    expect(updated.progress).toBe(50_000)
+    expect(count('action_log')).toBe(before)
+  })
+
+  it('switches a contributions goal to balance, baselining at the start', async () => {
+    const a = account({ balance: 500_000 })
+    txn(a, { posted: noon(2026, 7, 10), amount: 50_000 })
+    const goal = await makeGoal([a], { mode: 'contributions' })
+
+    const updated = await api.goals.update({ id: goal.id, mode: 'balance' })
+
     expect(updated.mode).toBe('balance')
-    expect(goalRow(goal.id).mode).toBe('balance')
+    expect(updated.baselineAmount).toBe(500_000)
+    expect(updated.progress).toBe(550_000)
   })
 
   it('replaces the linked accounts, re-derives the currency and recomputes the baseline', async () => {

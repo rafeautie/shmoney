@@ -9,11 +9,6 @@ function goalCard(app: App, name: string): Locator {
   return app.page.locator('[data-slot="card"]').filter({ hasText: name })
 }
 
-// the name swaps to an input while it is edited, so a card found by name would vanish
-function japanCard(app: App): Locator {
-  return app.page.locator('[data-slot="card"]').filter({ hasText: 'since 1 Apr 2026' })
-}
-
 function goalRow(app: App, name: string): Locator {
   return app.page.getByRole('row', { name: new RegExp(name) })
 }
@@ -34,7 +29,15 @@ async function openTable(app: App): Promise<void> {
 }
 
 const goalRowSql = (name: string): string =>
-  `SELECT name, target_amount, target_date, archived_at, deleted_at FROM savings_goals WHERE name = '${name}'`
+  `SELECT name, mode, target_amount, target_date, started_at, archived_at, deleted_at FROM savings_goals WHERE name = '${name}'`
+
+async function openEdit(app: App, target: Locator): Promise<Locator> {
+  await target.getByRole('button', { name: 'Goal actions' }).click()
+  await app.page.getByRole('menuitem', { name: 'Edit' }).click()
+  const dialog = app.page.getByRole('dialog', { name: 'Edit goal' })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
 
 test.describe('goal cards', () => {
   test('the household shows each goal with status, mode and pace', async ({ app }) => {
@@ -51,7 +54,7 @@ test.describe('goal cards', () => {
     await expect(trip).toContainText('New savings since 1 Apr 2026')
     await expect(trip).toContainText('$6,000.00')
     await expect(trip).toContainText(/you'll get there around \d+ \w+ \d{4}/)
-    await expect(trip.getByRole('button', { name: 'Set a target date' })).toBeVisible()
+    await expect(trip).not.toContainText(' by ')
     // an undated goal has no pace to be on or off, so no badge
     await expect(trip.locator('[data-slot="badge"]')).toHaveCount(0)
 
@@ -278,88 +281,93 @@ test.describe('new goal dialog', () => {
   })
 })
 
-test.describe('inline edits', () => {
-  test('the name edits in place and Enter commits', async ({ app }) => {
-    await openCards(app)
-    const card = japanCard(app)
-    await card.getByRole('button', { name: 'Trip to Japan' }).click()
-    const input = card.getByRole('textbox')
-    await expect(input).toBeFocused()
-    await input.fill('Trip to Kyoto')
-    await input.press('Enter')
-    await expect(goalCard(app, 'Trip to Kyoto')).toBeVisible()
-    await expect(goalCard(app, 'Trip to Japan')).toHaveCount(0)
-    await expect.poll(() => app.sql(goalRowSql('Trip to Kyoto'))).toHaveLength(1)
-  })
-
-  test('Escape cancels a rename and a blank name changes nothing', async ({ app }) => {
-    await openCards(app)
-    const card = japanCard(app)
-    await card.getByRole('button', { name: 'Trip to Japan' }).click()
-    await card.getByRole('textbox').fill('Something else')
-    await card.getByRole('textbox').press('Escape')
-    await expect(card.getByRole('button', { name: 'Trip to Japan' })).toBeVisible()
-
-    await card.getByRole('button', { name: 'Trip to Japan' }).click()
-    await card.getByRole('textbox').fill('  ')
-    await card.getByRole('textbox').press('Enter')
-    await expect(card.getByRole('button', { name: 'Trip to Japan' })).toBeVisible()
-    expect(await app.sql(goalRowSql('Trip to Japan'))).toHaveLength(1)
-    expect(await app.sql(goalRowSql('Something else'))).toEqual([])
-  })
-
-  test('the target edits in place, persists, and ignores zero', async ({ app }) => {
+test.describe('edit dialog', () => {
+  test('nothing on a card edits in place', async ({ app }) => {
     await openCards(app)
     const card = goalCard(app, 'Emergency fund')
-    await card.getByRole('button', { name: '$30,000.00' }).click()
-    await card.getByRole('textbox').fill('40000')
-    await card.getByRole('textbox').press('Enter')
-    await expect(card.getByRole('button', { name: '$40,000.00' })).toBeVisible()
-    await expect(statCard(app, 'Target')).toContainText('$71,000.00')
+    await expect(card.getByRole('button', { name: 'Emergency fund' })).toHaveCount(0)
+    await expect(card.getByRole('button', { name: '$30,000.00' })).toHaveCount(0)
+    await expect(card.getByRole('button', { name: 'High-Yield Savings' })).toHaveCount(0)
+  })
+
+  test("opens holding the goal's values, and Cancel changes nothing", async ({ app }) => {
+    await openCards(app)
+    const before = await app.sql(goalRowSql('Emergency fund'))
+    const dialog = await openEdit(app, goalCard(app, 'Emergency fund'))
+    await expect(dialog.getByLabel('Name')).toHaveValue('Emergency fund')
+    await expect(dialog.getByLabel('Target amount')).toHaveValue(/30,?000/)
+    await expect(dialog.getByRole('button', { name: '2027-06-30' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'High-Yield Savings' })).toBeVisible()
+
+    await dialog.getByLabel('Name').fill('Something else')
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toHaveCount(0)
+    expect(await app.sql(goalRowSql('Emergency fund'))).toEqual(before)
+  })
+
+  test('saves a new name and target, and leaves the start where it was', async ({ app }) => {
+    await openCards(app)
+    const [before] = await app.sql<{ started_at: number }>(goalRowSql('Trip to Japan'))
+    const dialog = await openEdit(app, goalCard(app, 'Trip to Japan'))
+    await dialog.getByLabel('Name').fill('Trip to Kyoto')
+    await dialog.getByLabel('Target amount').fill('7000')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+
+    await expect(dialog).toHaveCount(0)
+    await expect(goalCard(app, 'Trip to Kyoto')).toContainText('$7,000.00')
+    await expect(goalCard(app, 'Trip to Japan')).toHaveCount(0)
     await expect
-      .poll(() => app.sql(goalRowSql('Emergency fund')))
-      .toMatchObject([{ target_amount: 40_000_000 }])
+      .poll(() => app.sql(goalRowSql('Trip to Kyoto')))
+      .toMatchObject([{ target_amount: 7_000_000, started_at: before.started_at }])
+  })
 
-    await card.getByRole('button', { name: '$40,000.00' }).click()
-    await card.getByRole('textbox').fill('0')
-    await card.getByRole('textbox').press('Enter')
-    await expect(card.getByRole('button', { name: '$40,000.00' })).toBeVisible()
+  test('will not save a blank name, a zero target or no accounts', async ({ app }) => {
+    await openCards(app)
+    const dialog = await openEdit(app, goalCard(app, 'Emergency fund'))
+    const save = dialog.getByRole('button', { name: 'Save' })
 
-    await card.getByRole('button', { name: '$40,000.00' }).click()
-    await card.getByRole('textbox').fill('55')
-    await card.getByRole('textbox').press('Escape')
-    await expect(card.getByRole('button', { name: '$40,000.00' })).toBeVisible()
-    expect(await app.sql(goalRowSql('Emergency fund'))).toMatchObject([
-      { target_amount: 40_000_000 }
-    ])
+    await dialog.getByLabel('Name').fill('  ')
+    await expect(save).toBeDisabled()
+    await dialog.getByLabel('Name').fill('Emergency fund')
+    await dialog.getByLabel('Target amount').fill('0')
+    await expect(save).toBeDisabled()
+    await dialog.getByLabel('Target amount').fill('30000')
+    await expect(save).toBeEnabled()
+
+    await dialog.getByRole('button', { name: 'High-Yield Savings' }).click()
+    await app.page.getByRole('option', { name: 'High-Yield Savings' }).click()
+    await expect(save).toBeDisabled()
   })
 
   test('a target date can be set and then cleared', async ({ app }) => {
     await openCards(app)
     const { page } = app
     const card = goalCard(app, 'Trip to Japan')
-    await card.getByRole('button', { name: 'Set a target date' }).click()
+    let dialog = await openEdit(app, card)
+    await dialog.getByRole('button', { name: 'Optional' }).click()
     await page
       .getByRole('gridcell', { name: /September 30th, 2026/ })
       .getByRole('button')
       .click()
+    await dialog.getByRole('button', { name: 'Save' }).click()
 
-    await expect(card.getByRole('button', { name: '30 Sep 2026' })).toBeVisible()
-    await expect(card).toContainText('by')
+    await expect(card).toContainText('by 30 Sep 2026')
     await expect(card).toContainText(/Save \$[\d,.]+\/month to reach it on time/)
     await expect
       .poll(() => app.sql(goalRowSql('Trip to Japan')))
       .toMatchObject([{ target_date: '2026-09-30' }])
 
-    await card.getByRole('button', { name: '30 Sep 2026' }).click()
+    dialog = await openEdit(app, card)
+    await dialog.getByRole('button', { name: '2026-09-30' }).click()
     await page.getByRole('button', { name: 'Clear the date' }).click()
-    await expect(card.getByRole('button', { name: 'Set a target date' })).toBeVisible()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(card).not.toContainText(' by ')
     await expect
       .poll(() => app.sql(goalRowSql('Trip to Japan')))
       .toMatchObject([{ target_date: null }])
   })
 
-  test('linked accounts can be swapped, and the last one cannot be removed', async ({ app }) => {
+  test('linked accounts can be swapped', async ({ app }) => {
     await openCards(app)
     const { page } = app
     const card = goalCard(app, 'Emergency fund')
@@ -367,40 +375,41 @@ test.describe('inline edits', () => {
       JOIN savings_goals g ON g.id = l.goal_id JOIN accounts a ON a.id = l.account_id
       WHERE g.name = 'Emergency fund' ORDER BY a.name`
 
-    await card.getByRole('button', { name: 'High-Yield Savings' }).click()
+    const dialog = await openEdit(app, card)
+    await dialog.getByRole('button', { name: 'High-Yield Savings' }).click()
     await page.getByRole('option', { name: 'Everyday Checking' }).click()
-    await expect(card.getByRole('button', { name: '2 accounts' })).toBeVisible()
-    await expect
-      .poll(() => app.sql(accounts))
-      .toEqual([{ name: 'Everyday Checking' }, { name: 'High-Yield Savings' }])
-
     await page.getByRole('option', { name: 'High-Yield Savings' }).click()
-    await expect(card.getByRole('button', { name: 'Everyday Checking' })).toBeVisible()
-    await expect(card).toContainText('Balance of Everyday Checking')
+    await page.keyboard.press('Escape')
+    await expect(dialog.getByRole('button', { name: 'Everyday Checking' })).toBeVisible()
+    await dialog.getByRole('button', { name: 'Save' }).click()
 
-    await page.getByRole('option', { name: 'Everyday Checking' }).click()
-    await expect(page.getByText('A goal needs at least one account')).toBeVisible()
-    expect(await app.sql(accounts)).toEqual([{ name: 'Everyday Checking' }])
-    await expect(card.getByRole('button', { name: 'Everyday Checking' })).toBeVisible()
+    await expect(card).toContainText('Balance of Everyday Checking')
+    await expect.poll(() => app.sql(accounts)).toEqual([{ name: 'Everyday Checking' }])
   })
 
-  test('the table view edits the same fields', async ({ app }) => {
-    await openTable(app)
-    const row = app.page.getByRole('row', { name: /since 1 Apr 2026/ })
-    await row.getByRole('button', { name: 'Trip to Japan' }).click()
-    await row.getByRole('textbox').fill('Trip to Osaka')
-    await row.getByRole('textbox').press('Enter')
-    await expect(goalRow(app, 'Trip to Osaka')).toBeVisible()
+  test('the mode can be switched after creation', async ({ app }) => {
+    await openCards(app)
+    const card = goalCard(app, 'Emergency fund')
+    const dialog = await openEdit(app, card)
+    await dialog.getByRole('button', { name: 'Count new savings' }).click()
+    await expect(dialog).toContainText('Progress so far is recounted this way.')
+    await dialog.getByRole('button', { name: 'Save' }).click()
 
-    await goalRow(app, 'Trip to Osaka').getByRole('button', { name: '$6,000.00' }).click()
-    await goalRow(app, 'Trip to Osaka').getByRole('textbox').fill('7000')
-    await goalRow(app, 'Trip to Osaka').getByRole('textbox').press('Enter')
-    await expect(
-      goalRow(app, 'Trip to Osaka').getByRole('button', { name: '$7,000.00' })
-    ).toBeVisible()
+    await expect(card).toContainText('New savings since')
+    await expect
+      .poll(() => app.sql(goalRowSql('Emergency fund')))
+      .toMatchObject([{ mode: 'contributions' }])
+  })
+
+  test('the table view opens the same dialog', async ({ app }) => {
+    await openTable(app)
+    const dialog = await openEdit(app, goalRow(app, 'Trip to Japan'))
+    await dialog.getByLabel('Name').fill('Trip to Osaka')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(goalRow(app, 'Trip to Osaka')).toBeVisible()
     await expect
       .poll(() => app.sql(goalRowSql('Trip to Osaka')))
-      .toMatchObject([{ target_amount: 7_000_000 }])
+      .toMatchObject([{ target_amount: 6_000_000 }])
   })
 })
 
