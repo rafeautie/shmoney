@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { NameDialog } from '@/components/name-dialog'
 import { WidgetCard } from '@/components/reports/widget-card'
 
 export const Route = createFileRoute('/reports/')({
@@ -50,6 +51,16 @@ function ReportsPage() {
     mutationFn: (id: number) => window.api.reports.delete(id),
     onSuccess: () => setDeleteTarget(null),
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['reports'] })
+  })
+
+  const [renameTarget, setRenameTarget] = useState<ReportSummary | null>(null)
+  const renameMutation = useMutation({
+    meta: { silenceError: true },
+    mutationFn: (input: { id: number; name: string }) => window.api.reports.update(input),
+    onSuccess: (report) => {
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+      queryClient.invalidateQueries({ queryKey: ['report', report.id] })
+    }
   })
 
   const reports = reportsQuery.data ?? []
@@ -130,10 +141,23 @@ function ReportsPage() {
               onOpen={() =>
                 navigate({ to: '/reports/$reportId', params: { reportId: String(report.id) } })
               }
+              onRename={() => setRenameTarget(report)}
               onDelete={() => setDeleteTarget(report)}
             />
           ))}
         </div>
+      )}
+
+      {/* outside the cards: a dialog's clicks bubble through React to its
+          parent, and a card's click opens the report */}
+      {renameTarget && (
+        <NameDialog
+          open
+          onOpenChange={(open) => !open && setRenameTarget(null)}
+          title="Rename report"
+          name={renameTarget.name}
+          onSave={(name) => renameMutation.mutateAsync({ id: renameTarget.id, name })}
+        />
       )}
 
       {deleteTarget && (
@@ -154,10 +178,12 @@ function ReportsPage() {
 function ReportCard({
   report,
   onOpen,
+  onRename,
   onDelete
 }: {
   report: ReportSummary
   onOpen: () => void
+  onRename: () => void
   onDelete: () => void
 }) {
   return (
@@ -181,6 +207,7 @@ function ReportCard({
             <span className="sr-only">Report menu</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuItem onClick={onRename}>Rename report</DropdownMenuItem>
             <DropdownMenuItem variant="destructive" onClick={onDelete}>
               Delete report
             </DropdownMenuItem>

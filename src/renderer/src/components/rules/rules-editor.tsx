@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { RULE_FORM_DESCRIPTION, ruleFormTitle } from './rule-form-labels'
 import { PhraseInput } from '@/components/phrase-input'
 
 // ---- dollar <-> milliunit helpers ----
@@ -99,8 +100,8 @@ export function RuleEditor({
   )
 }
 
-/** The rule form, in a dialog (RuleEditor) or `inline` in a list, as Settings
- * edits rules in place. Inline, Escape cancels. */
+/** The rule form, in a dialog (RuleEditor) or `inline` on a Settings
+ * sub-page, which carries the title itself. Inline, Escape cancels. */
 export function RuleForm({
   rule,
   draft,
@@ -222,9 +223,6 @@ export function RuleForm({
   const categories = categoriesQuery.data
   const accounts = accountsQuery.data ?? []
 
-  const title = rule ? 'Edit rule' : 'New rule'
-  const description = 'A rule applies its action to transactions matching every condition you set.'
-
   return (
     <form
       className="flex min-h-0 flex-1 flex-col"
@@ -247,15 +245,10 @@ export function RuleForm({
         }
       }}
     >
-      {inline ? (
-        <div className="flex flex-col gap-1 p-4">
-          <h4 className="text-sm font-medium">{title}</h4>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-      ) : (
+      {!inline && (
         <DialogHeader className="p-4">
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle>{ruleFormTitle(rule)}</DialogTitle>
+          <DialogDescription>{RULE_FORM_DESCRIPTION}</DialogDescription>
         </DialogHeader>
       )}
 
@@ -522,7 +515,7 @@ function FormBody({
   inline: boolean
   children: React.ReactNode
 }): React.JSX.Element {
-  if (inline) return <div className="border-t">{children}</div>
+  if (inline) return <div>{children}</div>
   return (
     <ScrollArea className="border-t" viewPortClassName="max-h-[60vh]">
       {children}

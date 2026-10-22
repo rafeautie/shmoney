@@ -1,7 +1,7 @@
 import { Fragment } from 'react'
 import { groupEnvelopes, type BudgetSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
-import { EditableFill, EnvelopeActionsMenu } from '@/components/budget/envelope-fields'
+import { EnvelopeActionsMenu, EnvelopeFill } from '@/components/budget/envelope-fields'
 import { BalanceBadge, EnvelopeBar } from '@/components/budget/envelope-progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -16,6 +16,7 @@ export function EnvelopeList({
   pace: number | null
   className?: string
 }) {
+  const budgetedIds = summary.envelopes.map((e) => e.categoryId)
   return (
     // full-bleed like the transactions table: rows and hover reach the app
     // edges, while TABLE_BLEED keeps edge-cell content aligned with the page gutter
@@ -45,14 +46,7 @@ export function EnvelopeList({
                   <span className="font-normal text-muted-foreground">spent</span>
                 </TableCell>
                 <TableCell className="tabular-nums">
-                  {/* px-2 lines the subtotal up with the fill buttons' text */}
-                  <span className="px-2">
-                    <Amount
-                      value={section.totals.fill}
-                      currency={summary.currency}
-                      colored={false}
-                    />
-                  </span>
+                  <Amount value={section.totals.fill} currency={summary.currency} colored={false} />
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   <Amount value={section.totals.balance} currency={summary.currency} colored />
@@ -73,17 +67,17 @@ export function EnvelopeList({
                     />
                   </TableCell>
                   <TableCell>
-                    <EditableFill
-                      envelope={envelope}
-                      month={summary.month}
-                      currency={summary.currency}
-                    />
+                    <EnvelopeFill envelope={envelope} currency={summary.currency} />
                   </TableCell>
                   <TableCell className="text-right">
                     <BalanceBadge balance={envelope.balance} currency={summary.currency} />
                   </TableCell>
                   <TableCell>
-                    <EnvelopeActionsMenu envelope={envelope} />
+                    <EnvelopeActionsMenu
+                      envelope={envelope}
+                      month={summary.month}
+                      budgetedIds={budgetedIds}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

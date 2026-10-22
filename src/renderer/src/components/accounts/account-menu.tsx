@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Delete02Icon, PencilEdit02Icon, Settings01Icon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { NameDialog } from '@/components/name-dialog'
 import { TransactionViewItems } from '@/components/transactions/view-options'
 import {
   DropdownMenu,
@@ -16,26 +16,28 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 /**
- * The account page's gear: a menu of per-account actions and the table's view toggles. Rename hands off to
- * the page title (AccountName), which edits in place; delete opens one confirm.
+ * The account page's gear: a menu of per-account actions and the table's view
+ * toggles. Rename and delete each open a dialog.
  */
 export function AccountMenuButton({
   accountId,
   accountName,
-  isManual,
-  onRename
+  isManual
 }: {
   accountId: number
   accountName: string
   isManual: boolean
-  onRename: () => void
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  // focus goes to the name field on Rename, so the closing menu mustn't pull it
-  // back to the gear (that blur would end the edit at once)
-  const renamePicked = useRef(false)
+  const [editing, setEditing] = useState(false)
+  const rename = useMutation({
+    meta: { silenceError: true },
+    mutationFn: (name: string) => window.api.accounts.rename(accountId, name),
+    // the name shows up on transactions, filters and reports too
+    onSuccess: () => queryClient.invalidateQueries()
+  })
   const deleteAccount = useMutation({
     mutationFn: () => window.api.accounts.delete(accountId),
     onSuccess: async () => {
@@ -46,20 +48,15 @@ export function AccountMenuButton({
 
   return (
     <>
-      <DropdownMenu onOpenChange={(open) => open && (renamePicked.current = false)}>
+      <DropdownMenu>
         <DropdownMenuTrigger
           render={<Button variant="outline" size="icon" className="shrink-0" />}
           aria-label="Account actions"
         >
           <HugeiconsIcon icon={Settings01Icon} />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48" finalFocus={() => !renamePicked.current}>
-          <DropdownMenuItem
-            onClick={() => {
-              renamePicked.current = true
-              onRename()
-            }}
-          >
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={() => setEditing(true)}>
             <HugeiconsIcon icon={PencilEdit02Icon} />
             Rename
           </DropdownMenuItem>
@@ -71,6 +68,16 @@ export function AccountMenuButton({
           <TransactionViewItems />
         </DropdownMenuContent>
       </DropdownMenu>
+      <NameDialog
+        open={editing}
+        onOpenChange={setEditing}
+        title="Rename account"
+        // balances and currency come from the bank or the import, so the name
+        // is the one field set here
+        description="The name shows wherever this account appears in shmoney."
+        name={accountName}
+        onSave={(name) => rename.mutateAsync(name)}
+      />
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
@@ -86,75 +93,5 @@ export function AccountMenuButton({
         onConfirm={() => deleteAccount.mutate()}
       />
     </>
-  )
-}
-
-/** The account page title, which becomes a name field while `editing`: Enter or
- *  blur saves, Escape cancels, and an empty or unchanged name is a no-op. */
-export function AccountName({
-  accountId,
-  name,
-  editing,
-  onDone
-}: {
-  accountId: number
-  name: string
-  editing: boolean
-  onDone: () => void
-}) {
-  if (!editing) {
-    return <h2 className="text-xl font-semibold tracking-tight select-text">{name}</h2>
-  }
-  // mounted per edit, so the draft starts from the current name each time
-  return <NameField accountId={accountId} name={name} onDone={onDone} />
-}
-
-function NameField({
-  accountId,
-  name,
-  onDone
-}: {
-  accountId: number
-  name: string
-  onDone: () => void
-}) {
-  const queryClient = useQueryClient()
-  const [draft, setDraft] = useState(name)
-  // Enter commits and the field then blurs; only the first one counts
-  const settled = useRef(false)
-  const rename = useMutation({
-    mutationFn: (next: string) => window.api.accounts.rename(accountId, next),
-    // the name shows up on transactions, filters and reports too
-    onSuccess: () => queryClient.invalidateQueries(),
-    onSettled: onDone
-  })
-
-  const finish = (save: boolean): void => {
-    if (settled.current) return
-    settled.current = true
-    const next = draft.trim()
-    if (save && next !== '' && next !== name) rename.mutate(next)
-    else onDone()
-  }
-  const commit = (): void => finish(true)
-
-  return (
-    <Input
-      aria-label="Account name"
-      autoFocus
-      // select the old name so typing replaces it
-      onFocus={(e) => e.currentTarget.select()}
-      value={draft}
-      maxLength={200}
-      disabled={rename.isPending}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') commit()
-        if (e.key === 'Escape') finish(false)
-      }}
-      // sized and offset so the name keeps the heading's line and position
-      className="-ml-2.5 h-8 w-80 text-xl font-semibold tracking-tight md:text-xl"
-    />
   )
 }

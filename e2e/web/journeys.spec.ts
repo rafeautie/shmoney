@@ -24,9 +24,9 @@ const widgetField = (dialog: Locator, label: string): Locator =>
     .filter({ has: dialog.page().getByText(label, { exact: true }) })
     .getByRole('combobox')
 
-// a chip's rename/delete buttons slide in on hover or focus; focusing the
+// a chip's edit/delete buttons slide in on hover or focus; focusing the
 // button and pressing Enter avoids clicking it mid-animation
-async function chipAction(page: Page, action: 'Rename' | 'Delete', name: string): Promise<void> {
+async function chipAction(page: Page, action: 'Edit' | 'Delete', name: string): Promise<void> {
   const button = settingsDialog(page).getByRole('button', { name: `${action} category ${name}` })
   await button.focus()
   await button.press('Enter')

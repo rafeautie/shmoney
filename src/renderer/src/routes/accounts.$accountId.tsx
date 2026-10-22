@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { AccountMenuButton, AccountName } from '@/components/accounts/account-menu'
+import { AccountMenuButton } from '@/components/accounts/account-menu'
 import { Amount } from '@/components/amount'
 import { NotFoundScreen } from '@/components/error-screen'
 import { AccountGoalsStrip } from '@/components/goals/account-goals-strip'
@@ -39,7 +39,6 @@ function AccountDetailPage() {
   const { accountId } = Route.useParams()
   const id = Number(accountId)
   const [creating, setCreating] = useState(false)
-  const [renaming, setRenaming] = useState(false)
   // controlled so the Create button can jump to the transactions tab
   const [tab, setTab] = useState('holdings')
 
@@ -47,7 +46,6 @@ function AccountDetailPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- wholesale reset on param change is the point
     setCreating(false)
-    setRenaming(false)
     setTab('holdings')
   }, [id])
 
@@ -83,12 +81,9 @@ function AccountDetailPage() {
         <div className="flex items-end gap-8">
           <div>
             {/* the account's own name and institution, not page furniture */}
-            <AccountName
-              accountId={id}
-              name={account?.name ?? 'Account'}
-              editing={renaming && account !== undefined}
-              onDone={() => setRenaming(false)}
-            />
+            <h2 className="text-xl font-semibold tracking-tight select-text">
+              {account?.name ?? 'Account'}
+            </h2>
             <p className="text-muted-foreground select-text">
               {account && (
                 <>
@@ -115,7 +110,6 @@ function AccountDetailPage() {
               accountId={id}
               accountName={account.name}
               isManual={account.connectionId === null}
-              onRename={() => setRenaming(true)}
             />
           )}
         </div>

@@ -14,7 +14,6 @@ import {
 } from '@shared/reports'
 import { Page } from '@/components/page'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,10 +29,11 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { ReportGrid } from '@/components/reports/report-grid'
-import { CHROME_ENTER, CHROME_FADE, CHROME_FADE_MS } from '@/components/reports/edit-chrome'
+import { CHROME_ENTER, CHROME_FADE_MS } from '@/components/reports/edit-chrome'
 import { FilterBar } from '@/components/transactions/filter-bar'
 import { AddWidgetButton, WidgetEditor } from '@/components/reports/widget-editor'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { NameDialog } from '@/components/name-dialog'
 import { NotFoundScreen } from '@/components/error-screen'
 import { reportOptions } from '@/lib/queries'
 import { usePresence } from '@/lib/use-presence'
@@ -70,6 +70,7 @@ function ReportPage() {
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorWidget, setEditorWidget] = useState<ReportWidget | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [renaming, setRenaming] = useState(false)
 
   const detailQuery = useQuery(reportOptions(id))
   const detail = detailQuery.data
@@ -138,6 +139,7 @@ function ReportPage() {
 
   // ---- report mutations ----
   const renameMutation = useMutation({
+    meta: { silenceError: true },
     mutationFn: (name: string) => window.api.reports.update({ id, name }),
     onSuccess: (report) => {
       queryClient.setQueryData<ReportDetail>(['report', id], (prev) =>
@@ -202,37 +204,9 @@ function ReportPage() {
   return (
     <Page className="space-y-6">
       <div className="flex items-center justify-between gap-4">
-        {/* the title and its rename field share one cell and crossfade */}
-        <div className="grid min-w-0 flex-1 items-center *:col-start-1 *:row-start-1">
-          <Input
-            // reseeds on every entry, so an abandoned draft never lingers
-            key={`${detail.report.name}-${editing}`}
-            defaultValue={detail.report.name}
-            inert={!editing}
-            className={cn(
-              'h-8 max-w-sm text-lg font-semibold',
-              CHROME_FADE,
-              !editing && 'opacity-0'
-            )}
-            onBlur={(e) => {
-              const name = e.target.value.trim()
-              if (name && name !== detail.report.name) renameMutation.mutate(name)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-            }}
-          />
-          <h2
-            inert={editing}
-            className={cn(
-              'truncate text-xl font-semibold tracking-tight select-text',
-              CHROME_FADE,
-              editing && 'opacity-0'
-            )}
-          >
-            {detail.report.name}
-          </h2>
-        </div>
+        <h2 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight select-text">
+          {detail.report.name}
+        </h2>
         <div className="flex shrink-0 items-center gap-2">
           {addPresent && (
             <div inert={!editing} className={cn(CHROME_ENTER, !editing && 'opacity-0')}>
@@ -252,6 +226,7 @@ function ReportPage() {
               <span className="sr-only">Report menu</span>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setRenaming(true)}>Rename report</DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
                 Delete report
               </DropdownMenuItem>
@@ -305,6 +280,13 @@ function ReportPage() {
         nextPosition={nextPosition}
       />
 
+      <NameDialog
+        open={renaming}
+        onOpenChange={setRenaming}
+        title="Rename report"
+        name={detail.report.name}
+        onSave={(name) => renameMutation.mutateAsync(name)}
+      />
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}

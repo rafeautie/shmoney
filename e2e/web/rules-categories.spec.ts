@@ -12,21 +12,17 @@ async function storedSetting(app: App, key: string): Promise<unknown> {
 const groupBlock = (page: Page, name: string): Locator =>
   settingsDialog(page).getByRole('heading', { name, exact: true }).locator('xpath=../..')
 
-// chips reveal their rename/delete buttons on hover
-// a chip's rename/delete buttons slide in on hover or focus; focusing the
+// a chip's edit/delete buttons slide in on hover or focus; focusing the
 // button and pressing Enter avoids clicking it mid-animation
-async function chipAction(page: Page, action: 'Rename' | 'Delete', name: string): Promise<void> {
+async function chipAction(page: Page, action: 'Edit' | 'Delete', name: string): Promise<void> {
   const button = settingsDialog(page).getByRole('button', { name: `${action} category ${name}` })
   await button.focus()
   await button.press('Enter')
 }
 
-// the one open inline rename form
-const renameInput = (dialog: Locator): Locator =>
-  dialog
-    .locator('form')
-    .filter({ has: dialog.page().getByRole('button', { name: 'Save' }) })
-    .getByRole('textbox')
+// an edit sub-page's breadcrumb title
+const subpageTitle = (dialog: Locator, title: string): Locator =>
+  dialog.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('heading', { name: title })
 
 test.describe('Settings > Categories', () => {
   test('lists the default groups, ungrouped and read-only system categories', async ({ app }) => {
@@ -51,24 +47,25 @@ test.describe('Settings > Categories', () => {
     await app.open({ route: '/accounts?settings=categories' })
     const dialog = settingsDialog(page)
 
-    const addGroup = dialog.getByRole('button', { name: 'Add group' })
-    await expect(addGroup).toBeDisabled()
-    await dialog.getByPlaceholder('New group name').fill('Pets')
-    await addGroup.click()
+    await dialog.getByRole('button', { name: 'Add group' }).click()
+    await expect(subpageTitle(dialog, 'Add group')).toBeVisible()
+    const submitGroup = dialog.getByRole('button', { name: 'Add group' })
+    await expect(submitGroup).toBeDisabled()
+    await dialog.getByLabel('Name').fill('Pets')
+    await submitGroup.click()
     await expect(dialog.getByRole('heading', { name: 'Pets', exact: true })).toBeVisible()
-    await expect(dialog.getByPlaceholder('New group name')).toHaveValue('')
 
-    const pets = groupBlock(page, 'Pets')
-    await pets.getByRole('button', { name: 'Add category' }).click()
-    await pets.getByPlaceholder('Category name').fill('Vet')
-    await pets.getByPlaceholder('Category name').press('Enter')
-    await expect(pets.getByText('Vet', { exact: true })).toBeVisible()
+    await groupBlock(page, 'Pets').getByRole('button', { name: 'Add category' }).click()
+    await expect(subpageTitle(dialog, 'Add category')).toBeVisible()
+    await expect(dialog.getByRole('combobox', { name: 'Group' })).toHaveText('Pets')
+    await dialog.getByLabel('Name').fill('Vet')
+    await dialog.getByLabel('Name').press('Enter')
+    await expect(groupBlock(page, 'Pets').getByText('Vet', { exact: true })).toBeVisible()
 
-    const ungrouped = groupBlock(page, 'Ungrouped')
-    await ungrouped.getByRole('button', { name: 'Add category' }).click()
-    await ungrouped.getByPlaceholder('Category name').fill('Misc')
-    await ungrouped.getByRole('button', { name: 'Add', exact: true }).click()
-    await expect(ungrouped.getByText('Misc', { exact: true })).toBeVisible()
+    await groupBlock(page, 'Ungrouped').getByRole('button', { name: 'Add category' }).click()
+    await dialog.getByLabel('Name').fill('Misc')
+    await dialog.getByRole('button', { name: 'Add category' }).click()
+    await expect(groupBlock(page, 'Ungrouped').getByText('Misc', { exact: true })).toBeVisible()
 
     const rows = await app.sql<{ name: string; group_name: string | null }>(
       `SELECT c.name, g.name AS group_name FROM categories c
@@ -81,53 +78,64 @@ test.describe('Settings > Categories', () => {
     ])
   })
 
-  test('Escape cancels an add-category input without closing Settings', async ({ app }) => {
-    const { page } = app
-    await app.open({ route: '/accounts?settings=categories' })
-    const ungrouped = groupBlock(page, 'Ungrouped')
-    await ungrouped.getByRole('button', { name: 'Add category' }).click()
-    await ungrouped.getByPlaceholder('Category name').fill('Draft')
-    await page.keyboard.press('Escape')
-    await expect(ungrouped.getByPlaceholder('Category name')).toBeHidden()
-    await expect(settingsDialog(page)).toBeVisible()
-    await expect(page).toHaveURL(/settings=categories/)
-  })
-
-  test('renames a category inline; Escape cancels without closing Settings', async ({ app }) => {
+  test('Escape and Cancel leave an edit page without closing Settings', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/accounts?settings=categories' })
     const dialog = settingsDialog(page)
-    await chipAction(page, 'Rename', '🛍️ Shopping')
-    const input = renameInput(dialog)
-    await input.fill('🛍️ Retail')
+    await groupBlock(page, 'Ungrouped').getByRole('button', { name: 'Add category' }).click()
+    await dialog.getByLabel('Name').fill('Draft')
     await page.keyboard.press('Escape')
-    await expect(input).toBeHidden()
+    await expect(subpageTitle(dialog, 'Add category')).toBeHidden()
     await expect(dialog).toBeVisible()
-    await expect(dialog.getByText('🛍️ Shopping', { exact: true })).toBeVisible()
+    await expect(page).toHaveURL(/settings=categories/)
 
-    await chipAction(page, 'Rename', '🛍️ Shopping')
-    const again = renameInput(dialog)
-    await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
-    await again.fill('🛍️ Retail')
-    await again.press('Enter')
-    await expect(dialog.getByText('🛍️ Retail', { exact: true })).toBeVisible()
-    await expect(dialog.getByText('🛍️ Shopping', { exact: true })).toBeHidden()
-    expect(await app.sql(`SELECT id FROM categories WHERE name = '🛍️ Retail'`)).toHaveLength(1)
+    await chipAction(page, 'Edit', '🛍️ Shopping')
+    await dialog.getByLabel('Name').fill('🛍️ Retail')
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog.getByText('🛍️ Shopping', { exact: true })).toBeVisible()
+    expect(await app.sql(`SELECT id FROM categories WHERE name = '🛍️ Retail'`)).toHaveLength(0)
   })
 
-  test('renames a group inline', async ({ app }) => {
+  test('edits a category: name and group on one page', async ({ app }) => {
+    const { page } = app
+    await app.open({ route: '/accounts?settings=categories' })
+    const dialog = settingsDialog(page)
+    await chipAction(page, 'Edit', '🛍️ Shopping')
+    await expect(subpageTitle(dialog, 'Edit category')).toBeVisible()
+    const name = dialog.getByLabel('Name')
+    await expect(name).toHaveValue('🛍️ Shopping')
+    await expect(name).toBeFocused()
+
+    await name.fill('')
+    await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await name.fill('🛍️ Retail')
+    await dialog.getByRole('combobox', { name: 'Group' }).click()
+    await page.getByRole('option', { name: '📌 Needs' }).click()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+
+    await expect(groupBlock(page, '📌 Needs').getByText('🛍️ Retail', { exact: true })).toBeVisible()
+    await expect(dialog.getByText('🛍️ Shopping', { exact: true })).toBeHidden()
+    expect(
+      await app.sql(
+        `SELECT g.name AS group_name FROM categories c JOIN category_groups g ON g.id = c.group_id
+         WHERE c.name = '🛍️ Retail'`
+      )
+    ).toEqual([{ group_name: '📌 Needs' }])
+  })
+
+  test('renames a group on its own page', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/accounts?settings=categories' })
     const dialog = settingsDialog(page)
     await dialog.getByRole('button', { name: 'Rename group 🎉 Wants' }).click()
-    const input = renameInput(dialog)
-    await input.fill('🎉 Fun')
+    await expect(subpageTitle(dialog, 'Rename group')).toBeVisible()
+    await dialog.getByLabel('Name').fill('🎉 Fun')
     await page.keyboard.press('Escape')
     await expect(dialog).toBeVisible()
     await expect(dialog.getByRole('heading', { name: '🎉 Wants', exact: true })).toBeVisible()
 
     await dialog.getByRole('button', { name: 'Rename group 🎉 Wants' }).click()
-    await renameInput(dialog).fill('🎉 Fun')
+    await dialog.getByLabel('Name').fill('🎉 Fun')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await expect(dialog.getByRole('heading', { name: '🎉 Fun', exact: true })).toBeVisible()
   })
@@ -163,7 +171,8 @@ test.describe('Settings > Categories', () => {
     const { page } = app
     await app.open({ route: '/accounts?settings=categories' })
     const dialog = settingsDialog(page)
-    await dialog.getByPlaceholder('New group name').fill('Pets')
+    await dialog.getByRole('button', { name: 'Add group' }).click()
+    await dialog.getByLabel('Name').fill('Pets')
     await dialog.getByRole('button', { name: 'Add group' }).click()
     await expect(dialog.getByRole('heading', { name: 'Pets', exact: true })).toBeVisible()
 

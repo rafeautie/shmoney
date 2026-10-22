@@ -28,6 +28,17 @@ function statCard(app: App, label: string): Locator {
 }
 
 const hobbiesRow = (app: App): Locator => app.page.getByRole('row', { name: /Hobbies/ })
+/** the Monthly fill column of a table row */
+const fillCell = (row: Locator): Locator => row.getByRole('cell').nth(2)
+
+/** opens an envelope's Edit dialog from its actions menu, in a row or a card */
+async function openEdit(app: App, target: Locator): Promise<Locator> {
+  await target.getByRole('button', { name: 'Envelope actions' }).click()
+  await app.page.getByRole('menuitem', { name: 'Edit' }).click()
+  const dialog = app.page.getByRole('dialog', { name: 'Edit envelope' })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
 
 test.describe('envelopes and stat cards', () => {
   test('the household budget lists envelopes by group with a subtotal row each', async ({
@@ -96,9 +107,10 @@ test.describe('envelopes and stat cards', () => {
     await openCards(app)
     const card = envelopeCard(app, 'Dining Out')
     await expect(card).toContainText('left of')
-    await card.getByRole('button', { name: '$280.00' }).click()
-    await card.getByRole('textbox').fill('1')
-    await card.getByRole('textbox').press('Enter')
+    const dialog = await openEdit(app, card)
+    await dialog.getByLabel('Monthly fill').fill('1')
+    await dialog.getByLabel('Monthly fill').press('Enter')
+    await expect(dialog).toBeHidden()
     await expect(card.locator('.text-destructive').filter({ hasText: /over$/ })).toBeVisible()
     await expect(card).toContainText('a fill of')
   })
@@ -183,14 +195,14 @@ test.describe('month navigation', () => {
     const { page } = app
     await page.getByRole('button', { name: 'Next month' }).click()
     await expect(page.getByText('October 2026')).toBeVisible()
-    await hobbiesRow(app).getByRole('button', { name: '$75.00' }).click()
-    await hobbiesRow(app).getByRole('textbox').fill('90')
-    await hobbiesRow(app).getByRole('textbox').press('Enter')
-    await expect(hobbiesRow(app).getByRole('button', { name: '$90.00' })).toBeVisible()
+    const dialog = await openEdit(app, hobbiesRow(app))
+    await dialog.getByLabel('Monthly fill').fill('90')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(fillCell(hobbiesRow(app))).toHaveText('$90.00')
 
     await page.getByRole('button', { name: 'Today' }).click()
     await expect(page.getByText('September 2026')).toBeVisible()
-    await expect(hobbiesRow(app).getByRole('button', { name: '$75.00' })).toBeVisible()
+    await expect(fillCell(hobbiesRow(app))).toHaveText('$75.00')
   })
 })
 
@@ -231,88 +243,109 @@ test.describe('cards and table view', () => {
   })
 })
 
-test.describe('inline fill editing', () => {
-  test('Enter commits the new fill and it persists', async ({ app }) => {
+test.describe('edit envelope dialog', () => {
+  test('the fill is plain text and the dialog opens pre-filled', async ({ app }) => {
     await openTable(app)
     const row = hobbiesRow(app)
-    await row.getByRole('button', { name: '$75.00' }).click()
-    const input = row.getByRole('textbox')
-    await expect(input).toBeFocused()
-    await input.fill('82.5')
-    await input.press('Enter')
-    await expect(row.getByRole('button', { name: '$82.50' })).toBeVisible()
-    await expect(row.getByRole('textbox')).toHaveCount(0)
+    await expect(fillCell(row)).toHaveText('$75.00')
+    await expect(fillCell(row).getByRole('button')).toHaveCount(0)
+    const dialog = await openEdit(app, row)
+    await expect(dialog.getByRole('button', { name: /Hobbies/ })).toBeVisible()
+    await expect(dialog.getByLabel('Monthly fill')).toHaveValue('75')
+    await expect(dialog.getByLabel('Monthly fill')).toBeFocused()
+  })
+
+  test('Save writes the new fill for the viewed month', async ({ app }) => {
+    await openTable(app)
+    const dialog = await openEdit(app, hobbiesRow(app))
+    await dialog.getByLabel('Monthly fill').fill('82.5')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(fillCell(hobbiesRow(app))).toHaveText('$82.50')
     await expect.poll(() => app.sql(HOBBIES_FILL)).toEqual([{ amount: 82_500 }])
     await expect(statCard(app, 'Budgeted')).toContainText('$4,817.50')
   })
 
-  test('Escape cancels without saving', async ({ app }) => {
+  test('Cancel changes nothing', async ({ app }) => {
     await openTable(app)
-    const row = hobbiesRow(app)
-    await row.getByRole('button', { name: '$75.00' }).click()
-    await row.getByRole('textbox').fill('99')
-    await row.getByRole('textbox').press('Escape')
-    await expect(row.getByRole('textbox')).toHaveCount(0)
-    await expect(row.getByRole('button', { name: '$75.00' })).toBeVisible()
-    await expect(statCard(app, 'Budgeted')).toContainText('$4,810.00')
+    const dialog = await openEdit(app, hobbiesRow(app))
+    await dialog.getByLabel('Monthly fill').fill('99')
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(fillCell(hobbiesRow(app))).toHaveText('$75.00')
     expect(await app.sql(HOBBIES_FILL)).toEqual([])
   })
 
-  test('an unchanged value does not write a new fill', async ({ app }) => {
+  test('saving untouched values writes no new fill', async ({ app }) => {
     await openTable(app)
-    const row = hobbiesRow(app)
-    await row.getByRole('button', { name: '$75.00' }).click()
-    await row.getByRole('textbox').press('Enter')
-    await expect(row.getByRole('button', { name: '$75.00' })).toBeVisible()
+    const dialog = await openEdit(app, hobbiesRow(app))
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toBeHidden()
     expect(await app.sql(HOBBIES_FILL)).toEqual([])
   })
 
-  test('clicking away commits like Enter', async ({ app }) => {
+  test('an empty fill disables Save, and 0 is allowed', async ({ app }) => {
     await openTable(app)
-    const row = hobbiesRow(app)
-    await row.getByRole('button', { name: '$75.00' }).click()
-    await row.getByRole('textbox').fill('60')
-    await app.page.getByRole('heading', { name: 'Budget' }).click()
-    await expect(row.getByRole('button', { name: '$60.00' })).toBeVisible()
-    await expect.poll(() => app.sql(HOBBIES_FILL)).toEqual([{ amount: 60_000 }])
+    const dialog = await openEdit(app, hobbiesRow(app))
+    const save = dialog.getByRole('button', { name: 'Save' })
+    await dialog.getByLabel('Monthly fill').fill('')
+    await expect(save).toBeDisabled()
+    await dialog.getByLabel('Monthly fill').fill('0')
+    await expect(save).toBeEnabled()
+    await save.click()
+    await expect(fillCell(hobbiesRow(app))).toHaveText('$0.00')
   })
 
-  test('the card view edits the fill the same way', async ({ app }) => {
+  test('picking another category moves the envelope with its history', async ({ app }) => {
+    await openTable(app)
+    const { page } = app
+    const dialog = await openEdit(app, hobbiesRow(app))
+    await dialog.getByRole('button', { name: /Hobbies/ }).click()
+    // the category list offers the envelope's own category and the unbudgeted ones
+    await expect(page.getByRole('option', { name: /Hobbies/ })).toHaveCount(1)
+    await expect(page.getByRole('option', { name: /Groceries/ })).toHaveCount(0)
+    await page.getByRole('option', { name: /Retirement/ }).click()
+    await expect(dialog).toContainText('The envelope moves with its history')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toBeHidden()
+
+    await expect(hobbiesRow(app)).toHaveCount(0)
+    await expect(fillCell(page.getByRole('row', { name: /Retirement/ }))).toHaveText('$75.00')
+    await expect
+      .poll(() =>
+        app.sql(
+          `SELECT count(*) AS n FROM budgets b JOIN categories c ON c.id = b.category_id
+           WHERE c.name LIKE '%Hobbies'`
+        )
+      )
+      .toEqual([{ n: 0 }])
+  })
+
+  test('the card view opens the same dialog', async ({ app }) => {
     await openCards(app)
     const card = envelopeCard(app, 'Hobbies')
-    await card.getByRole('button', { name: '$75.00' }).click()
-    await card.getByRole('textbox').fill('50')
-    await card.getByRole('textbox').press('Enter')
-    await expect(card.getByRole('button', { name: '$50.00' })).toBeVisible()
+    const dialog = await openEdit(app, card)
+    await dialog.getByLabel('Monthly fill').fill('50')
+    await dialog.getByLabel('Monthly fill').press('Enter')
+    await expect(dialog).toBeHidden()
+    await expect(card).toContainText('$50.00')
     await expect.poll(() => app.sql(HOBBIES_FILL)).toEqual([{ amount: 50_000 }])
-  })
-
-  test('clearing the fill input and pressing Enter leaves the fill alone', async ({ app }) => {
-    await openCards(app)
-    const card = envelopeCard(app, 'Hobbies')
-    const before = await app.sql(HOBBIES_FILL)
-    await card.getByRole('button', { name: '$75.00' }).click()
-    await card.getByRole('textbox').fill('')
-    await card.getByRole('textbox').press('Enter')
-    await expect(card.getByRole('button', { name: '$75.00' })).toBeVisible()
-    expect(await app.sql(HOBBIES_FILL)).toEqual(before)
   })
 
   test('Ctrl+Z reverts a fill change and offers Redo', async ({ app }) => {
     await openTable(app)
     const { page } = app
-    const row = hobbiesRow(app)
-    await row.getByRole('button', { name: '$75.00' }).click()
-    await row.getByRole('textbox').fill('90')
-    await row.getByRole('textbox').press('Enter')
-    await expect(row.getByRole('button', { name: '$90.00' })).toBeVisible()
+    const dialog = await openEdit(app, hobbiesRow(app))
+    await dialog.getByLabel('Monthly fill').fill('90')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(fillCell(hobbiesRow(app))).toHaveText('$90.00')
 
     await page.keyboard.press(`${app.mod}+z`)
-    await expect(row.getByRole('button', { name: '$75.00' })).toBeVisible()
+    await expect(fillCell(hobbiesRow(app))).toHaveText('$75.00')
     await expect(page.getByRole('button', { name: 'Redo' })).toBeVisible()
 
     await page.keyboard.press(`${app.mod}+Shift+z`)
-    await expect(row.getByRole('button', { name: '$90.00' })).toBeVisible()
+    await expect(fillCell(hobbiesRow(app))).toHaveText('$90.00')
   })
 })
 
@@ -371,7 +404,7 @@ test.describe('add envelope dialog', () => {
     await expect(dialog).toBeHidden()
 
     const row = page.getByRole('row', { name: /Emergency Fund/ })
-    await expect(row.getByRole('button', { name: '$200.00' })).toBeVisible()
+    await expect(fillCell(row)).toHaveText('$200.00')
     await expect(page.getByRole('row', { name: /Savings & Debt/ })).toBeVisible()
     await expect(statCard(app, 'Budgeted')).toContainText('$5,010.00')
     await expect
@@ -425,7 +458,7 @@ test.describe('removing envelopes', () => {
     await expect(page.getByText('Removed the 🎨 Hobbies envelope')).toBeVisible()
 
     await page.getByRole('button', { name: 'Undo' }).click()
-    await expect(hobbiesRow(app).getByRole('button', { name: '$75.00' })).toBeVisible()
+    await expect(fillCell(hobbiesRow(app))).toHaveText('$75.00')
     await expect(statCard(app, 'Budgeted')).toContainText('$4,810.00')
   })
 

@@ -4,7 +4,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowLeft01Icon, ArrowRight01Icon, PiggyBankIcon } from '@hugeicons/core-free-icons'
-import { AddEnvelopeButton } from '@/components/budget/add-envelope-dialog'
+import { AddEnvelopeButton } from '@/components/budget/envelope-dialog'
 import { EnvelopeCard } from '@/components/budget/envelope-card'
 import { EnvelopeList } from '@/components/budget/envelope-list'
 import { SectionHeader } from '@/components/budget/envelope-section'
@@ -141,6 +141,7 @@ function BudgetPage() {
                       key={envelope.categoryId}
                       envelope={envelope}
                       month={summary.month}
+                      budgetedIds={budgetedIds}
                       currency={summary.currency}
                       pace={pace}
                     />

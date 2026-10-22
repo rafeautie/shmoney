@@ -55,7 +55,7 @@ test.describe('reports index', () => {
     await page.getByRole('menuitem', { name: 'Blank report' }).click()
 
     await expect(page).toHaveURL(/#\/reports\/4$/)
-    await expect(page.getByRole('textbox').first()).toHaveValue('Untitled report')
+    await expect(page.getByRole('heading', { name: 'Untitled report', level: 2 })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
     await expect(page.getByText('This report is empty')).toBeVisible()
     await expect(page.getByText('Add a widget to get started.')).toBeVisible()
@@ -144,40 +144,61 @@ test.describe('reports index', () => {
 })
 
 test.describe('report page', () => {
-  test('renaming in edit mode commits on blur and persists', async ({ app }) => {
+  test('Rename report in the menu opens a dialog and the new name persists', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports/2' })
     await expect(page.getByRole('heading', { name: 'Monthly Check-in', level: 2 })).toBeVisible()
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'Report menu' }).click()
+    await page.getByRole('menuitem', { name: 'Rename report' }).click()
 
-    const name = page.getByRole('textbox').first()
+    const dialog = page.getByRole('dialog', { name: 'Rename report' })
+    const name = dialog.getByLabel('Name')
     await expect(name).toHaveValue('Monthly Check-in')
     await name.fill('Quarterly review')
-    await name.blur()
-    await expect
-      .poll(
-        async () =>
-          (await app.sql<{ name: string }>('SELECT name FROM reports WHERE id = 2'))[0].name
-      )
-      .toBe('Quarterly review')
-
-    await page.getByRole('button', { name: 'Done' }).click()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toBeHidden()
     await expect(page.getByRole('heading', { name: 'Quarterly review', level: 2 })).toBeVisible()
+    expect(await app.sql('SELECT name FROM reports WHERE id = 2')).toEqual([
+      { name: 'Quarterly review' }
+    ])
+
     await page.getByRole('link', { name: 'Reports', exact: true }).click()
     await expect(reportCards(page).filter({ hasText: 'Quarterly review' })).toBeVisible()
   })
 
-  test('a blank rename is ignored', async ({ app }) => {
+  test('edit mode keeps the title as text, and a blank name cannot be saved', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports/2' })
     await page.getByRole('button', { name: 'Edit', exact: true }).click()
-    const name = page.getByRole('textbox').first()
-    await name.fill('   ')
-    await name.press('Enter')
-    await expect(name).not.toBeFocused()
+    await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Monthly Check-in', level: 2 })).toBeVisible()
+    await expect(
+      page.getByRole('textbox').and(page.locator('[value="Monthly Check-in"]'))
+    ).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'Report menu' }).click()
+    await page.getByRole('menuitem', { name: 'Rename report' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Rename report' })
+    await dialog.getByLabel('Name').fill('   ')
+    await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(await app.sql('SELECT name FROM reports WHERE id = 2')).toEqual([
       { name: 'Monthly Check-in' }
     ])
+  })
+
+  test('the index card menu renames a report without opening it', async ({ app }) => {
+    const { page } = app
+    await app.open({ route: '/reports' })
+    const card = reportCards(page).filter({ hasText: 'Monthly Check-in' })
+    await card.getByRole('button', { name: 'Report menu' }).click()
+    await page.getByRole('menuitem', { name: 'Rename report' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Rename report' })
+    await dialog.getByLabel('Name').fill('Check-in')
+    await dialog.getByLabel('Name').press('Enter')
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(/#\/reports$/)
+    await expect(reportCards(page).filter({ hasText: 'Check-in' })).toBeVisible()
+    expect(await app.sql('SELECT name FROM reports WHERE id = 2')).toEqual([{ name: 'Check-in' }])
   })
 
   test('deleting from the report menu confirms, then returns to the index', async ({ app }) => {

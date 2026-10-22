@@ -129,6 +129,97 @@ describe('setFill', () => {
   })
 })
 
+describe('update', () => {
+  it('changes the fill from the given month on, keeping earlier months', async () => {
+    const groceries = category('Groceries')
+    await api.budgets.setFill({ categoryId: groceries, month: '2026-07', amount: 5000 })
+    await api.budgets.update({ categoryId: groceries, month: '2026-09', amount: 7000 })
+    expect(fills(groceries)).toEqual([
+      { month: '2026-07', amount: 5000 },
+      { month: '2026-09', amount: 7000 }
+    ])
+    expect(lastEntry().label).toBe('Changed Groceries envelope fill')
+  })
+
+  it('moves every month to the new category in one undoable entry', async () => {
+    const groceries = category('Groceries')
+    const dining = category('Dining')
+    await api.budgets.setFill({ categoryId: groceries, month: '2026-07', amount: 5000 })
+    await api.budgets.setFill({ categoryId: groceries, month: '2026-09', amount: 6000 })
+    await expectUndoRoundTrip(() =>
+      api.budgets.update({ categoryId: groceries, month: '2026-09', newCategoryId: dining })
+    )
+    expect(fills(groceries)).toEqual([])
+    expect(fills(dining)).toEqual([
+      { month: '2026-07', amount: 5000 },
+      { month: '2026-09', amount: 6000 }
+    ])
+    expect(lastEntry().label).toBe('Moved Groceries envelope to Dining')
+  })
+
+  it('moves and refills at once', async () => {
+    const groceries = category('Groceries')
+    const dining = category('Dining')
+    await api.budgets.setFill({ categoryId: groceries, month: '2026-07', amount: 5000 })
+    await api.budgets.setFill({ categoryId: groceries, month: '2026-09', amount: 6000 })
+    await expectUndoRoundTrip(() =>
+      api.budgets.update({
+        categoryId: groceries,
+        month: '2026-09',
+        newCategoryId: dining,
+        amount: 8000
+      })
+    )
+    expect(fills(dining)).toEqual([
+      { month: '2026-07', amount: 5000 },
+      { month: '2026-09', amount: 8000 }
+    ])
+    // one change per row on each side: the refill folds into the moved row
+    expect(lastEntry().changes).toHaveLength(4)
+  })
+
+  it('refuses a category that already has an envelope', async () => {
+    const groceries = category('Groceries')
+    const dining = category('Dining')
+    await api.budgets.setFill({ categoryId: groceries, month: '2026-09', amount: 5000 })
+    await api.budgets.setFill({ categoryId: dining, month: '2026-09', amount: 3000 })
+    await expect(
+      api.budgets.update({ categoryId: groceries, month: '2026-09', newCategoryId: dining })
+    ).rejects.toThrow(/already has an envelope/)
+    expect(fills(groceries)).toEqual([{ month: '2026-09', amount: 5000 }])
+  })
+
+  it('refuses system categories and categories without an envelope', async () => {
+    const groceries = category('Groceries')
+    const dining = category('Dining')
+    await expect(
+      api.budgets.update({ categoryId: groceries, month: '2026-09', amount: 1000 })
+    ).rejects.toThrow(/no envelope/)
+    await api.budgets.setFill({ categoryId: groceries, month: '2026-09', amount: 5000 })
+    await expect(
+      api.budgets.update({
+        categoryId: groceries,
+        month: '2026-09',
+        newCategoryId: systemCategory('income')
+      })
+    ).rejects.toThrow(/System categories/)
+    expect(fills(dining)).toEqual([])
+  })
+
+  it('writes no entry when nothing changes', async () => {
+    const groceries = category('Groceries')
+    await api.budgets.setFill({ categoryId: groceries, month: '2026-09', amount: 5000 })
+    const entries = count('action_log')
+    await api.budgets.update({
+      categoryId: groceries,
+      month: '2026-09',
+      newCategoryId: groceries,
+      amount: 5000
+    })
+    expect(count('action_log')).toBe(entries)
+  })
+})
+
 describe('remove', () => {
   it('deletes every month in one entry and undoes it whole', async () => {
     const groceries = category('Groceries')
