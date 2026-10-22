@@ -6,6 +6,8 @@ export const BUDGETS_IPC = {
   summary: 'budgets:summary',
   // upsert of a month's fill; also how an envelope is created
   setFill: 'budgets:setFill',
+  // the edit dialog's save: a new fill, a new category, or both, as one entry
+  update: 'budgets:update',
   // deletes every fill row for the category; returns the action-log id for undo
   remove: 'budgets:remove'
 } as const
@@ -25,6 +27,17 @@ export const budgetSetFillSchema = z.object({
   amount: z.number().int().nonnegative()
 })
 export type BudgetSetFillInput = z.infer<typeof budgetSetFillSchema>
+
+export const budgetUpdateSchema = z.object({
+  categoryId: z.number().int().positive(),
+  /** the viewed month; a new fill applies from here forward, like setFill */
+  month: monthSchema,
+  /** integer milliunits; omitted keeps the fill */
+  amount: z.number().int().nonnegative().optional(),
+  /** moves the envelope, every month's fill included, to a category without one */
+  newCategoryId: z.number().int().positive().optional()
+})
+export type BudgetUpdateInput = z.infer<typeof budgetUpdateSchema>
 
 export const budgetRemoveSchema = z.object({ categoryId: z.number().int().positive() })
 export type BudgetRemoveInput = z.infer<typeof budgetRemoveSchema>

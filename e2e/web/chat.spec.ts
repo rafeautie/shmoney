@@ -350,28 +350,33 @@ test('a budget proposal can be dismissed without changing anything', async ({ ap
   ).toEqual([])
 })
 
-test('a conversation is renamed inline: Enter commits, Escape cancels', async ({ app }) => {
+test('a conversation is renamed in a dialog: Enter saves, Escape cancels', async ({ app }) => {
   const { page } = app
   await app.open({ route: '/chat' })
   const original = 'Chart my income versus spending by month'
+  const dialog = page.getByRole('dialog', { name: 'Rename conversation' })
 
   const openRename = async (name: string): Promise<void> => {
     await page.getByRole('link', { name }).hover()
     await page.getByRole('button', { name: 'Conversation actions' }).first().click()
     await page.getByRole('menuitem', { name: 'Rename' }).click()
+    await expect(dialog).toBeVisible()
   }
 
   await openRename(original)
-  const input = page.getByRole('textbox')
+  const input = dialog.getByLabel('Name')
   await expect(input).toBeFocused()
+  await expect(input).toHaveValue(original)
   await input.fill('Cancelled title')
   await input.press('Escape')
+  await expect(dialog).toBeHidden()
   await expect(page.getByRole('link', { name: original })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Cancelled title' })).toBeHidden()
 
   await openRename(original)
-  await page.getByRole('textbox').fill('Income vs spending')
-  await page.getByRole('textbox').press('Enter')
+  await dialog.getByLabel('Name').fill('Income vs spending')
+  await dialog.getByLabel('Name').press('Enter')
+  await expect(dialog).toBeHidden()
   await expect(page.getByRole('link', { name: 'Income vs spending' })).toBeVisible()
   await expect(page.getByRole('link', { name: original })).toBeHidden()
   const rows = await app.sql<{ title: string }>('SELECT title FROM conversations WHERE id = 2')

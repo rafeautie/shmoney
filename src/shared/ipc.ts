@@ -218,7 +218,9 @@ export type CategoryCreateInput = z.infer<typeof categoryCreateSchema>
 
 export const categoryRenameSchema = z.object({
   id: idSchema,
-  name: categoryNameSchema
+  name: categoryNameSchema,
+  /** moves the category too when given; null = ungrouped */
+  groupId: idSchema.nullable().optional()
 })
 export type CategoryRenameInput = z.infer<typeof categoryRenameSchema>
 

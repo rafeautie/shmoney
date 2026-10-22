@@ -57,8 +57,6 @@ export function GoalAccounts({ goal, className }: { goal: GoalSummary; className
 export function GoalActionsMenu({ goal }: { goal: GoalSummary }) {
   const update = useUpdateGoal()
   const remove = useRemoveGoal()
-  // the fields above edit in place; the dialog is the one place that reaches
-  // all of them, including the mode and start that have no inline control
   const [editing, setEditing] = useState(false)
 
   return (

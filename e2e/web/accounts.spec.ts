@@ -352,28 +352,31 @@ test.describe('account detail', () => {
 })
 
 test.describe('account menu', () => {
-  async function startRename(page: Page): Promise<void> {
+  async function startRename(page: Page): Promise<Locator> {
     await page.getByRole('button', { name: 'Account actions' }).click()
     await page.getByRole('menuitem', { name: 'Rename' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Rename account' })
+    await expect(dialog).toBeVisible()
+    return dialog
   }
 
   const storedName = async (app: App): Promise<string> =>
     (await app.sql<{ name: string }>(`SELECT name FROM accounts WHERE id = ${CHECKING}`))[0].name
 
-  test('Rename edits the title in place and Enter saves it', async ({ app }) => {
+  test('Rename opens a dialog with the name selected, and Enter saves it', async ({ app }) => {
     const { page } = app
     await app.open({ route: `/accounts/${CHECKING}` })
-    await startRename(page)
+    const dialog = await startRename(page)
 
-    const field = page.getByRole('textbox', { name: 'Account name' })
+    const field = dialog.getByLabel('Name')
     await expect(field).toBeFocused()
     await expect(field).toHaveValue('Everyday Checking')
     // the old name is selected, so typing replaces it
     await page.keyboard.type('Daily Spending')
     await page.keyboard.press('Enter')
 
+    await expect(dialog).toBeHidden()
     await expect(page.getByRole('heading', { name: 'Daily Spending' })).toBeVisible()
-    await expect(field).toBeHidden()
     expect(await storedName(app)).toBe('Daily Spending')
 
     await page.getByRole('link', { name: 'Accounts', exact: true }).click()
@@ -381,39 +384,33 @@ test.describe('account menu', () => {
     await expect(accountRow(page, 'Everyday Checking')).toBeHidden()
   })
 
-  test('Escape cancels the rename', async ({ app }) => {
+  test('Cancel and Escape leave the name alone', async ({ app }) => {
     const { page } = app
     await app.open({ route: `/accounts/${CHECKING}` })
-    await startRename(page)
-    await page.getByRole('textbox', { name: 'Account name' }).fill('Nope')
+    let dialog = await startRename(page)
+    await dialog.getByLabel('Name').fill('Nope')
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toBeHidden()
+
+    dialog = await startRename(page)
+    await expect(dialog.getByLabel('Name')).toHaveValue('Everyday Checking')
+    await dialog.getByLabel('Name').fill('Nope')
     await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
 
-    await expect(page.getByRole('textbox', { name: 'Account name' })).toBeHidden()
     await expect(page.getByRole('heading', { name: 'Everyday Checking' })).toBeVisible()
     expect(await storedName(app)).toBe('Everyday Checking')
   })
 
-  test('an empty name is a no-op', async ({ app }) => {
+  test('an empty name disables Save', async ({ app }) => {
     const { page } = app
     await app.open({ route: `/accounts/${CHECKING}` })
-    await startRename(page)
-    await page.getByRole('textbox', { name: 'Account name' }).fill('   ')
+    const dialog = await startRename(page)
+    await dialog.getByLabel('Name').fill('   ')
+    await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
     await page.keyboard.press('Enter')
-
-    await expect(page.getByRole('textbox', { name: 'Account name' })).toBeHidden()
-    await expect(page.getByRole('heading', { name: 'Everyday Checking' })).toBeVisible()
+    await expect(dialog).toBeVisible()
     expect(await storedName(app)).toBe('Everyday Checking')
-  })
-
-  test('clicking away saves the new name', async ({ app }) => {
-    const { page } = app
-    await app.open({ route: `/accounts/${CHECKING}` })
-    await startRename(page)
-    await page.getByRole('textbox', { name: 'Account name' }).fill('Blurred Name')
-    await page.getByText('Evergreen Bank ·').click()
-
-    await expect(page.getByRole('heading', { name: 'Blurred Name' })).toBeVisible()
-    expect(await storedName(app)).toBe('Blurred Name')
   })
 
   test('Delete asks first, then removes the account and returns to the list', async ({ app }) => {

@@ -9,7 +9,9 @@ import {
   budgetRemoveSchema,
   budgetSetFillSchema,
   budgetSummaryQuerySchema,
+  budgetUpdateSchema,
   type BudgetSetFillInput,
+  type BudgetUpdateInput,
   type BudgetRemoveResult,
   type BudgetSummary
 } from '@shared/budgets'
@@ -74,6 +76,80 @@ export function setBudgetFill(
   })
 }
 
+/**
+ * The edit dialog's save. A new category moves every fill row over (the
+ * envelope's whole history goes with it) and a new amount is written at
+ * `month` on whichever category the envelope ends up on, all as one undoable
+ * entry. Returns its id, or null when nothing changed.
+ */
+export function updateEnvelope(
+  { categoryId, month, amount, newCategoryId }: BudgetUpdateInput,
+  runner: Runner = db
+): number | null {
+  const name = budgetableCategoryName(categoryId)
+  const moving = newCategoryId !== undefined && newCategoryId !== categoryId
+  const newName = moving ? budgetableCategoryName(newCategoryId) : name
+  const target = moving ? newCategoryId : categoryId
+  return runner.transaction((tx) => {
+    const rows = tx
+      .select({ month: budgets.month, amount: budgets.amount })
+      .from(budgets)
+      .where(eq(budgets.categoryId, categoryId))
+      .all()
+    if (rows.length === 0) throw new Error(`${name} has no envelope`)
+    const changes: {
+      categoryId: number
+      month: string
+      before: number | null
+      after: number | null
+    }[] = []
+
+    if (moving) {
+      const taken = tx
+        .select({ id: budgets.id })
+        .from(budgets)
+        .where(eq(budgets.categoryId, newCategoryId))
+        .get()
+      if (taken) throw new Error(`${newName} already has an envelope`)
+      tx.update(budgets)
+        .set({ categoryId: newCategoryId })
+        .where(eq(budgets.categoryId, categoryId))
+        .run()
+      for (const row of rows) {
+        changes.push({ categoryId, month: row.month, before: row.amount, after: null })
+        changes.push({
+          categoryId: newCategoryId,
+          month: row.month,
+          before: null,
+          after: row.amount
+        })
+      }
+    }
+
+    if (amount !== undefined) {
+      const existing = rows.find((row) => row.month === month)?.amount ?? null
+      if (existing !== amount) {
+        tx.insert(budgets)
+          .values({ categoryId: target, month, amount })
+          .onConflictDoUpdate({ target: [budgets.categoryId, budgets.month], set: { amount } })
+          .run()
+        // a moved row already has its entry: fold the new amount into it so
+        // undo and redo see one before and one after per row
+        const moved = changes.find((c) => c.categoryId === target && c.month === month)
+        if (moved) moved.after = amount
+        else changes.push({ categoryId: target, month, before: existing, after: amount })
+      }
+    }
+
+    if (changes.length === 0) return null
+    return recordAction(tx, {
+      source: 'user',
+      label: moving ? `Moved ${name} envelope to ${newName}` : `Changed ${name} envelope fill`,
+      changes: changes.map((c) => ({ field: 'budgetAmount' as const, ...c }))
+    })
+  })
+}
+
 export function registerBudgetsIpc(): void {
   ipcMain.handle(BUDGETS_IPC.summary, (_event, input: unknown): BudgetSummary => {
     const { month } = budgetSummaryQuerySchema.parse(input)
@@ -82,6 +158,11 @@ export function registerBudgetsIpc(): void {
 
   ipcMain.handle(BUDGETS_IPC.setFill, (_event, input: unknown): boolean => {
     setBudgetFill(budgetSetFillSchema.parse(input))
+    return true
+  })
+
+  ipcMain.handle(BUDGETS_IPC.update, (_event, input: unknown): boolean => {
+    updateEnvelope(budgetUpdateSchema.parse(input))
     return true
   })
 

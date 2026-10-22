@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { BudgetSetFillInput, EnvelopeSummary } from '@shared/budgets'
+import type { BudgetUpdateInput, EnvelopeSummary } from '@shared/budgets'
 import { ipcErrorMessage } from '@/lib/utils'
 
 function useInvalidateBudget(): () => void {
@@ -11,10 +11,10 @@ function useInvalidateBudget(): () => void {
   }
 }
 
-export function useSetFill(): UseMutationResult<unknown, Error, BudgetSetFillInput> {
+export function useUpdateEnvelope(): UseMutationResult<unknown, Error, BudgetUpdateInput> {
   const invalidate = useInvalidateBudget()
   return useMutation({
-    mutationFn: (input: BudgetSetFillInput) => window.api.budgets.setFill(input),
+    mutationFn: (input: BudgetUpdateInput) => window.api.budgets.update(input),
     onError: (error) => toast(ipcErrorMessage(error)),
     onSettled: invalidate
   })

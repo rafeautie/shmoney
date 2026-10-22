@@ -13,7 +13,8 @@ interface CategoryPickerProps {
   /** Category to mark with a check; omit when there is no single current value (e.g. bulk edit) */
   selectedCategoryId?: number | null
   disabled?: boolean
-  onSelect: (categoryId: number | null) => void
+  /** the name rides along for callers that show the pick before saving */
+  onSelect: (categoryId: number | null, name: string | null) => void
 }
 
 /** Searchable category list for popovers; fetches categories on mount */
@@ -28,7 +29,7 @@ export function CategoryPicker({ selectedCategoryId, disabled, onSelect }: Categ
       key={category.id}
       value={`${groupName} ${category.name}`}
       disabled={disabled}
-      onSelect={() => onSelect(category.id)}
+      onSelect={() => onSelect(category.id, category.name)}
       checked={selectedCategoryId === category.id}
     >
       {category.name}
@@ -44,7 +45,7 @@ export function CategoryPicker({ selectedCategoryId, disabled, onSelect }: Categ
           <CommandItem
             value="Uncategorized"
             disabled={disabled}
-            onSelect={() => onSelect(null)}
+            onSelect={() => onSelect(null, null)}
             checked={selectedCategoryId === null}
           >
             <span className="text-muted-foreground">Uncategorized</span>

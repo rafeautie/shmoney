@@ -141,15 +141,34 @@ export function registerCategoriesIpc(): void {
   })
 
   ipcMain.handle(IPC.categoriesRename, (_event, input: unknown) => {
-    const { id, name } = categoryRenameSchema.parse(input)
+    const { id, name, groupId } = categoryRenameSchema.parse(input)
     assertNotSystem(id)
+    if (groupId != null) {
+      const group = db
+        .select({ id: categoryGroups.id })
+        .from(categoryGroups)
+        .where(eq(categoryGroups.id, groupId))
+        .get()
+      if (!group) throw new Error('Group not found')
+    }
     try {
-      const row = db.update(categories).set({ name }).where(eq(categories.id, id)).returning().get()
+      const row = db
+        .update(categories)
+        .set(groupId === undefined ? { name } : { name, groupId })
+        .where(eq(categories.id, id))
+        .returning()
+        .get()
       if (!row) throw new Error('Category not found')
       return true
     } catch (error) {
       if (isUniqueConstraintError(error)) {
-        throw new Error(`A category named "${name}" already exists in this group`)
+        throw new Error(
+          groupId === undefined
+            ? `A category named "${name}" already exists in this group`
+            : groupId === null
+              ? `An ungrouped category named "${name}" already exists`
+              : `A category named "${name}" already exists in that group`
+        )
       }
       throw error
     }

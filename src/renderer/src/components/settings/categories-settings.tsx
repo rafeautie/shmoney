@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { Delete02Icon, PencilEdit02Icon, PlusSignIcon } from '@hugeicons/core-free-icons'
@@ -8,8 +8,25 @@ import { invalidateCategoryData } from '@/lib/invalidate'
 import { toastUndoable } from '@/lib/undo-toast'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { SettingsGroup, SettingAction, SettingsSection } from './settings-controls'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import { SettingsGroup, SettingAction, SettingsSection, SettingsSubpage } from './settings-controls'
 import { ConfirmButton } from '@/components/confirm-dialog'
+
+// what the edit sub-page is showing: a category (new ones land in `groupId`)
+// or a group, each new when the item is missing. Settings is itself a modal,
+// so edits open as a page within it rather than a second modal on top
+type Editing =
+  | { kind: 'category'; category?: Category; groupId: number | null }
+  | { kind: 'group'; group?: CategoryGroup }
+
+type OnEdit = (editing: Editing) => void
 
 export function CategoriesSettings() {
   const queryClient = useQueryClient()
@@ -18,15 +35,14 @@ export function CategoriesSettings() {
     queryKey: ['categories'],
     queryFn: () => window.api.categories.list()
   })
+  const groups = categoriesQuery.data?.groups ?? []
 
-  const [newGroupName, setNewGroupName] = useState('')
-
-  const createGroup = useMutation({
-    meta: { silenceError: true },
-    mutationFn: () => window.api.categories.createGroup({ name: newGroupName }),
-    onSuccess: () => setNewGroupName(''),
-    onSettled: () => invalidateCategoryData(queryClient)
-  })
+  const [editing, setEditing] = useState<Editing | null>(null)
+  // the sub-page replaces the list in the same scroll area, which may be
+  // scrolled down to the chip that was picked; start the page at its top
+  const revealPage = useCallback((el: HTMLElement | null) => {
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }))
+  }, [])
 
   const resetDefaults = useMutation({
     meta: { silenceError: true },
@@ -34,46 +50,54 @@ export function CategoriesSettings() {
     onSettled: () => invalidateCategoryData(queryClient)
   })
 
+  if (editing) {
+    const back = (): void => setEditing(null)
+    return (
+      <div ref={revealPage} className="scroll-mt-6">
+        {editing.kind === 'category' ? (
+          <CategoryPage
+            key={editing.category?.id ?? 'new'}
+            category={editing.category}
+            groupId={editing.groupId}
+            groups={groups}
+            onDone={back}
+          />
+        ) : (
+          <GroupPage key={editing.group?.id ?? 'new'} group={editing.group} onDone={back} />
+        )}
+      </div>
+    )
+  }
+
   return (
     <SettingsSection
       title="Categories"
-      description="Group your categories and assign them to transactions. Hover a category to rename or delete it."
+      description="Group your categories and assign them to transactions. Hover a category to edit or delete it."
     >
       {categoriesQuery.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <>
           <SettingsGroup>
-            {categoriesQuery.data?.groups.map((group) => (
-              <GroupSection key={group.id} group={group} />
+            {groups.map((group) => (
+              <GroupSection key={group.id} group={group} onEdit={setEditing} />
             ))}
             <div className="flex flex-col gap-2 px-4 py-3">
               <div className="flex min-h-7 items-center gap-2">
                 <h3 className="text-sm font-medium text-muted-foreground">Ungrouped</h3>
               </div>
-              <CategoryList groupId={null} categories={categoriesQuery.data?.ungrouped ?? []} />
-            </div>
-            <form
-              className="flex gap-2 px-4 py-3"
-              onSubmit={(event) => {
-                event.preventDefault()
-                createGroup.mutate()
-              }}
-            >
-              <Input
-                value={newGroupName}
-                onChange={(event) => setNewGroupName(event.target.value)}
-                placeholder="New group name"
-                className="max-w-60"
+              <CategoryList
+                groupId={null}
+                categories={categoriesQuery.data?.ungrouped ?? []}
+                onEdit={setEditing}
               />
-              <Button
-                type="submit"
-                variant="outline"
-                disabled={!newGroupName.trim() || createGroup.isPending}
-              >
+            </div>
+            <div className="px-4 py-3">
+              <Button variant="outline" onClick={() => setEditing({ kind: 'group' })}>
+                <HugeiconsIcon icon={PlusSignIcon} size={14} />
                 Add group
               </Button>
-            </form>
+            </div>
           </SettingsGroup>
           <SettingsGroup>
             <div className="flex flex-col gap-2 px-4 py-3">
@@ -97,9 +121,6 @@ export function CategoriesSettings() {
             </div>
           </SettingsGroup>
         </>
-      )}
-      {createGroup.isError && (
-        <p className="text-sm text-destructive">{ipcErrorMessage(createGroup.error)}</p>
       )}
       <SettingsGroup>
         <SettingAction
@@ -128,17 +149,8 @@ export function CategoriesSettings() {
   )
 }
 
-function GroupSection({ group }: { group: CategoryGroup }) {
+function GroupSection({ group, onEdit }: { group: CategoryGroup; onEdit: OnEdit }) {
   const queryClient = useQueryClient()
-
-  const [renameDraft, setRenameDraft] = useState<string | null>(null)
-
-  const renameGroup = useMutation({
-    meta: { silenceError: true },
-    mutationFn: (name: string) => window.api.categories.renameGroup({ id: group.id, name }),
-    onSuccess: () => setRenameDraft(null),
-    onSettled: () => invalidateCategoryData(queryClient)
-  })
 
   const deleteGroup = useMutation({
     meta: { silenceError: true },
@@ -149,152 +161,62 @@ function GroupSection({ group }: { group: CategoryGroup }) {
     onSettled: () => invalidateCategoryData(queryClient)
   })
 
-  const error = deleteGroup.error ?? renameGroup.error
-
   return (
     <div className="flex flex-col gap-2 px-4 py-3">
       <div className="flex min-h-7 items-center gap-2">
-        {renameDraft !== null ? (
-          <form
-            className="flex items-center gap-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              renameGroup.mutate(renameDraft)
-            }}
-          >
-            <Input
-              autoFocus
-              value={renameDraft}
-              onChange={(event) => setRenameDraft(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Escape') return
-                // cancels the rename without closing Settings
-                event.preventDefault()
-                setRenameDraft(null)
-              }}
-              className="w-60"
-            />
-            <Button type="submit" disabled={!renameDraft.trim() || renameGroup.isPending}>
-              {renameGroup.isPending ? 'Saving…' : 'Save'}
-            </Button>
-            <Button type="button" variant="ghost" onClick={() => setRenameDraft(null)}>
-              Cancel
-            </Button>
-          </form>
-        ) : (
-          <>
-            <h3 className="text-sm font-medium select-text">{group.name}</h3>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Rename group ${group.name}`}
-              onClick={() => setRenameDraft(group.name)}
-            >
-              <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
-            </Button>
-            {/* no confirm: the toast's Undo brings the group back */}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="ml-auto"
-              aria-label={`Delete group ${group.name}`}
-              disabled={deleteGroup.isPending}
-              onClick={() => deleteGroup.mutate()}
-            >
-              <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
-            </Button>
-          </>
-        )}
+        <h3 className="text-sm font-medium select-text">{group.name}</h3>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Rename group ${group.name}`}
+          onClick={() => onEdit({ kind: 'group', group })}
+        >
+          <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
+        </Button>
+        {/* no confirm: the toast's Undo brings the group back */}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="ml-auto"
+          aria-label={`Delete group ${group.name}`}
+          disabled={deleteGroup.isPending}
+          onClick={() => deleteGroup.mutate()}
+        >
+          <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
+        </Button>
       </div>
-      <CategoryList groupId={group.id} categories={group.categories} />
-      {error != null && <p className="text-sm text-destructive">{ipcErrorMessage(error)}</p>}
+      <CategoryList groupId={group.id} categories={group.categories} onEdit={onEdit} />
+      {deleteGroup.isError && (
+        <p className="text-sm text-destructive">{ipcErrorMessage(deleteGroup.error)}</p>
+      )}
     </div>
   )
 }
 
-function CategoryList({ groupId, categories }: { groupId: number | null; categories: Category[] }) {
-  const queryClient = useQueryClient()
-
-  const [addingCategory, setAddingCategory] = useState(false)
-  const [newCategoryName, setNewCategoryName] = useState('')
-
-  const createCategory = useMutation({
-    meta: { silenceError: true },
-    mutationFn: () => window.api.categories.create({ groupId, name: newCategoryName }),
-    onSuccess: () => setNewCategoryName(''),
-    onSettled: () => invalidateCategoryData(queryClient)
-  })
-
+function CategoryList({
+  groupId,
+  categories,
+  onEdit
+}: {
+  groupId: number | null
+  categories: Category[]
+  onEdit: OnEdit
+}) {
   return (
-    <>
-      <div className="flex flex-wrap items-center gap-2">
-        {categories.map((category) => (
-          <CategoryChip key={category.id} category={category} />
-        ))}
-        {addingCategory ? (
-          <form
-            className="flex gap-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              createCategory.mutate()
-            }}
-          >
-            <Input
-              autoFocus
-              value={newCategoryName}
-              onChange={(event) => setNewCategoryName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Escape') return
-                event.preventDefault()
-                setAddingCategory(false)
-              }}
-              placeholder="Category name"
-              className="w-44"
-            />
-            <Button
-              type="submit"
-              variant="outline"
-              disabled={!newCategoryName.trim() || createCategory.isPending}
-            >
-              Add
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setAddingCategory(false)
-                setNewCategoryName('')
-              }}
-            >
-              Cancel
-            </Button>
-          </form>
-        ) : (
-          <Button variant="outline" onClick={() => setAddingCategory(true)}>
-            <HugeiconsIcon icon={PlusSignIcon} size={14} />
-            Add category
-          </Button>
-        )}
-      </div>
-      {createCategory.isError && (
-        <p className="text-sm text-destructive">{ipcErrorMessage(createCategory.error)}</p>
-      )}
-    </>
+    <div className="flex flex-wrap items-center gap-2">
+      {categories.map((category) => (
+        <CategoryChip key={category.id} category={category} onEdit={onEdit} />
+      ))}
+      <Button variant="outline" onClick={() => onEdit({ kind: 'category', groupId })}>
+        <HugeiconsIcon icon={PlusSignIcon} size={14} />
+        Add category
+      </Button>
+    </div>
   )
 }
 
-function CategoryChip({ category }: { category: Category }) {
+function CategoryChip({ category, onEdit }: { category: Category; onEdit: OnEdit }) {
   const queryClient = useQueryClient()
-
-  const [mode, setMode] = useState<'view' | 'edit'>('view')
-  const [renameDraft, setRenameDraft] = useState(category.name)
-
-  const rename = useMutation({
-    meta: { silenceError: true },
-    mutationFn: () => window.api.categories.rename({ id: category.id, name: renameDraft }),
-    onSuccess: () => setMode('view'),
-    onSettled: () => invalidateCategoryData(queryClient)
-  })
 
   const deleteCategory = useMutation({
     meta: { silenceError: true },
@@ -304,44 +226,6 @@ function CategoryChip({ category }: { category: Category }) {
     },
     onSettled: () => invalidateCategoryData(queryClient)
   })
-
-  const error = rename.error ?? deleteCategory.error
-
-  if (mode === 'edit') {
-    return (
-      <form
-        className="flex items-center gap-2"
-        onSubmit={(event) => {
-          event.preventDefault()
-          rename.mutate()
-        }}
-      >
-        <Input
-          autoFocus
-          value={renameDraft}
-          onChange={(event) => setRenameDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== 'Escape') return
-            event.preventDefault()
-            setMode('view')
-          }}
-          className="w-44"
-        />
-        <Button
-          type="submit"
-          disabled={!renameDraft.trim() || renameDraft.trim() === category.name || rename.isPending}
-        >
-          {rename.isPending ? 'Saving…' : 'Save'}
-        </Button>
-        <Button type="button" variant="ghost" onClick={() => setMode('view')}>
-          Cancel
-        </Button>
-        {rename.isError && (
-          <span className="text-xs text-destructive">{ipcErrorMessage(rename.error)}</span>
-        )}
-      </form>
-    )
-  }
 
   return (
     <span className="group/chip inline-flex h-7 items-center rounded-md bg-secondary px-2.5 py-1 text-xs text-secondary-foreground transition-[padding] duration-200 focus-within:pr-1 hover:pr-1">
@@ -353,12 +237,8 @@ function CategoryChip({ category }: { category: Category }) {
             variant="ghost"
             size="icon-xs"
             className="ml-1.5"
-            aria-label={`Rename category ${category.name}`}
-            onClick={() => {
-              setRenameDraft(category.name)
-              rename.reset()
-              setMode('edit')
-            }}
+            aria-label={`Edit category ${category.name}`}
+            onClick={() => onEdit({ kind: 'category', category, groupId: category.groupId })}
           >
             <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
           </Button>
@@ -374,7 +254,198 @@ function CategoryChip({ category }: { category: Category }) {
           </Button>
         </span>
       </span>
-      {error != null && <span className="pl-1 text-destructive">{ipcErrorMessage(error)}</span>}
+      {deleteCategory.isError && (
+        <span className="pl-1 text-destructive">{ipcErrorMessage(deleteCategory.error)}</span>
+      )}
     </span>
+  )
+}
+
+/**
+ * An edit sub-page's form: the fields, any error, then Cancel and the save
+ * button. Escape from the form cancels back to the list instead of closing
+ * Settings.
+ */
+function EditForm({
+  title,
+  description,
+  submitLabel,
+  canSubmit,
+  pending,
+  error,
+  onSubmit,
+  onDone,
+  children
+}: {
+  title: string
+  description: string
+  submitLabel: string
+  canSubmit: boolean
+  pending: boolean
+  error: unknown
+  onSubmit: () => void
+  onDone: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <SettingsSubpage parent="Categories" title={title} description={description} onBack={onDone}>
+      <form
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (canSubmit && !pending) onSubmit()
+        }}
+        onKeyDown={(event) => {
+          // only Escapes nothing inside already used (an open select handles its own);
+          // preventing the default keeps Settings open
+          if (event.key !== 'Escape' || event.defaultPrevented) return
+          event.preventDefault()
+          onDone()
+        }}
+      >
+        <div className="space-y-4 rounded-lg border p-4">
+          {children}
+          {error != null && <p className="text-sm text-destructive">{ipcErrorMessage(error)}</p>}
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={onDone}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!canSubmit || pending}>
+            {pending ? 'Saving…' : submitLabel}
+          </Button>
+        </div>
+      </form>
+    </SettingsSubpage>
+  )
+}
+
+const UNGROUPED = 'ungrouped'
+
+/** Adds a category to `groupId`, or edits both fields of `category`: its name and group. */
+function CategoryPage({
+  category,
+  groupId: initialGroupId,
+  groups,
+  onDone
+}: {
+  category?: Category
+  /** where a new category lands; an edit starts from the category's own group */
+  groupId: number | null
+  groups: CategoryGroup[]
+  onDone: () => void
+}) {
+  const queryClient = useQueryClient()
+  const [name, setName] = useState(category?.name ?? '')
+  const [groupId, setGroupId] = useState<number | null>(initialGroupId)
+
+  const save = useMutation({
+    meta: { silenceError: true },
+    mutationFn: async (input: { name: string; groupId: number | null }): Promise<void> => {
+      if (category) await window.api.categories.rename({ id: category.id, ...input })
+      else await window.api.categories.create(input)
+    },
+    onSuccess: onDone,
+    onSettled: () => invalidateCategoryData(queryClient)
+  })
+
+  const trimmed = name.trim()
+  const groupItems: Record<string, string> = {
+    ...Object.fromEntries(groups.map((g) => [String(g.id), g.name])),
+    [UNGROUPED]: 'Ungrouped'
+  }
+
+  return (
+    <EditForm
+      title={category ? 'Edit category' : 'Add category'}
+      description={
+        category
+          ? 'Its transactions, rules and envelope stay with it.'
+          : 'Use it on transactions, rules and envelopes once it exists.'
+      }
+      submitLabel={category ? 'Save' : 'Add category'}
+      canSubmit={trimmed !== ''}
+      pending={save.isPending}
+      error={save.error}
+      onSubmit={() => {
+        if (category && trimmed === category.name && groupId === category.groupId) return onDone()
+        save.mutate({ name: trimmed, groupId })
+      }}
+      onDone={onDone}
+    >
+      <div className="space-y-2">
+        <Label htmlFor="category-name">Name</Label>
+        <Input
+          id="category-name"
+          autoFocus
+          onFocus={(e) => e.currentTarget.select()}
+          placeholder="Groceries"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label>Group</Label>
+        <Select
+          value={groupId === null ? UNGROUPED : String(groupId)}
+          items={groupItems}
+          onValueChange={(v) => setGroupId(v === UNGROUPED ? null : Number(v))}
+        >
+          <SelectTrigger aria-label="Group" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {groups.map((g) => (
+              <SelectItem key={g.id} value={String(g.id)}>
+                {g.name}
+              </SelectItem>
+            ))}
+            <SelectItem value={UNGROUPED}>Ungrouped</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+    </EditForm>
+  )
+}
+
+/** Adds a group, or renames `group`: a name is all a group has. */
+function GroupPage({ group, onDone }: { group?: CategoryGroup; onDone: () => void }) {
+  const queryClient = useQueryClient()
+  const [name, setName] = useState(group?.name ?? '')
+
+  const save = useMutation({
+    meta: { silenceError: true },
+    mutationFn: async (next: string): Promise<void> => {
+      if (group) await window.api.categories.renameGroup({ id: group.id, name: next })
+      else await window.api.categories.createGroup({ name: next })
+    },
+    onSuccess: onDone,
+    onSettled: () => invalidateCategoryData(queryClient)
+  })
+
+  const trimmed = name.trim()
+  return (
+    <EditForm
+      title={group ? 'Rename group' : 'Add group'}
+      description="Groups gather related categories in budgets, reports and pickers."
+      submitLabel={group ? 'Save' : 'Add group'}
+      canSubmit={trimmed !== ''}
+      pending={save.isPending}
+      error={save.error}
+      onSubmit={() => (group && trimmed === group.name ? onDone() : save.mutate(trimmed))}
+      onDone={onDone}
+    >
+      <div className="space-y-2">
+        <Label htmlFor="group-name">Name</Label>
+        <Input
+          id="group-name"
+          autoFocus
+          onFocus={(e) => e.currentTarget.select()}
+          placeholder="Needs"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+      </div>
+    </EditForm>
   )
 }

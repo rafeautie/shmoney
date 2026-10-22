@@ -189,6 +189,36 @@ describe('category create and rename', () => {
     )
   })
 
+  it('moves a category to another group, or out of every group, with the rename', async () => {
+    const from = group('Move from')
+    const to = group('Move to')
+    const id = category('Traveler', from)
+    expect(await api.categories.rename({ id, name: 'Traveler', groupId: to })).toBe(true)
+    expect(query(`SELECT group_id AS groupId FROM categories WHERE id = ${id}`)).toEqual([
+      { groupId: to }
+    ])
+    await api.categories.rename({ id, name: 'Loner', groupId: null })
+    expect(query(`SELECT name, group_id AS groupId FROM categories WHERE id = ${id}`)).toEqual([
+      { name: 'Loner', groupId: null }
+    ])
+  })
+
+  it('rejects a move onto a name the new group already has, or into a missing group', async () => {
+    const from = group('Clash from')
+    const to = group('Clash to')
+    category('Twin', to)
+    const id = category('Twin', from)
+    await expect(api.categories.rename({ id, name: 'Twin', groupId: to })).rejects.toThrow(
+      'A category named "Twin" already exists in that group'
+    )
+    await expect(api.categories.rename({ id, name: 'Twin', groupId: 999_999 })).rejects.toThrow(
+      'Group not found'
+    )
+    expect(query(`SELECT group_id AS groupId FROM categories WHERE id = ${id}`)).toEqual([
+      { groupId: from }
+    ])
+  })
+
   it('rejects renaming an unknown category', async () => {
     await expect(api.categories.rename({ id: 999_999, name: 'Nobody' })).rejects.toThrow(
       'Category not found'

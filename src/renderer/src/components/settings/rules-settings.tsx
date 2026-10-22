@@ -23,6 +23,7 @@ import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Switch } from '@/components/ui/switch'
 import { RuleForm, type RuleDraft } from '@/components/rules/rules-editor'
+import { RULE_FORM_DESCRIPTION, ruleFormTitle } from '@/components/rules/rule-form-labels'
 import { RulesPreviewPage } from '@/components/rules/rules-preview-page'
 import { SuggestionGroupRow } from '@/components/rules/suggestion-group-row'
 import {
@@ -81,8 +82,8 @@ function describeRule(conditions: RuleConditions, accountName: Map<number, strin
   return parts
 }
 
-// what the rules list is editing in place: an existing rule (maybe extended with
-// a suggestion group's phrases), or a new one (blank, or drafted from a group)
+// what the edit sub-page is showing: an existing rule (maybe extended with a
+// suggestion group's phrases), or a new one (blank, or drafted from a group)
 type Editing = { ruleId: number; extended?: Rule } | { draft: RuleDraft | null; key: string }
 
 export function RulesSettings(): React.JSX.Element {
@@ -123,12 +124,10 @@ export function RulesSettings(): React.JSX.Element {
   }, [accountsQuery.data])
 
   const [editing, setEditing] = useState<Editing | null>(null)
-  // the new-rule form opens at the end of the list, often below the fold, as can
-  // a rule extended from a suggestion (and
-  // Settings scrolls to the top when coming back from Suggestions), so bring it
-  // into view once that has settled
-  const revealNewRule = useCallback((el: HTMLDivElement | null) => {
-    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+  // the sub-page replaces the list in the same scroll area, which may be
+  // scrolled down to the rule that was picked; start the page at its top
+  const revealPage = useCallback((el: HTMLElement | null) => {
+    if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start' }))
   }, [])
 
   const rules = rulesQuery.data ?? []
@@ -169,7 +168,32 @@ export function RulesSettings(): React.JSX.Element {
     )
   }
 
-  const newRule = editing && 'draft' in editing ? editing : null
+  if (editing) {
+    const rule =
+      'ruleId' in editing
+        ? (editing.extended ?? rules.find((r) => r.id === editing.ruleId) ?? null)
+        : null
+    return (
+      <div ref={revealPage} className="scroll-mt-6">
+        <SettingsSubpage
+          parent="Rules"
+          title={ruleFormTitle(rule)}
+          description={RULE_FORM_DESCRIPTION}
+          onBack={() => setEditing(null)}
+        >
+          <div className="rounded-lg border">
+            <RuleForm
+              key={'ruleId' in editing ? editing.ruleId : editing.key}
+              inline
+              rule={rule}
+              draft={'draft' in editing ? editing.draft : null}
+              onDone={() => setEditing(null)}
+            />
+          </div>
+        </SettingsSubpage>
+      </div>
+    )
+  }
 
   return (
     <SettingsSection
@@ -228,58 +252,30 @@ export function RulesSettings(): React.JSX.Element {
           </Empty>
         ) : (
           <div className="divide-y rounded-lg border">
-            {rules.map((rule, index) =>
-              editing && 'ruleId' in editing && editing.ruleId === rule.id ? (
-                // a rule extended from Suggestions can be anywhere in the list
-                <div
-                  key={rule.id}
-                  ref={editing.extended ? revealNewRule : undefined}
-                  className="scroll-mt-6"
-                >
-                  <RuleForm
-                    inline
-                    rule={editing.extended ?? rule}
-                    draft={null}
-                    onDone={() => setEditing(null)}
-                  />
-                </div>
-              ) : (
-                <div key={rule.id} className="px-3 py-3">
-                  <RuleRow
-                    rule={rule}
-                    conditionText={describeRule(rule.conditions, accountName)}
-                    actionText={`set category to ${categoryName.get(rule.action.categoryId) ?? 'unknown'}`}
-                    isFirst={index === 0}
-                    isLast={index === rules.length - 1}
-                    onMoveUp={() => move(index, -1)}
-                    onMoveDown={() => move(index, 1)}
-                    onEdit={() => setEditing({ ruleId: rule.id })}
-                  />
-                </div>
-              )
-            )}
+            {rules.map((rule, index) => (
+              <div key={rule.id} className="px-3 py-3">
+                <RuleRow
+                  rule={rule}
+                  conditionText={describeRule(rule.conditions, accountName)}
+                  actionText={`set category to ${categoryName.get(rule.action.categoryId) ?? 'unknown'}`}
+                  isFirst={index === 0}
+                  isLast={index === rules.length - 1}
+                  onMoveUp={() => move(index, -1)}
+                  onMoveDown={() => move(index, 1)}
+                  onEdit={() => setEditing({ ruleId: rule.id })}
+                />
+              </div>
+            ))}
           </div>
         )}
-        {newRule ? (
-          <div ref={revealNewRule} className="scroll-mt-6 rounded-lg border">
-            <RuleForm
-              key={newRule.key}
-              inline
-              rule={null}
-              draft={newRule.draft}
-              onDone={() => setEditing(null)}
-            />
-          </div>
-        ) : (
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => setEditing({ draft: null, key: 'new' })}
-          >
-            <HugeiconsIcon icon={PlusSignIcon} className="size-3.5" />
-            Add rule
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => setEditing({ draft: null, key: 'new' })}
+        >
+          <HugeiconsIcon icon={PlusSignIcon} className="size-3.5" />
+          Add rule
+        </Button>
       </div>
 
       {reorder.isError && (
@@ -290,7 +286,7 @@ export function RulesSettings(): React.JSX.Element {
 }
 
 /** Rules › Suggestions: pending suggestions grouped per category; each group
- *  becomes one multi-phrase rule, created in the inline editor back on Rules. */
+ *  becomes one multi-phrase rule, created on the rule sub-page. */
 function SuggestionsPage({
   groups,
   onBack,

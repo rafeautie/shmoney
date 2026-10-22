@@ -1,20 +1,23 @@
 import type { EnvelopeSummary } from '@shared/budgets'
-import { EditableFill, EnvelopeActionsMenu } from '@/components/budget/envelope-fields'
+import { EnvelopeActionsMenu, EnvelopeFill } from '@/components/budget/envelope-fields'
 import { Amount } from '@/components/amount'
 import { BalanceBadge, EnvelopeMeter } from '@/components/budget/envelope-progress'
 import { Card, CardContent } from '@/components/ui/card'
 
-/** One envelope: title and balance, the bar, then one line with the editable fill. */
+/** One envelope: title and balance, the bar, then one line with the fill. Its
+ * actions menu opens the Edit dialog. */
 export function EnvelopeCard({
   envelope,
   month,
   currency,
-  pace
+  pace,
+  budgetedIds
 }: {
   envelope: EnvelopeSummary
   month: string
   currency: string
   pace: number | null
+  budgetedIds: number[]
 }) {
   return (
     <Card className="gap-0 py-4">
@@ -27,17 +30,16 @@ export function EnvelopeCard({
             <BalanceBadge balance={envelope.balance} currency={currency} />
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <EnvelopeActionsMenu envelope={envelope} />
+            <EnvelopeActionsMenu envelope={envelope} month={month} budgetedIds={budgetedIds} />
           </div>
         </div>
 
         <EnvelopeMeter spent={envelope.spent} fill={envelope.fill} pace={pace} />
 
-        {/* min-h holds the line steady while the fill swaps to its input */}
-        <div className="flex min-h-8 items-center text-xs text-muted-foreground">
-          <SpendStatus envelope={envelope} currency={currency} />
-          <EditableFill envelope={envelope} month={month} currency={currency} />
-        </div>
+        <p className="text-xs text-muted-foreground">
+          <SpendStatus envelope={envelope} currency={currency} />{' '}
+          <EnvelopeFill envelope={envelope} currency={currency} />
+        </p>
       </CardContent>
     </Card>
   )

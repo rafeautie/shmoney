@@ -114,6 +114,7 @@ import {
   type BudgetRemoveInput,
   type BudgetRemoveResult,
   type BudgetSetFillInput,
+  type BudgetUpdateInput,
   type BudgetSummary,
   type BudgetSummaryQuery
 } from '@shared/budgets'
@@ -248,6 +249,9 @@ const api = {
     /** Upsert one month's fill; creating an envelope is the same call */
     setFill: (input: BudgetSetFillInput): Promise<boolean> =>
       ipcRenderer.invoke(BUDGETS_IPC.setFill, input),
+    /** Edit an envelope's fill and/or category as one undoable entry */
+    update: (input: BudgetUpdateInput): Promise<boolean> =>
+      ipcRenderer.invoke(BUDGETS_IPC.update, input),
     /** Deletes all of a category's fill rows; undo via actionLog.undoEntry(actionId) */
     remove: (input: BudgetRemoveInput): Promise<BudgetRemoveResult> =>
       ipcRenderer.invoke(BUDGETS_IPC.remove, input)
