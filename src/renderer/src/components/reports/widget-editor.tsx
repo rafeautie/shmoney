@@ -47,15 +47,15 @@ import {
 import { WidgetCard } from './widget-card'
 
 const TYPE_LABELS: Record<WidgetType, string> = {
-  bar: 'Bar chart',
-  line: 'Line chart',
-  area: 'Area chart',
-  pie: 'Pie chart',
-  radar: 'Radar chart',
-  radial: 'Radial chart',
-  stat: 'Stat card',
-  summaryTable: 'Summary table',
-  transactions: 'Transactions table',
+  bar: 'Bar Chart',
+  line: 'Line Chart',
+  area: 'Area Chart',
+  pie: 'Pie Chart',
+  radar: 'Radar Chart',
+  radial: 'Radial Chart',
+  stat: 'Stat Card',
+  summaryTable: 'Summary Table',
+  transactions: 'Transactions Table',
   budget: 'Budget',
   goals: 'Savings goals'
 }
@@ -66,35 +66,35 @@ const SOURCE_LABELS: Record<WidgetSource, string> = {
 }
 
 const GOAL_VIEW_LABELS: Record<GoalView, string> = {
-  list: 'Goal list',
-  bars: 'Progress bars'
+  list: 'Goal List',
+  bars: 'Progress Bars'
 }
 
 const BUDGET_VIEW_LABELS: Record<BudgetView, string> = {
-  list: 'Envelope list',
-  bars: 'Spent vs budgeted bars',
-  balances: 'Balance bars',
-  donut: 'Allocation donut',
-  radial: 'Utilization gauge'
+  list: 'Envelope List',
+  bars: 'Spent vs. Budgeted Bars',
+  balances: 'Balance Bars',
+  donut: 'Allocation Donut',
+  radial: 'Utilization Gauge'
 }
 
 const MEASURE_LABELS = {
   expense: 'Expenses',
   income: 'Income',
   sum: 'Net (income − expenses)',
-  count: 'Transaction count',
-  avg: 'Average amount'
+  count: 'Transaction Count',
+  avg: 'Average Amount'
 } as const
 
 const GROUP_LABELS = {
   none: 'None',
   category: 'Category',
-  categoryGroup: 'Category group',
+  categoryGroup: 'Category Group',
   account: 'Account'
 } as const
 
 const GRAIN_LABELS = {
-  none: 'No time axis',
+  none: 'No Time Axis',
   day: 'Daily',
   week: 'Weekly',
   month: 'Monthly',
@@ -116,7 +116,7 @@ function draftFor(widget: ReportWidget | null): Draft {
       config: widget.config ?? DEFAULT_WIDGET_CONFIG
     }
   }
-  return { title: 'New widget', type: 'bar', config: DEFAULT_WIDGET_CONFIG }
+  return { title: 'New Widget', type: 'bar', config: DEFAULT_WIDGET_CONFIG }
 }
 
 /** Types that can read goals:series; normalization pins the rest to transactions. */
@@ -258,7 +258,7 @@ export function WidgetEditor({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex flex-col gap-0 p-0 sm:max-w-2xl">
         <DialogHeader className="p-4">
-          <DialogTitle>{widget ? 'Edit widget' : 'Add widget'}</DialogTitle>
+          <DialogTitle>{widget ? 'Edit Widget' : 'Add Widget'}</DialogTitle>
           <DialogDescription>
             Choose what to measure and how to display it. Filters can inherit from the report's
             filters or override them.
@@ -267,16 +267,10 @@ export function WidgetEditor({
 
         <ScrollArea className="border-t" viewPortClassName="max-h-[60vh]">
           <div className="space-y-6 p-4">
-            {/* preview: the exact report card, minus the edit/trash controls
-                (editing=false) and the grid resize handles (those live in ReportGrid) */}
+            {/* preview: the exact report card, minus the actions menu (no
+                handlers) and the grid resize handles (those live in ReportGrid) */}
             <div className="h-56">
-              <WidgetCard
-                widget={previewWidget}
-                reportFilters={reportFilters}
-                editing={false}
-                onEdit={() => {}}
-                onDelete={() => {}}
-              />
+              <WidgetCard widget={previewWidget} reportFilters={reportFilters} editing={false} />
             </div>
 
             {/* basics */}
@@ -290,7 +284,7 @@ export function WidgetEditor({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor={`${uid}-type`}>Widget type</Label>
+                <Label htmlFor={`${uid}-type`}>Widget Type</Label>
                 <Select
                   value={draft.type}
                   items={TYPE_LABELS}
@@ -347,7 +341,7 @@ export function WidgetEditor({
               <div className="space-y-4">
                 <h4 className="text-sm font-semibold">Data</h4>
                 <div className="space-y-2">
-                  <Label htmlFor={`${uid}-goal-view`}>Goal view</Label>
+                  <Label htmlFor={`${uid}-goal-view`}>Goal View</Label>
                   <Select
                     value={config.display?.goalView ?? 'list'}
                     items={GOAL_VIEW_LABELS}
@@ -426,7 +420,7 @@ export function WidgetEditor({
                   )}
                   {!isGoalSource && (
                     <div className="space-y-2">
-                      <Label htmlFor={`${uid}-group-by`}>Group by</Label>
+                      <Label htmlFor={`${uid}-group-by`}>Group By</Label>
                       <Select
                         value={query.groupBy}
                         items={GROUP_LABELS}
@@ -447,7 +441,7 @@ export function WidgetEditor({
                   )}
                   {!NO_TIME_TYPES.includes(draft.type) && (
                     <div className="space-y-2">
-                      <Label htmlFor={`${uid}-time-grain`}>Time grain</Label>
+                      <Label htmlFor={`${uid}-time-grain`}>Time Grain</Label>
                       <Select
                         value={query.timeGrain}
                         items={Object.entries(GRAIN_LABELS)
@@ -480,7 +474,7 @@ export function WidgetEditor({
                   )}
                   {GROUPED_TYPES.includes(draft.type) && !isGoalSource && (
                     <div className="space-y-2">
-                      <Label>Top N groups</Label>
+                      <Label>Top N Groups</Label>
                       <LimitField
                         // remounts when the committed limit changes elsewhere
                         key={`limit-${query.limit ?? 'none'}`}
@@ -572,7 +566,7 @@ export function WidgetEditor({
 
                 <div className="space-y-3">
                   <OverrideRow
-                    label="Date range"
+                    label="Date Range"
                     active={overrides.dateRange !== undefined}
                     onToggle={(on) =>
                       patchOverrides({ dateRange: on ? base.dateRange : undefined })
@@ -650,7 +644,7 @@ export function WidgetEditor({
                       </OverrideRow>
 
                       <OverrideRow
-                        label="Amount range"
+                        label="Amount Range"
                         active={
                           overrides.amountMin !== undefined || overrides.amountMax !== undefined
                         }
@@ -691,7 +685,7 @@ export function WidgetEditor({
                       </OverrideRow>
 
                       <OverrideRow
-                        label="Include pending"
+                        label="Include Pending"
                         active={overrides.includePending !== undefined}
                         onToggle={(on) =>
                           patchOverrides({ includePending: on ? base.includePending : undefined })
@@ -705,7 +699,7 @@ export function WidgetEditor({
                       </OverrideRow>
 
                       <OverrideRow
-                        label="Include transfers"
+                        label="Include Transfers"
                         active={overrides.includeTransfers !== undefined}
                         onToggle={(on) =>
                           patchOverrides({
@@ -734,7 +728,7 @@ export function WidgetEditor({
             Cancel
           </Button>
           <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            {widget ? 'Save changes' : 'Add widget'}
+            {saveMutation.isPending ? 'Saving…' : widget ? 'Save' : 'Add Widget'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -752,7 +746,7 @@ export function AddWidgetButton(
     <>
       <Button variant="outline" onClick={() => setOpen(true)}>
         <HugeiconsIcon icon={Add01Icon} className="size-4" />
-        Add widget
+        Add Widget
       </Button>
       <WidgetEditor {...props} widget={null} open={open} onOpenChange={setOpen} />
     </>

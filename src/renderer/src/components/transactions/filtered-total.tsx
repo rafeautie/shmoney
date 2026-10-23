@@ -31,7 +31,7 @@ export function FilteredTotal({ filterState, accountId }: FilteredTotalProps) {
 
   return (
     <div>
-      <p className="text-sm text-muted-foreground">Filtered total</p>
+      <p className="text-sm text-muted-foreground">Filtered Total</p>
       <div className="flex flex-col items-start text-2xl font-semibold tracking-tight">
         {totals.map(({ currency, total }) => (
           <Amount key={currency} value={total} currency={currency} />

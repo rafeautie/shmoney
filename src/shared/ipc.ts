@@ -240,6 +240,13 @@ export const transactionIdsSchema = z.object({
 })
 export type TransactionIdsInput = z.infer<typeof transactionIdsSchema>
 
+/** The rows actually deleted (pending and already-deleted ones are skipped) and
+ *  the action-log entry covering them, null when nothing was deleted */
+export interface TransactionsBulkDeleteResult {
+  deletedIds: number[]
+  actionId: number | null
+}
+
 // manual transaction entry (the "Create transaction" dialog). The amount is
 // signed integer milliunits like everywhere else — negative is money out — and
 // `date` is the calendar day the row is anchored to at local noon.

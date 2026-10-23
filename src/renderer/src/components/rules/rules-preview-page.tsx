@@ -50,7 +50,7 @@ export function RulesPreviewPage({ onBack }: { onBack: () => void }): React.JSX.
   return (
     <SettingsSubpage
       parent="Rules"
-      title="Apply rules"
+      title="Apply Rules"
       description="A dry run of what your rules would change. Nothing is written until you confirm."
       onBack={onBack}
     >
@@ -62,7 +62,7 @@ export function RulesPreviewPage({ onBack }: { onBack: () => void }): React.JSX.
             onCheckedChange={(checked) => setOverrideCategories(checked === true)}
           />
           <Label htmlFor="override-categories" className="text-sm font-normal">
-            Override existing categories
+            Override Existing Categories
           </Label>
         </div>
         <div className="flex items-center gap-2">

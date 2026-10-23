@@ -42,8 +42,8 @@ export const SETTINGS_NAV: { id: SettingsSection; label: string; icon: IconSvgEl
   { id: 'connection', label: 'Connection', icon: BankIcon },
   { id: 'categories', label: 'Categories', icon: Tag01Icon },
   { id: 'rules', label: 'Rules', icon: WorkflowSquare03Icon },
-  { id: 'ai', label: 'AI model', icon: AiBrain01Icon },
-  { id: 'ai-usage', label: 'AI usage', icon: DashboardSpeed01Icon },
+  { id: 'ai', label: 'AI Model', icon: AiBrain01Icon },
+  { id: 'ai-usage', label: 'AI Usage', icon: DashboardSpeed01Icon },
   { id: 'storage', label: 'Storage', icon: DatabaseIcon },
   { id: 'about', label: 'About', icon: InformationCircleIcon }
 ]

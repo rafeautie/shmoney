@@ -82,10 +82,10 @@ function PrivacyToggle() {
       // hidden figures ripple out from here, see privacy-transition
       data-privacy-toggle
       onClick={() => setBlurAmounts(!blurAmounts)}
-      tooltip={blurAmounts ? 'Show amounts' : 'Hide amounts'}
+      tooltip={blurAmounts ? 'Show Amounts' : 'Hide Amounts'}
     >
       <HugeiconsIcon icon={blurAmounts ? ViewIcon : ViewOffIcon} size={16} />
-      <span>{blurAmounts ? 'Show amounts' : 'Hide amounts'}</span>
+      <span>{blurAmounts ? 'Show Amounts' : 'Hide Amounts'}</span>
     </SidebarMenuButton>
   )
 }

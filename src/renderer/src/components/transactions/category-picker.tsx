@@ -38,7 +38,7 @@ export function CategoryPicker({ selectedCategoryId, disabled, onSelect }: Categ
 
   return (
     <Command>
-      <CommandInput placeholder="Search categories..." />
+      <CommandInput placeholder="Search categories…" />
       <CommandList>
         <CommandEmpty>No categories found.</CommandEmpty>
         <CommandGroup>

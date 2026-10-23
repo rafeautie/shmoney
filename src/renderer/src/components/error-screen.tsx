@@ -46,7 +46,7 @@ export function ErrorScreen({ error, fullWindow }: { error: unknown; fullWindow?
         <EmptyMedia variant="icon">
           <HugeiconsIcon icon={Alert02Icon} />
         </EmptyMedia>
-        <EmptyTitle>Something went wrong</EmptyTitle>
+        <EmptyTitle>Something Went Wrong</EmptyTitle>
         <EmptyDescription>
           {fullWindow
             ? 'shmoney hit an unexpected error. Your data is safe. Reload to try again.'

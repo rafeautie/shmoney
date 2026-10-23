@@ -55,12 +55,12 @@ export function ChatScopeSelect({
         }
       >
         <HugeiconsIcon icon={Wallet01Icon} strokeWidth={2} />
-        <span className="max-w-40 truncate">{selected?.name ?? 'All accounts'}</span>
+        <span className="max-w-40 truncate">{selected?.name ?? 'All Accounts'}</span>
         <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2} />
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search accounts..." />
+          <CommandInput placeholder="Search accounts…" />
           <CommandList>
             <CommandEmpty>No accounts found.</CommandEmpty>
             <CommandGroup>
@@ -69,7 +69,7 @@ export function ChatScopeSelect({
                 onSelect={() => pick(null)}
                 checked={value === null}
               >
-                <span className={cn(value !== null && 'text-muted-foreground')}>All accounts</span>
+                <span className={cn(value !== null && 'text-muted-foreground')}>All Accounts</span>
               </CommandItem>
             </CommandGroup>
             <CommandGroup>

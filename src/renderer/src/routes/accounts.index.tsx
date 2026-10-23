@@ -11,8 +11,10 @@ import {
   type TransactionFilters
 } from '@shared/transaction-filters'
 import { Amount } from '@/components/amount'
+import { PageHeader } from '@/components/page'
 import { AutoCategorizeButton } from '@/components/transactions/auto-categorize-button'
 import { TransactionViewOptionsButton } from '@/components/transactions/view-options'
+import { AccountActionsMenu } from '@/components/accounts/account-menu'
 import { CreateTransactionButton } from '@/components/transactions/create-transaction-button'
 import { ImportButton } from '@/lib/import-ui'
 import { FilteredTotal } from '@/components/transactions/filtered-total'
@@ -102,29 +104,30 @@ function AccountsPage() {
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
       <div className="space-y-5 px-page pt-page pb-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-8">
-            <NetWorth />
-            {/* the filter bar only exists on the transactions tab */}
-            {tab === 'transactions' && <FilteredTotal filterState={filterState} />}
-          </div>
-          <div className="flex items-center gap-2">
-            <CreateTransactionButton
-              creating={creating}
-              onToggle={() => {
-                setCreating(!creating)
-                if (!creating) setTab('transactions')
-              }}
-            />
-            <ImportButton />
-            {/* empty scope → categorize every uncategorized transaction */}
-            <AutoCategorizeButton scope={{}} />
-            <TransactionViewOptionsButton />
-          </div>
+        <PageHeader
+          title="Accounts"
+          description="Balances from your banks and imports, and every transaction across them."
+        >
+          <CreateTransactionButton
+            creating={creating}
+            onToggle={() => {
+              setCreating(!creating)
+              if (!creating) setTab('transactions')
+            }}
+          />
+          <ImportButton />
+          {/* empty scope → categorize every uncategorized transaction */}
+          <AutoCategorizeButton scope={{}} />
+          <TransactionViewOptionsButton />
+        </PageHeader>
+        <div className="flex items-start gap-8">
+          <NetWorth />
+          {/* the filter bar only exists on the transactions tab */}
+          {tab === 'transactions' && <FilteredTotal filterState={filterState} />}
         </div>
         <TabsList>
           <TabsTrigger value="accounts">Accounts</TabsTrigger>
-          <TabsTrigger value="transactions">All transactions</TabsTrigger>
+          <TabsTrigger value="transactions">All Transactions</TabsTrigger>
         </TabsList>
       </div>
 
@@ -160,19 +163,18 @@ function NetWorth() {
     return [...byCurrency.entries()]
   }, [accountsQuery.data])
 
-  // Until accounts exist there is no net worth to show; fall back to the page name.
-  if (totals.length === 0) {
-    return <h2 className="text-xl font-semibold tracking-tight">Accounts</h2>
-  }
+  // until accounts exist there is no net worth to show
+  if (totals.length === 0) return null
 
+  // shaped like the filtered total beside it
   return (
     <div>
-      <p className="text-sm text-muted-foreground">Net worth</p>
-      <h2 className="flex flex-col items-start text-xl font-semibold tracking-tight">
+      <p className="text-sm text-muted-foreground">Net Worth</p>
+      <div className="flex flex-col items-start text-2xl font-semibold tracking-tight">
         {totals.map(([currency, total]) => (
           <Amount key={currency} value={total} currency={currency} tween />
         ))}
-      </h2>
+      </div>
     </div>
   )
 }
@@ -218,13 +220,14 @@ function AccountsList() {
                 <EmptyMedia variant="icon">
                   <HugeiconsIcon icon={BankIcon} />
                 </EmptyMedia>
-                <EmptyTitle>No accounts yet</EmptyTitle>
-                <EmptyDescription>Connect SimpleFIN in Settings, then sync.</EmptyDescription>
+                <EmptyTitle>No Accounts Yet</EmptyTitle>
+                <EmptyDescription>
+                  Connect your bank through SimpleFIN in Settings, or import a CSV, OFX or QIF file.
+                </EmptyDescription>
               </EmptyHeader>
-              <EmptyContent>
-                <Button variant="outline" onClick={() => openSettings('connection')}>
-                  Open Settings
-                </Button>
+              <EmptyContent className="flex-row justify-center">
+                <Button onClick={() => openSettings('connection')}>Open Settings</Button>
+                <ImportButton />
               </EmptyContent>
             </Empty>
           ) : (
@@ -243,6 +246,7 @@ function AccountsList() {
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead className="w-48 text-right">Balance</TableHead>
+                        <TableHead className="w-12" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -288,6 +292,14 @@ function AccountsList() {
                                 </Tooltip>
                               )}
                             </div>
+                          </TableCell>
+                          {/* the row opens the account; the menu and its dialogs must not */}
+                          <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                            <AccountActionsMenu
+                              accountId={account.id}
+                              accountName={account.name}
+                              isManual={account.connectionId === null}
+                            />
                           </TableCell>
                         </TableRow>
                       ))}

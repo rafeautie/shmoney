@@ -11,7 +11,7 @@ import { activityOptions } from '@/lib/queries'
 import { SETTINGS_QUERY_KEY, useSettings } from '@/lib/settings'
 import { useMarkActivitySeen, useRuleSuggestions } from '@/lib/activity-seen'
 import { buildFeed, SOURCE_LABELS } from '@/lib/activity-feed'
-import { Page } from '@/components/page'
+import { Page, PageHeader } from '@/components/page'
 import { EntryRow } from '@/components/activity/entry-row'
 import { RunCard } from '@/components/activity/run-card'
 import { SuggestionsQueue } from '@/components/activity/suggestions-queue'
@@ -113,12 +113,10 @@ function ActivityPage() {
 
   return (
     <Page className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">Activity</h2>
-        <p className="text-muted-foreground">
-          Every change to your money, by you or by shmoney. Undo anything.
-        </p>
-      </div>
+      <PageHeader
+        title="Activity"
+        description="Every change to your money, by you or by shmoney. Undo anything."
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <FilterChip pressed={source === null} onClick={() => setSource(null)}>
@@ -138,7 +136,7 @@ function ActivityPage() {
           <FilterSearchInput
             value={q || undefined}
             onChange={(v) => setQ(v ?? '')}
-            placeholder="Search activity..."
+            placeholder="Search activity…"
           />
         </div>
       </div>
@@ -158,11 +156,11 @@ function ActivityPage() {
               <EmptyMedia variant="icon">
                 <HugeiconsIcon icon={SearchRemoveIcon} />
               </EmptyMedia>
-              <EmptyTitle>Nothing matches</EmptyTitle>
-              <EmptyDescription>No activity fits this filter.</EmptyDescription>
+              <EmptyTitle>Nothing Matches</EmptyTitle>
+              <EmptyDescription>No activity matches these filters.</EmptyDescription>
             </EmptyHeader>
             <Button variant="outline" onClick={clearFilters}>
-              Clear filters
+              Clear Filters
             </Button>
           </Empty>
         ) : (
@@ -171,7 +169,7 @@ function ActivityPage() {
               <EmptyMedia variant="icon">
                 <HugeiconsIcon icon={Clock01Icon} />
               </EmptyMedia>
-              <EmptyTitle>No activity yet</EmptyTitle>
+              <EmptyTitle>No Activity Yet</EmptyTitle>
               <EmptyDescription>
                 Categorizing, deleting, or marking transfers shows up here.
               </EmptyDescription>
@@ -206,7 +204,7 @@ function ActivityPage() {
                 disabled={query.isFetchingNextPage}
                 onClick={() => void query.fetchNextPage()}
               >
-                {query.isFetchingNextPage ? 'Loading...' : 'Load older activity'}
+                {query.isFetchingNextPage ? 'Loading…' : 'Load Older Activity'}
               </Button>
             </div>
           )}

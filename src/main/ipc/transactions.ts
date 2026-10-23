@@ -16,6 +16,7 @@ import {
   transactionsSetCategoriesSchema,
   transactionUpdateSchema,
   type TransactionActionChange,
+  type TransactionsBulkDeleteResult,
   type TransactionsSetCategoriesInput,
   type TransactionStats
 } from '@shared/ipc'
@@ -135,8 +136,10 @@ export function registerTransactionsIpc(): void {
         )
         .returning({ id: transactions.id })
         .all()
+      // the entry's id lets the renderer's Undo toast replay exactly this delete
+      let actionId: number | null = null
       if (rows.length > 0) {
-        recordAction(tx, {
+        actionId = recordAction(tx, {
           source: 'user',
           label: `Delete ${plural(rows.length, 'transaction')}`,
           changes: rows.map((r) => ({
@@ -147,7 +150,7 @@ export function registerTransactionsIpc(): void {
           }))
         })
       }
-      return rows.map((r) => r.id)
+      return { deletedIds: rows.map((r) => r.id), actionId } satisfies TransactionsBulkDeleteResult
     })
   })
 

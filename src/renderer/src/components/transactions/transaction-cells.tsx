@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   ArrowDataTransferHorizontalIcon,
+  Delete02Icon,
   MoreHorizontalIcon,
   PencilEdit01Icon
 } from '@hugeicons/core-free-icons'
@@ -12,6 +13,8 @@ import type { Transaction } from '@shared/ipc'
 import { merchantOf } from '@shared/merchant'
 import { cn, currencySymbol, ipcErrorMessage, parseSignedAmount } from '@/lib/utils'
 import { invalidateTransactionData } from '@/lib/invalidate'
+import { toastUndoable } from '@/lib/undo-toast'
+import { ActionsMenuItem } from '@/components/actions-menu'
 import { useAccountCurrency } from '@/lib/currency'
 import { AccountPicker } from '@/components/accounts/account-picker'
 import { Amount } from '@/components/amount'
@@ -24,7 +27,6 @@ import { Calendar } from '@/components/ui/calendar'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
@@ -105,7 +107,8 @@ export const DateCell = memo(function DateCell({ transaction }: { transaction: T
 })
 
 /**
- * The row's actions menu, holding Edit. Like CellPopover, it is a plain button
+ * The row's actions menu: Edit, and Delete with an Undo toast (no confirmation,
+ * like every undoable delete). Like CellPopover, it is a plain button
  * until first opened, so long tables don't carry a closed menu and dialog per
  * row. Pending rows have none: sync replaces them, so an edit would be lost.
  */
@@ -123,7 +126,7 @@ export const TransactionActionsCell = memo(function TransactionActionsCell({
   const triggerProps = {
     variant: 'ghost',
     size: 'icon-sm',
-    'aria-label': 'Transaction actions'
+    'aria-label': 'Transaction Actions'
   } satisfies ComponentProps<typeof Button>
   const icon = <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
 
@@ -148,17 +151,39 @@ export const TransactionActionsCell = memo(function TransactionActionsCell({
     <div className="text-right">
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger render={<Button {...triggerProps} />}>{icon}</DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setEditing(true)}>
-            <HugeiconsIcon icon={PencilEdit01Icon} size={14} />
+        <DropdownMenuContent align="end" className="w-auto min-w-40">
+          <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => setEditing(true)}>
             Edit
-          </DropdownMenuItem>
+          </ActionsMenuItem>
+          <TransactionDeleteItem transaction={transaction} />
         </DropdownMenuContent>
       </DropdownMenu>
       <TransactionDialog open={editing} onOpenChange={setEditing} transaction={transaction} />
     </div>
   )
 })
+
+function TransactionDeleteItem({ transaction }: { transaction: Transaction }) {
+  const queryClient = useQueryClient()
+  const remove = useMutation({
+    mutationFn: () => window.api.transactions.bulkDelete({ transactionIds: [transaction.id] }),
+    onSuccess: ({ actionId }) => {
+      if (actionId !== null)
+        toastUndoable(`Deleted “${transaction.description}”`, actionId, queryClient)
+    },
+    onSettled: () => invalidateTransactionData(queryClient)
+  })
+  return (
+    <ActionsMenuItem
+      icon={Delete02Icon}
+      destructive
+      disabled={remove.isPending}
+      onClick={() => remove.mutate()}
+    >
+      Delete
+    </ActionsMenuItem>
+  )
+}
 
 /**
  * Pinned entry row at the top of a transactions table. Enter commits when

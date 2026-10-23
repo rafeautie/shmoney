@@ -38,17 +38,17 @@ function UpdatesRow() {
   return (
     <SettingAction label="Updates" description={updateStatusLine(state)}>
       {state?.status === 'downloaded' ? (
-        <Button onClick={() => void window.api.updates.quitAndInstall()}>Restart to update</Button>
+        <Button onClick={() => void window.api.updates.quitAndInstall()}>Restart to Update</Button>
       ) : downloadUrl ? (
         // window.open on an https URL goes to the OS browser (see main/index.ts)
-        <Button onClick={() => window.open(downloadUrl)}>Download update</Button>
+        <Button onClick={() => window.open(downloadUrl)}>Download Update</Button>
       ) : (
         <Button
           variant="outline"
           disabled={busy || state?.status === 'disabled'}
           onClick={() => void window.api.updates.check()}
         >
-          Check for updates
+          Check for Updates
         </Button>
       )}
     </SettingAction>
@@ -66,29 +66,29 @@ export function AboutSettings() {
       <SettingsGroup>
         {!isDemo && <UpdatesRow />}
         <SettingAction
-          label="Open source licenses"
+          label="Open Source Licenses"
           description="The open source software shmoney is built with."
         >
           <Button variant="outline" onClick={() => open('about', 'licenses')}>
-            View licenses
+            View Licenses
           </Button>
         </SettingAction>
         <SettingAction
-          label="Report a bug"
+          label="Report a Bug"
           description="Review your diagnostics, then open a prefilled GitHub issue. Nothing is sent without your say-so."
         >
           <Button variant="outline" onClick={() => open('about', 'report-bug')}>
-            Report bug
+            Report Bug
           </Button>
         </SettingAction>
         {/* window.open on an https URL routes through setWindowOpenHandler to
             the OS browser (see main/index.ts) */}
         <SettingAction
-          label="Request a feature"
+          label="Request a Feature"
           description="Suggest an improvement or a new idea on GitHub."
         >
           <Button variant="outline" onClick={() => window.open(featureRequestUrl())}>
-            Request feature
+            Request Feature
           </Button>
         </SettingAction>
       </SettingsGroup>

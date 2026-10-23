@@ -66,7 +66,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ({ error }) => <ErrorScreen error={error} fullWindow />,
   notFoundComponent: () => (
     <NotFoundScreen
-      title="Page not found"
+      title="Page Not Found"
       description="This page does not exist."
       backTo="/accounts"
       backLabel="Go to Accounts"

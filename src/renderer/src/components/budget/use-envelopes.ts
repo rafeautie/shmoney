@@ -2,6 +2,7 @@ import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/r
 import { toast } from 'sonner'
 import type { BudgetUpdateInput, EnvelopeSummary } from '@shared/budgets'
 import { ipcErrorMessage } from '@/lib/utils'
+import { toastUndoable } from '@/lib/undo-toast'
 
 function useInvalidateBudget(): () => void {
   const queryClient = useQueryClient()
@@ -21,24 +22,13 @@ export function useUpdateEnvelope(): UseMutationResult<unknown, Error, BudgetUpd
 }
 
 export function useRemoveEnvelope(): UseMutationResult<void, Error, EnvelopeSummary> {
+  const queryClient = useQueryClient()
   const invalidate = useInvalidateBudget()
   return useMutation({
     mutationFn: async (envelope: EnvelopeSummary) => {
       const { actionId } = await window.api.budgets.remove({ categoryId: envelope.categoryId })
       if (actionId === null) return
-      // the removal is an action-log entry, so the toast's Undo replays the
-      // same entry Ctrl+Z would — one undo path, no separate restore call
-      toast(`Removed the ${envelope.categoryName} envelope`, {
-        action: {
-          label: 'Undo',
-          onClick: () => {
-            window.api.actionLog
-              .undoEntry(actionId)
-              .then(invalidate)
-              .catch(() => {})
-          }
-        }
-      })
+      toastUndoable(`Deleted the “${envelope.categoryName}” envelope`, actionId, queryClient)
     },
     onError: (error) => toast(ipcErrorMessage(error)),
     onSettled: invalidate

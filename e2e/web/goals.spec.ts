@@ -34,7 +34,7 @@ const goalRowSql = (name: string): string =>
 async function openEdit(app: App, target: Locator): Promise<Locator> {
   await target.getByRole('button', { name: 'Goal actions' }).click()
   await app.page.getByRole('menuitem', { name: 'Edit' }).click()
-  const dialog = app.page.getByRole('dialog', { name: 'Edit goal' })
+  const dialog = app.page.getByRole('dialog', { name: 'Edit Goal' })
   await expect(dialog).toBeVisible()
   return dialog
 }
@@ -83,8 +83,8 @@ test.describe('empty state', () => {
   test('a fresh install invites the first goal and shows no summary', async ({ app }) => {
     await app.open({ route: '/goals', dataset: 'starter' })
     const { page } = app
-    await expect(page.getByText('No savings goals yet')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Add your first goal' })).toBeVisible()
+    await expect(page.getByText('No Savings Goals Yet')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Add Your First Goal' })).toBeVisible()
     await expect(page.getByText('Target', { exact: true })).toHaveCount(0)
   })
 
@@ -93,16 +93,16 @@ test.describe('empty state', () => {
   }) => {
     await app.open({ route: '/goals', dataset: 'starter' })
     const { page } = app
-    await page.getByRole('button', { name: 'Add your first goal' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Add goal' })
+    await page.getByRole('button', { name: 'Add Your First Goal' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add Goal' })
     await dialog.getByLabel('Name').fill('Rainy day')
-    await dialog.getByLabel('Target amount').fill('1500')
-    await dialog.getByRole('button', { name: 'Pick accounts...' }).click()
+    await dialog.getByLabel('Target Amount').fill('1500')
+    await dialog.getByRole('button', { name: 'Pick Accounts…' }).click()
     await page.getByRole('option', { name: 'Checking' }).click()
     await page.keyboard.press('Escape')
-    await dialog.getByRole('button', { name: 'Add goal' }).click()
+    await dialog.getByRole('button', { name: 'Add Goal' }).click()
     await expect(dialog).toBeHidden()
-    await expect(page.getByText('No savings goals yet')).toBeHidden()
+    await expect(page.getByText('No Savings Goals Yet')).toBeHidden()
     await expect(goalCard(app, 'Rainy day')).toContainText('Balance of Checking')
   })
 })
@@ -116,7 +116,7 @@ test.describe('cards and table view', () => {
       'true'
     )
     await page.getByRole('tab', { name: 'Table view' }).click()
-    for (const name of ['Goal', 'Progress', 'Target', 'Target date', 'Accounts', 'This month']) {
+    for (const name of ['Goal', 'Progress', 'Target', 'Target Date', 'Accounts', 'This Month']) {
       await expect(page.getByRole('columnheader', { name, exact: true })).toBeVisible()
     }
     await expect(goalRow(app, 'Trip to Japan')).toBeVisible()
@@ -158,25 +158,25 @@ test.describe('cards and table view', () => {
 test.describe('new goal dialog', () => {
   async function openDialog(app: App): Promise<Locator> {
     await openCards(app)
-    await app.page.getByRole('button', { name: 'Add goal' }).click()
-    return app.page.getByRole('dialog', { name: 'Add goal' })
+    await app.page.getByRole('button', { name: 'Add Goal' }).click()
+    return app.page.getByRole('dialog', { name: 'Add Goal' })
   }
 
   test('submit needs a name, a target above zero and an account', async ({ app }) => {
     const dialog = await openDialog(app)
     const { page } = app
-    const submit = dialog.getByRole('button', { name: 'Add goal' })
+    const submit = dialog.getByRole('button', { name: 'Add Goal' })
     await expect(submit).toBeDisabled()
 
     await dialog.getByLabel('Name').fill('Bike')
     await expect(submit).toBeDisabled()
 
-    await dialog.getByLabel('Target amount').fill('0')
+    await dialog.getByLabel('Target Amount').fill('0')
     await expect(submit).toBeDisabled()
-    await dialog.getByLabel('Target amount').fill('800')
+    await dialog.getByLabel('Target Amount').fill('800')
     await expect(submit).toBeDisabled()
 
-    await dialog.getByRole('button', { name: 'Pick accounts...' }).click()
+    await dialog.getByRole('button', { name: 'Pick Accounts…' }).click()
     await page.getByRole('option', { name: 'Everyday Checking' }).click()
     await page.keyboard.press('Escape')
     await expect(submit).toBeEnabled()
@@ -184,24 +184,24 @@ test.describe('new goal dialog', () => {
     await dialog.getByLabel('Name').fill('   ')
     await expect(submit).toBeDisabled()
     await dialog.getByLabel('Name').fill('Bike')
-    await dialog.getByLabel('Target amount').fill('')
+    await dialog.getByLabel('Target Amount').fill('')
     await expect(submit).toBeDisabled()
   })
 
   test('each mode explains what it tracks', async ({ app }) => {
     const dialog = await openDialog(app)
     await expect(dialog.getByText('Progress is what the account holds')).toBeVisible()
-    await dialog.getByRole('button', { name: 'Count new savings' }).click()
+    await dialog.getByRole('button', { name: 'Count New Savings' }).click()
     await expect(dialog.getByText('Progress starts at zero')).toBeVisible()
     await expect(dialog.getByText('Progress is what the account holds')).toBeHidden()
-    await dialog.getByRole('button', { name: 'Track the balance' }).click()
+    await dialog.getByRole('button', { name: 'Track the Balance' }).click()
     await expect(dialog.getByText('Progress is what the account holds')).toBeVisible()
   })
 
   test('the account picker takes several accounts of one currency', async ({ app }) => {
     const dialog = await openDialog(app)
     const { page } = app
-    await dialog.getByRole('button', { name: 'Pick accounts...' }).click()
+    await dialog.getByRole('button', { name: 'Pick Accounts…' }).click()
     await expect(page.getByRole('option')).toHaveCount(4)
     await page.getByRole('option', { name: 'High-Yield Savings' }).click()
     await expect(dialog.getByRole('button', { name: 'High-Yield Savings' })).toBeVisible()
@@ -215,12 +215,12 @@ test.describe('new goal dialog', () => {
     const dialog = await openDialog(app)
     const { page } = app
     await dialog.getByLabel('Name').fill('Car fund')
-    await dialog.getByLabel('Target amount').fill('100000')
-    await dialog.getByRole('button', { name: 'Pick accounts...' }).click()
+    await dialog.getByLabel('Target Amount').fill('100000')
+    await dialog.getByRole('button', { name: 'Pick Accounts…' }).click()
     await page.getByRole('option', { name: 'High-Yield Savings' }).click()
     await page.getByRole('option', { name: 'Everyday Checking' }).click()
     await page.keyboard.press('Escape')
-    await dialog.getByRole('button', { name: 'Add goal' }).click()
+    await dialog.getByRole('button', { name: 'Add Goal' }).click()
     await expect(dialog).toBeHidden()
 
     const card = goalCard(app, 'Car fund')
@@ -243,9 +243,9 @@ test.describe('new goal dialog', () => {
     const dialog = await openDialog(app)
     const { page } = app
     await dialog.getByLabel('Name').fill('Garden')
-    await dialog.getByRole('button', { name: 'Count new savings' }).click()
-    await dialog.getByLabel('Target amount').fill('900')
-    await dialog.getByRole('button', { name: 'Pick accounts...' }).click()
+    await dialog.getByRole('button', { name: 'Count New Savings' }).click()
+    await dialog.getByLabel('Target Amount').fill('900')
+    await dialog.getByRole('button', { name: 'Pick Accounts…' }).click()
     await page.getByRole('option', { name: 'High-Yield Savings' }).click()
     await page.keyboard.press('Escape')
     await dialog.getByLabel('Name').press('Enter')
@@ -272,10 +272,10 @@ test.describe('new goal dialog', () => {
   test('the dialog opens blank each time', async ({ app }) => {
     const dialog = await openDialog(app)
     await dialog.getByLabel('Name').fill('Leftover')
-    await dialog.getByRole('button', { name: 'Count new savings' }).click()
+    await dialog.getByRole('button', { name: 'Count New Savings' }).click()
     await dialog.getByRole('button', { name: 'Cancel' }).click()
     await expect(dialog).toBeHidden()
-    await app.page.getByRole('button', { name: 'Add goal' }).click()
+    await app.page.getByRole('button', { name: 'Add Goal' }).click()
     await expect(dialog.getByLabel('Name')).toHaveValue('')
     await expect(dialog.getByText('Progress is what the account holds')).toBeVisible()
   })
@@ -295,7 +295,7 @@ test.describe('edit dialog', () => {
     const before = await app.sql(goalRowSql('Emergency fund'))
     const dialog = await openEdit(app, goalCard(app, 'Emergency fund'))
     await expect(dialog.getByLabel('Name')).toHaveValue('Emergency fund')
-    await expect(dialog.getByLabel('Target amount')).toHaveValue(/30,?000/)
+    await expect(dialog.getByLabel('Target Amount')).toHaveValue(/30,?000/)
     await expect(dialog.getByRole('button', { name: '2027-06-30' })).toBeVisible()
     await expect(dialog.getByRole('button', { name: 'High-Yield Savings' })).toBeVisible()
 
@@ -310,7 +310,7 @@ test.describe('edit dialog', () => {
     const [before] = await app.sql<{ started_at: number }>(goalRowSql('Trip to Japan'))
     const dialog = await openEdit(app, goalCard(app, 'Trip to Japan'))
     await dialog.getByLabel('Name').fill('Trip to Kyoto')
-    await dialog.getByLabel('Target amount').fill('7000')
+    await dialog.getByLabel('Target Amount').fill('7000')
     await dialog.getByRole('button', { name: 'Save' }).click()
 
     await expect(dialog).toHaveCount(0)
@@ -329,9 +329,9 @@ test.describe('edit dialog', () => {
     await dialog.getByLabel('Name').fill('  ')
     await expect(save).toBeDisabled()
     await dialog.getByLabel('Name').fill('Emergency fund')
-    await dialog.getByLabel('Target amount').fill('0')
+    await dialog.getByLabel('Target Amount').fill('0')
     await expect(save).toBeDisabled()
-    await dialog.getByLabel('Target amount').fill('30000')
+    await dialog.getByLabel('Target Amount').fill('30000')
     await expect(save).toBeEnabled()
 
     await dialog.getByRole('button', { name: 'High-Yield Savings' }).click()
@@ -391,7 +391,7 @@ test.describe('edit dialog', () => {
     await openCards(app)
     const card = goalCard(app, 'Emergency fund')
     const dialog = await openEdit(app, card)
-    await dialog.getByRole('button', { name: 'Count new savings' }).click()
+    await dialog.getByRole('button', { name: 'Count New Savings' }).click()
     await expect(dialog).toContainText('Progress so far is recounted this way.')
     await dialog.getByRole('button', { name: 'Save' }).click()
 
@@ -466,7 +466,7 @@ test.describe('archive and delete', () => {
     await page.getByRole('menuitem', { name: 'Delete' }).click()
 
     await expect(goalCard(app, 'Trip to Japan')).toHaveCount(0)
-    await expect(page.getByText('Deleted Trip to Japan')).toBeVisible()
+    await expect(page.getByText('Deleted “Trip to Japan”')).toBeVisible()
     await expect(statCard(app, 'Target')).toContainText('$55,000.00')
 
     await page.getByRole('button', { name: 'Undo' }).click()
@@ -482,7 +482,7 @@ test.describe('archive and delete', () => {
       await page.getByRole('menuitem', { name: 'Delete' }).click()
       await expect(goalCard(app, name)).toHaveCount(0)
     }
-    await expect(page.getByText('No savings goals yet')).toBeVisible()
+    await expect(page.getByText('No Savings Goals Yet')).toBeVisible()
   })
 })
 
@@ -512,16 +512,16 @@ test.describe('summary per currency', () => {
     await page.getByRole('link', { name: 'Goals', exact: true }).click()
     await expect(goalCard(app, 'Emergency fund')).toBeVisible()
 
-    await page.getByRole('button', { name: 'Add goal' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Add goal' })
+    await page.getByRole('button', { name: 'Add Goal' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add Goal' })
     await dialog.getByLabel('Name').fill('Lisbon')
-    await dialog.getByLabel('Target amount').fill('2000')
-    await dialog.getByRole('button', { name: 'Pick accounts...' }).click()
+    await dialog.getByLabel('Target Amount').fill('2000')
+    await dialog.getByRole('button', { name: 'Pick Accounts…' }).click()
     await page.getByRole('option', { name: 'Euro Savings' }).click()
     // the first pick fixes the currency, so the dollar accounts drop out
     await expect(page.getByRole('option')).toHaveCount(1)
     await page.keyboard.press('Escape')
-    await dialog.getByRole('button', { name: 'Add goal' }).click()
+    await dialog.getByRole('button', { name: 'Add Goal' }).click()
     await expect(dialog).toBeHidden()
 
     await expect(goalCard(app, 'Lisbon')).toContainText('€2,000.00')

@@ -26,8 +26,8 @@ export function EnvelopeList({
         <TableHeader className="sticky top-0 z-10 bg-background shadow-[inset_0_1px_0_0_var(--border),inset_0_-1px_0_0_var(--border)] [&_tr]:border-b-0">
           <TableRow>
             <TableHead>Category</TableHead>
-            <TableHead className="w-64">This month</TableHead>
-            <TableHead className="w-32">Monthly fill</TableHead>
+            <TableHead className="w-64">This Month</TableHead>
+            <TableHead className="w-32">Monthly Fill</TableHead>
             <TableHead className="w-28 text-right">Available</TableHead>
             <TableHead className="w-10" />
           </TableRow>
@@ -85,7 +85,7 @@ export function EnvelopeList({
           ))}
           {summary.unbudgetedSpent > 0 && (
             <TableRow className="hover:bg-transparent">
-              <TableCell className="text-muted-foreground">Unbudgeted spending</TableCell>
+              <TableCell className="text-muted-foreground">Unbudgeted Spending</TableCell>
               <TableCell className="text-xs text-muted-foreground">
                 <Amount
                   value={summary.unbudgetedSpent}

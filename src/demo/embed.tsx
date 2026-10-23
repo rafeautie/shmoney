@@ -94,7 +94,7 @@ function DemoBar(): React.JSX.Element {
     // the header's right end is empty in the app (the desktop window's caption
     // buttons sit there), so the bar never covers app controls
     <div className="fixed top-2.5 right-3 z-50 flex items-center gap-2.5 text-xs text-muted-foreground">
-      <span className="whitespace-nowrap">Sample data</span>
+      <span className="whitespace-nowrap">Sample Data</span>
       <DatasetControls />
     </div>
   )

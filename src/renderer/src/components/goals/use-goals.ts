@@ -2,6 +2,7 @@ import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/r
 import { toast } from 'sonner'
 import type { GoalCreateInput, GoalSummary, GoalUpdateInput } from '@shared/goals'
 import { ipcErrorMessage } from '@/lib/utils'
+import { toastUndoable } from '@/lib/undo-toast'
 
 // every goal cache hangs off the 'goals' root (the list, the Budget series, the
 // widget series) so one invalidation reaches all of them
@@ -32,23 +33,13 @@ export function useUpdateGoal(): UseMutationResult<GoalSummary, Error, GoalUpdat
 }
 
 export function useRemoveGoal(): UseMutationResult<void, Error, GoalSummary> {
+  const queryClient = useQueryClient()
   const invalidate = useInvalidateGoals()
   return useMutation({
     mutationFn: async (goal: GoalSummary) => {
       const { actionId } = await window.api.goals.remove({ id: goal.id })
       if (actionId === null) return
-      // the toast's Undo replays the same entry Ctrl+Z would
-      toast(`Deleted ${goal.name}`, {
-        action: {
-          label: 'Undo',
-          onClick: () => {
-            window.api.actionLog
-              .undoEntry(actionId)
-              .then(invalidate)
-              .catch(() => {})
-          }
-        }
-      })
+      toastUndoable(`Deleted “${goal.name}”`, actionId, queryClient)
     },
     onError: (error) => toast(ipcErrorMessage(error)),
     onSettled: invalidate

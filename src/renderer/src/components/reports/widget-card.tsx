@@ -1,16 +1,13 @@
-import { memo } from 'react'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Delete02Icon } from '@hugeicons/core-free-icons'
+import { memo, useState } from 'react'
+import { Delete02Icon, PencilEdit01Icon } from '@hugeicons/core-free-icons'
 import type { ReportFilters, ReportWidget } from '@shared/reports'
 import { overriddenFilterKeys } from '@shared/reports'
 import { cn } from '@/lib/utils'
-import { usePresence } from '@/lib/use-presence'
-import { CHROME_ENTER, CHROME_FADE_MS } from './edit-chrome'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { ConfirmButton } from '@/components/confirm-dialog'
+import { ActionsMenu, ActionsMenuItem } from '@/components/actions-menu'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { WidgetRenderer } from './widget-renderer'
 
 const FILTER_LABELS: Record<string, string> = {
@@ -39,7 +36,7 @@ function OverrideBadge({ widget }: { widget: ReportWidget }) {
   return (
     <Tooltip>
       <TooltipTrigger render={<Badge variant="secondary" className="shrink-0 cursor-default" />}>
-        {mode === 'own' ? 'Own filters' : `${keys.length} override${keys.length === 1 ? '' : 's'}`}
+        {mode === 'own' ? 'Own Filters' : `${keys.length} override${keys.length === 1 ? '' : 's'}`}
       </TooltipTrigger>
       <TooltipContent>{summary}</TooltipContent>
     </Tooltip>
@@ -49,13 +46,15 @@ function OverrideBadge({ widget }: { widget: ReportWidget }) {
 interface WidgetCardProps {
   widget: ReportWidget
   reportFilters: ReportFilters
+  /** arranging the report: the card is dragged and resized by the grid */
   editing: boolean
   /** marks open their transactions on click; the report grid sets it outside edit mode */
   drillable?: boolean
-  /** takes the widget rather than closing over it, so the grid can pass one stable
-   * function to every card and keep the memo below effective */
-  onEdit: (widget: ReportWidget) => void
-  onDelete: (widget: ReportWidget) => void
+  /** take the widget rather than closing over it, so the grid can pass one stable
+   * function to every card and keep the memo below effective. Leave both out
+   * for a preview, which has no actions menu. */
+  onEdit?: (widget: ReportWidget) => void
+  onDelete?: (widget: ReportWidget) => void
 }
 
 // Memoized because the grid re-renders on every frame of a resize (it follows the
@@ -71,7 +70,7 @@ export const WidgetCard = memo(function WidgetCard({
   onEdit,
   onDelete
 }: WidgetCardProps) {
-  const chrome = usePresence(editing, CHROME_FADE_MS)
+  const [confirmDelete, setConfirmDelete] = useState(false)
   // widgets own their edge padding, so the card only pads the header
   return (
     <Card
@@ -83,37 +82,34 @@ export const WidgetCard = memo(function WidgetCard({
       <div className="flex h-6 shrink-0 items-center gap-2 px-4">
         <h3 className="min-w-0 truncate text-sm font-medium">{widget.title}</h3>
         <OverrideBadge widget={widget} />
-        {chrome && (
-          <div
-            inert={!editing}
-            className={cn(
-              'ml-auto flex shrink-0 items-center gap-1',
-              CHROME_ENTER,
-              !editing && 'opacity-0'
-            )}
-          >
-            <Button variant="ghost" size="sm" onClick={() => onEdit(widget)}>
+        {onEdit && onDelete && (
+          // the same "…" menu as every other item; it works whether or not the
+          // report is being arranged
+          <ActionsMenu label="Widget Actions" size="icon-sm" className="-mr-1 ml-auto">
+            <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => onEdit(widget)}>
               Edit
-            </Button>
-            <ConfirmButton
-              variant="ghost"
-              size="icon-sm"
-              title="Delete this widget?"
-              description="This removes the widget from the report."
-              onConfirm={(close) => {
-                onDelete(widget)
-                close()
-              }}
-            >
-              <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
-              <span className="sr-only">Delete widget</span>
-            </ConfirmButton>
-          </div>
+            </ActionsMenuItem>
+            <ActionsMenuItem icon={Delete02Icon} destructive onClick={() => setConfirmDelete(true)}>
+              Delete
+            </ActionsMenuItem>
+          </ActionsMenu>
         )}
       </div>
       <div className="min-h-0 flex-1">
         <WidgetRenderer widget={widget} reportFilters={reportFilters} drillable={drillable} />
       </div>
+      {onDelete && (
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title={`Delete “${widget.title}”?`}
+          description="This removes the widget from the report."
+          onConfirm={(close) => {
+            onDelete(widget)
+            close()
+          }}
+        />
+      )}
     </Card>
   )
 })

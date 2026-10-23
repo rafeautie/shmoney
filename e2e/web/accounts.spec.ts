@@ -28,8 +28,7 @@ test.describe('accounts list', () => {
   test('groups accounts by institution under a net worth total', async ({ app }) => {
     const { page } = app
     await app.open()
-    await expect(page.getByRole('heading', { name: '$89,979.56' })).toBeVisible()
-    await expect(page.getByText('Net worth', { exact: true })).toBeVisible()
+    await expect(page.locator('p:text-is("Net Worth") + div')).toHaveText('$89,979.56')
 
     const institutions = page
       .getByRole('tabpanel', { name: 'Accounts' })
@@ -61,7 +60,7 @@ test.describe('accounts list', () => {
     await app.open({ route: '/budget', dataset: 'starter' })
     await app.sql("UPDATE accounts SET currency = 'EUR' WHERE id = 1")
     await reloadFromDatabase(app)
-    const total = page.locator('p:text-is("Net worth") + h2')
+    const total = page.locator('p:text-is("Net Worth") + div')
     await expect(total).toContainText('€')
     await expect(total).toContainText('$')
   })
@@ -92,11 +91,16 @@ test.describe('accounts list', () => {
   test('an empty install offers to open the connection settings', async ({ app }) => {
     const { page } = app
     await app.open({ dataset: 'none' })
-    await expect(page.getByText('No accounts yet')).toBeVisible()
-    await expect(page.getByText('Connect SimpleFIN in Settings, then sync.')).toBeVisible()
-    // with nothing to total, the header falls back to the page name
+    await expect(page.getByText('No Accounts Yet')).toBeVisible()
+    await expect(
+      page.getByText(
+        'Connect your bank through SimpleFIN in Settings, or import a CSV, OFX or QIF file.'
+      )
+    ).toBeVisible()
+    // the page keeps its title; with nothing to total there is no net worth
     await expect(page.getByRole('heading', { name: 'Accounts', level: 2 })).toBeVisible()
-    await expect(page.getByText('Net worth', { exact: true })).toBeHidden()
+    await expect(page.getByText('Net Worth', { exact: true })).toBeHidden()
+    await expect(page.getByRole('tabpanel').getByRole('button', { name: 'Import' })).toBeVisible()
 
     await page.getByRole('button', { name: 'Open Settings' }).click()
     const dialog = page.getByRole('dialog', { name: 'Settings' })
@@ -121,7 +125,7 @@ test.describe('connection alerts', () => {
 
   test('a healthy connection shows no alert', async ({ app }) => {
     await app.open()
-    await expect(app.page.getByRole('heading', { name: '$89,979.56' })).toBeVisible()
+    await expect(app.page.locator('p:text-is("Net Worth") + div')).toHaveText('$89,979.56')
     await expect(app.page.getByRole('alert')).toHaveCount(0)
     await expect(app.page.getByRole('status')).toHaveCount(0)
   })
@@ -271,7 +275,7 @@ test.describe('account detail', () => {
     const { page } = app
     await app.open({ route: `/accounts/${BROKERAGE}` })
     const panel = page.getByRole('tabpanel', { name: 'Holdings' })
-    for (const column of ['Symbol', 'Name', 'Shares', 'Market value', 'Cost basis', 'Gain']) {
+    for (const column of ['Symbol', 'Name', 'Shares', 'Market Value', 'Cost Basis', 'Gain']) {
       await expect(panel.getByRole('button', { name: column })).toBeVisible()
     }
 
@@ -323,8 +327,8 @@ test.describe('account detail', () => {
     await app.sql('UPDATE holdings SET cost_basis = 0')
     await accountRow(page, 'Individual Brokerage').click()
     const panel = page.getByRole('tabpanel', { name: 'Holdings' })
-    await expect(panel.getByRole('button', { name: 'Market value' })).toBeVisible()
-    await expect(panel.getByRole('button', { name: 'Cost basis' })).toBeHidden()
+    await expect(panel.getByRole('button', { name: 'Market Value' })).toBeVisible()
+    await expect(panel.getByRole('button', { name: 'Cost Basis' })).toBeHidden()
     await expect(panel.getByRole('button', { name: 'Gain' })).toBeHidden()
   })
 
@@ -342,11 +346,11 @@ test.describe('account detail', () => {
     test(`/accounts/${id} is not found and offers a way back`, async ({ app }) => {
       const { page } = app
       await app.open({ route: `/accounts/${id}` })
-      await expect(page.getByText('Account not found')).toBeVisible()
+      await expect(page.getByText('Account Not Found')).toBeVisible()
       await expect(page.getByText('This account may have been deleted.')).toBeVisible()
       await page.getByRole('link', { name: 'Back to Accounts' }).click()
       await expect(page).toHaveURL(/#\/accounts$/)
-      await expect(page.getByRole('heading', { name: '$89,979.56' })).toBeVisible()
+      await expect(page.locator('p:text-is("Net Worth") + div')).toHaveText('$89,979.56')
     })
   }
 })
@@ -417,7 +421,7 @@ test.describe('account menu', () => {
     const { page } = app
     await app.open({ route: `/accounts/${CHECKING}` })
     await page.getByRole('button', { name: 'Account actions' }).click()
-    await page.getByRole('menuitem', { name: 'Delete account…' }).click()
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
 
     const dialog = page.getByRole('dialog', { name: 'Delete “Everyday Checking”?' })
     await expect(dialog).toContainText('future syncs will no longer import it')
@@ -428,14 +432,14 @@ test.describe('account menu', () => {
     expect(await app.sql(`SELECT id FROM accounts WHERE id = ${CHECKING}`)).toHaveLength(1)
 
     await page.getByRole('button', { name: 'Account actions' }).click()
-    await page.getByRole('menuitem', { name: 'Delete account…' }).click()
-    await dialog.getByRole('button', { name: /^Delete account/ }).click()
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
+    await dialog.getByRole('button', { name: /^Delete Account/ }).click()
 
     await expect(page).toHaveURL(/#\/accounts$/)
     await expect(accountRow(page, 'High-Yield Savings')).toBeVisible()
     await expect(accountRow(page, 'Everyday Checking')).toBeHidden()
     expect(await app.sql(`SELECT id FROM accounts WHERE id = ${CHECKING}`)).toHaveLength(0)
-    await expect(page.getByRole('heading', { name: '$73,334.36' })).toBeVisible()
+    await expect(page.locator('p:text-is("Net Worth") + div')).toHaveText('$73,334.36')
   })
 
   test('a manual account is deleted without the sync warning', async ({ app }) => {
@@ -446,9 +450,35 @@ test.describe('account menu', () => {
       window.location.hash = `#/accounts/${id}`
     }, CHECKING)
     await page.getByRole('button', { name: 'Account actions' }).click()
-    await page.getByRole('menuitem', { name: 'Delete account…' }).click()
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
     const dialog = page.getByRole('dialog', { name: 'Delete “Everyday Checking”?' })
     await expect(dialog).toContainText('This permanently deletes the account')
     await expect(dialog).not.toContainText('future syncs')
+  })
+
+  test('each row on the Accounts list has the same menu, and it does not open the account', async ({
+    app
+  }) => {
+    const { page } = app
+    await app.open()
+    await accountRow(page, 'High-Yield Savings')
+      .getByRole('button', { name: 'Account actions' })
+      .click()
+    await page.getByRole('menuitem', { name: 'Rename' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Rename account' })
+    await dialog.getByLabel('Name').fill('Rainy Day')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(/#\/accounts$/)
+    await expect(accountRow(page, 'Rainy Day')).toBeVisible()
+
+    await accountRow(page, 'Rainy Day').getByRole('button', { name: 'Account actions' }).click()
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
+    await page
+      .getByRole('dialog', { name: 'Delete “Rainy Day”?' })
+      .getByRole('button', { name: /^Delete Account/ })
+      .click()
+    await expect(page).toHaveURL(/#\/accounts$/)
+    await expect(accountRow(page, 'Rainy Day')).toBeHidden()
   })
 })

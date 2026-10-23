@@ -30,7 +30,7 @@ function useChatWarningItems(): ChatWarningItem[] {
         message: `${Math.round(ratio * 100)}% of your transactions aren't categorized yet.`,
         subtitle: 'Categorized transactions help the assistant answer more accurately.',
         action: {
-          label: categorize.isRunning ? categorizeRunLabel(run) : 'Auto-categorize',
+          label: categorize.isRunning ? categorizeRunLabel(run) : 'Auto-Categorize',
           onClick: () => categorize.start(),
           disabled: !llmReady || categorize.anyRunning
         }

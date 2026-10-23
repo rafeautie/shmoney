@@ -46,7 +46,7 @@ export function useConnectSimpleFin(options?: { onConnected?: () => void }) {
         onSuccess: () => {
           notify('SimpleFIN connected', {
             description: 'Your accounts and transactions are ready.',
-            action: { label: 'View accounts', onClick: () => navigate({ to: '/accounts' }) }
+            action: { label: 'View Accounts', onClick: () => navigate({ to: '/accounts' }) }
           })
           options?.onConnected?.()
         }

@@ -16,16 +16,16 @@ test.describe('routing', () => {
   test("'/' redirects to accounts", async ({ app }) => {
     await app.open({ route: '/' })
     await expect(app.page).toHaveURL(/#\/accounts/)
-    await expect(app.page.getByText('Net worth', { exact: true })).toBeVisible()
+    await expect(app.page.getByText('Net Worth', { exact: true })).toBeVisible()
   })
 
   test('an unknown route shows the not-found screen with a way back', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/nowhere' })
-    await expect(page.getByText('Page not found')).toBeVisible()
+    await expect(page.getByText('Page Not Found')).toBeVisible()
     await page.getByRole('link', { name: 'Go to Accounts' }).click()
     await expect(page).toHaveURL(/#\/accounts/)
-    await expect(page.getByText('Page not found')).toBeHidden()
+    await expect(page.getByText('Page Not Found')).toBeHidden()
   })
 
   test('the sidebar marks the current page', async ({ app }) => {
@@ -111,7 +111,7 @@ test.describe('sidebar', () => {
 test.describe('command palette', () => {
   const palette = (page: Page): Locator => page.getByRole('dialog', { name: 'Command palette' })
   const searchBox = (page: Page): Locator =>
-    page.getByPlaceholder('Search pages, actions, and transactions...')
+    page.getByPlaceholder('Search pages, actions, and transactions…')
 
   test('Ctrl+K opens and closes it', async ({ app }) => {
     const { page } = app
@@ -135,7 +135,7 @@ test.describe('command palette', () => {
   test('does not open while focus is in a text input', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/accounts?tab=transactions' })
-    const search = page.getByPlaceholder('Search transactions...')
+    const search = page.getByPlaceholder('Search transactions…')
     await search.click()
     await page.keyboard.press(`${app.mod}+k`)
     await expect(palette(page)).toBeHidden()
@@ -146,17 +146,17 @@ test.describe('command palette', () => {
     const { page } = app
     await app.open()
     await page.keyboard.press(`${app.mod}+k`)
-    await expect(page.getByRole('option', { name: 'New transaction' })).toBeVisible()
+    await expect(page.getByRole('option', { name: 'New Transaction' })).toBeVisible()
     await expect(page.getByRole('option', { name: 'Budget' })).toBeVisible()
 
     // "csv" is only a keyword of Import
     await searchBox(page).fill('csv')
     await expect(page.getByRole('option', { name: 'Import' })).toBeVisible()
-    await expect(page.getByRole('option', { name: 'New transaction' })).toBeHidden()
+    await expect(page.getByRole('option', { name: 'New Transaction' })).toBeHidden()
     await expect(page.getByRole('option', { name: 'Budget' })).toBeHidden()
 
     await searchBox(page).fill('privacy')
-    await expect(page.getByRole('option', { name: 'Hide amounts' })).toBeVisible()
+    await expect(page.getByRole('option', { name: 'Hide Amounts' })).toBeVisible()
     await expect(page.getByRole('option', { name: 'Import' })).toBeHidden()
   })
 
@@ -173,11 +173,11 @@ test.describe('command palette', () => {
     await expect(page).toHaveURL(/#\/activity/)
 
     await page.keyboard.press(`${app.mod}+k`)
-    await page.getByRole('option', { name: 'All transactions' }).click()
+    await page.getByRole('option', { name: 'All Transactions' }).click()
     await expect(page).toHaveURL(/#\/accounts\?tab=transactions/)
 
     await page.keyboard.press(`${app.mod}+k`)
-    await page.getByRole('option', { name: 'New chat' }).click()
+    await page.getByRole('option', { name: 'New Chat' }).click()
     await expect(page).toHaveURL(/#\/chat/)
   })
 
@@ -194,8 +194,8 @@ test.describe('command palette', () => {
     const { page } = app
     await app.open({ route: '/budget' })
     await page.keyboard.press(`${app.mod}+k`)
-    await page.getByRole('option', { name: 'New transaction' }).click()
-    await expect(page.getByPlaceholder('Add transaction')).toBeFocused()
+    await page.getByRole('option', { name: 'New Transaction' }).click()
+    await expect(page.getByPlaceholder('Add Transaction')).toBeFocused()
   })
 
   test('Import opens the import dialog once the palette has closed', async ({ app }) => {
@@ -203,7 +203,7 @@ test.describe('command palette', () => {
     await app.open()
     await page.keyboard.press(`${app.mod}+k`)
     await page.getByRole('option', { name: 'Import' }).click()
-    await expect(page.getByRole('dialog', { name: 'Import transactions' })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Import Transactions' })).toBeVisible()
     await expect(palette(page)).toBeHidden()
   })
 
@@ -211,12 +211,12 @@ test.describe('command palette', () => {
     const { page } = app
     await app.open()
     await page.keyboard.press(`${app.mod}+k`)
-    await page.getByRole('option', { name: 'Hide amounts' }).click()
-    await expect(page.getByRole('button', { name: 'Show amounts' })).toBeVisible()
+    await page.getByRole('option', { name: 'Hide Amounts' }).click()
+    await expect(page.getByRole('button', { name: 'Show Amounts' })).toBeVisible()
 
     await page.keyboard.press(`${app.mod}+k`)
-    await page.getByRole('option', { name: 'Show amounts' }).click()
-    await expect(page.getByRole('button', { name: 'Hide amounts' })).toBeVisible()
+    await page.getByRole('option', { name: 'Show Amounts' }).click()
+    await expect(page.getByRole('button', { name: 'Hide Amounts' })).toBeVisible()
   })
 
   test('the theme action switches between light and dark', async ({ app }) => {
@@ -225,11 +225,11 @@ test.describe('command palette', () => {
     const html = page.locator('html')
     await expect(html).not.toHaveClass(/dark/)
     await page.keyboard.press(`${app.mod}+k`)
-    await page.getByRole('option', { name: 'Switch to dark theme' }).click()
+    await page.getByRole('option', { name: 'Switch to Dark Theme' }).click()
     await expect(html).toHaveClass(/dark/)
 
     await page.keyboard.press(`${app.mod}+k`)
-    await page.getByRole('option', { name: 'Switch to light theme' }).click()
+    await page.getByRole('option', { name: 'Switch to Light Theme' }).click()
     await expect(html).not.toHaveClass(/dark/)
   })
 
@@ -264,7 +264,7 @@ test.describe('command palette', () => {
     await expect(page.getByRole('option', { name: /whole foods/i }).nth(1)).toBeVisible()
     await page.getByRole('option', { name: /Show all transactions matching/ }).click()
     await expect(page).toHaveURL(/#\/accounts\?tab=transactions/)
-    await expect(page.getByPlaceholder('Search transactions...')).toHaveValue('whole foods')
+    await expect(page.getByPlaceholder('Search transactions…')).toHaveValue('whole foods')
     await expect(page.getByRole('row', { name: /whole foods/i }).first()).toBeVisible()
   })
 })
@@ -292,8 +292,8 @@ test.describe('privacy', () => {
   test('with amounts hidden no main page shows a currency figure', async ({ app }) => {
     const { page } = app
     await app.open()
-    await page.getByRole('button', { name: 'Hide amounts' }).click()
-    await expect(page.getByRole('button', { name: 'Show amounts' })).toBeVisible()
+    await page.getByRole('button', { name: 'Hide Amounts' }).click()
+    await expect(page.getByRole('button', { name: 'Show Amounts' })).toBeVisible()
 
     for (const route of MAIN_ROUTES) {
       await page.evaluate((to) => (location.hash = to), route)
@@ -315,11 +315,11 @@ test.describe('privacy', () => {
     await expect.poll(() => readableText(page)).toMatch(/\$\d/)
     await expect(page.locator('[data-private]').first()).not.toHaveClass(/private-hidden/)
 
-    await page.getByRole('button', { name: 'Hide amounts' }).click()
+    await page.getByRole('button', { name: 'Hide Amounts' }).click()
     await expect.poll(() => readableText(page)).not.toMatch(/\$\d/)
     await expect(page.locator('[data-private]').first()).toHaveClass(/private-hidden/)
 
-    await page.getByRole('button', { name: 'Show amounts' }).click()
+    await page.getByRole('button', { name: 'Show Amounts' }).click()
     await expect.poll(() => readableText(page)).toMatch(/\$\d/)
   })
 })
@@ -346,11 +346,11 @@ test.describe('accessibility', () => {
   test('the widget editor selects are named', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports' })
-    await page.getByRole('button', { name: 'New report' }).click()
-    await page.getByRole('menuitem', { name: 'Blank report' }).click()
-    await page.getByRole('button', { name: 'Add widget' }).first().click()
+    await page.getByRole('button', { name: 'New Report' }).click()
+    await page.getByRole('menuitem', { name: 'Blank Report' }).click()
+    await page.getByRole('button', { name: 'Add Widget' }).first().click()
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByRole('heading', { name: 'Add widget' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Add Widget' })).toBeVisible()
     await expectNamedComboboxes(dialog)
   })
 })
@@ -368,12 +368,12 @@ test.describe('reduced motion', () => {
       )
     await expect.poll(running).toBe(0)
 
-    await page.getByRole('button', { name: 'Hide amounts' }).click()
-    await expect(page.getByRole('button', { name: 'Show amounts' })).toBeVisible()
+    await page.getByRole('button', { name: 'Hide Amounts' }).click()
+    await expect(page.getByRole('button', { name: 'Show Amounts' })).toBeVisible()
     await expect.poll(running, { timeout: 1000 }).toBe(0)
     await expect.poll(() => readableText(page)).not.toMatch(/\$\d/)
 
-    await page.getByRole('button', { name: 'Show amounts' }).click()
+    await page.getByRole('button', { name: 'Show Amounts' }).click()
     await expect.poll(running, { timeout: 1000 }).toBe(0)
     await expect.poll(() => readableText(page)).toMatch(/\$\d/)
   })

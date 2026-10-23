@@ -1,23 +1,11 @@
 import { useState } from 'react'
-import { HugeiconsIcon } from '@hugeicons/react'
-import {
-  Archive02Icon,
-  Delete02Icon,
-  MoreHorizontalIcon,
-  PencilEdit01Icon
-} from '@hugeicons/core-free-icons'
+import { Archive02Icon, Delete02Icon, PencilEdit01Icon } from '@hugeicons/core-free-icons'
 import type { GoalSummary } from '@shared/goals'
 import { GoalDialog } from '@/components/goals/goal-dialog'
 import { longDay } from '@/components/goals/goal-labels'
 import { useRemoveGoal, useUpdateGoal } from '@/components/goals/use-goals'
 import { Amount } from '@/components/amount'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
+import { ActionsMenu, ActionsMenuItem } from '@/components/actions-menu'
 import { cn } from '@/lib/utils'
 
 // The card and the table are two views of the same goal, so they show it
@@ -61,30 +49,20 @@ export function GoalActionsMenu({ goal }: { goal: GoalSummary }) {
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={<Button variant="ghost" size="icon" />}
-          aria-label="Goal actions"
+      <ActionsMenu label="Goal Actions">
+        <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => setEditing(true)}>
+          Edit
+        </ActionsMenuItem>
+        <ActionsMenuItem
+          icon={Archive02Icon}
+          onClick={() => update.mutate({ id: goal.id, archived: goal.archivedAt === null })}
         >
-          <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setEditing(true)}>
-            <HugeiconsIcon icon={PencilEdit01Icon} size={14} />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => update.mutate({ id: goal.id, archived: goal.archivedAt === null })}
-          >
-            <HugeiconsIcon icon={Archive02Icon} size={14} />
-            {goal.archivedAt === null ? 'Archive' : 'Unarchive'}
-          </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={() => remove.mutate(goal)}>
-            <HugeiconsIcon icon={Delete02Icon} size={14} />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          {goal.archivedAt === null ? 'Archive' : 'Unarchive'}
+        </ActionsMenuItem>
+        <ActionsMenuItem icon={Delete02Icon} destructive onClick={() => remove.mutate(goal)}>
+          Delete
+        </ActionsMenuItem>
+      </ActionsMenu>
       <GoalDialog open={editing} onOpenChange={setEditing} currency={goal.currency} goal={goal} />
     </>
   )

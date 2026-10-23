@@ -6,7 +6,7 @@ import {
   ArrowUp01Icon,
   CheckmarkCircle02Icon,
   Delete02Icon,
-  PencilEdit02Icon,
+  PencilEdit01Icon,
   PlusSignIcon,
   Tag01Icon
 } from '@hugeicons/core-free-icons'
@@ -19,10 +19,12 @@ import { toastUndoable } from '@/lib/undo-toast'
 import { ipcErrorMessage } from '@/lib/utils'
 import { invalidateRuleData } from '@/lib/invalidate'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty'
 import { Switch } from '@/components/ui/switch'
 import { RuleForm, type RuleDraft } from '@/components/rules/rules-editor'
+import { ActionsMenu, ActionsMenuItem } from '@/components/actions-menu'
 import { RULE_FORM_DESCRIPTION, ruleFormTitle } from '@/components/rules/rule-form-labels'
 import { RulesPreviewPage } from '@/components/rules/rules-preview-page'
 import { SuggestionGroupRow } from '@/components/rules/suggestion-group-row'
@@ -221,7 +223,7 @@ export function RulesSettings(): React.JSX.Element {
           onCheckedChange={setRuleSuggestionsEnabled}
         />
         <SettingAction
-          label="Apply rules now"
+          label="Apply Rules Now"
           description="Run your rules against existing transactions, with a preview first."
         >
           <Button
@@ -235,16 +237,16 @@ export function RulesSettings(): React.JSX.Element {
       </SettingsGroup>
 
       <div className="space-y-3">
-        <h3 className="text-sm font-medium">Your rules</h3>
+        <h3 className="text-sm font-medium">Your Rules</h3>
         {rulesQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <Skeleton className="h-48 w-full" />
         ) : rules.length === 0 ? (
           <Empty className="border border-muted-foreground/30 bg-background">
             <EmptyHeader>
               <EmptyMedia variant="icon">
                 <HugeiconsIcon icon={Tag01Icon} />
               </EmptyMedia>
-              <EmptyTitle>No rules yet</EmptyTitle>
+              <EmptyTitle>No Rules Yet</EmptyTitle>
               <EmptyDescription>
                 Add a rule below to categorize or flag transactions automatically.
               </EmptyDescription>
@@ -274,7 +276,7 @@ export function RulesSettings(): React.JSX.Element {
           onClick={() => setEditing({ draft: null, key: 'new' })}
         >
           <HugeiconsIcon icon={PlusSignIcon} className="size-3.5" />
-          Add rule
+          Add Rule
         </Button>
       </div>
 
@@ -310,7 +312,7 @@ function SuggestionsPage({
             disabled={dismiss.isPending}
             onClick={() => dismiss.mutate(groups.flatMap((g) => g.suggestions.map((s) => s.id)))}
           >
-            Dismiss all
+            Dismiss All
           </Button>
         )
       }
@@ -322,7 +324,7 @@ function SuggestionsPage({
             <EmptyMedia variant="icon">
               <HugeiconsIcon icon={CheckmarkCircle02Icon} />
             </EmptyMedia>
-            <EmptyTitle>No suggestions</EmptyTitle>
+            <EmptyTitle>No Suggestions</EmptyTitle>
             <EmptyDescription>
               Categorize the same merchant a few times and we&apos;ll suggest a rule here.
             </EmptyDescription>
@@ -381,49 +383,31 @@ function RuleRow({
             : actionText}
         </div>
       </div>
-      <div className="flex shrink-0 items-center">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          disabled={isFirst}
-          aria-label="Move up"
-          onClick={onMoveUp}
-        >
-          <HugeiconsIcon icon={ArrowUp01Icon} className="size-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          disabled={isLast}
-          aria-label="Move down"
-          onClick={onMoveDown}
-        >
-          <HugeiconsIcon icon={ArrowDown01Icon} className="size-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Edit rule ${rule.name}`}
-          onClick={onEdit}
-        >
-          <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
-        </Button>
-        {/* no confirm: the toast's Undo brings the rule back */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Delete rule ${rule.name}`}
-          disabled={remove.isPending}
-          onClick={() => remove.mutate()}
-        >
-          <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
-        </Button>
-      </div>
       <Switch
         checked={rule.enabled}
         onCheckedChange={(on) => toggle.mutate(on)}
         aria-label={`Enable rule ${rule.name}`}
       />
+      {/* no confirm on Delete: the toast's Undo brings the rule back */}
+      <ActionsMenu label="Rule Actions">
+        <ActionsMenuItem icon={PencilEdit01Icon} onClick={onEdit}>
+          Edit
+        </ActionsMenuItem>
+        <ActionsMenuItem icon={ArrowUp01Icon} disabled={isFirst} onClick={onMoveUp}>
+          Move Up
+        </ActionsMenuItem>
+        <ActionsMenuItem icon={ArrowDown01Icon} disabled={isLast} onClick={onMoveDown}>
+          Move Down
+        </ActionsMenuItem>
+        <ActionsMenuItem
+          icon={Delete02Icon}
+          destructive
+          disabled={remove.isPending}
+          onClick={() => remove.mutate()}
+        >
+          Delete
+        </ActionsMenuItem>
+      </ActionsMenu>
     </div>
   )
 }

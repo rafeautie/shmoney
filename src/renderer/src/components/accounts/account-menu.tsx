@@ -1,25 +1,17 @@
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Delete02Icon, PencilEdit02Icon, Settings01Icon } from '@hugeicons/core-free-icons'
-import { Button } from '@/components/ui/button'
+import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { Delete02Icon, PencilEdit01Icon } from '@hugeicons/core-free-icons'
+import { ActionsMenu, ActionsMenuItem } from '@/components/actions-menu'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { NameDialog } from '@/components/name-dialog'
-import { TransactionViewItems } from '@/components/transactions/view-options'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
 
 /**
- * The account page's gear: a menu of per-account actions and the table's view
- * toggles. Rename and delete each open a dialog.
+ * An account's "…" menu, on the account page and on each row of the Accounts
+ * list. Rename and delete each open a dialog; delete asks first because it
+ * can't be undone.
  */
-export function AccountMenuButton({
+export function AccountActionsMenu({
   accountId,
   accountName,
   isManual
@@ -30,6 +22,9 @@ export function AccountMenuButton({
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const onAccountPage = useRouterState({
+    select: (state) => state.location.pathname === `/accounts/${accountId}`
+  })
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const rename = useMutation({
@@ -42,36 +37,25 @@ export function AccountMenuButton({
     mutationFn: () => window.api.accounts.delete(accountId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['accounts'] })
-      await navigate({ to: '/accounts' })
+      if (onAccountPage) await navigate({ to: '/accounts' })
     }
   })
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={<Button variant="outline" size="icon" className="shrink-0" />}
-          aria-label="Account actions"
-        >
-          <HugeiconsIcon icon={Settings01Icon} />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onClick={() => setEditing(true)}>
-            <HugeiconsIcon icon={PencilEdit02Icon} />
-            Rename
-          </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={() => setConfirmOpen(true)}>
-            <HugeiconsIcon icon={Delete02Icon} />
-            Delete account…
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <TransactionViewItems />
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* the Accounts list rows open the account on click */}
+      <ActionsMenu label="Account Actions" onTriggerClick={(e) => e.stopPropagation()}>
+        <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => setEditing(true)}>
+          Rename
+        </ActionsMenuItem>
+        <ActionsMenuItem icon={Delete02Icon} destructive onClick={() => setConfirmOpen(true)}>
+          Delete
+        </ActionsMenuItem>
+      </ActionsMenu>
       <NameDialog
         open={editing}
         onOpenChange={setEditing}
-        title="Rename account"
+        title="Rename Account"
         // balances and currency come from the bank or the import, so the name
         // is the one field set here
         description="The name shows wherever this account appears in shmoney."
@@ -87,7 +71,7 @@ export function AccountMenuButton({
             ? 'This permanently deletes the account and all of its transactions and holdings. This cannot be undone.'
             : 'This permanently deletes the account and all of its transactions and holdings, and future syncs will no longer import it. This cannot be undone.'
         }
-        confirmLabel="Delete account"
+        confirmLabel="Delete Account"
         pendingLabel="Deleting…"
         pending={deleteAccount.isPending}
         onConfirm={() => deleteAccount.mutate()}

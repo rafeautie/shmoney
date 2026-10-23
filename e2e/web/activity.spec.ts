@@ -42,7 +42,7 @@ test.describe('feed', () => {
     const card = runCard(page)
     await expect(card).toBeVisible()
     await expect(card).toContainText(SUMMARY)
-    await expect(card.getByRole('button', { name: 'Undo all' })).toBeVisible()
+    await expect(card.getByRole('button', { name: 'Undo All' })).toBeVisible()
     // entries stay folded away until the card opens
     await expect(page.getByText('Rule "Paycheck" categorized 24 transactions')).toBeHidden()
 
@@ -57,14 +57,14 @@ test.describe('feed', () => {
     const before = await uncategorized(app)
     const card = runCard(page)
 
-    await card.getByRole('button', { name: 'Undo all' }).click()
-    await expect(card.getByRole('button', { name: 'Redo all' })).toBeVisible()
+    await card.getByRole('button', { name: 'Undo All' }).click()
+    await expect(card.getByRole('button', { name: 'Redo All' })).toBeVisible()
     await expect(card.getByText('Undone', { exact: true })).toBeVisible()
     expect(await uncategorized(app)).toBeGreaterThan(before)
     expect(await app.sql('SELECT id FROM action_log WHERE undone_at IS NULL')).toHaveLength(0)
 
-    await card.getByRole('button', { name: 'Redo all' }).click()
-    await expect(card.getByRole('button', { name: 'Undo all' })).toBeVisible()
+    await card.getByRole('button', { name: 'Redo All' }).click()
+    await expect(card.getByRole('button', { name: 'Undo All' })).toBeVisible()
     await expect(card.getByText('Undone', { exact: true })).toBeHidden()
     expect(await uncategorized(app)).toBe(before)
   })
@@ -98,7 +98,7 @@ test.describe('feed', () => {
     await expect(entry.getByText(/^Undone/)).toBeVisible()
     await expect(entry.getByRole('button', { name: 'Redo', exact: true })).toBeVisible()
     await expect(card).toContainText('1 of 9 undone')
-    await expect(card.getByRole('button', { name: 'Undo all' })).toBeVisible()
+    await expect(card.getByRole('button', { name: 'Undo All' })).toBeVisible()
     expect(await uncategorized(app)).toBe(before + 42)
 
     await entry.getByRole('button', { name: 'Redo', exact: true }).click()
@@ -111,8 +111,11 @@ test.describe('feed', () => {
     await app.open({ route: '/accounts?settings=rules' })
     await page
       .getByRole('dialog', { name: 'Settings' })
-      .getByRole('button', { name: 'Delete rule Insurance' })
+      .getByText('Insurance', { exact: true })
+      .locator('xpath=ancestor::div[contains(@class, "gap-3")][1]')
+      .getByRole('button', { name: 'Rule actions' })
       .click()
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
     await expect(page.getByText('Deleted “Insurance”')).toBeVisible()
     await page.keyboard.press('Escape')
     await page.getByRole('link', { name: 'Activity', exact: true }).click()
@@ -133,11 +136,11 @@ test.describe('feed', () => {
   test('a fresh install shows the empty state', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/activity', dataset: 'none' })
-    await expect(page.getByText('No activity yet')).toBeVisible()
+    await expect(page.getByText('No Activity Yet')).toBeVisible()
     await expect(
       page.getByText('Categorizing, deleting, or marking transfers shows up here.')
     ).toBeVisible()
-    await expect(page.getByText('Needs review')).toBeHidden()
+    await expect(page.getByText('Needs Review')).toBeHidden()
   })
 })
 
@@ -156,7 +159,7 @@ test.describe('filters', () => {
     await expect(page.getByText('Detected 36 transfers', { exact: true })).toBeHidden()
     await expect(page.getByText(RUN, { exact: true })).toBeHidden()
     // suggestions belong to the unfiltered view
-    await expect(page.getByText('Needs review')).toBeHidden()
+    await expect(page.getByText('Needs Review')).toBeHidden()
     await expect.poll(() => storedSetting(app, 'activitySource')).toBe('rule')
 
     await filterChip(page, 'Transfers').click()
@@ -181,11 +184,11 @@ test.describe('filters', () => {
     const { page } = app
     await app.open({ route: '/activity' })
     await filterChip(page, 'AI').click()
-    await expect(page.getByText('Nothing matches')).toBeVisible()
-    await expect(page.getByText('No activity fits this filter.')).toBeVisible()
+    await expect(page.getByText('Nothing Matches')).toBeVisible()
+    await expect(page.getByText('No activity matches these filters.')).toBeVisible()
 
-    await page.getByRole('button', { name: 'Clear filters' }).click()
-    await expect(page.getByText('Nothing matches')).toBeHidden()
+    await page.getByRole('button', { name: 'Clear Filters' }).click()
+    await expect(page.getByText('Nothing Matches')).toBeHidden()
     await expect(filterChip(page, 'All')).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByText(RUN, { exact: true })).toBeVisible()
     await expect.poll(() => storedSetting(app, 'activitySource')).toBe(null)
@@ -196,24 +199,24 @@ test.describe('filters', () => {
   }) => {
     const { page } = app
     await app.open({ route: '/activity' })
-    const search = page.getByPlaceholder('Search activity...')
+    const search = page.getByPlaceholder('Search activity…')
     await search.fill('Paycheck')
     await expect(page.getByText('Rule "Paycheck" categorized 24 transactions')).toBeVisible()
     await expect(page.getByText('Rule "Rent" categorized 12 transactions')).toBeHidden()
 
     await search.fill('zzzz-no-such-activity')
-    await expect(page.getByText('Nothing matches')).toBeVisible()
-    await page.getByRole('button', { name: 'Clear filters' }).click()
+    await expect(page.getByText('Nothing Matches')).toBeVisible()
+    await page.getByRole('button', { name: 'Clear Filters' }).click()
     await expect(search).toHaveValue('')
     await expect(page.getByText(RUN, { exact: true })).toBeVisible()
   })
 })
 
-test.describe('Needs review', () => {
+test.describe('Needs Review', () => {
   test('lists the pending suggestion with its sample and reach', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/activity' })
-    const section = page.locator('section').filter({ hasText: 'Needs review' })
+    const section = page.locator('section').filter({ hasText: 'Needs Review' })
     await expect(section).toContainText('1 rule suggestion')
     await expect(section).toContainText('🍽️ Dining Out')
     await expect(section).toContainText('SQ *TACOS EL GORDO')
@@ -223,18 +226,18 @@ test.describe('Needs review', () => {
   test('Create rule opens the editor prefilled; saving removes the suggestion', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/activity' })
-    await page.getByRole('button', { name: 'Create rule' }).click()
+    await page.getByRole('button', { name: 'Add Rule' }).click()
 
-    const editor = page.getByRole('dialog', { name: 'New rule' })
+    const editor = page.getByRole('dialog', { name: 'Add Rule' })
     await expect(editor).toBeVisible()
     await expect(page).toHaveURL(/#\/activity/)
     await expect(editor.getByLabel('Name')).toHaveValue('TACOS EL GORDO → 🍽️ Dining Out')
     await expect(editor.getByText('TACOS EL GORDO', { exact: true })).toBeVisible()
     await expect(editor.getByText('🍽️ Dining Out')).toBeVisible()
-    await editor.getByRole('button', { name: 'Create rule' }).click()
+    await editor.getByRole('button', { name: 'Add Rule' }).click()
 
     await expect(editor).toBeHidden()
-    await expect(page.getByText('Needs review')).toBeHidden()
+    await expect(page.getByText('Needs Review')).toBeHidden()
     expect(await app.sql(`SELECT name FROM rules WHERE name LIKE 'TACOS%'`)).toHaveLength(1)
     expect(await app.sql('SELECT status FROM rule_suggestions')).toEqual([{ status: 'accepted' }])
   })
@@ -242,19 +245,19 @@ test.describe('Needs review', () => {
   test('cancelling the editor keeps the suggestion pending', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/activity' })
-    await page.getByRole('button', { name: 'Create rule' }).click()
-    const editor = page.getByRole('dialog', { name: 'New rule' })
+    await page.getByRole('button', { name: 'Add Rule' }).click()
+    const editor = page.getByRole('dialog', { name: 'Add Rule' })
     await editor.getByRole('button', { name: 'Cancel' }).click()
     await expect(editor).toBeHidden()
-    await expect(page.getByText('Needs review')).toBeVisible()
+    await expect(page.getByText('Needs Review')).toBeVisible()
     expect(await app.sql('SELECT status FROM rule_suggestions')).toEqual([{ status: 'pending' }])
   })
 
   test('Dismiss removes the group', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/activity' })
-    await page.getByRole('button', { name: 'Dismiss' }).click()
-    await expect(page.getByText('Needs review')).toBeHidden()
+    await page.getByRole('button', { name: 'Dismiss', exact: true }).click()
+    await expect(page.getByText('Needs Review')).toBeHidden()
     expect(await app.sql('SELECT status FROM rule_suggestions')).toEqual([{ status: 'dismissed' }])
     // the history below is untouched
     await expect(page.getByText(RUN, { exact: true })).toBeVisible()
@@ -283,7 +286,7 @@ test.describe('sidebar dot', () => {
     await dialog.getByRole('button', { name: 'Rules' }).click()
     await dialog.getByRole('button', { name: 'Apply', exact: true }).click()
     await dialog.getByRole('button', { name: /^Apply to \d+$/ }).click()
-    await expect(dialog.getByRole('heading', { name: 'Your rules' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Your Rules' })).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
     await expect(activityDot(page)).toBeVisible()

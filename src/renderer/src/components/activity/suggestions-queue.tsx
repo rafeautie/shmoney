@@ -9,7 +9,7 @@ import { useDismissSuggestions } from '@/components/rules/suggestion-drafts'
  * Pending rule suggestions, one line per category: the top match with its
  * phrase highlighted, the group's reach, and its actions. Lives apart from the
  * history so dismissing one never touches the record below. Every phrase is
- * reviewable in the rule editor that Create rule opens.
+ * reviewable in the rule editor that Add Rule opens.
  */
 export function SuggestionsQueue({ suggestions }: { suggestions: RuleSuggestion[] }) {
   const { createRule } = useSuggestionsUi()
@@ -20,7 +20,7 @@ export function SuggestionsQueue({ suggestions }: { suggestions: RuleSuggestion[
     <section className="space-y-2">
       <div className="flex items-end justify-between gap-4">
         <h3 className="flex items-baseline gap-2 text-sm font-semibold tracking-tight">
-          Needs review
+          Needs Review
           <span className="text-xs font-normal text-muted-foreground">
             {plural(suggestions.length, 'rule suggestion')}
           </span>
@@ -31,7 +31,7 @@ export function SuggestionsQueue({ suggestions }: { suggestions: RuleSuggestion[
           disabled={dismiss.isPending}
           onClick={() => dismiss.mutate(suggestions.map((s) => s.id))}
         >
-          Dismiss all
+          Dismiss All
         </Button>
       </div>
       <div className="divide-y overflow-hidden rounded-lg border">
@@ -64,7 +64,7 @@ export function SuggestionsQueue({ suggestions }: { suggestions: RuleSuggestion[
               <div className="flex gap-1">
                 {/* min-w-20 keeps the pair the same width */}
                 <Button className="min-w-20" onClick={() => createRule(group)}>
-                  {group.rule ? 'Add to rule' : 'Create rule'}
+                  {group.rule ? 'Add to Rule' : 'Add Rule'}
                 </Button>
                 <Button
                   variant="ghost"

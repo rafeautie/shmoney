@@ -24,6 +24,7 @@ import {
   type Transaction,
   type TransactionCreateInput,
   type TransactionIdsInput,
+  type TransactionsBulkDeleteResult,
   type TransactionsSetCategoriesInput,
   type TransactionStats,
   type TransactionUpdateInput,
@@ -178,7 +179,7 @@ const api = {
     setCategories: (input: TransactionsSetCategoriesInput): Promise<number> =>
       ipcRenderer.invoke(IPC.transactionsSetCategories, input),
     /** Soft delete; skips pending rows, resolves to the ids actually deleted */
-    bulkDelete: (input: TransactionIdsInput): Promise<number[]> =>
+    bulkDelete: (input: TransactionIdsInput): Promise<TransactionsBulkDeleteResult> =>
       ipcRenderer.invoke(IPC.transactionsBulkDelete, input),
     /** Manually create a transaction on an account; resolves to the new row id */
     create: (input: TransactionCreateInput): Promise<number> =>

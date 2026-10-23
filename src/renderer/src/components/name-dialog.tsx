@@ -100,7 +100,7 @@ function NameForm({
           Cancel
         </Button>
         <Button disabled={!canSubmit} onClick={save}>
-          {pending ? 'Saving...' : 'Save'}
+          {pending ? 'Saving…' : 'Save'}
         </Button>
       </DialogFooter>
     </>

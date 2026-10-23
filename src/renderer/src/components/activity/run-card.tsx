@@ -65,7 +65,7 @@ export function RunCard({
         <div className="flex shrink-0 items-center gap-2">
           {allUndone && <UndoneTag>Undone</UndoneTag>}
           <Button variant="outline" disabled={toggle.isPending} onClick={() => toggle.mutate()}>
-            {allUndone ? 'Redo all' : 'Undo all'}
+            {allUndone ? 'Redo All' : 'Undo All'}
           </Button>
         </div>
         <CollapsibleTrigger aria-label="Show entries">

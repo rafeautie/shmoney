@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Delete02Icon, PencilEdit02Icon, PlusSignIcon } from '@hugeicons/core-free-icons'
+import { Delete02Icon, PencilEdit01Icon, PlusSignIcon } from '@hugeicons/core-free-icons'
 import type { Category, CategoryGroup } from '@shared/ipc'
 import { ipcErrorMessage } from '@/lib/utils'
 import { invalidateCategoryData } from '@/lib/invalidate'
 import { toastUndoable } from '@/lib/undo-toast'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,6 +19,7 @@ import {
 } from '@/components/ui/select'
 import { SettingsGroup, SettingAction, SettingsSection, SettingsSubpage } from './settings-controls'
 import { ConfirmButton } from '@/components/confirm-dialog'
+import { ActionsMenu, ActionsMenuItem } from '@/components/actions-menu'
 
 // what the edit sub-page is showing: a category (new ones land in `groupId`)
 // or a group, each new when the item is missing. Settings is itself a modal,
@@ -72,10 +74,10 @@ export function CategoriesSettings() {
   return (
     <SettingsSection
       title="Categories"
-      description="Group your categories and assign them to transactions. Hover a category to edit or delete it."
+      description="Group your categories and assign them to transactions. Each category’s … menu edits or deletes it."
     >
       {categoriesQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <Skeleton className="h-64 w-full" />
       ) : (
         <>
           <SettingsGroup>
@@ -95,7 +97,7 @@ export function CategoriesSettings() {
             <div className="px-4 py-3">
               <Button variant="outline" onClick={() => setEditing({ kind: 'group' })}>
                 <HugeiconsIcon icon={PlusSignIcon} size={14} />
-                Add group
+                Add Group
               </Button>
             </div>
           </SettingsGroup>
@@ -124,12 +126,12 @@ export function CategoriesSettings() {
       )}
       <SettingsGroup>
         <SettingAction
-          label="Reset to defaults"
+          label="Reset to Defaults"
           description="Restore the default groups and categories; transactions in them become Uncategorized. System categories and their transactions are kept."
         >
           <ConfirmButton
             variant="destructive"
-            title="Reset to defaults?"
+            title="Reset to Defaults?"
             description="This restores the default groups and categories and sets their transactions to Uncategorized. System categories (and the transactions assigned to them) are kept."
             confirmLabel="Reset"
             pendingLabel="Resetting…"
@@ -153,7 +155,6 @@ function GroupSection({ group, onEdit }: { group: CategoryGroup; onEdit: OnEdit 
   const queryClient = useQueryClient()
 
   const deleteGroup = useMutation({
-    meta: { silenceError: true },
     mutationFn: () => window.api.categories.deleteGroup(group.id),
     onSuccess: (actionId) => {
       if (actionId !== null) toastUndoable(`Deleted “${group.name}”`, actionId, queryClient)
@@ -165,30 +166,22 @@ function GroupSection({ group, onEdit }: { group: CategoryGroup; onEdit: OnEdit 
     <div className="flex flex-col gap-2 px-4 py-3">
       <div className="flex min-h-7 items-center gap-2">
         <h3 className="text-sm font-medium select-text">{group.name}</h3>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Rename group ${group.name}`}
-          onClick={() => onEdit({ kind: 'group', group })}
-        >
-          <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
-        </Button>
-        {/* no confirm: the toast's Undo brings the group back */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="ml-auto"
-          aria-label={`Delete group ${group.name}`}
-          disabled={deleteGroup.isPending}
-          onClick={() => deleteGroup.mutate()}
-        >
-          <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
-        </Button>
+        {/* no confirm on Delete: the toast's Undo brings the group back */}
+        <ActionsMenu label="Group Actions" size="icon-sm" className="ml-auto">
+          <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => onEdit({ kind: 'group', group })}>
+            Rename
+          </ActionsMenuItem>
+          <ActionsMenuItem
+            icon={Delete02Icon}
+            destructive
+            disabled={deleteGroup.isPending}
+            onClick={() => deleteGroup.mutate()}
+          >
+            Delete
+          </ActionsMenuItem>
+        </ActionsMenu>
       </div>
       <CategoryList groupId={group.id} categories={group.categories} onEdit={onEdit} />
-      {deleteGroup.isError && (
-        <p className="text-sm text-destructive">{ipcErrorMessage(deleteGroup.error)}</p>
-      )}
     </div>
   )
 }
@@ -209,7 +202,7 @@ function CategoryList({
       ))}
       <Button variant="outline" onClick={() => onEdit({ kind: 'category', groupId })}>
         <HugeiconsIcon icon={PlusSignIcon} size={14} />
-        Add category
+        Add Category
       </Button>
     </div>
   )
@@ -219,7 +212,6 @@ function CategoryChip({ category, onEdit }: { category: Category; onEdit: OnEdit
   const queryClient = useQueryClient()
 
   const deleteCategory = useMutation({
-    meta: { silenceError: true },
     mutationFn: () => window.api.categories.delete(category.id),
     onSuccess: (actionId) => {
       if (actionId !== null) toastUndoable(`Deleted “${category.name}”`, actionId, queryClient)
@@ -228,35 +220,25 @@ function CategoryChip({ category, onEdit }: { category: Category; onEdit: OnEdit
   })
 
   return (
-    <span className="group/chip inline-flex h-7 items-center rounded-md bg-secondary px-2.5 py-1 text-xs text-secondary-foreground transition-[padding] duration-200 focus-within:pr-1 hover:pr-1">
+    <span className="inline-flex h-7 items-center gap-0.5 rounded-md bg-secondary py-1 pr-0.5 pl-2.5 text-xs text-secondary-foreground">
       {category.name}
-      {/* 0fr -> 1fr animates the reveal to content width; plain width can't transition to auto */}
-      <span className="grid grid-cols-[0fr] opacity-0 transition-[grid-template-columns,opacity] duration-200 group-focus-within/chip:grid-cols-[1fr] group-focus-within/chip:opacity-100 group-hover/chip:grid-cols-[1fr] group-hover/chip:opacity-100">
-        <span className="flex min-w-0 items-center overflow-hidden">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="ml-1.5"
-            aria-label={`Edit category ${category.name}`}
-            onClick={() => onEdit({ kind: 'category', category, groupId: category.groupId })}
-          >
-            <HugeiconsIcon icon={PencilEdit02Icon} className="size-3.5" />
-          </Button>
-          {/* no confirm: the toast's Undo brings it back, assignments included */}
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={`Delete category ${category.name}`}
-            disabled={deleteCategory.isPending}
-            onClick={() => deleteCategory.mutate()}
-          >
-            <HugeiconsIcon icon={Delete02Icon} className="size-3.5" />
-          </Button>
-        </span>
-      </span>
-      {deleteCategory.isError && (
-        <span className="pl-1 text-destructive">{ipcErrorMessage(deleteCategory.error)}</span>
-      )}
+      {/* no confirm on Delete: the toast's Undo brings it back, assignments included */}
+      <ActionsMenu label="Category Actions" size="icon-xs" className="text-muted-foreground">
+        <ActionsMenuItem
+          icon={PencilEdit01Icon}
+          onClick={() => onEdit({ kind: 'category', category, groupId: category.groupId })}
+        >
+          Edit
+        </ActionsMenuItem>
+        <ActionsMenuItem
+          icon={Delete02Icon}
+          destructive
+          disabled={deleteCategory.isPending}
+          onClick={() => deleteCategory.mutate()}
+        >
+          Delete
+        </ActionsMenuItem>
+      </ActionsMenu>
     </span>
   )
 }
@@ -357,13 +339,13 @@ function CategoryPage({
 
   return (
     <EditForm
-      title={category ? 'Edit category' : 'Add category'}
+      title={category ? 'Edit Category' : 'Add Category'}
       description={
         category
           ? 'Its transactions, rules and envelope stay with it.'
           : 'Use it on transactions, rules and envelopes once it exists.'
       }
-      submitLabel={category ? 'Save' : 'Add category'}
+      submitLabel={category ? 'Save' : 'Add Category'}
       canSubmit={trimmed !== ''}
       pending={save.isPending}
       error={save.error}
@@ -426,9 +408,9 @@ function GroupPage({ group, onDone }: { group?: CategoryGroup; onDone: () => voi
   const trimmed = name.trim()
   return (
     <EditForm
-      title={group ? 'Rename group' : 'Add group'}
+      title={group ? 'Rename Group' : 'Add Group'}
       description="Groups gather related categories in budgets, reports and pickers."
-      submitLabel={group ? 'Save' : 'Add group'}
+      submitLabel={group ? 'Save' : 'Add Group'}
       canSubmit={trimmed !== ''}
       pending={save.isPending}
       error={save.error}

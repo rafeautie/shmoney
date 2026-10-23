@@ -100,7 +100,7 @@ function TransactionForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Edit transaction</DialogTitle>
+        <DialogTitle>Edit Transaction</DialogTitle>
         <DialogDescription>
           {locked
             ? `Synced from your bank into ${transaction.accountName}, so only the category can change.`
@@ -188,7 +188,7 @@ function TransactionForm({
           Cancel
         </Button>
         <Button disabled={!canSubmit} onClick={save}>
-          {pending ? 'Saving...' : 'Save'}
+          {pending ? 'Saving…' : 'Save'}
         </Button>
       </DialogFooter>
     </>

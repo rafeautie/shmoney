@@ -395,8 +395,8 @@ describe('list', () => {
     await categorize(ids, category())
     expect((await suggestionFor('SHRINKING CLUSTER'))?.matchCount).toBe(3)
 
-    const [deleted] = await api.transactions.bulkDelete({ transactionIds: [ids[0]] })
-    expect(deleted).toBe(ids[0])
+    const { deletedIds } = await api.transactions.bulkDelete({ transactionIds: [ids[0]] })
+    expect(deletedIds).toEqual([ids[0]])
     expect(await suggestionFor('SHRINKING CLUSTER')).toBeUndefined()
     expect(suggestionRows('SHRINKING CLUSTER')).toBe(1)
 

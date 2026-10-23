@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, test, type App } from '../fixtures'
+import { expect, test, type App, exactly } from '../fixtures'
 
 const card = (page: Page, title: string): Locator =>
   page
@@ -10,7 +10,7 @@ const card = (page: Page, title: string): Locator =>
 const field = (dialog: Locator, label: string): Locator =>
   dialog
     .locator('div.space-y-2')
-    .filter({ has: dialog.page().getByText(label, { exact: true }) })
+    .filter({ has: dialog.page().getByText(exactly(label)) })
     .getByRole('combobox')
 
 /** a select trigger by the value it currently shows (stable when the same control repeats) */
@@ -20,20 +20,20 @@ const combo = (page: Page, shown: string): Locator =>
 async function pick(trigger: Locator, option: string): Promise<void> {
   const page = trigger.page()
   await trigger.click()
-  await page.getByRole('option', { name: option, exact: true }).click()
+  await page.getByRole('option', { name: exactly(option) }).click()
   await expect(page.getByRole('listbox')).toHaveCount(0)
 }
 
 async function blankReport({ page }: App): Promise<void> {
-  await page.getByRole('button', { name: 'New report' }).click()
-  await page.getByRole('menuitem', { name: 'Blank report' }).click()
-  await expect(page.getByText('This report is empty')).toBeVisible()
+  await page.getByRole('button', { name: 'New Report' }).click()
+  await page.getByRole('menuitem', { name: 'Blank Report' }).click()
+  await expect(page.getByText('This Report Is Empty')).toBeVisible()
 }
 
 async function openAddWidget(page: Page): Promise<Locator> {
-  await page.getByRole('button', { name: 'Add widget' }).first().click()
+  await page.getByRole('button', { name: 'Add Widget' }).first().click()
   const dialog = page.getByRole('dialog')
-  await expect(dialog.getByRole('heading', { name: 'Add widget' })).toBeVisible()
+  await expect(dialog.getByRole('heading', { name: 'Add Widget' })).toBeVisible()
   return dialog
 }
 
@@ -61,7 +61,7 @@ test.describe('report filter bar', () => {
     await expect(page.getByRole('heading', { name: 'Spending Overview', level: 2 })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Reset' })).toHaveCount(0)
 
-    await pick(combo(page, 'All directions'), 'Expenses only')
+    await pick(combo(page, 'All Directions'), 'Expenses Only')
     await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible()
     await expect
       .poll(async () => {
@@ -74,13 +74,13 @@ test.describe('report filter bar', () => {
     await page
       .locator('[data-slot=card]')
       .filter({ hasText: 'Spending Overview' })
-      .filter({ has: page.getByRole('button', { name: 'Report menu' }) })
+      .filter({ has: page.getByRole('button', { name: 'Report actions' }) })
       .click()
     await expect(page).toHaveURL(/#\/reports\/1$/)
-    await expect(combo(page, 'Expenses only')).toBeVisible()
+    await expect(combo(page, 'Expenses Only')).toBeVisible()
 
     await page.getByRole('button', { name: 'Reset' }).click()
-    await expect(combo(page, 'All directions')).toBeVisible()
+    await expect(combo(page, 'All Directions')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Reset' })).toHaveCount(0)
     await expect
       .poll(async () => {
@@ -97,7 +97,7 @@ test.describe('report filter bar', () => {
     const before = await income.innerText()
     await expect(income).toContainText(/\$[\d,]+\.\d\d/)
 
-    await pick(combo(page, 'Last 12 months'), 'This month')
+    await pick(combo(page, 'Last 12 Months'), 'This Month')
     await expect(income).not.toHaveText(before)
     await expect(income).toContainText(/\$[\d,]+\.\d\d/)
   })
@@ -110,7 +110,7 @@ test.describe('widget editor', () => {
     await blankReport(app)
     const dialog = await openAddWidget(page)
 
-    await pick(field(dialog, 'Widget type'), 'Stat card')
+    await pick(field(dialog, 'Widget Type'), 'Stat Card')
     await dialog.getByLabel('Title').fill('Total spend')
     const preview = dialog.locator('[data-slot=card]')
     await expect(preview.getByRole('heading', { name: 'Total spend' })).toBeVisible()
@@ -119,11 +119,11 @@ test.describe('widget editor', () => {
 
     await pick(field(dialog, 'Measure'), 'Income')
     await expect(preview).not.toHaveText(expenses)
-    await pick(field(dialog, 'Measure'), 'Transaction count')
+    await pick(field(dialog, 'Measure'), 'Transaction Count')
     await expect(preview).not.toContainText('$')
 
     await pick(field(dialog, 'Measure'), 'Expenses')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
 
     await expect(card(page, 'Total spend')).toContainText(/\$[\d,]+\.\d\d/)
@@ -131,7 +131,7 @@ test.describe('widget editor', () => {
     expect(widget).toMatchObject({ title: 'Total spend', type: 'stat' })
     expect(widget.config.query).toMatchObject({ measure: 'expense', groupBy: 'none' })
     // the report is no longer empty, so the empty state is gone
-    await expect(page.getByText('This report is empty')).toBeHidden()
+    await expect(page.getByText('This Report Is Empty')).toBeHidden()
   })
 
   test('a stat card ignores a group by the draft had before the type changed', async ({ app }) => {
@@ -140,10 +140,10 @@ test.describe('widget editor', () => {
     await blankReport(app)
     const dialog = await openAddWidget(page)
 
-    await pick(field(dialog, 'Group by'), 'Account')
-    await pick(field(dialog, 'Widget type'), 'Stat card')
-    await expect(field(dialog, 'Group by')).toHaveText('None')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await pick(field(dialog, 'Group By'), 'Account')
+    await pick(field(dialog, 'Widget Type'), 'Stat Card')
+    await expect(field(dialog, 'Group By')).toHaveText('None')
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
     const [widget] = await storedWidgets(app, 4)
     expect(widget.config.query.groupBy).toBe('none')
@@ -156,11 +156,11 @@ test.describe('widget editor', () => {
     const dialog = await openAddWidget(page)
 
     await expect(dialog.getByText('Stacked')).toHaveCount(0)
-    await pick(field(dialog, 'Group by'), 'Account')
+    await pick(field(dialog, 'Group By'), 'Account')
     await expect(dialog.getByText('Stacked')).toBeVisible()
     await dialog.getByRole('switch', { name: 'Stacked' }).click()
     await dialog.getByLabel('Title').fill('Spend by account')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
 
     const bar = card(page, 'Spend by account')
@@ -171,29 +171,29 @@ test.describe('widget editor', () => {
     expect(widget.config.display).toMatchObject({ stacked: true })
   })
 
-  test('a line chart has no "No time axis" grain and keeps the chosen one', async ({ app }) => {
+  test('a line chart has no "No Time Axis" grain and keeps the chosen one', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports' })
     await blankReport(app)
     const dialog = await openAddWidget(page)
 
     // a bar chart can drop the time axis
-    await field(dialog, 'Time grain').click()
-    await expect(page.getByRole('option', { name: 'No time axis' })).toBeVisible()
-    await page.getByRole('option', { name: 'No time axis' }).click()
+    await field(dialog, 'Time Grain').click()
+    await expect(page.getByRole('option', { name: 'No Time Axis' })).toBeVisible()
+    await page.getByRole('option', { name: 'No Time Axis' }).click()
     await expect(page.getByRole('listbox')).toHaveCount(0)
 
     // switching to a line chart can't keep it: the draft normalizes to monthly
-    await pick(field(dialog, 'Widget type'), 'Line chart')
-    await expect(field(dialog, 'Time grain')).toHaveText('Monthly')
-    await field(dialog, 'Time grain').click()
+    await pick(field(dialog, 'Widget Type'), 'Line Chart')
+    await expect(field(dialog, 'Time Grain')).toHaveText('Monthly')
+    await field(dialog, 'Time Grain').click()
     await expect(page.getByRole('option', { name: 'Quarterly' })).toBeVisible()
-    await expect(page.getByRole('option', { name: 'No time axis' })).toHaveCount(0)
+    await expect(page.getByRole('option', { name: 'No Time Axis' })).toHaveCount(0)
     await page.getByRole('option', { name: 'Quarterly', exact: true }).click()
     await expect(page.getByRole('listbox')).toHaveCount(0)
 
     await dialog.getByLabel('Title').fill('Quarterly spend')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
     await expect(card(page, 'Quarterly spend').locator('.recharts-surface')).toBeVisible()
     const [widget] = await storedWidgets(app, 4)
@@ -207,16 +207,16 @@ test.describe('widget editor', () => {
     await blankReport(app)
     const dialog = await openAddWidget(page)
 
-    await expect(field(dialog, 'Time grain')).toBeVisible()
-    await expect(field(dialog, 'Group by')).toHaveText('None')
-    await pick(field(dialog, 'Widget type'), 'Pie chart')
-    await expect(dialog.getByText('Time grain', { exact: true })).toHaveCount(0)
-    await expect(field(dialog, 'Group by')).toHaveText('Category')
-    await expect(dialog.getByText('Top N groups')).toBeVisible()
+    await expect(field(dialog, 'Time Grain')).toBeVisible()
+    await expect(field(dialog, 'Group By')).toHaveText('None')
+    await pick(field(dialog, 'Widget Type'), 'Pie Chart')
+    await expect(dialog.getByText('Time Grain', { exact: true })).toHaveCount(0)
+    await expect(field(dialog, 'Group By')).toHaveText('Category')
+    await expect(dialog.getByText('Top N Groups')).toBeVisible()
     await expect(dialog.getByText('Donut')).toBeVisible()
 
     await dialog.getByLabel('Title').fill('Where it goes')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
     await expect(card(page, 'Where it goes').locator('.recharts-surface')).toBeVisible()
     const [widget] = await storedWidgets(app, 4)
@@ -230,7 +230,7 @@ test.describe('widget editor', () => {
     await blankReport(app)
     const dialog = await openAddWidget(page)
 
-    await pick(field(dialog, 'Widget type'), 'Summary table')
+    await pick(field(dialog, 'Widget Type'), 'Summary Table')
     const preview = dialog.locator('[data-slot=card]')
     await expect(preview.getByRole('row').nth(3)).toBeVisible()
     const limit = dialog.getByPlaceholder('All')
@@ -240,7 +240,7 @@ test.describe('widget editor', () => {
     await expect(preview.getByRole('row')).toHaveCount(5)
     await expect(preview.getByRole('row').last()).toContainText('Other')
     await dialog.getByLabel('Title').fill('Top three')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
 
     await expect(card(page, 'Top three').getByRole('row')).toHaveCount(5)
@@ -255,11 +255,11 @@ test.describe('widget editor', () => {
     await blankReport(app)
     const dialog = await openAddWidget(page)
 
-    await pick(field(dialog, 'Widget type'), 'Transactions table')
+    await pick(field(dialog, 'Widget Type'), 'Transactions Table')
     await expect(dialog.getByText('Measure', { exact: true })).toHaveCount(0)
-    await expect(dialog.getByText('Group by')).toHaveCount(0)
+    await expect(dialog.getByText('Group By')).toHaveCount(0)
     await dialog.getByLabel('Title').fill('Everything')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
 
     const table = card(page, 'Everything')
@@ -273,13 +273,13 @@ test.describe('widget editor', () => {
     await blankReport(app)
     const dialog = await openAddWidget(page)
 
-    await pick(field(dialog, 'Widget type'), 'Budget')
+    await pick(field(dialog, 'Widget Type'), 'Budget')
     await expect(dialog.getByText('Visualization')).toBeVisible()
     await expect(dialog.getByText('Measure', { exact: true })).toHaveCount(0)
-    await pick(field(dialog, 'Visualization'), 'Allocation donut')
+    await pick(field(dialog, 'Visualization'), 'Allocation Donut')
     await expect(dialog.getByText('Legend')).toBeVisible()
     await dialog.getByLabel('Title').fill('Envelopes')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
 
     await expect(card(page, 'Envelopes').locator('.recharts-surface').first()).toBeVisible()
@@ -295,12 +295,12 @@ test.describe('widget editor', () => {
     await blankReport(app)
     const dialog = await openAddWidget(page)
 
-    await pick(field(dialog, 'Widget type'), 'Savings goals')
-    await expect(dialog.getByText('Goal view')).toBeVisible()
+    await pick(field(dialog, 'Widget Type'), 'Savings goals')
+    await expect(dialog.getByText('Goal View')).toBeVisible()
     await expect(dialog.getByText(/report filter bar doesn't apply here/)).toBeVisible()
-    await expect(dialog.getByText('Date range')).toHaveCount(0)
+    await expect(dialog.getByText('Date Range')).toHaveCount(0)
     await dialog.getByLabel('Title').fill('My goals')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
 
     const goals = await app.sql<{ name: string }>(
@@ -319,12 +319,12 @@ test.describe('widget editor', () => {
     await expect(dialog.getByText('Measure', { exact: true })).toBeVisible()
     await pick(field(dialog, 'Source'), 'Savings goals')
     await expect(dialog.getByText('Measure', { exact: true })).toHaveCount(0)
-    await expect(dialog.getByText('Group by')).toHaveCount(0)
+    await expect(dialog.getByText('Group By')).toHaveCount(0)
     await expect(dialog.getByText('Goals', { exact: true })).toBeVisible()
     await expect(dialog.getByText('Accounts')).toHaveCount(0)
 
     // a type that can't read goals pins itself back to transactions
-    await pick(field(dialog, 'Widget type'), 'Radar chart')
+    await pick(field(dialog, 'Widget Type'), 'Radar Chart')
     await expect(dialog.getByText('Source', { exact: true })).toHaveCount(0)
     await expect(dialog.getByText('Measure', { exact: true })).toBeVisible()
   })
@@ -336,7 +336,7 @@ test.describe('widget editor', () => {
     const dialog = await openAddWidget(page)
 
     await dialog.getByLabel('Title').fill('   ')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
     await expect(page.getByRole('heading', { name: 'Untitled widget', level: 3 })).toBeVisible()
     expect((await storedWidgets(app, 4))[0].title).toBe('Untitled widget')
@@ -351,23 +351,23 @@ test.describe('widget editor', () => {
     await dialog.getByLabel('Title').fill('Never saved')
     await dialog.getByRole('button', { name: 'Cancel' }).click()
     await expect(dialog).toBeHidden()
-    await expect(page.getByText('This report is empty')).toBeVisible()
+    await expect(page.getByText('This Report Is Empty')).toBeVisible()
     expect(await storedWidgets(app, 4)).toEqual([])
   })
 
   test('edits an existing widget in place', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports/2' })
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
-    await card(page, 'Top categories').getByRole('button', { name: 'Edit' }).click()
+    await card(page, 'Top categories').getByRole('button', { name: 'Widget actions' }).click()
+    await page.getByRole('menuitem', { name: 'Edit' }).click()
 
     const dialog = page.getByRole('dialog')
-    await expect(dialog.getByRole('heading', { name: 'Edit widget' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Edit Widget' })).toBeVisible()
     await expect(dialog.getByLabel('Title')).toHaveValue('Top categories')
-    await expect(field(dialog, 'Widget type')).toHaveText('Summary table')
+    await expect(field(dialog, 'Widget Type')).toHaveText('Summary Table')
     await dialog.getByLabel('Title').fill('Biggest categories')
-    await pick(field(dialog, 'Measure'), 'Transaction count')
-    await dialog.getByRole('button', { name: 'Save changes' }).click()
+    await pick(field(dialog, 'Measure'), 'Transaction Count')
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(dialog).toBeHidden()
 
     await expect(card(page, 'Biggest categories')).toBeVisible()
@@ -382,34 +382,38 @@ test.describe('widget editor', () => {
   test('deleting a widget asks first, and Cancel keeps it', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports/2' })
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
     const target = card(page, 'Net by month')
+    const dialog = page.getByRole('dialog')
 
-    await target.getByRole('button', { name: 'Delete widget' }).click()
-    await expect(page.getByText('Delete this widget?')).toBeVisible()
-    await page.getByRole('button', { name: /Cancel/ }).click()
+    await target.getByRole('button', { name: 'Widget actions' }).click()
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
+    await expect(dialog).toContainText('Delete “Net by month”?')
+    await dialog.getByRole('button', { name: /Cancel/ }).click()
     await expect(target).toBeVisible()
     expect(await storedWidgets(app, 2)).toHaveLength(4)
 
-    await target.getByRole('button', { name: 'Delete widget' }).click()
-    await page.getByRole('button', { name: 'Delete', exact: true }).click()
+    await target.getByRole('button', { name: 'Widget actions' }).click()
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
+    await dialog.getByRole('button', { name: /^Delete/ }).click()
     await expect(page.getByRole('heading', { name: 'Net by month' })).toHaveCount(0)
     const titles = (await storedWidgets(app, 2)).map((w) => w.title)
     expect(titles).not.toContain('Net by month')
     expect(titles).toHaveLength(3)
   })
 
-  test('the widget controls only show in edit mode', async ({ app }) => {
+  test('the widget menu works without entering arrange mode', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports/2' })
     const target = card(page, 'Net by month')
-    await expect(target.getByRole('button', { name: 'Edit' })).toHaveCount(0)
-    await expect(target.getByRole('button', { name: 'Delete widget' })).toHaveCount(0)
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
-    await expect(target.getByRole('button', { name: 'Edit' })).toBeVisible()
-    await expect(target.getByRole('button', { name: 'Delete widget' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Arrange', exact: true })).toBeVisible()
+    await target.getByRole('button', { name: 'Widget actions' }).click()
+    await expect(page.getByRole('menuitem', { name: 'Edit' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Arrange', exact: true }).click()
+    await expect(target.getByRole('button', { name: 'Widget actions' })).toBeVisible()
     await page.getByRole('button', { name: 'Done' }).click()
-    await expect(target.getByRole('button', { name: 'Edit' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Arrange', exact: true })).toBeVisible()
   })
 })
 
@@ -420,7 +424,7 @@ test.describe('widget states', () => {
     await blankReport(app)
     const dialog = await openAddWidget(page)
 
-    await pick(field(dialog, 'Widget type'), 'Summary table')
+    await pick(field(dialog, 'Widget Type'), 'Summary Table')
     await dialog.getByRole('checkbox', { name: 'Description contains any of' }).click()
     await dialog.getByPlaceholder('add a phrase').fill('zzz no such merchant')
     await dialog.getByPlaceholder('add a phrase').press('Enter')
@@ -428,7 +432,7 @@ test.describe('widget states', () => {
       'No transactions match these filters.'
     )
     await dialog.getByLabel('Title').fill('Nothing here')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
     await expect(card(page, 'Nothing here')).toContainText('No transactions match these filters.')
   })
@@ -450,10 +454,10 @@ test.describe('widget states', () => {
     await expect(card(page, 'Expenses')).toContainText(/\$[\d,]+\.\d\d/)
 
     // editing it offers a fresh config
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
-    await card(page, 'Income').getByRole('button', { name: 'Edit' }).click()
+    await card(page, 'Income').getByRole('button', { name: 'Widget actions' }).click()
+    await page.getByRole('menuitem', { name: 'Edit' }).click()
     const dialog = page.getByRole('dialog')
-    await dialog.getByRole('button', { name: 'Save changes' }).click()
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(dialog).toBeHidden()
     await expect(card(page, 'Income')).not.toContainText('incompatible version')
   })
@@ -476,12 +480,12 @@ test.describe('widget states', () => {
     // queries retry with backoff before giving up; skip the waits
     await expect(async () => {
       await page.clock.fastForward(5000)
-      await expect(target.getByText('This widget could not load')).toBeVisible({ timeout: 500 })
+      await expect(target.getByText('This Widget Could Not Load')).toBeVisible({ timeout: 500 })
     }).toPass()
     await expect(target.getByText(/query exploded/)).toBeVisible()
 
     await page.evaluate(() => (window as unknown as { restore: () => void }).restore())
-    await target.getByRole('button', { name: 'Try again' }).click()
+    await target.getByRole('button', { name: 'Try Again' }).click()
     await expect(target.getByRole('row').nth(1)).toBeVisible()
   })
 
@@ -499,7 +503,7 @@ test.describe('widget states', () => {
     const target = card(page, 'Top categories')
     await expect(async () => {
       await page.clock.fastForward(5000)
-      await expect(target.getByText('This widget could not load')).toBeVisible({ timeout: 500 })
+      await expect(target.getByText('This Widget Could Not Load')).toBeVisible({ timeout: 500 })
     }).toPass()
     await expect(page.locator('[data-sonner-toast]')).toHaveCount(0)
   })
@@ -513,6 +517,13 @@ test.describe('drill down', () => {
     await expect(table.getByRole('row').nth(1)).toBeVisible()
     return table
   }
+
+  // the first transaction row, past the day header (which has no checkbox)
+  const firstTransaction = (page: Page): Locator =>
+    page
+      .locator('tbody tr')
+      .filter({ has: page.getByRole('checkbox') })
+      .first()
 
   function drilledFilters(page: Page): Record<string, unknown> {
     const url = new URL(page.url().replace('#', ''), 'http://x')
@@ -531,9 +542,8 @@ test.describe('drill down', () => {
     )
     expect(filters).toMatchObject({ categoryIds: [id], direction: 'expense' })
     await expect(page.getByRole('button', { name: '1 category' })).toBeVisible()
-    await expect(combo(page, 'Expenses only')).toBeVisible()
-    const rows = page.getByRole('row')
-    await expect(rows.nth(1)).toContainText('Groceries')
+    await expect(combo(page, 'Expenses Only')).toBeVisible()
+    await expect(firstTransaction(page)).toContainText('Groceries')
     await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible()
   })
 
@@ -546,7 +556,7 @@ test.describe('drill down', () => {
     await page.keyboard.press('Enter')
 
     await expect(page).toHaveURL(/#\/accounts\?tab=transactions/)
-    await expect(page.getByRole('row').nth(1)).toContainText('Housing')
+    await expect(firstTransaction(page)).toContainText('Housing')
   })
 
   test('the report filters carry into the drill', async ({ app }) => {
@@ -562,13 +572,13 @@ test.describe('drill down', () => {
       includePending: true,
       includeTransfers: false
     })
-    await expect(combo(page, 'Last 6 months')).toBeVisible()
+    await expect(combo(page, 'Last 6 Months')).toBeVisible()
   })
 
   test('rows do not drill while editing', async ({ app }) => {
     const { page } = app
     const table = await topCategories(app)
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'Arrange', exact: true }).click()
     const row = table.getByRole('row', { name: /Groceries/ })
     await expect(row).not.toHaveAttribute('tabindex', /.*/)
     await row.click()
@@ -609,7 +619,7 @@ test.describe('layout', () => {
       .filter({ has: page.getByRole('heading', { name: 'Net by month' }) })
     const handle = item.locator('.react-resizable-handle-se')
 
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'Arrange', exact: true }).click()
     await expect(handle).toBeVisible()
     const box = (await handle.boundingBox())!
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)

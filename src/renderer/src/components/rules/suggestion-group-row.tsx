@@ -44,10 +44,10 @@ export function MatchSample({
  * (SettingsGroup): a header row with the category and the group's actions,
  * then one divided row per match — the raw sample in monospace with the
  * extracted phrase highlighted, and the reach as a right-aligned count.
- * Create rule sends the whole group to a rule editor (one rule, all phrases
+ * Add Rule sends the whole group to a rule editor (one rule, all phrases
  * as contains matches) where unwanted phrases can be removed: Settings' inline
  * one via onCreateRule, else the global one. When the category already has a
- * rule, Add to rule opens that rule with the phrases added instead. Dismiss
+ * rule, Add to Rule opens that rule with the phrases added instead. Dismiss
  * drops the group.
  */
 export function SuggestionGroupRow({
@@ -55,7 +55,7 @@ export function SuggestionGroupRow({
   onCreateRule
 }: {
   group: RuleSuggestionGroup
-  /** where Create rule sends the group; defaults to the global rule editor */
+  /** where Add Rule sends the group; defaults to the global rule editor */
   onCreateRule?: (group: RuleSuggestionGroup) => void
 }): React.JSX.Element {
   const { createRule: createInEditor } = useSuggestionsUi()
@@ -76,7 +76,7 @@ export function SuggestionGroupRow({
       >
         {/* min-w-20 keeps the pair the same width */}
         <Button size="sm" className="min-w-20" onClick={() => createRule(group)}>
-          {group.rule ? 'Add to rule' : 'Create rule'}
+          {group.rule ? 'Add to Rule' : 'Add Rule'}
         </Button>
         <Button
           variant="ghost"
@@ -94,7 +94,7 @@ export function SuggestionGroupRow({
             <MatchSample phrase={s.phrase} description={s.descriptionKey} />
           </div>
           {/* no per-match controls: unwanted phrases are removed in the editor
-              after Create rule, and Dismiss drops the whole group */}
+              after Add Rule, and Dismiss drops the whole group */}
           <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
             {plural(s.matchCount, 'transaction')}
           </span>

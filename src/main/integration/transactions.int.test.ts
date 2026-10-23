@@ -583,10 +583,10 @@ describe('bulk delete', () => {
     const gone = txn(acct, { deletedAt: noon(2026, 9, 2) })
     const kept = txn(acct)
 
-    const deleted = await api.transactions.bulkDelete({
+    const { deletedIds } = await api.transactions.bulkDelete({
       transactionIds: [a, b, pending, gone, 999_999]
     })
-    expect(deleted.sort()).toEqual([a, b].sort())
+    expect(deletedIds.sort()).toEqual([a, b].sort())
     expect(row(pending).deleted_at).toBeNull()
     // the already-deleted row keeps its original timestamp
     expect(row(gone).deleted_at).toBe(noon(2026, 9, 2))
@@ -604,7 +604,10 @@ describe('bulk delete', () => {
     const acct = account({ name: 'Bulk nothing' })
     const pending = txn(acct, { pending: true })
     const entries = actionCount()
-    expect(await api.transactions.bulkDelete({ transactionIds: [pending, 999_999] })).toEqual([])
+    expect(await api.transactions.bulkDelete({ transactionIds: [pending, 999_999] })).toEqual({
+      deletedIds: [],
+      actionId: null
+    })
     expect(actionCount()).toBe(entries)
   })
 

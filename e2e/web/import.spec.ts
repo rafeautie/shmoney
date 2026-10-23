@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, test, type App } from '../fixtures'
+import { expect, test, type App, exactly } from '../fixtures'
 
 // household ids, in seeding order
 const CHECKING = 1
@@ -118,13 +118,13 @@ PQIF PAYCHECK
 )
 
 function importDialog(page: Page): Locator {
-  return page.getByRole('dialog', { name: 'Import transactions' })
+  return page.getByRole('dialog', { name: 'Import Transactions' })
 }
 
 async function openImport(page: Page): Promise<Locator> {
   await page.getByRole('button', { name: 'Import', exact: true }).click()
   const dialog = importDialog(page)
-  await expect(dialog.getByText('Drop a file here')).toBeVisible()
+  await expect(dialog.getByText('Drop a File Here')).toBeVisible()
   return dialog
 }
 
@@ -141,13 +141,13 @@ async function pickAccount(page: Page, dialog: Locator, label: RegExp): Promise<
 }
 
 async function newAccount(dialog: Locator, name: string, balance?: string): Promise<void> {
-  await dialog.getByRole('tab', { name: 'New account' }).click()
+  await dialog.getByRole('tab', { name: 'New Account' }).click()
   await dialog.getByLabel('Name').fill(name)
   if (balance !== undefined) await dialog.getByLabel('Opening balance (optional)').fill(balance)
 }
 
 function mappingSelect(dialog: Locator, label: string): Locator {
-  return dialog.getByRole('combobox', { name: label, exact: true })
+  return dialog.getByRole('combobox', { name: exactly(label) })
 }
 
 async function chooseColumn(
@@ -157,7 +157,7 @@ async function chooseColumn(
   option: string
 ): Promise<void> {
   await mappingSelect(dialog, label).click()
-  await page.getByRole('option', { name: option, exact: true }).click()
+  await page.getByRole('option', { name: exactly(option) }).click()
   // the popup animates out; a stale one would make the next option ambiguous
   await expect(page.getByRole('option')).toHaveCount(0)
 }
@@ -215,9 +215,9 @@ test.describe('opening the dialog', () => {
     const { page } = app
     await app.open({ route: '/budget' })
     await page.keyboard.press(`${app.mod}+k`)
-    await page.getByPlaceholder('Search pages, actions, and transactions...').fill('Import')
+    await page.getByPlaceholder('Search pages, actions, and transactions…').fill('Import')
     await page.getByRole('option', { name: 'Import', exact: true }).click()
-    await expect(importDialog(page).getByText('Drop a file here')).toBeVisible()
+    await expect(importDialog(page).getByText('Drop a File Here')).toBeVisible()
     await expect(page).toHaveURL(/#\/budget/)
   })
 
@@ -247,7 +247,7 @@ test.describe('csv import', () => {
     // mapping step: the headers were recognised
     await expect(dialog.getByText('Match the file’s columns to transaction fields.')).toBeVisible()
     await expect(mappingSelect(dialog, 'Date')).toHaveText('Date')
-    await expect(mappingSelect(dialog, 'Date format')).toHaveText('yyyy-MM-dd')
+    await expect(mappingSelect(dialog, 'Date Format')).toHaveText('yyyy-MM-dd')
     await expect(mappingSelect(dialog, 'Description')).toHaveText('Description')
     await expect(mappingSelect(dialog, 'Amount')).toHaveText('Amount')
     await expect(dialog.getByText('First 3 of 3 rows')).toBeVisible()
@@ -319,7 +319,7 @@ test.describe('csv import', () => {
     await newAccount(dialog, 'Statement Account')
     await next(dialog).click()
 
-    await expect(mappingSelect(dialog, 'Date format')).toHaveText('M/d/yyyy')
+    await expect(mappingSelect(dialog, 'Date Format')).toHaveText('M/d/yyyy')
     await expect(mappingSelect(dialog, 'Description')).toHaveText('Payee')
     await expect(mappingSelect(dialog, 'Debit (money out)')).toHaveText('Withdrawal')
     await expect(mappingSelect(dialog, 'Credit (money in)')).toHaveText('Deposit')
@@ -421,9 +421,9 @@ test.describe('csv import', () => {
     await newAccount(dialog, 'Day First')
     await next(dialog).click()
     // ambiguous dates default to month first
-    await expect(mappingSelect(dialog, 'Date format')).toHaveText('M/d/yyyy')
+    await expect(mappingSelect(dialog, 'Date Format')).toHaveText('M/d/yyyy')
 
-    await chooseColumn(page, dialog, 'Date format', 'd/M/yyyy')
+    await chooseColumn(page, dialog, 'Date Format', 'd/M/yyyy')
     await next(dialog).click()
     await expect(dialog.getByRole('row', { name: /LUNCH/ })).toContainText('Sep 3, 2026')
     await expect(dialog.getByRole('row', { name: /DINNER/ })).toContainText('Sep 4, 2026')
@@ -481,7 +481,7 @@ test.describe('csv import', () => {
     const dialog = await previewCsv(page, overlap, /Rewards Visa/)
 
     const probable = dialog.getByRole('row', { name: /NETFLIX MONTHLY/ })
-    await expect(probable).toContainText('Possible duplicate')
+    await expect(probable).toContainText('Possible Duplicate')
     await expect(probable.getByRole('checkbox')).not.toBeChecked()
     await expect(
       dialog.getByRole('row', { name: /NEW MERCHANT/ }).getByRole('checkbox')
@@ -535,11 +535,11 @@ test.describe('account step', () => {
     await app.open()
     const dialog = await openImport(page)
     await chooseFile(page, BANK_CSV)
-    await expect(dialog.getByRole('tab', { name: 'Existing account' })).toHaveAttribute(
+    await expect(dialog.getByRole('tab', { name: 'Existing Account' })).toHaveAttribute(
       'aria-selected',
       'true'
     )
-    await expect(dialog.getByRole('combobox')).toHaveText('Select an account')
+    await expect(dialog.getByRole('combobox')).toHaveText('Select an Account')
     await expect(next(dialog)).toBeDisabled()
 
     await dialog.getByRole('combobox').click()
@@ -553,7 +553,7 @@ test.describe('account step', () => {
     await expect(dialog.getByRole('combobox')).toHaveText('Evergreen Bank · High-Yield Savings')
     await expect(next(dialog)).toBeEnabled()
 
-    await dialog.getByRole('tab', { name: 'New account' }).click()
+    await dialog.getByRole('tab', { name: 'New Account' }).click()
     await expect(next(dialog)).toBeDisabled()
     await dialog.getByLabel('Name').fill('   ')
     await expect(next(dialog)).toBeDisabled()
@@ -571,7 +571,7 @@ test.describe('account step', () => {
     await expect(next(dialog)).toBeEnabled()
 
     await dialog.getByRole('combobox', { name: 'Currency' }).click()
-    await page.getByPlaceholder('Search currencies...').fill('euro')
+    await page.getByPlaceholder('Search currencies…').fill('euro')
     await page.getByRole('option', { name: 'EUR Euro', exact: true }).click()
     await expect(dialog.getByRole('combobox', { name: 'Currency' })).toHaveText('EUR — Euro')
     await next(dialog).click()
@@ -617,7 +617,7 @@ test.describe('account step', () => {
     await back(dialog).click()
     await back(dialog).click()
     await back(dialog).click()
-    await expect(dialog.getByText('Drop a file here')).toBeVisible()
+    await expect(dialog.getByText('Drop a File Here')).toBeVisible()
     await expect(next(dialog)).toBeHidden()
   })
 
@@ -632,13 +632,13 @@ test.describe('account step', () => {
 
     dialog = await openImport(page)
     await chooseFile(page, BANK_CSV)
-    await expect(dialog.getByRole('tab', { name: 'Existing account' })).toHaveAttribute(
+    await expect(dialog.getByRole('tab', { name: 'Existing Account' })).toHaveAttribute(
       'aria-selected',
       'true'
     )
-    await expect(dialog.getByRole('combobox')).toHaveText('Select an account')
+    await expect(dialog.getByRole('combobox')).toHaveText('Select an Account')
     await expect(next(dialog)).toBeDisabled()
-    await dialog.getByRole('tab', { name: 'New account' }).click()
+    await dialog.getByRole('tab', { name: 'New Account' }).click()
     await expect(dialog.getByLabel('Name')).toHaveValue('')
     await expect(dialog.getByLabel('Opening balance (optional)')).toHaveValue('')
     expect(await app.sql("SELECT id FROM accounts WHERE name = 'Half Done'")).toHaveLength(0)

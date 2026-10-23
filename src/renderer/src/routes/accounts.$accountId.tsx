@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { AccountMenuButton } from '@/components/accounts/account-menu'
+import { AccountActionsMenu } from '@/components/accounts/account-menu'
+import { TransactionViewOptionsButton } from '@/components/transactions/view-options'
 import { Amount } from '@/components/amount'
 import { NotFoundScreen } from '@/components/error-screen'
 import { AccountGoalsStrip } from '@/components/goals/account-goals-strip'
@@ -27,7 +28,7 @@ export const Route = createFileRoute('/accounts/$accountId')({
 function AccountNotFound() {
   return (
     <NotFoundScreen
-      title="Account not found"
+      title="Account Not Found"
       description="This account may have been deleted."
       backTo="/accounts"
       backLabel="Back to Accounts"
@@ -105,8 +106,9 @@ function AccountDetailPage() {
             }}
           />
           <AutoCategorizeButton scope={{ accountId: id }} />
+          <TransactionViewOptionsButton />
           {account && (
-            <AccountMenuButton
+            <AccountActionsMenu
               accountId={id}
               accountName={account.name}
               isManual={account.connectionId === null}

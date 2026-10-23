@@ -139,7 +139,7 @@ function EnvelopeForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{envelope ? 'Edit envelope' : 'Add envelope'}</DialogTitle>
+        <DialogTitle>{envelope ? 'Edit Envelope' : 'Add Envelope'}</DialogTitle>
         <DialogDescription>
           Pick a category and how much to set aside for it each month. Whatever you don't spend
           stays in the envelope.
@@ -153,13 +153,13 @@ function EnvelopeForm({
           <Popover modal open={pickerOpen} onOpenChange={setPickerOpen}>
             <PopoverTrigger render={<Button variant="field" className="w-full justify-between" />}>
               <span className={cn(!category && 'text-muted-foreground')}>
-                {category?.name ?? 'Pick a category...'}
+                {category?.name ?? 'Pick a Category…'}
               </span>
               <HugeiconsIcon icon={ArrowDown01Icon} size={14} className="text-muted-foreground" />
             </PopoverTrigger>
             <PopoverContent className="w-88 p-0" align="start">
               <Command>
-                <CommandInput placeholder="Search categories..." />
+                <CommandInput placeholder="Search categories…" />
                 <CommandList>
                   <CommandEmpty>No categories left to budget.</CommandEmpty>
                   {groups.map((group) => (
@@ -201,7 +201,7 @@ function EnvelopeForm({
           )}
         </div>
         <div className="space-y-2">
-          <Label htmlFor="envelope-amount">Monthly fill</Label>
+          <Label htmlFor="envelope-amount">Monthly Fill</Label>
           <NumberInput
             id="envelope-amount"
             autoFocus={envelope !== undefined}
@@ -224,7 +224,7 @@ function EnvelopeForm({
           Cancel
         </Button>
         <Button disabled={!canSubmit} onClick={save}>
-          {envelope ? (pending ? 'Saving...' : 'Save') : pending ? 'Adding...' : 'Add envelope'}
+          {envelope ? (pending ? 'Saving…' : 'Save') : pending ? 'Adding…' : 'Add Envelope'}
         </Button>
       </DialogFooter>
     </>
@@ -234,7 +234,7 @@ function EnvelopeForm({
 /** The add-envelope dialog and the button that opens it. `children` overrides the
  * label for entry points that phrase it differently (e.g. an empty state). */
 export function AddEnvelopeButton({
-  children = 'Add envelope',
+  children = 'Add Envelope',
   ...dialogProps
 }: EnvelopeDialogProps & { children?: React.ReactNode }) {
   const [open, setOpen] = useState(false)

@@ -109,7 +109,7 @@ export function ChatStarters({
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="m-auto flex w-full max-w-2xl flex-col gap-6 p-6">
         <header className="flex flex-col gap-1">
-          <h2 className="text-xl font-medium">Ask about your money</h2>
+          <h2 className="text-xl font-medium">Ask About Your Money</h2>
           <p className="text-sm text-muted-foreground">
             Answered on this device. Nothing leaves your computer.
           </p>

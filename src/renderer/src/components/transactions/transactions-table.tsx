@@ -127,7 +127,9 @@ export function TransactionsTable({
       {
         accessorKey: 'date',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
-        cell: ({ row }) => <DateCell transaction={row.original} />
+        // the day header above already names the date; the column stays for
+        // its sort toggle
+        cell: ({ row }) => (grouped ? null : <DateCell transaction={row.original} />)
       },
       ...(showAccount
         ? [
@@ -167,7 +169,7 @@ export function TransactionsTable({
         cell: ({ row }) => <TransactionActionsCell transaction={row.original} />
       }
     ],
-    [showAccount]
+    [showAccount, grouped]
   )
 
   return (

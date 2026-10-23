@@ -5,7 +5,7 @@ import { expect, test } from '../fixtures'
 const reportCards = (page: Page): Locator =>
   page
     .locator('[data-slot=card]')
-    .filter({ has: page.getByRole('button', { name: 'Report menu' }) })
+    .filter({ has: page.getByRole('button', { name: 'Report actions' }) })
 
 test.describe('reports index', () => {
   test('lists the household reports with a preview of the first widget', async ({ app }) => {
@@ -30,10 +30,10 @@ test.describe('reports index', () => {
   }) => {
     const { page } = app
     await app.open({ route: '/reports', dataset: 'starter' })
-    await expect(page.getByText('No reports yet')).toBeVisible()
+    await expect(page.getByText('No Reports Yet')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Start with Spending Overview' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Start with Savings Goals' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Blank report' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Blank Report' })).toBeVisible()
   })
 
   test('a template button on the empty state creates and opens that report', async ({ app }) => {
@@ -46,28 +46,26 @@ test.describe('reports index', () => {
     expect(await app.sql('SELECT name FROM reports')).toEqual([{ name: 'Spending Overview' }])
   })
 
-  test('New report > Blank report opens in edit mode on the empty widget state', async ({
-    app
-  }) => {
+  test('New report > Blank report opens on the empty widget state', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports' })
-    await page.getByRole('button', { name: 'New report' }).click()
-    await page.getByRole('menuitem', { name: 'Blank report' }).click()
+    await page.getByRole('button', { name: 'New Report' }).click()
+    await page.getByRole('menuitem', { name: 'Blank Report' }).click()
 
     await expect(page).toHaveURL(/#\/reports\/4$/)
-    await expect(page.getByRole('heading', { name: 'Untitled report', level: 2 })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
-    await expect(page.getByText('This report is empty')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Untitled Report', level: 2 })).toBeVisible()
+    await expect(page.getByText('This Report Is Empty')).toBeVisible()
     await expect(page.getByText('Add a widget to get started.')).toBeVisible()
-    // one in the header (edit mode) and one in the empty state
-    await expect(page.getByRole('button', { name: 'Add widget' })).toHaveCount(2)
+    // the empty state holds the only Add Widget, and there is nothing to arrange yet
+    await expect(page.getByRole('button', { name: 'Add Widget' })).toHaveCount(1)
+    await expect(page.getByRole('button', { name: 'Arrange' })).toHaveCount(0)
   })
 
   test('New report > Spending Overview template renders its widgets', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports' })
-    await page.getByRole('button', { name: 'New report' }).click()
-    await page.getByRole('menuitem', { name: 'Spending Overview template' }).click()
+    await page.getByRole('button', { name: 'New Report' }).click()
+    await page.getByRole('menuitem', { name: 'Spending Overview Template' }).click()
 
     await expect(page).toHaveURL(/#\/reports\/4$/)
     await expect(page.getByRole('heading', { name: 'Spending Overview', level: 2 })).toBeVisible()
@@ -88,14 +86,14 @@ test.describe('reports index', () => {
     )
     expect(n).toBe(8)
     // a populated report opens in view mode
-    await expect(page.getByRole('button', { name: 'Edit', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Arrange', exact: true })).toBeVisible()
   })
 
   test('New report > Savings Goals template renders its widgets', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports' })
-    await page.getByRole('button', { name: 'New report' }).click()
-    await page.getByRole('menuitem', { name: 'Savings Goals template' }).click()
+    await page.getByRole('button', { name: 'New Report' }).click()
+    await page.getByRole('menuitem', { name: 'Savings Goals Template' }).click()
 
     await expect(page).toHaveURL(/#\/reports\/4$/)
     for (const title of ['Progress', 'Saved per goal', 'Saved over time', 'Goals']) {
@@ -113,8 +111,8 @@ test.describe('reports index', () => {
     const { page } = app
     await app.open({ route: '/reports' })
     const card = reportCards(page).filter({ hasText: 'Monthly Check-in' })
-    await card.getByRole('button', { name: 'Report menu' }).click()
-    await page.getByRole('menuitem', { name: 'Delete report' }).click()
+    await card.getByRole('button', { name: 'Report actions' }).click()
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
 
     const dialog = page.getByRole('dialog')
     await expect(dialog).toContainText('Delete “Monthly Check-in”?')
@@ -123,8 +121,8 @@ test.describe('reports index', () => {
     await expect(dialog).toBeHidden()
     await expect(reportCards(page)).toHaveCount(3)
 
-    await card.getByRole('button', { name: 'Report menu' }).click()
-    await page.getByRole('menuitem', { name: 'Delete report' }).click()
+    await card.getByRole('button', { name: 'Report actions' }).click()
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
     await page
       .getByRole('dialog')
       .getByRole('button', { name: /^Delete/ })
@@ -148,10 +146,10 @@ test.describe('report page', () => {
     const { page } = app
     await app.open({ route: '/reports/2' })
     await expect(page.getByRole('heading', { name: 'Monthly Check-in', level: 2 })).toBeVisible()
-    await page.getByRole('button', { name: 'Report menu' }).click()
-    await page.getByRole('menuitem', { name: 'Rename report' }).click()
+    await page.getByRole('button', { name: 'Report actions' }).click()
+    await page.getByRole('menuitem', { name: 'Rename' }).click()
 
-    const dialog = page.getByRole('dialog', { name: 'Rename report' })
+    const dialog = page.getByRole('dialog', { name: 'Rename' })
     const name = dialog.getByLabel('Name')
     await expect(name).toHaveValue('Monthly Check-in')
     await name.fill('Quarterly review')
@@ -166,19 +164,21 @@ test.describe('report page', () => {
     await expect(reportCards(page).filter({ hasText: 'Quarterly review' })).toBeVisible()
   })
 
-  test('edit mode keeps the title as text, and a blank name cannot be saved', async ({ app }) => {
+  test('arrange mode keeps the title as text, and a blank name cannot be saved', async ({
+    app
+  }) => {
     const { page } = app
     await app.open({ route: '/reports/2' })
-    await page.getByRole('button', { name: 'Edit', exact: true }).click()
+    await page.getByRole('button', { name: 'Arrange', exact: true }).click()
     await expect(page.getByRole('button', { name: 'Done' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Monthly Check-in', level: 2 })).toBeVisible()
     await expect(
       page.getByRole('textbox').and(page.locator('[value="Monthly Check-in"]'))
     ).toHaveCount(0)
 
-    await page.getByRole('button', { name: 'Report menu' }).click()
-    await page.getByRole('menuitem', { name: 'Rename report' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Rename report' })
+    await page.getByRole('button', { name: 'Report actions' }).click()
+    await page.getByRole('menuitem', { name: 'Rename' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Rename' })
     await dialog.getByLabel('Name').fill('   ')
     await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(await app.sql('SELECT name FROM reports WHERE id = 2')).toEqual([
@@ -190,9 +190,9 @@ test.describe('report page', () => {
     const { page } = app
     await app.open({ route: '/reports' })
     const card = reportCards(page).filter({ hasText: 'Monthly Check-in' })
-    await card.getByRole('button', { name: 'Report menu' }).click()
-    await page.getByRole('menuitem', { name: 'Rename report' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Rename report' })
+    await card.getByRole('button', { name: 'Report actions' }).click()
+    await page.getByRole('menuitem', { name: 'Rename' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Rename' })
     await dialog.getByLabel('Name').fill('Check-in')
     await dialog.getByLabel('Name').press('Enter')
     await expect(dialog).toBeHidden()
@@ -204,8 +204,8 @@ test.describe('report page', () => {
   test('deleting from the report menu confirms, then returns to the index', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports/2' })
-    await page.getByRole('button', { name: 'Report menu' }).click()
-    await page.getByRole('menuitem', { name: 'Delete report' }).click()
+    await page.getByRole('button', { name: 'Report actions' }).click()
+    await page.getByRole('menuitem', { name: 'Delete' }).click()
     const dialog = page.getByRole('dialog')
     await expect(dialog).toContainText('Delete “Monthly Check-in”?')
     await dialog.getByRole('button', { name: /^Delete/ }).click()
@@ -218,7 +218,7 @@ test.describe('report page', () => {
   test('an unknown report shows the not-found page with a way back', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/reports/999' })
-    await expect(page.getByText('Report not found')).toBeVisible()
+    await expect(page.getByText('Report Not Found')).toBeVisible()
     await expect(page.getByText('This report may have been deleted.')).toBeVisible()
     await page.getByRole('link', { name: 'Back to Reports' }).click()
     await expect(page).toHaveURL(/#\/reports$/)
@@ -227,6 +227,6 @@ test.describe('report page', () => {
 
   test('a non-numeric report id is also not found', async ({ app }) => {
     await app.open({ route: '/reports/abc' })
-    await expect(app.page.getByText('Report not found')).toBeVisible()
+    await expect(app.page.getByText('Report Not Found')).toBeVisible()
   })
 })

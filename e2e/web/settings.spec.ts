@@ -68,13 +68,13 @@ test.describe('opening and navigating', () => {
     const { page } = app
     await app.open({ route: '/accounts?settings=about' })
     const dialog = settingsDialog(page)
-    await dialog.getByRole('button', { name: 'View licenses' }).click()
+    await dialog.getByRole('button', { name: 'View Licenses' }).click()
     await expect(page).toHaveURL(/settingsPage=licenses/)
-    await expect(dialog.getByRole('heading', { name: 'Licenses and credits' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Licenses and Credits' })).toBeVisible()
 
     await page.keyboard.press('Escape')
-    await expect(dialog.getByRole('heading', { name: 'Licenses and credits' })).toBeHidden()
-    await expect(dialog.getByRole('button', { name: 'View licenses' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Licenses and Credits' })).toBeHidden()
+    await expect(dialog.getByRole('button', { name: 'View Licenses' })).toBeVisible()
     await expect(page).not.toHaveURL(/settingsPage=/)
 
     await page.keyboard.press('Escape')
@@ -86,7 +86,7 @@ test.describe('opening and navigating', () => {
     await app.open({ route: '/accounts?settings=about&settingsPage=licenses' })
     const dialog = settingsDialog(page)
     await dialog.getByRole('button', { name: 'Back to About' }).click()
-    await expect(dialog.getByRole('button', { name: 'View licenses' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'View Licenses' })).toBeVisible()
   })
 })
 
@@ -128,11 +128,11 @@ test.describe('General', () => {
     const hidden = page.locator('[data-private].private-hidden')
     await expect(hidden).toHaveCount(0)
 
-    await settingsDialog(page).getByRole('switch', { name: 'Hide amounts' }).click()
+    await settingsDialog(page).getByRole('switch', { name: 'Hide Amounts' }).click()
     await expect.poll(() => storedSetting(app, 'blurAmounts')).toBe(true)
     await expect(hidden.first()).toBeAttached()
 
-    await settingsDialog(page).getByRole('switch', { name: 'Hide amounts' }).click()
+    await settingsDialog(page).getByRole('switch', { name: 'Hide Amounts' }).click()
     await expect.poll(() => storedSetting(app, 'blurAmounts')).toBe(false)
     await expect(hidden).toHaveCount(0)
   })
@@ -193,7 +193,7 @@ test.describe('Connection', () => {
     const dialog = settingsDialog(page)
     const connect = dialog.getByRole('button', { name: 'Connect', exact: true })
     await expect(connect).toBeDisabled()
-    await dialog.getByLabel('Setup token').fill('demo:starter')
+    await dialog.getByLabel('Setup Token').fill('demo:starter')
     await connect.click()
 
     await expect(dialog.getByRole('heading', { name: 'SimpleFIN' })).toBeVisible()
@@ -209,10 +209,10 @@ test.describe('Connection', () => {
     await page.getByRole('button', { name: 'Settings', exact: true }).click()
     await settingsDialog(page).getByRole('button', { name: 'Connection' }).click()
     const dialog = settingsDialog(page)
-    await dialog.getByLabel('Setup token').fill('demo:nope')
+    await dialog.getByLabel('Setup Token').fill('demo:nope')
     await dialog.getByRole('button', { name: 'Connect', exact: true }).click()
     await expect(dialog.locator('p.text-destructive')).toBeVisible()
-    await expect(dialog.getByLabel('Setup token')).toHaveValue('demo:nope')
+    await expect(dialog.getByLabel('Setup Token')).toHaveValue('demo:nope')
     expect(await app.sql('SELECT id FROM connections')).toHaveLength(0)
   })
 
@@ -220,7 +220,7 @@ test.describe('Connection', () => {
     const { page } = app
     await app.open({ route: '/accounts?settings=connection' })
     await expect.poll(() => storedSetting(app, 'onboardingComplete')).toBe(true)
-    await settingsDialog(page).getByRole('button', { name: 'Show again' }).click()
+    await settingsDialog(page).getByRole('button', { name: 'Show Again' }).click()
     await expect(page.getByRole('dialog', { name: 'Welcome to shmoney!' })).toBeVisible()
     await expect.poll(() => storedSetting(app, 'onboardingComplete')).toBe(false)
   })
@@ -242,9 +242,9 @@ test.describe('Storage and About', () => {
     await expect(
       dialog.getByText('Automatic updates are disabled in development builds.')
     ).toBeVisible()
-    await expect(dialog.getByRole('button', { name: 'Check for updates' })).toBeDisabled()
+    await expect(dialog.getByRole('button', { name: 'Check for Updates' })).toBeDisabled()
 
-    await dialog.getByRole('button', { name: 'View licenses' }).click()
+    await dialog.getByRole('button', { name: 'View Licenses' }).click()
     await expect(dialog.getByText(/ships with \d+ open source packages/)).toBeVisible()
   })
 
@@ -252,22 +252,22 @@ test.describe('Storage and About', () => {
     const { page } = app
     await app.open({ route: '/accounts?settings=about', desktop: false })
     const dialog = settingsDialog(page)
-    await expect(dialog.getByRole('button', { name: 'View licenses' })).toBeVisible()
-    await expect(dialog.getByRole('button', { name: 'Check for updates' })).toBeHidden()
+    await expect(dialog.getByRole('button', { name: 'View Licenses' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Check for Updates' })).toBeHidden()
   })
 
   test('Report bug previews the diagnostics and goes back', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/accounts?settings=about' })
     const dialog = settingsDialog(page)
-    await dialog.getByRole('button', { name: 'Report bug' }).click()
-    await expect(dialog.getByRole('heading', { name: 'Report a bug' })).toBeVisible()
+    await dialog.getByRole('button', { name: 'Report Bug' }).click()
+    await expect(dialog.getByRole('heading', { name: 'Report a Bug' })).toBeVisible()
     await expect(dialog.getByText('Collecting diagnostics…')).toBeHidden()
     await expect(dialog.locator('pre')).not.toBeEmpty()
     await expect(
-      dialog.getByRole('button', { name: 'Copy diagnostics and open GitHub' })
+      dialog.getByRole('button', { name: 'Copy Diagnostics and Open GitHub' })
     ).toBeEnabled()
     await dialog.getByRole('button', { name: 'Back to About' }).click()
-    await expect(dialog.getByRole('button', { name: 'Report bug' })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: 'Report Bug' })).toBeVisible()
   })
 })

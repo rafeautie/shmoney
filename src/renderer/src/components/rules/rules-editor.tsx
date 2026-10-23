@@ -60,9 +60,9 @@ const AMT_OP_LABELS: Record<AmtOp, string> = {
 const DESC_OP_ITEMS: Record<DescOp, string> = { contains: 'contains', equals: 'equals' }
 
 const DIRECTION_ITEMS: Record<Direction, string> = {
-  any: 'Any direction',
-  in: 'Money in',
-  out: 'Money out'
+  any: 'Any Direction',
+  in: 'Money In',
+  out: 'Money Out'
 }
 
 export function RuleEditor({
@@ -308,9 +308,9 @@ export function RuleForm({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="any">Any direction</SelectItem>
-                    <SelectItem value="in">Money in</SelectItem>
-                    <SelectItem value="out">Money out</SelectItem>
+                    <SelectItem value="any">Any Direction</SelectItem>
+                    <SelectItem value="in">Money In</SelectItem>
+                    <SelectItem value="out">Money Out</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select
@@ -366,7 +366,7 @@ export function RuleForm({
               <Select
                 value={accountId === null ? 'any' : String(accountId)}
                 items={[
-                  { value: 'any', label: 'Any account' },
+                  { value: 'any', label: 'Any Account' },
                   ...accounts.map((account) => ({
                     value: String(account.id),
                     label: account.institutionName
@@ -380,7 +380,7 @@ export function RuleForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="any">Any account</SelectItem>
+                  <SelectItem value="any">Any Account</SelectItem>
                   {accounts.map((account) => (
                     <SelectItem key={account.id} value={String(account.id)}>
                       {account.institutionName
@@ -443,7 +443,7 @@ export function RuleForm({
                 onValueChange={(v) => setCategoryId(Number(v))}
               >
                 <SelectTrigger aria-label="Category" className="min-w-40 flex-1">
-                  <SelectValue placeholder="Choose a category" />
+                  <SelectValue placeholder="Choose a Category" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories?.groups.map((group) => (
@@ -500,7 +500,7 @@ export function RuleForm({
           Cancel
         </Button>
         <Button type="submit" disabled={!canSave || save.isPending}>
-          {save.isPending ? 'Saving…' : rule ? 'Save rule' : 'Create rule'}
+          {save.isPending ? 'Saving…' : rule ? 'Save' : 'Add Rule'}
         </Button>
       </DialogFooter>
     </form>
@@ -544,7 +544,7 @@ function DateField({
           />
         }
       >
-        {value ? format(value, 'MMM d, yyyy') : 'Any date'}
+        {value ? format(value, 'MMM d, yyyy') : 'Any Date'}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar

@@ -27,12 +27,12 @@ import { cn, currencySymbol, parseDollars } from '@/lib/utils'
 const MODES: { value: GoalMode; label: string; hint: string }[] = [
   {
     value: 'balance',
-    label: 'Track the balance',
+    label: 'Track the Balance',
     hint: 'Progress is what the account holds, so it always matches Accounts.'
   },
   {
     value: 'contributions',
-    label: 'Count new savings',
+    label: 'Count New Savings',
     hint: 'Progress starts at zero and counts what lands after the start.'
   }
 ]
@@ -136,7 +136,7 @@ function GoalForm({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>{goal ? 'Edit goal' : 'Add goal'}</DialogTitle>
+        <DialogTitle>{goal ? 'Edit Goal' : 'Add Goal'}</DialogTitle>
         <DialogDescription>
           A target amount and the accounts the money lands in. Progress comes from your
           transactions, never typed in.
@@ -156,7 +156,7 @@ function GoalForm({
         </div>
 
         <div className="space-y-2">
-          <Label>What it tracks</Label>
+          <Label>What It Tracks</Label>
           <div className="grid grid-cols-2 gap-2">
             {MODES.map((option) => (
               <button
@@ -179,7 +179,7 @@ function GoalForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="goal-target">Target amount</Label>
+          <Label htmlFor="goal-target">Target Amount</Label>
           <NumberInput
             id="goal-target"
             placeholder="0.00"
@@ -193,7 +193,7 @@ function GoalForm({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label>Target date</Label>
+            <Label>Target Date</Label>
             <DayPicker
               day={targetDate}
               onPick={setTargetDate}
@@ -221,7 +221,7 @@ function GoalForm({
           <Label>Accounts</Label>
           <GoalAccountPicker
             modal
-            placeholder="Pick accounts..."
+            placeholder="Pick Accounts…"
             selected={accounts}
             onChange={setAccounts}
           />
@@ -232,7 +232,7 @@ function GoalForm({
           Cancel
         </Button>
         <Button disabled={!canSubmit} onClick={save}>
-          {goal ? (pending ? 'Saving...' : 'Save') : pending ? 'Adding...' : 'Add goal'}
+          {goal ? (pending ? 'Saving…' : 'Save') : pending ? 'Adding…' : 'Add Goal'}
         </Button>
       </DialogFooter>
     </>
@@ -243,7 +243,7 @@ function GoalForm({
  * label for entry points that phrase it differently (e.g. an empty state). */
 export function NewGoalButton({
   currency,
-  children = 'Add goal'
+  children = 'Add Goal'
 }: {
   currency: string
   children?: ReactNode

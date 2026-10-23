@@ -36,7 +36,7 @@ export function AccountPicker({
       items={Object.fromEntries(accounts.map((account) => [String(account.id), label(account)]))}
     >
       <SelectTrigger id={id} aria-label={id ? undefined : 'Account'} className="w-full">
-        <SelectValue placeholder="Select an account" />
+        <SelectValue placeholder="Select an Account" />
       </SelectTrigger>
       <SelectContent>
         {accounts.map((account) => (

@@ -1,17 +1,10 @@
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Delete02Icon, MoreHorizontalIcon, PencilEdit01Icon } from '@hugeicons/core-free-icons'
+import { Delete02Icon, PencilEdit01Icon } from '@hugeicons/core-free-icons'
 import { useState } from 'react'
 import type { EnvelopeSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
 import { EnvelopeDialog } from '@/components/budget/envelope-dialog'
 import { useRemoveEnvelope } from '@/components/budget/use-envelopes'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
+import { ActionsMenu, ActionsMenuItem } from '@/components/actions-menu'
 
 // The card and the table are two views of the same envelope, so they show it
 // through the same fields. None edits in place: every change goes through the
@@ -47,28 +40,19 @@ export function EnvelopeActionsMenu({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={<Button variant="ghost" size="icon" />}
-          aria-label="Envelope actions"
+      <ActionsMenu label="Envelope Actions">
+        <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => setEditing(true)}>
+          Edit
+        </ActionsMenuItem>
+        <ActionsMenuItem
+          icon={Delete02Icon}
+          destructive
+          disabled={remove.isPending}
+          onClick={() => remove.mutate(envelope)}
         >
-          <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => setEditing(true)}>
-            <HugeiconsIcon icon={PencilEdit01Icon} size={14} />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => remove.mutate(envelope)}
-            disabled={remove.isPending}
-          >
-            <HugeiconsIcon icon={Delete02Icon} size={14} />
-            Remove envelope
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          Delete
+        </ActionsMenuItem>
+      </ActionsMenu>
       <EnvelopeDialog
         open={editing}
         onOpenChange={setEditing}

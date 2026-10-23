@@ -51,12 +51,12 @@ export function GenerationStatsLine({ stats }: { stats: GenerationStats }) {
             {stats.inputTokens.toLocaleString()} tokens
             {prefillTps !== null && ` · ${formatTps(prefillTps)}`}
           </Row>
-          {stats.ttftMs !== null && <Row label="First token">{formatElapsed(stats.ttftMs)}</Row>}
+          {stats.ttftMs !== null && <Row label="First Token">{formatElapsed(stats.ttftMs)}</Row>}
           <Row label="Context">
             {formatCompactTokens(stats.contextTokens)} / {formatCompactTokens(stats.contextSize)}
           </Row>
           {stats.toolMs > 0 && <Row label="Tools">{formatElapsed(stats.toolMs)}</Row>}
-          {stats.loadMs !== null && <Row label="Model load">{formatElapsed(stats.loadMs)}</Row>}
+          {stats.loadMs !== null && <Row label="Model Load">{formatElapsed(stats.loadMs)}</Row>}
           <Row label="Total">{formatElapsed(stats.totalMs)}</Row>
           {stats.stopReason !== null && (
             <Row label="Outcome">{STOP_REASON_LABELS[stats.stopReason]}</Row>

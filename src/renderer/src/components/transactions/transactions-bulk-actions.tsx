@@ -5,9 +5,9 @@ import { Cancel01Icon } from '@hugeicons/core-free-icons'
 import type { Transaction } from '@shared/ipc'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { ConfirmDialog } from '@/components/confirm-dialog'
+import { toastUndoable } from '@/lib/undo-toast'
 import { invalidateTransactionData } from '@/lib/invalidate'
-import { isDialogOpen, isTypingTarget } from '@/lib/utils'
+import { isDialogOpen, isTypingTarget, plural } from '@/lib/utils'
 import { CategoryPicker } from './category-picker'
 import {
   categorizeRunLabel,
@@ -36,7 +36,6 @@ export function TransactionsBulkActions({
   const llmReady = useLlmReady()
   const supported = useLlmSupported()
   const [categoryOpen, setCategoryOpen] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const transactionIds = transactions.map((transaction) => transaction.id)
 
@@ -54,10 +53,13 @@ export function TransactionsBulkActions({
 
   const deleteTransactions = useMutation({
     mutationFn: () => window.api.transactions.bulkDelete({ transactionIds }),
-    onSuccess: () => {
-      setConfirmDelete(false)
+    // no confirmation: like every other undoable delete, the toast's Undo
+    // brings the rows back
+    onSuccess: ({ deletedIds, actionId }) => {
       // the rows are gone; an undo shouldn't bring them back still selected
       onClearSelection()
+      if (actionId !== null)
+        toastUndoable(`Deleted ${plural(deletedIds.length, 'transaction')}`, actionId, queryClient)
     },
     onSettled: () => invalidateTransactionData(queryClient)
   })
@@ -79,7 +81,7 @@ export function TransactionsBulkActions({
       // the popover focuses its search input before this key's default text
       // insertion runs, so without this the shortcut letter gets typed into it
       event.preventDefault()
-      if (event.key === 'd') setConfirmDelete(true)
+      if (event.key === 'd') deleteTransactions.mutate()
       if (event.key === 'c') setCategoryOpen(true)
       if (event.key === 'a' && llmReady && !autoCategorize.anyRunning) autoCategorize.start()
     }
@@ -108,7 +110,7 @@ export function TransactionsBulkActions({
               />
             }
           >
-            Set category
+            Set Category
           </PopoverTrigger>
           <PopoverContent className="w-56 p-0" align="center" side="top">
             <CategoryPicker
@@ -124,14 +126,14 @@ export function TransactionsBulkActions({
           disabled={!llmReady || busy || autoCategorize.anyRunning}
           title={
             llmReady
-              ? 'Auto-categorize (a)'
+              ? 'Auto-Categorize (a)'
               : supported
                 ? 'Download a model in Settings to use this'
                 : "Your hardware can't run the local model"
           }
           onClick={() => autoCategorize.start()}
         >
-          {busy ? categorizeRunLabel(run) : 'Auto-categorize'}
+          {busy ? categorizeRunLabel(run) : 'Auto-Categorize'}
         </Button>
         {busy && (
           <Button
@@ -149,8 +151,8 @@ export function TransactionsBulkActions({
           size="lg"
           className="text-sm"
           title="Delete (d)"
-          disabled={busy}
-          onClick={() => setConfirmDelete(true)}
+          disabled={busy || deleteTransactions.isPending}
+          onClick={() => deleteTransactions.mutate()}
         >
           Delete
         </Button>
@@ -164,17 +166,6 @@ export function TransactionsBulkActions({
           <HugeiconsIcon icon={Cancel01Icon} strokeWidth={2} />
         </Button>
       </div>
-
-      <ConfirmDialog
-        open={confirmDelete}
-        onOpenChange={setConfirmDelete}
-        title={`Delete ${
-          transactions.length === 1 ? 'this transaction' : `${transactions.length} transactions`
-        }?`}
-        description="They are removed from shmoney and stay deleted on future syncs. You can undo this with Ctrl+Z."
-        pending={deleteTransactions.isPending}
-        onConfirm={() => deleteTransactions.mutate()}
-      />
     </div>
   )
 }

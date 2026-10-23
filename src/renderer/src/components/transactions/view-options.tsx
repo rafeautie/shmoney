@@ -1,5 +1,5 @@
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Settings01Icon } from '@hugeicons/core-free-icons'
+import { SlidersHorizontalIcon } from '@hugeicons/core-free-icons'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useSetSetting, useSetting } from '@/lib/settings'
 
-/** The transaction tables' view toggles, for any gear menu that lists them */
+/** The transaction tables' view toggles */
 export function TransactionViewItems() {
   const groupByDay = useSetting('groupTransactionsByDay')
   const setSetting = useSetSetting()
@@ -18,20 +18,20 @@ export function TransactionViewItems() {
       checked={groupByDay}
       onCheckedChange={(checked) => void setSetting('groupTransactionsByDay', checked)}
     >
-      Group by day
+      Group by Day
     </DropdownMenuSwitchItem>
   )
 }
 
-/** The All transactions page's gear */
+/** The transaction tables' view toggles, on the Accounts page and each account page */
 export function TransactionViewOptionsButton() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={<Button variant="outline" size="icon" className="shrink-0" />}
-        aria-label="View options"
+        aria-label="View Options"
       >
-        <HugeiconsIcon icon={Settings01Icon} />
+        <HugeiconsIcon icon={SlidersHorizontalIcon} />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <TransactionViewItems />

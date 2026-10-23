@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test'
-import { expect, test, type App } from '../fixtures'
+import { expect, test, type App, exactly } from '../fixtures'
 
 const settingsDialog = (page: Page): Locator => page.getByRole('dialog', { name: 'Settings' })
 const toast = (page: Page): Locator => page.locator('[data-sonner-toast]')
@@ -13,7 +13,7 @@ const link = (page: Page, name: string): Locator => page.getByRole('link', { nam
 async function pick(trigger: Locator, option: string): Promise<void> {
   const page = trigger.page()
   await trigger.click()
-  await page.getByRole('option', { name: option, exact: true }).click()
+  await page.getByRole('option', { name: exactly(option) }).click()
   await expect(page.getByRole('listbox')).toHaveCount(0)
 }
 
@@ -21,15 +21,17 @@ async function pick(trigger: Locator, option: string): Promise<void> {
 const widgetField = (dialog: Locator, label: string): Locator =>
   dialog
     .locator('div.space-y-2')
-    .filter({ has: dialog.page().getByText(label, { exact: true }) })
+    .filter({ has: dialog.page().getByText(exactly(label)) })
     .getByRole('combobox')
 
-// a chip's edit/delete buttons slide in on hover or focus; focusing the
-// button and pressing Enter avoids clicking it mid-animation
+// each category chip has a … menu holding Edit and Delete
 async function chipAction(page: Page, action: 'Edit' | 'Delete', name: string): Promise<void> {
-  const button = settingsDialog(page).getByRole('button', { name: `${action} category ${name}` })
-  await button.focus()
-  await button.press('Enter')
+  await settingsDialog(page)
+    .locator('span.inline-flex')
+    .filter({ hasText: exactly(name) })
+    .getByRole('button', { name: 'Category actions' })
+    .click()
+  await page.getByRole('menuitem', { name: action }).click()
 }
 
 // react-query keeps reads for 30s, so after writing behind the UI's back age the
@@ -50,9 +52,9 @@ test('a new user connects, categorizes, and turns the habit into a rule', async 
     const dialog = page.getByRole('dialog')
     for (const title of [
       'Welcome to shmoney!',
-      'What you can do',
-      'Choose your AI model',
-      'Budget with envelopes',
+      'What You Can Do',
+      'Choose Your AI Model',
+      'Budget with Envelopes',
       'Connect with SimpleFIN',
       'Paste your setup token'
     ]) {
@@ -60,44 +62,44 @@ test('a new user connects, categorizes, and turns the habit into a rule', async 
       if (title !== 'Paste your setup token')
         await dialog.getByRole('button', { name: 'Next' }).click()
     }
-    await dialog.getByLabel('Setup token').fill('demo:starter')
+    await dialog.getByLabel('Setup Token').fill('demo:starter')
     await dialog.getByRole('button', { name: 'Connect' }).click()
     await expect(dialog.getByText("You're all set!")).toBeVisible()
-    await dialog.getByRole('button', { name: 'View accounts' }).click()
+    await dialog.getByRole('button', { name: 'View Accounts' }).click()
     await expect(dialog).toBeHidden()
   })
 
   await test.step('the accounts are listed', async () => {
     await expect(page.getByRole('row', { name: /Checking/ }).first()).toBeVisible()
     await expect(page.getByRole('row', { name: /Cash Back Card/ })).toBeVisible()
-    await expect(page.getByText('No accounts yet')).toBeHidden()
+    await expect(page.getByText('No Accounts Yet')).toBeHidden()
   })
 
   await test.step('categorize three identical rows the same way', async () => {
-    await page.getByRole('tab', { name: 'All transactions' }).click()
+    await page.getByRole('tab', { name: 'All Transactions' }).click()
     await expect(dataRows(page).first()).toBeVisible()
     for (let i = 0; i < 3; i++) {
       const row = rowFor(page, MERCHANT).filter({ hasText: 'Uncategorized' }).first()
       await row.getByRole('button', { name: 'Uncategorized' }).click()
-      await page.getByPlaceholder('Search categories...').fill('dining')
+      await page.getByPlaceholder('Search categories…').fill('dining')
       await page.getByRole('option', { name: /Dining Out/ }).click()
-      await expect(page.getByPlaceholder('Search categories...')).toBeHidden()
+      await expect(page.getByPlaceholder('Search categories…')).toBeHidden()
       await expect(rowFor(page, MERCHANT).filter({ hasText: 'Dining Out' })).toHaveCount(i + 1)
     }
   })
 
   await test.step('Activity offers a rule', async () => {
     await link(page, 'Activity').click()
-    const section = page.locator('section').filter({ hasText: 'Needs review' })
+    const section = page.locator('section').filter({ hasText: 'Needs Review' })
     await expect(section).toContainText('1 rule suggestion')
     await expect(section).toContainText(MERCHANT)
     await expect(section).toContainText('🍽️ Dining Out')
-    await page.getByRole('button', { name: 'Create rule' }).click()
-    const editor = page.getByRole('dialog', { name: 'New rule' })
+    await page.getByRole('button', { name: 'Add Rule' }).click()
+    const editor = page.getByRole('dialog', { name: 'Add Rule' })
     await expect(editor.getByText(MERCHANT, { exact: true })).toBeVisible()
-    await editor.getByRole('button', { name: 'Create rule' }).click()
+    await editor.getByRole('button', { name: 'Add Rule' }).click()
     await expect(editor).toBeHidden()
-    await expect(page.getByText('Needs review')).toBeHidden()
+    await expect(page.getByText('Needs Review')).toBeHidden()
   })
 
   await test.step('the rule is listed in Settings', async () => {
@@ -110,10 +112,10 @@ test('a new user connects, categorizes, and turns the habit into a rule', async 
   await test.step('applying the rule sweeps up the rest of that merchant', async () => {
     const dialog = settingsDialog(page)
     await dialog.getByRole('button', { name: 'Apply', exact: true }).click()
-    await expect(dialog.getByRole('heading', { name: 'Apply rules' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Apply Rules' })).toBeVisible()
     await expect(dialog.getByText('22 transactions')).toBeVisible()
     await dialog.getByRole('button', { name: 'Apply to 22' }).click()
-    await expect(dialog.getByRole('heading', { name: 'Your rules' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Your Rules' })).toBeVisible()
 
     await dialog.getByRole('button', { name: 'Apply', exact: true }).click()
     await expect(dialog.getByText('No transactions match your rules right now.')).toBeVisible()
@@ -164,11 +166,11 @@ test('an imported statement flows through the budget and a report, and a delete 
 
   await test.step('import the file into a new account', async () => {
     await page.getByRole('button', { name: 'Import', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'Import transactions' })
+    const dialog = page.getByRole('dialog', { name: 'Import Transactions' })
     const chooser = page.waitForEvent('filechooser')
     await page.getByRole('button', { name: 'Choose file…' }).click()
     await (await chooser).setFiles(CSV)
-    await dialog.getByRole('tab', { name: 'New account' }).click()
+    await dialog.getByRole('tab', { name: 'New Account' }).click()
     await dialog.getByLabel('Name').fill('Trail Fund')
     await dialog.getByRole('button', { name: 'Next' }).click()
     await dialog.getByRole('button', { name: 'Next' }).click()
@@ -182,19 +184,19 @@ test('an imported statement flows through the budget and a report, and a delete 
   await test.step('recategorize one imported row', async () => {
     const row = rowFor(page, 'ZZ TRAIL SUPPLY')
     await row.getByRole('button', { name: 'Uncategorized' }).click()
-    await page.getByPlaceholder('Search categories...').fill('emergency')
+    await page.getByPlaceholder('Search categories…').fill('emergency')
     await page.getByRole('option', { name: /Emergency Fund/ }).click()
     await expect(row.getByRole('button', { name: /Emergency Fund/ })).toBeVisible()
   })
 
   await test.step('budget an envelope for it and see the spend', async () => {
     await link(page, 'Budget').click()
-    await page.getByRole('button', { name: 'Add envelope' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Add envelope' })
-    await dialog.getByRole('button', { name: 'Pick a category...' }).click()
+    await page.getByRole('button', { name: 'Add Envelope' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Add Envelope' })
+    await dialog.getByRole('button', { name: 'Pick a Category…' }).click()
     await page.getByRole('option', { name: /Emergency Fund/ }).click()
-    await dialog.getByLabel('Monthly fill').fill('100')
-    await dialog.getByRole('button', { name: 'Add envelope' }).click()
+    await dialog.getByLabel('Monthly Fill').fill('100')
+    await dialog.getByRole('button', { name: 'Add Envelope' }).click()
     await expect(dialog).toBeHidden()
     const row = page.getByRole('row', { name: /Emergency Fund/ })
     await expect(row).toContainText('$45.00 of $100.00')
@@ -203,14 +205,14 @@ test('an imported statement flows through the budget and a report, and a delete 
 
   await test.step('chart it in a report summary table', async () => {
     await link(page, 'Reports').click()
-    await page.getByRole('button', { name: 'New report' }).click()
-    await page.getByRole('menuitem', { name: 'Blank report' }).click()
-    await expect(page.getByText('This report is empty')).toBeVisible()
-    await page.getByRole('button', { name: 'Add widget' }).first().click()
+    await page.getByRole('button', { name: 'New Report' }).click()
+    await page.getByRole('menuitem', { name: 'Blank Report' }).click()
+    await expect(page.getByText('This Report Is Empty')).toBeVisible()
+    await page.getByRole('button', { name: 'Add Widget' }).first().click()
     const dialog = page.getByRole('dialog')
-    await pick(widgetField(dialog, 'Widget type'), 'Summary table')
+    await pick(widgetField(dialog, 'Widget Type'), 'Summary Table')
     await dialog.getByLabel('Title').fill('Where it went')
-    await dialog.getByRole('button', { name: 'Add widget' }).click()
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
 
     const table = page
@@ -219,8 +221,6 @@ test('an imported statement flows through the budget and a report, and a delete 
     const row = table.getByRole('row', { name: /Emergency Fund/ })
     await expect(row).toContainText('$45.00')
 
-    // rows only drill once editing is done
-    await page.getByRole('button', { name: 'Done' }).click()
     await row.click()
     await expect(page).toHaveURL(/#\/accounts\?tab=transactions/)
     await expect(page.getByRole('button', { name: '1 category' })).toBeVisible()
@@ -231,16 +231,13 @@ test('an imported statement flows through the budget and a report, and a delete 
 
   await test.step('select the imported rows and delete them', async () => {
     await page.getByRole('button', { name: 'Reset' }).click()
-    await page.getByPlaceholder('Search transactions...').fill('ZZ TRAIL')
+    await page.getByPlaceholder('Search transactions…').fill('ZZ TRAIL')
     await expect(dataRows(page)).toHaveCount(3)
     await page.getByRole('checkbox', { name: 'Select all' }).click()
     await expect(page.getByText('3 selected')).toBeVisible()
     await page.getByText('3 selected').locator('..').getByRole('button', { name: 'Delete' }).click()
-    const confirm = page.getByRole('dialog')
-    await expect(confirm.getByText('Delete 3 transactions?')).toBeVisible()
-    await confirm.getByRole('button', { name: 'Delete' }).click()
-    await expect(confirm).toBeHidden()
-    await expect(page.getByText('No transactions match the current filters.')).toBeVisible()
+    await expect(page.getByText('Deleted 3 transactions')).toBeVisible()
+    await expect(page.getByText('No transactions match these filters.')).toBeVisible()
     expect(await liveImported(app)).toBe(0)
   })
 
@@ -307,7 +304,7 @@ test('deleting a category clears its envelope, rule and labels, and undo brings 
 
   await test.step('the rule is gone from Settings', async () => {
     await dialog.getByRole('button', { name: 'Rules' }).click()
-    await expect(dialog.getByRole('heading', { name: 'Your rules' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Your Rules' })).toBeVisible()
     await expect(dialog.getByText(target.rule, { exact: true })).toBeHidden()
     await page.keyboard.press('Escape')
     await expect(dialog).toBeHidden()
@@ -321,8 +318,8 @@ test('deleting a category clears its envelope, rule and labels, and undo brings 
 
   await test.step('its transactions read Uncategorized', async () => {
     await link(page, 'Accounts').click()
-    await page.getByRole('tab', { name: 'All transactions' }).click()
-    await page.getByPlaceholder('Search transactions...').fill(target.sample)
+    await page.getByRole('tab', { name: 'All Transactions' }).click()
+    await page.getByPlaceholder('Search transactions…').fill(target.sample)
     const rows = rowFor(page, target.sample)
     await expect(rows.first()).toBeVisible()
     await expect(rows.first().getByRole('button', { name: 'Uncategorized' })).toBeVisible()
@@ -350,8 +347,8 @@ test('deleting a category clears its envelope, rule and labels, and undo brings 
     await page.keyboard.press('Escape')
 
     await link(page, 'Accounts').click()
-    await page.getByRole('tab', { name: 'All transactions' }).click()
-    await page.getByPlaceholder('Search transactions...').fill(target.sample)
+    await page.getByRole('tab', { name: 'All Transactions' }).click()
+    await page.getByPlaceholder('Search transactions…').fill(target.sample)
     await expect(
       rowFor(page, target.sample)
         .first()

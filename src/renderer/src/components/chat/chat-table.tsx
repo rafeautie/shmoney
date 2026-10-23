@@ -52,11 +52,11 @@ function ChatTableActions({
     <div className={cn('flex items-center gap-1', className)}>
       <Button variant="ghost" size="icon-sm" type="button" onClick={copy}>
         <HugeiconsIcon icon={copied ? Tick02Icon : Copy01Icon} strokeWidth={2} />
-        <span className="sr-only">Copy table</span>
+        <span className="sr-only">Copy Table</span>
       </Button>
       <Button variant="ghost" size="icon-sm" type="button" onClick={download}>
         <HugeiconsIcon icon={Download01Icon} strokeWidth={2} />
-        <span className="sr-only">Download table as CSV</span>
+        <span className="sr-only">Download Table as CSV</span>
       </Button>
     </div>
   )

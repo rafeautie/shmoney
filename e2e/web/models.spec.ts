@@ -17,7 +17,7 @@ async function openAiSettings(app: App, options: { ramBytes?: number } = {}): Pr
     window.location.hash = '#/accounts?settings=ai'
   })
   await expect(dialog(page)).toBeVisible()
-  await expect(dialog(page).getByText('Local AI model')).toBeVisible()
+  await expect(dialog(page).getByText('Local AI Model')).toBeVisible()
   if (options.ramBytes === undefined) return
 
   await app.bridge((b, bytes: number) => {
@@ -30,7 +30,7 @@ async function openAiSettings(app: App, options: { ramBytes?: number } = {}): Pr
 test('the picker lists the model families and recommends one model', async ({ app }) => {
   const { page } = app
   await app.open({ route: '/accounts?settings=ai' })
-  await expect(dialog(page).getByText('Local AI model')).toBeVisible()
+  await expect(dialog(page).getByText('Local AI Model')).toBeVisible()
 
   await expect(dialog(page).getByRole('heading', { name: /Gemma 4/ })).toBeVisible()
   await expect(dialog(page).getByRole('heading', { name: /Qwen3\.5/ })).toBeVisible()
@@ -185,7 +185,7 @@ test('too little memory shows the unsupported warning and turns chat off', async
 
   await page.keyboard.press('Escape')
   await expect(dialog(page)).toBeHidden()
-  await page.getByRole('link', { name: 'New chat' }).click()
+  await page.getByRole('link', { name: 'New Chat' }).click()
   await expect(page.getByText("Chat isn't available on this device")).toBeVisible()
   await expect(page.getByRole('button', { name: 'Download' })).toBeHidden()
 })
@@ -194,9 +194,9 @@ test('AI usage starts empty', async ({ app }) => {
   const { page } = app
   await app.open({ route: '/accounts?settings=ai-usage' })
 
-  await expect(dialog(page).getByText('No AI usage yet')).toBeVisible()
-  await expect(dialog(page).getByRole('button', { name: 'Reset statistics' })).toBeHidden()
-  await expect(dialog(page).getByText('By model')).toBeHidden()
+  await expect(dialog(page).getByText('No AI Usage Yet')).toBeVisible()
+  await expect(dialog(page).getByRole('button', { name: 'Reset Statistics' })).toBeHidden()
+  await expect(dialog(page).getByText('By Model')).toBeHidden()
 })
 
 test('AI usage summarizes logged requests, and Reset statistics can be undone', async ({ app }) => {
@@ -214,14 +214,14 @@ test('AI usage summarizes logged requests, and Reset statistics can be undone', 
   })
 
   const usage = dialog(page)
-  await expect(usage.getByText('No AI usage yet')).toBeHidden()
+  await expect(usage.getByText('No AI Usage Yet')).toBeHidden()
   await expect(usage.getByText('120', { exact: true })).toBeVisible()
-  await expect(usage.getByText('Tokens generated')).toBeVisible()
+  await expect(usage.getByText('Tokens Generated')).toBeVisible()
   await expect(usage.getByRole('cell', { name: 'Qwen3.5 4B' })).toBeVisible()
   await expect(usage.getByRole('cell', { name: 'Auto-categorize' })).toBeVisible()
 
-  await usage.getByRole('button', { name: 'Reset statistics' }).click()
-  await expect(usage.getByText('No AI usage yet')).toBeVisible()
+  await usage.getByRole('button', { name: 'Reset Statistics' }).click()
+  await expect(usage.getByText('No AI Usage Yet')).toBeVisible()
   const toast = page.locator('[data-sonner-toast]').filter({ hasText: 'AI usage statistics reset' })
   await expect(toast).toBeVisible()
   // reset is soft: the ledger itself keeps its rows
@@ -229,6 +229,6 @@ test('AI usage summarizes logged requests, and Reset statistics can be undone', 
   expect(n).toBe(2)
 
   await toast.getByRole('button', { name: 'Undo' }).click()
-  await expect(usage.getByText('No AI usage yet')).toBeHidden()
+  await expect(usage.getByText('No AI Usage Yet')).toBeHidden()
   await expect(usage.getByRole('cell', { name: 'Qwen3.5 4B' })).toBeVisible()
 })

@@ -4,6 +4,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { Target02Icon } from '@hugeicons/core-free-icons'
 import type { GoalSummary } from '@shared/goals'
 import { GoalCard } from '@/components/goals/goal-card'
+import { PageHeader } from '@/components/page'
 import { GoalsTable } from '@/components/goals/goals-table'
 import { NewGoalButton } from '@/components/goals/goal-dialog'
 import { StatCards } from '@/components/stat-cards'
@@ -51,19 +52,13 @@ function GoalsPage() {
     // own its scrolling, like the budget page's envelopes
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="space-y-6 px-page pt-page pb-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">Goals</h2>
-            <p className="text-muted-foreground">
-              A target amount and the accounts the money lands in. Progress comes from your
-              transactions, never typed in.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <ViewToggle view={goalsView} onChange={setGoalsView} />
-            <NewGoalButton currency={dominantCurrency} />
-          </div>
-        </div>
+        <PageHeader
+          title="Goals"
+          description="A target amount and the accounts the money lands in. Progress comes from your transactions, never typed in."
+        >
+          <ViewToggle view={goalsView} onChange={setGoalsView} />
+          <NewGoalButton currency={dominantCurrency} />
+        </PageHeader>
 
         {active.length > 0 && <SummaryStrip goals={active} />}
       </div>
@@ -80,14 +75,14 @@ function GoalsPage() {
               <EmptyMedia variant="icon">
                 <HugeiconsIcon icon={Target02Icon} />
               </EmptyMedia>
-              <EmptyTitle>No savings goals yet</EmptyTitle>
+              <EmptyTitle>No Savings Goals Yet</EmptyTitle>
               <EmptyDescription>
                 Point a goal at the account your savings land in. Track its balance, or count only
                 what you put away from today.
               </EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <NewGoalButton currency={dominantCurrency}>Add your first goal</NewGoalButton>
+              <NewGoalButton currency={dominantCurrency}>Add Your First Goal</NewGoalButton>
             </EmptyContent>
           </Empty>
         </div>

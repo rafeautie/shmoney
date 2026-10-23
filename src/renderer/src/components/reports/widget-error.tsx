@@ -10,12 +10,12 @@ export function WidgetError({ error, onRetry }: { error: unknown; onRetry: () =>
   return (
     <Empty className="h-full gap-2 p-4">
       <HugeiconsIcon icon={Alert02Icon} className="size-4 text-muted-foreground" />
-      <EmptyTitle>This widget could not load</EmptyTitle>
+      <EmptyTitle>This Widget Could Not Load</EmptyTitle>
       <EmptyDescription className="line-clamp-2 break-all select-text" title={message}>
         {message}
       </EmptyDescription>
       <Button variant="outline" size="sm" onClick={onRetry}>
-        Try again
+        Try Again
       </Button>
     </Empty>
   )
