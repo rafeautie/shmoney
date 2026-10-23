@@ -2,21 +2,36 @@ import { useCallback, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
-  ArrowDown01Icon,
-  ArrowUp01Icon,
   CheckmarkCircle02Icon,
   Delete02Icon,
+  DragDropVerticalIcon,
   PencilEdit01Icon,
   PlusSignIcon,
   Tag01Icon
 } from '@hugeicons/core-free-icons'
 import { format } from 'date-fns'
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type Modifier
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { groupSuggestions, type RuleSuggestionGroup } from '@shared/rule-suggestions'
 import type { Rule, RuleConditions } from '@shared/rules'
 import { useApplyRulesOnSync, useRuleSuggestionsEnabled } from '@/lib/settings'
 import { useSettingsDialog } from '@/lib/settings-dialog'
 import { toastUndoable } from '@/lib/undo-toast'
-import { ipcErrorMessage } from '@/lib/utils'
+import { cn, ipcErrorMessage } from '@/lib/utils'
 import { invalidateRuleData } from '@/lib/invalidate'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -141,12 +156,23 @@ export function RulesSettings(): React.JSX.Element {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['rules'] })
   })
 
-  function move(index: number, delta: number): void {
-    const next = [...rules]
-    const target = index + delta
-    if (target < 0 || target >= next.length) return
-    ;[next[index], next[target]] = [next[target], next[index]]
+  // a few pixels of travel before a drag starts, so clicks on the handle stay clicks
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
+
+  function moveRule(from: number, to: number): void {
+    if (from === to || from < 0 || to < 0 || to >= rules.length) return
+    const next = arrayMove(rules, from, to)
+    // show the new order right away instead of snapping back until the refetch
+    queryClient.setQueryData<Rule[]>(['rules'], next)
     reorder.mutate(next.map((r) => r.id))
+  }
+
+  function handleDragEnd({ active, over }: DragEndEvent): void {
+    if (!over) return
+    moveRule(
+      rules.findIndex((r) => r.id === active.id),
+      rules.findIndex((r) => r.id === over.id)
+    )
   }
 
   const back = (): void => open('rules')
@@ -200,7 +226,7 @@ export function RulesSettings(): React.JSX.Element {
   return (
     <SettingsSection
       title="Rules"
-      description="Automatically categorize or flag transactions as they sync. Rules run top to bottom and only fill blanks, unless you choose to override existing categories when applying them manually."
+      description="Automatically categorize or flag transactions as they sync. Rules run top to bottom (drag one to change its place) and only fill blanks, unless you choose to override existing categories when applying them manually."
       action={
         suggestions.length > 0 && (
           <Button variant="outline" onClick={() => open('rules', 'suggestions')}>
@@ -253,22 +279,33 @@ export function RulesSettings(): React.JSX.Element {
             </EmptyHeader>
           </Empty>
         ) : (
-          <div className="divide-y rounded-lg border">
-            {rules.map((rule, index) => (
-              <div key={rule.id} className="px-3 py-3">
-                <RuleRow
-                  rule={rule}
-                  conditionText={describeRule(rule.conditions, accountName)}
-                  actionText={`set category to ${categoryName.get(rule.action.categoryId) ?? 'unknown'}`}
-                  isFirst={index === 0}
-                  isLast={index === rules.length - 1}
-                  onMoveUp={() => move(index, -1)}
-                  onMoveDown={() => move(index, 1)}
-                  onEdit={() => setEditing({ ruleId: rule.id })}
-                />
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            modifiers={[verticalOnly]}
+            accessibility={{
+              screenReaderInstructions: {
+                draggable:
+                  'Use the arrow keys to move this rule up or down, or drag it with the mouse.'
+              }
+            }}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={rules.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+              <div className="divide-y rounded-lg border">
+                {rules.map((rule, index) => (
+                  <RuleRow
+                    key={rule.id}
+                    rule={rule}
+                    conditionText={describeRule(rule.conditions, accountName)}
+                    actionText={`set category to ${categoryName.get(rule.action.categoryId) ?? 'unknown'}`}
+                    onMove={(delta) => moveRule(index, index + delta)}
+                    onEdit={() => setEditing({ ruleId: rule.id })}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         )}
         <Button
           variant="outline"
@@ -341,26 +378,32 @@ function SuggestionsPage({
   )
 }
 
+// rules only reorder up and down
+const verticalOnly: Modifier = ({ transform }) => ({ ...transform, x: 0 })
+
 function RuleRow({
   rule,
   conditionText,
   actionText,
-  isFirst,
-  isLast,
-  onMoveUp,
-  onMoveDown,
+  onMove,
   onEdit
 }: {
   rule: Rule
   conditionText: string[]
   actionText: string
-  isFirst: boolean
-  isLast: boolean
-  onMoveUp: () => void
-  onMoveDown: () => void
+  onMove: (delta: number) => void
   onEdit: () => void
 }): React.JSX.Element {
   const queryClient = useQueryClient()
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: rule.id })
   const toggle = useMutation({
     mutationFn: (enabled: boolean) => window.api.rules.update({ id: rule.id, enabled }),
     onSettled: () => invalidateRuleData(queryClient)
@@ -374,7 +417,32 @@ function RuleRow({
   })
 
   return (
-    <div className="flex items-center gap-3">
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn(
+        'relative flex items-center gap-3 bg-background py-3 pr-3 pl-1 first:rounded-t-lg last:rounded-b-lg',
+        isDragging && 'z-10 rounded-lg shadow-md ring-1 ring-border'
+      )}
+    >
+      <Button
+        ref={setActivatorNodeRef}
+        variant="ghost"
+        size="icon-sm"
+        className="cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+        aria-label={`Reorder rule ${rule.name}`}
+        title="Drag to reorder, or use the arrow keys"
+        {...attributes}
+        {...listeners}
+        // arrow keys move the focused rule a step, the keyboard stand-in for dragging
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+          e.preventDefault()
+          onMove(e.key === 'ArrowUp' ? -1 : 1)
+        }}
+      >
+        <HugeiconsIcon icon={DragDropVerticalIcon} className="size-3.5" />
+      </Button>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium">{rule.name}</div>
         <div className="truncate text-xs text-muted-foreground">
@@ -392,12 +460,6 @@ function RuleRow({
       <ActionsMenu label="Rule Actions">
         <ActionsMenuItem icon={PencilEdit01Icon} onClick={onEdit}>
           Edit
-        </ActionsMenuItem>
-        <ActionsMenuItem icon={ArrowUp01Icon} disabled={isFirst} onClick={onMoveUp}>
-          Move Up
-        </ActionsMenuItem>
-        <ActionsMenuItem icon={ArrowDown01Icon} disabled={isLast} onClick={onMoveDown}>
-          Move Down
         </ActionsMenuItem>
         <ActionsMenuItem
           icon={Delete02Icon}

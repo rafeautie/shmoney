@@ -24,14 +24,12 @@ const widgetField = (dialog: Locator, label: string): Locator =>
     .filter({ has: dialog.page().getByText(exactly(label)) })
     .getByRole('combobox')
 
-// each category chip has a … menu holding Edit and Delete
+// a chip's edit/delete buttons slide in on hover or focus; focusing the
+// button and pressing Enter avoids clicking it mid-animation
 async function chipAction(page: Page, action: 'Edit' | 'Delete', name: string): Promise<void> {
-  await settingsDialog(page)
-    .locator('span.inline-flex')
-    .filter({ hasText: exactly(name) })
-    .getByRole('button', { name: 'Category actions' })
-    .click()
-  await page.getByRole('menuitem', { name: action }).click()
+  const button = settingsDialog(page).getByRole('button', { name: `${action} category ${name}` })
+  await button.focus()
+  await button.press('Enter')
 }
 
 // react-query keeps reads for 30s, so after writing behind the UI's back age the

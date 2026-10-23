@@ -12,20 +12,19 @@ async function storedSetting(app: App, key: string): Promise<unknown> {
 const groupBlock = (page: Page, name: string): Locator =>
   settingsDialog(page).getByRole('heading', { name, exact: true }).locator('xpath=../..')
 
-// each category chip has a … menu holding Edit and Delete
+// a chip's edit/delete buttons slide in on hover or focus; focusing the
+// button and pressing Enter avoids clicking it mid-animation
 async function chipAction(page: Page, action: 'Edit' | 'Delete', name: string): Promise<void> {
-  await settingsDialog(page)
-    .locator('span.inline-flex')
-    .filter({ hasText: exactly(name) })
-    .getByRole('button', { name: 'Category actions' })
-    .click()
-  await page.getByRole('menuitem', { name: action }).click()
+  const button = settingsDialog(page).getByRole('button', { name: `${action} category ${name}` })
+  await button.focus()
+  await button.press('Enter')
 }
 
-// each group heading has a … menu holding Rename and Delete
+// a group heading's rename and delete buttons
 async function groupAction(page: Page, action: 'Rename' | 'Delete', name: string): Promise<void> {
-  await groupBlock(page, name).getByRole('button', { name: 'Group actions' }).click()
-  await page.getByRole('menuitem', { name: action }).click()
+  await settingsDialog(page)
+    .getByRole('button', { name: `${action} group ${name}` })
+    .click()
 }
 
 // an edit sub-page's breadcrumb title
@@ -221,7 +220,7 @@ const ruleRow = (page: Page, name: string): Locator =>
     .getByText(name, { exact: true })
     .locator('xpath=ancestor::div[contains(@class, "gap-3")][1]')
 
-// each rule row has a … menu holding Edit, Move Up, Move Down and Delete
+// each rule row has a … menu holding Edit and Delete
 async function ruleAction(page: Page, action: string, name: string): Promise<void> {
   await ruleRow(page, name).getByRole('button', { name: 'Rule actions' }).click()
   await page.getByRole('menuitem', { name: action }).click()
@@ -255,11 +254,7 @@ test.describe('Settings > Rules', () => {
     for (const name of ['Paycheck', 'Rent', 'Groceries', 'Fuel', 'Interest and dividends']) {
       await expect(dialog.getByText(name, { exact: true })).toBeVisible()
     }
-    await ruleRow(page, 'Paycheck').getByRole('button', { name: 'Rule actions' }).click()
-    await expect(page.getByRole('menuitem', { name: 'Move Up' })).toHaveAttribute(
-      'aria-disabled',
-      'true'
-    )
+    await expect(dialog.getByRole('button', { name: 'Reorder rule Paycheck' })).toBeVisible()
   })
 
   test('shows the empty state when there are no rules, and gates Apply', async ({ app }) => {
@@ -429,19 +424,43 @@ test.describe('Settings > Rules', () => {
       .toBe(0)
   })
 
-  test('moves a rule up and down', async ({ app }) => {
+  test('the arrow keys move a rule from its drag handle', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/accounts?settings=rules' })
     const dialog = settingsDialog(page)
     const before = await ruleNames(app)
     expect(before.slice(0, 3)).toEqual(['Paycheck', 'Rent', 'Groceries'])
 
-    await ruleAction(page, 'Move Up', 'Rent')
+    const handle = dialog.getByRole('button', { name: 'Reorder rule Rent' })
+    await handle.focus()
+    await page.keyboard.press('ArrowUp')
     await expect.poll(() => ruleNames(app)).toEqual(['Rent', 'Paycheck', ...before.slice(2)])
-    await expect(dialog.getByText('Rent', { exact: true })).toBeVisible()
 
-    await ruleAction(page, 'Move Down', 'Rent')
+    await expect(handle).toBeFocused()
+    await page.keyboard.press('ArrowDown')
     await expect.poll(() => ruleNames(app)).toEqual(before)
+  })
+
+  test('drags a rule into place with the mouse', async ({ app }) => {
+    const { page } = app
+    await app.open({ route: '/accounts?settings=rules' })
+    const dialog = settingsDialog(page)
+    const before = await ruleNames(app)
+
+    const from = await dialog.getByRole('button', { name: 'Reorder rule Groceries' }).boundingBox()
+    const to = await dialog.getByRole('button', { name: 'Reorder rule Paycheck' }).boundingBox()
+    await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2 - 10, { steps: 12 })
+    await page.mouse.up()
+
+    await expect
+      .poll(() => ruleNames(app))
+      .toEqual(['Groceries', 'Paycheck', 'Rent', ...before.slice(3)])
+    // the list shows the new order too
+    await expect(
+      dialog.getByRole('button', { name: /^Reorder rule/ }).first()
+    ).toHaveAccessibleName('Reorder rule Groceries')
   })
 
   test('deleting a rule toasts with Undo, and Undo restores it', async ({ app }) => {
