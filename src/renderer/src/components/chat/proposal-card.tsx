@@ -254,7 +254,7 @@ function MerchantChoices({
     // the form is only the choices' container; applying stays on the Apply button
     <Questionnaire onSubmit={(event) => event.preventDefault()}>
       <QuestionnaireItem name="merchants" multiple>
-        <QuestionnaireTitle className="mb-0 text-xs">Merchants to move</QuestionnaireTitle>
+        <QuestionnaireTitle className="mb-0 text-xs">Merchants to Move</QuestionnaireTitle>
         {/* a broad match can list dozens of merchants; the card stays compact */}
         <ScrollArea viewPortClassName="max-h-72">
           {/* room for the scrollbar, so it never sits on the choices' borders */}

@@ -33,9 +33,9 @@ export function GoalsTable({
           <TableHead>Goal</TableHead>
           <TableHead className="w-48">Progress</TableHead>
           <TableHead className="w-28">Target</TableHead>
-          <TableHead className="w-32">Target date</TableHead>
+          <TableHead className="w-32">Target Date</TableHead>
           <TableHead className="w-36">Accounts</TableHead>
-          <TableHead className="w-36 text-right">This month</TableHead>
+          <TableHead className="w-36 text-right">This Month</TableHead>
           <TableHead className="w-16" />
         </TableRow>
       </TableHeader>

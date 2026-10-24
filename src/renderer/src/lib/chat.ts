@@ -13,6 +13,7 @@ import {
 } from '@shared/chat'
 import type { GenerationStats } from '@shared/llm'
 import { ipcErrorMessage } from '@/lib/utils'
+import { toastUndoable } from '@/lib/undo-toast'
 
 export const CHAT_CONVERSATIONS_KEY = ['chat', 'conversations'] as const
 
@@ -88,7 +89,7 @@ export function useStopChat() {
   return useMutation({ mutationFn: () => window.api.chat.stop() })
 }
 
-/** Soft delete with an undo toast; Undo replays the same action-log entry Ctrl+Z would. */
+/** Soft delete with an undo toast (no confirmation, since undo exists). */
 export function useDeleteConversation() {
   const queryClient = useQueryClient()
   const invalidate = () => {
@@ -104,17 +105,7 @@ export function useDeleteConversation() {
     },
     onSuccess: (actionId) => {
       if (actionId === null) return
-      toast('Conversation deleted', {
-        action: {
-          label: 'Undo',
-          onClick: () => {
-            window.api.actionLog
-              .undoEntry(actionId)
-              .then(invalidate)
-              .catch(() => {})
-          }
-        }
-      })
+      toastUndoable('Deleted the conversation', actionId, queryClient)
     },
     onSettled: invalidate
   })

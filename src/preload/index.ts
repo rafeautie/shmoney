@@ -24,6 +24,7 @@ import {
   type Transaction,
   type TransactionCreateInput,
   type TransactionIdsInput,
+  type TransactionsBulkDeleteResult,
   type TransactionsSetCategoriesInput,
   type TransactionStats,
   type TransactionUpdateInput,
@@ -114,6 +115,7 @@ import {
   type BudgetRemoveInput,
   type BudgetRemoveResult,
   type BudgetSetFillInput,
+  type BudgetUpdateInput,
   type BudgetSummary,
   type BudgetSummaryQuery
 } from '@shared/budgets'
@@ -177,7 +179,7 @@ const api = {
     setCategories: (input: TransactionsSetCategoriesInput): Promise<number> =>
       ipcRenderer.invoke(IPC.transactionsSetCategories, input),
     /** Soft delete; skips pending rows, resolves to the ids actually deleted */
-    bulkDelete: (input: TransactionIdsInput): Promise<number[]> =>
+    bulkDelete: (input: TransactionIdsInput): Promise<TransactionsBulkDeleteResult> =>
       ipcRenderer.invoke(IPC.transactionsBulkDelete, input),
     /** Manually create a transaction on an account; resolves to the new row id */
     create: (input: TransactionCreateInput): Promise<number> =>
@@ -248,6 +250,9 @@ const api = {
     /** Upsert one month's fill; creating an envelope is the same call */
     setFill: (input: BudgetSetFillInput): Promise<boolean> =>
       ipcRenderer.invoke(BUDGETS_IPC.setFill, input),
+    /** Edit an envelope's fill and/or category as one undoable entry */
+    update: (input: BudgetUpdateInput): Promise<boolean> =>
+      ipcRenderer.invoke(BUDGETS_IPC.update, input),
     /** Deletes all of a category's fill rows; undo via actionLog.undoEntry(actionId) */
     remove: (input: BudgetRemoveInput): Promise<BudgetRemoveResult> =>
       ipcRenderer.invoke(BUDGETS_IPC.remove, input)

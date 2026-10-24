@@ -42,7 +42,7 @@ export function AppearanceSettings() {
           </SegmentedControl>
         </SettingAction>
         <SettingAction
-          label="Interface size"
+          label="Interface Size"
           description={`Scales all text and spacing. ${MOD} + and ${MOD} − step it, ${MOD} 0 resets.`}
         >
           <Select
@@ -50,7 +50,7 @@ export function AppearanceSettings() {
             onValueChange={(value) => setSetting('uiScale', Number(value) as UiScale)}
             items={SCALE_LABELS}
           >
-            <SelectTrigger aria-label="Interface size" className="w-24">
+            <SelectTrigger aria-label="Interface Size" className="w-24">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

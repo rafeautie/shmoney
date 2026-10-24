@@ -1,28 +1,38 @@
-import { memo, useRef, useState } from 'react'
+import { memo, useRef, useState, type ComponentProps } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDataTransferHorizontalIcon } from '@hugeicons/core-free-icons'
+import {
+  ArrowDataTransferHorizontalIcon,
+  Delete02Icon,
+  MoreHorizontalIcon,
+  PencilEdit01Icon
+} from '@hugeicons/core-free-icons'
 import type { Transaction } from '@shared/ipc'
 import { merchantOf } from '@shared/merchant'
 import { cn, currencySymbol, ipcErrorMessage, parseSignedAmount } from '@/lib/utils'
 import { invalidateTransactionData } from '@/lib/invalidate'
+import { toastUndoable } from '@/lib/undo-toast'
+import { ActionsMenuItem } from '@/components/actions-menu'
 import { useAccountCurrency } from '@/lib/currency'
 import { AccountPicker } from '@/components/accounts/account-picker'
 import { Amount } from '@/components/amount'
 import { CategoryPicker } from './category-picker'
-import { CellPopover } from './cell-popover'
-import { useTransactionEditsContext } from './use-transaction-edits'
+import { TransactionDialog } from './transaction-dialog'
+import { useRowExpanded } from '@/components/data-table-row-expanded'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { NumberInput } from '@/components/ui/number-input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { TableCell, TableRow } from '@/components/ui/table'
-
-const SYNCED_TITLE = 'Synced from your bank'
 
 function merchantInitial(description: string): string {
   return (merchantOf(description) ?? description).match(/[\p{L}\p{N}]/u)?.[0].toUpperCase() ?? '?'
@@ -45,17 +55,18 @@ function MerchantMark({ transaction }: { transaction: Transaction }) {
   )
 }
 
-/** Description cell: click to edit in place. Pending/synced rows are plain text. */
-export const EditableTextCell = memo(function EditableTextCell({
+// The description, amount and date cells only show the row: every change goes
+// through the Edit dialog in the row's actions menu (the category keeps its
+// quick picker, for sorting many rows in a row).
+
+/** Description cell, with the merchant mark, transfer counterpart and pending badge */
+export const DescriptionCell = memo(function DescriptionCell({
   transaction
 }: {
   transaction: Transaction
 }) {
-  const [draft, setDraft] = useState<string | null>(null)
-  const { update } = useTransactionEditsContext()
-
   const transferAccount = transaction.isTransfer ? transaction.transferAccountName : null
-  const display = (
+  return (
     <div className="flex min-w-0 items-center gap-2" title={transaction.description}>
       <MerchantMark transaction={transaction} />
       <span className="truncate">{transaction.description}</span>
@@ -71,146 +82,108 @@ export const EditableTextCell = memo(function EditableTextCell({
       )}
     </div>
   )
+})
 
-  if (transaction.pending) return display
-  if (transaction.syncOwned) return <div title={SYNCED_TITLE}>{display}</div>
-
-  if (draft !== null) {
-    const commit = () => {
-      const trimmed = draft.trim()
-      if (trimmed !== '' && trimmed !== transaction.description) {
-        void update({ id: transaction.id, description: trimmed })
-      }
-      setDraft(null)
-    }
-    return (
-      <Input
-        autoFocus
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onFocus={(e) => e.target.select()}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit()
-          if (e.key === 'Escape') setDraft(null)
-        }}
-      />
-    )
-  }
-
+/** Amount cell: the signed amount, transfers dimmed rather than colored */
+export const AmountCell = memo(function AmountCell({ transaction }: { transaction: Transaction }) {
   return (
-    <Button
-      variant="cell"
-      size="sm"
-      className="-ml-2 w-full min-w-0 justify-start"
-      onClick={() => setDraft(transaction.description)}
-    >
-      {display}
-    </Button>
+    <div className="text-right">
+      <Amount
+        value={transaction.amount}
+        currency={transaction.currency}
+        colored={!transaction.isTransfer}
+        className={cn(transaction.isTransfer && 'text-muted-foreground')}
+      />
+    </div>
   )
 })
 
-/** Amount cell: click to edit the literal signed decimal (negative = expense). */
-export const EditableAmountCell = memo(function EditableAmountCell({
+export const DateCell = memo(function DateCell({ transaction }: { transaction: Transaction }) {
+  return (
+    <span className="whitespace-nowrap">
+      {transaction.date ? format(new Date(transaction.date * 1000), 'MMM d, yyyy') : '—'}
+    </span>
+  )
+})
+
+/**
+ * The row's actions menu: Edit, and Delete with an Undo toast (no confirmation,
+ * like every undoable delete). Like CellPopover, it is a plain button
+ * until first opened, so long tables don't carry a closed menu and dialog per
+ * row. Pending rows have none: sync replaces them, so an edit would be lost.
+ */
+export const TransactionActionsCell = memo(function TransactionActionsCell({
   transaction
 }: {
   transaction: Transaction
 }) {
-  const [draft, setDraft] = useState<string | null>(null)
-  const { update } = useTransactionEditsContext()
+  const [mounted, setMounted] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  // the row stays highlighted while its menu or dialog is up
+  useRowExpanded(menuOpen || editing)
 
-  const display = (
-    <Amount
-      value={transaction.amount}
-      currency={transaction.currency}
-      colored={!transaction.isTransfer}
-      className={cn(transaction.isTransfer && 'text-muted-foreground')}
-    />
-  )
+  const triggerProps = {
+    variant: 'ghost',
+    size: 'icon-sm',
+    'aria-label': 'Transaction Actions'
+  } satisfies ComponentProps<typeof Button>
+  const icon = <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
 
-  if (transaction.pending) return <div className="text-right">{display}</div>
-  if (transaction.syncOwned) {
+  if (transaction.pending) return null
+  if (!mounted) {
     return (
-      <div className="text-right" title={SYNCED_TITLE}>
-        {display}
+      <div className="text-right">
+        <Button
+          {...triggerProps}
+          onClick={() => {
+            setMounted(true)
+            setMenuOpen(true)
+          }}
+        >
+          {icon}
+        </Button>
       </div>
-    )
-  }
-
-  if (draft !== null) {
-    const commit = () => {
-      const amount = parseSignedAmount(draft)
-      if (amount !== null && amount !== transaction.amount) {
-        void update({ id: transaction.id, amount })
-      }
-      setDraft(null)
-    }
-    return (
-      <NumberInput
-        autoFocus
-        // no min: amounts are signed, money out is negative
-        prefix={currencySymbol(transaction.currency)}
-        inputClassName="text-right"
-        value={draft}
-        onValueChange={setDraft}
-        onFocus={(e) => e.target.select()}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit()
-          if (e.key === 'Escape') setDraft(null)
-        }}
-      />
     )
   }
 
   return (
     <div className="text-right">
-      <Button
-        variant="cell"
-        size="sm"
-        className="-mr-2"
-        onClick={() => setDraft(String(transaction.amount / 1000))}
-      >
-        {display}
-      </Button>
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownMenuTrigger render={<Button {...triggerProps} />}>{icon}</DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-auto min-w-40">
+          <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => setEditing(true)}>
+            Edit
+          </ActionsMenuItem>
+          <TransactionDeleteItem transaction={transaction} />
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <TransactionDialog open={editing} onOpenChange={setEditing} transaction={transaction} />
     </div>
   )
 })
 
-/** Date cell: click for a calendar; picking a day commits immediately. */
-export const EditableDateCell = memo(function EditableDateCell({
-  transaction
-}: {
-  transaction: Transaction
-}) {
-  const [open, setOpen] = useState(false)
-  const { update } = useTransactionEditsContext()
-
-  const label = transaction.date ? format(new Date(transaction.date * 1000), 'MMM d, yyyy') : '—'
-
-  if (transaction.pending) return <span>{label}</span>
-  if (transaction.syncOwned) return <span title={SYNCED_TITLE}>{label}</span>
-
+function TransactionDeleteItem({ transaction }: { transaction: Transaction }) {
+  const queryClient = useQueryClient()
+  const remove = useMutation({
+    mutationFn: () => window.api.transactions.bulkDelete({ transactionIds: [transaction.id] }),
+    onSuccess: ({ actionId }) => {
+      if (actionId !== null)
+        toastUndoable(`Deleted “${transaction.description}”`, actionId, queryClient)
+    },
+    onSettled: () => invalidateTransactionData(queryClient)
+  })
   return (
-    <CellPopover
-      open={open}
-      onOpenChange={setOpen}
-      trigger={{ variant: 'cell', size: 'sm', className: '-ml-2 whitespace-nowrap' }}
-      label={label}
-      contentClassName="w-auto p-0"
+    <ActionsMenuItem
+      icon={Delete02Icon}
+      destructive
+      disabled={remove.isPending}
+      onClick={() => remove.mutate()}
     >
-      <Calendar
-        mode="single"
-        selected={transaction.date ? new Date(transaction.date * 1000) : undefined}
-        defaultMonth={transaction.date ? new Date(transaction.date * 1000) : undefined}
-        onSelect={(next) => {
-          if (next) void update({ id: transaction.id, date: format(next, 'yyyy-MM-dd') })
-          setOpen(false)
-        }}
-      />
-    </CellPopover>
+      Delete
+    </ActionsMenuItem>
   )
-})
+}
 
 /**
  * Pinned entry row at the top of a transactions table. Enter commits when

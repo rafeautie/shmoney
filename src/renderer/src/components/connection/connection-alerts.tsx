@@ -50,7 +50,7 @@ export function ConnectionAlerts({
       rel="noreferrer"
       className={buttonVariants({ variant: 'outline' })}
     >
-      Open SimpleFIN bridge
+      Open SimpleFIN Bridge
     </a>
   )
 

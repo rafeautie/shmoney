@@ -2,12 +2,17 @@ import { useState } from 'react'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Analytics01Icon, ArrowDown01Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons'
+import {
+  Analytics01Icon,
+  ArrowDown01Icon,
+  Delete02Icon,
+  PencilEdit01Icon
+} from '@hugeicons/core-free-icons'
 import { format } from 'date-fns'
 import type { ReportCreateInput, ReportSummary } from '@shared/reports'
 import { SAVINGS_GOALS_TEMPLATE, SPENDING_OVERVIEW_TEMPLATE } from '@shared/report-templates'
 import { reportsOptions } from '@/lib/queries'
-import { Page } from '@/components/page'
+import { Page, PageHeader } from '@/components/page'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -24,7 +29,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ActionsMenu, ActionsMenuItem } from '@/components/actions-menu'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { NameDialog } from '@/components/name-dialog'
 import { WidgetCard } from '@/components/reports/widget-card'
 
 export const Route = createFileRoute('/reports/')({
@@ -52,47 +60,58 @@ function ReportsPage() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['reports'] })
   })
 
+  const [renameTarget, setRenameTarget] = useState<ReportSummary | null>(null)
+  const renameMutation = useMutation({
+    meta: { silenceError: true },
+    mutationFn: (input: { id: number; name: string }) => window.api.reports.update(input),
+    onSuccess: (report) => {
+      queryClient.invalidateQueries({ queryKey: ['reports'] })
+      queryClient.invalidateQueries({ queryKey: ['report', report.id] })
+    }
+  })
+
   const reports = reportsQuery.data ?? []
 
   return (
     <Page className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight">Reports</h2>
-          <p className="text-muted-foreground">
-            Build custom dashboards of charts and tables over your transactions.
-          </p>
-        </div>
+      <PageHeader
+        title="Reports"
+        description="Build custom dashboards of charts and tables over your transactions."
+      >
         <DropdownMenu>
           <DropdownMenuTrigger render={<Button disabled={createMutation.isPending} />}>
-            New report
+            New Report
             <HugeiconsIcon icon={ArrowDown01Icon} size={14} />
           </DropdownMenuTrigger>
           {/* the menu defaults to the trigger's width, which wraps the template
               item's label; let it size to its content instead */}
           <DropdownMenuContent align="end" className="w-auto">
-            <DropdownMenuItem onClick={() => createMutation.mutate({ name: 'Untitled report' })}>
-              Blank report
+            <DropdownMenuItem onClick={() => createMutation.mutate({ name: 'Untitled Report' })}>
+              Blank Report
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => createMutation.mutate(SPENDING_OVERVIEW_TEMPLATE)}>
-              Spending Overview template
+              Spending Overview Template
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => createMutation.mutate(SAVINGS_GOALS_TEMPLATE)}>
-              Savings Goals template
+              Savings Goals Template
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
+      </PageHeader>
 
       {reportsQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-56 w-full" />
+          ))}
+        </div>
       ) : reports.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <HugeiconsIcon icon={Analytics01Icon} />
             </EmptyMedia>
-            <EmptyTitle>No reports yet</EmptyTitle>
+            <EmptyTitle>No Reports Yet</EmptyTitle>
             <EmptyDescription>
               Create a report to analyze your spending with charts, tables, and stat cards you
               arrange yourself.
@@ -114,15 +133,15 @@ function ReportsPage() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => createMutation.mutate({ name: 'Untitled report' })}
+              onClick={() => createMutation.mutate({ name: 'Untitled Report' })}
               disabled={createMutation.isPending}
             >
-              Blank report
+              Blank Report
             </Button>
           </EmptyContent>
         </Empty>
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
           {reports.map((report) => (
             <ReportCard
               key={report.id}
@@ -130,10 +149,23 @@ function ReportsPage() {
               onOpen={() =>
                 navigate({ to: '/reports/$reportId', params: { reportId: String(report.id) } })
               }
+              onRename={() => setRenameTarget(report)}
               onDelete={() => setDeleteTarget(report)}
             />
           ))}
         </div>
+      )}
+
+      {/* outside the cards: a dialog's clicks bubble through React to its
+          parent, and a card's click opens the report */}
+      {renameTarget && (
+        <NameDialog
+          open
+          onOpenChange={(open) => !open && setRenameTarget(null)}
+          title="Rename Report"
+          name={renameTarget.name}
+          onSave={(name) => renameMutation.mutateAsync({ id: renameTarget.id, name })}
+        />
       )}
 
       {deleteTarget && (
@@ -154,10 +186,12 @@ function ReportsPage() {
 function ReportCard({
   report,
   onOpen,
+  onRename,
   onDelete
 }: {
   report: ReportSummary
   onOpen: () => void
+  onRename: () => void
   onDelete: () => void
 }) {
   return (
@@ -166,26 +200,14 @@ function ReportCard({
         <CardTitle className="min-w-0 flex-1 truncate text-base select-text">
           {report.name}
         </CardTitle>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 shrink-0"
-                onClick={(e) => e.stopPropagation()}
-              />
-            }
-          >
-            <HugeiconsIcon icon={MoreVerticalIcon} size={14} />
-            <span className="sr-only">Report menu</span>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-            <DropdownMenuItem variant="destructive" onClick={onDelete}>
-              Delete report
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ActionsMenu label="Report Actions" onTriggerClick={(e) => e.stopPropagation()}>
+          <ActionsMenuItem icon={PencilEdit01Icon} onClick={onRename}>
+            Rename
+          </ActionsMenuItem>
+          <ActionsMenuItem icon={Delete02Icon} destructive onClick={onDelete}>
+            Delete
+          </ActionsMenuItem>
+        </ActionsMenu>
       </CardHeader>
       <CardContent className="space-y-3 text-sm text-muted-foreground">
         <ReportPreview report={report} />
@@ -211,13 +233,7 @@ function ReportPreview({ report }: { report: ReportSummary }) {
   return (
     <div className="relative h-32 overflow-hidden rounded-md bg-tray" inert aria-hidden>
       <div className="absolute top-2 left-2 h-[calc(200%-2rem)] w-[calc(200%-2rem)] origin-top-left scale-50">
-        <WidgetCard
-          widget={report.preview}
-          reportFilters={report.filters}
-          editing={false}
-          onEdit={() => {}}
-          onDelete={() => {}}
-        />
+        <WidgetCard widget={report.preview} reportFilters={report.filters} editing={false} />
       </div>
     </div>
   )

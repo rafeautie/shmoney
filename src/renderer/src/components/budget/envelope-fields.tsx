@@ -1,97 +1,65 @@
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Delete02Icon, MoreHorizontalIcon } from '@hugeicons/core-free-icons'
+import { Delete02Icon, PencilEdit01Icon } from '@hugeicons/core-free-icons'
 import { useState } from 'react'
 import type { EnvelopeSummary } from '@shared/budgets'
 import { Amount } from '@/components/amount'
-import { useRemoveEnvelope, useSetFill } from '@/components/budget/use-envelopes'
-import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
-import { NumberInput } from '@/components/ui/number-input'
-import { currencySymbol, parseDollars } from '@/lib/utils'
+import { EnvelopeDialog } from '@/components/budget/envelope-dialog'
+import { useRemoveEnvelope } from '@/components/budget/use-envelopes'
+import { ActionsMenu, ActionsMenuItem } from '@/components/actions-menu'
 
-// The card and the table are two views of the same envelope, so they edit it
-// through the same field.
+// The card and the table are two views of the same envelope, so they show it
+// through the same fields. None edits in place: every change goes through the
+// Edit dialog in the actions menu, so a stray click on a compact layout can't
+// start one.
 
-/**
- * Click-to-edit fill amount: an edit made while viewing month M re-anchors the
- * fill from M forward and leaves earlier months' history untouched.
- */
-export function EditableFill({
+export function EnvelopeFill({
   envelope,
-  month,
   currency
 }: {
   envelope: EnvelopeSummary
-  month: string
   currency: string
 }) {
-  const setFill = useSetFill()
-  const [draft, setDraft] = useState<string | null>(null)
-
-  if (draft === null) {
-    return (
-      <Button
-        variant="ghost"
-        size="sm"
-        className="h-7 px-2 font-normal tabular-nums"
-        onClick={() => setDraft((envelope.fill / 1000).toString())}
-      >
-        <Amount value={envelope.fill} currency={currency} colored={false} />
-      </Button>
-    )
-  }
-
-  const commit = (): void => {
-    // an emptied field is a cancel, not $0 (parseDollars reads '' as 0); type 0 for that
-    const amount = draft.trim() === '' ? null : parseDollars(draft)
-    if (amount !== null && amount !== envelope.fill)
-      setFill.mutate({ categoryId: envelope.categoryId, month, amount })
-    setDraft(null)
-  }
-
   return (
-    <NumberInput
-      autoFocus
-      prefix={currencySymbol(currency)}
-      min={0}
-      value={draft}
-      onValueChange={setDraft}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') commit()
-        if (e.key === 'Escape') setDraft(null)
-      }}
-      className="w-28"
-    />
+    <span className="tabular-nums">
+      <Amount value={envelope.fill} currency={currency} colored={false} />
+    </span>
   )
 }
 
-export function EnvelopeActionsMenu({ envelope }: { envelope: EnvelopeSummary }) {
+export function EnvelopeActionsMenu({
+  envelope,
+  month,
+  budgetedIds
+}: {
+  envelope: EnvelopeSummary
+  /** viewed month: an edited fill applies from here on */
+  month: string
+  budgetedIds: number[]
+}) {
   const remove = useRemoveEnvelope()
+  const [editing, setEditing] = useState(false)
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant="ghost" size="icon" />}
-        aria-label="Envelope actions"
-      >
-        <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          variant="destructive"
-          onClick={() => remove.mutate(envelope)}
+    <>
+      <ActionsMenu label="Envelope Actions">
+        <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => setEditing(true)}>
+          Edit
+        </ActionsMenuItem>
+        <ActionsMenuItem
+          icon={Delete02Icon}
+          destructive
           disabled={remove.isPending}
+          onClick={() => remove.mutate(envelope)}
         >
-          <HugeiconsIcon icon={Delete02Icon} size={14} />
-          Remove envelope
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          Delete
+        </ActionsMenuItem>
+      </ActionsMenu>
+      <EnvelopeDialog
+        open={editing}
+        onOpenChange={setEditing}
+        envelope={envelope}
+        month={month}
+        budgetedIds={budgetedIds}
+      />
+    </>
   )
 }

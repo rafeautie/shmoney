@@ -61,7 +61,7 @@ function describe(change: ActionLogChange, categoryName: Map<number, string>): L
   if (change.field === 'categoryDeleted') {
     return {
       subject: change.name,
-      meta: change.kind === 'group' ? 'Category group' : 'Category',
+      meta: change.kind === 'group' ? 'Category Group' : 'Category',
       diff: { tag: 'Deleted' }
     }
   }
@@ -77,7 +77,7 @@ function describe(change: ActionLogChange, categoryName: Map<number, string>): L
       case 'savingsGoalTargetDate':
         return {
           subject: change.name,
-          meta: 'Target date',
+          meta: 'Target Date',
           diff: { from: isoDate(change.before), to: isoDate(change.after) }
         }
       case 'savingsGoalTargetAmount':

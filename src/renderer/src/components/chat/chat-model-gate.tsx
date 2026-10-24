@@ -35,7 +35,7 @@ export function ChatModelGate() {
           <EmptyMedia variant="icon">
             <HugeiconsIcon icon={ComputerIcon} />
           </EmptyMedia>
-          <EmptyTitle>Chat runs on your computer</EmptyTitle>
+          <EmptyTitle>Chat Runs on Your Computer</EmptyTitle>
           <EmptyDescription>
             In the desktop app, an on-device model answers questions about your money, fully
             offline. Open a conversation in the sidebar to see how it answers.
@@ -72,7 +72,7 @@ export function ChatModelGate() {
         <EmptyMedia variant="icon">
           <HugeiconsIcon icon={Download01Icon} />
         </EmptyMedia>
-        <EmptyTitle>Download the model to chat</EmptyTitle>
+        <EmptyTitle>Download the Model to Chat</EmptyTitle>
         <EmptyDescription>
           Chat runs on {model.label}, the same on-device model behind auto-categorize. It downloads
           once and everything stays on this computer.
@@ -117,7 +117,7 @@ export function ChatModelGate() {
           {actions.download.isPending
             ? 'Starting…'
             : stage === 'error'
-              ? 'Retry download'
+              ? 'Retry Download'
               : 'Download'}
         </Button>
       )}

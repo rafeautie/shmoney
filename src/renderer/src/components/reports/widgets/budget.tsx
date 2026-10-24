@@ -88,7 +88,7 @@ export function BudgetWidget({
         <EmptyDescription>
           No envelopes for {formatMonthLong(month)}.{' '}
           <Link to="/budget" className="underline underline-offset-2">
-            Set up your budget
+            Set Up Your Budget
           </Link>
         </EmptyDescription>
       </Empty>
@@ -131,7 +131,7 @@ export function BudgetWidget({
             )}
             {summary.unbudgetedSpent > 0 && (
               <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>Unbudgeted spending</span>
+                <span>Unbudgeted Spending</span>
                 <Amount
                   value={summary.unbudgetedSpent}
                   currency={summary.currency}

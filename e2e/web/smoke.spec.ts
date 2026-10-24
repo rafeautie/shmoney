@@ -3,7 +3,7 @@ import { expect, test } from '../fixtures'
 test('boots with the household dataset and navigates the main pages', async ({ app }) => {
   const { page } = app
   await app.open()
-  await expect(page.getByText('Net worth', { exact: true })).toBeVisible()
+  await expect(page.getByText('Net Worth', { exact: true })).toBeVisible()
   await expect(page.getByRole('row', { name: /Everyday Checking/ })).toBeVisible()
 
   for (const name of ['Budget', 'Goals', 'Reports', 'Activity']) {
@@ -23,5 +23,5 @@ test('the bridge reads the database and scripts the model', async ({ app }) => {
 
 test('an empty install skips onboarding into the empty accounts page', async ({ app }) => {
   await app.open({ dataset: 'none' })
-  await expect(app.page.getByText('No accounts yet')).toBeVisible()
+  await expect(app.page.getByText('No Accounts Yet')).toBeVisible()
 })

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Layout } from 'react-grid-layout'
 
 import { HugeiconsIcon } from '@hugeicons/react'
-import { DashboardSquare01Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons'
+import { DashboardSquare01Icon, Delete02Icon, PencilEdit01Icon } from '@hugeicons/core-free-icons'
 import {
   DEFAULT_REPORT_FILTERS,
   type ReportDetail,
@@ -14,13 +14,8 @@ import {
 } from '@shared/reports'
 import { Page } from '@/components/page'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ActionsMenu, ActionsMenuItem } from '@/components/actions-menu'
 import {
   Empty,
   EmptyContent,
@@ -30,14 +25,12 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { ReportGrid } from '@/components/reports/report-grid'
-import { CHROME_ENTER, CHROME_FADE, CHROME_FADE_MS } from '@/components/reports/edit-chrome'
 import { FilterBar } from '@/components/transactions/filter-bar'
 import { AddWidgetButton, WidgetEditor } from '@/components/reports/widget-editor'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { NameDialog } from '@/components/name-dialog'
 import { NotFoundScreen } from '@/components/error-screen'
 import { reportOptions } from '@/lib/queries'
-import { usePresence } from '@/lib/use-presence'
-import { cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/reports/$reportId')({
   loader: async ({ context, params }) => {
@@ -52,7 +45,7 @@ export const Route = createFileRoute('/reports/$reportId')({
 function ReportNotFound() {
   return (
     <NotFoundScreen
-      title="Report not found"
+      title="Report Not Found"
       description="This report may have been deleted."
       backTo="/reports"
       backLabel="Back to Reports"
@@ -65,23 +58,15 @@ function ReportPage() {
   const id = Number(reportId)
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  // arranging: widgets drag and resize; everything else works either way
   const [editing, setEditing] = useState(false)
-  const addPresent = usePresence(editing, CHROME_FADE_MS)
   const [editorOpen, setEditorOpen] = useState(false)
   const [editorWidget, setEditorWidget] = useState<ReportWidget | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [renaming, setRenaming] = useState(false)
 
   const detailQuery = useQuery(reportOptions(id))
   const detail = detailQuery.data
-
-  // a fresh report has nothing to look at; drop straight into edit mode
-  const autoEditedRef = useRef(false)
-  useEffect(() => {
-    if (detail && detail.widgets.length === 0 && !autoEditedRef.current) {
-      autoEditedRef.current = true
-      setEditing(true)
-    }
-  }, [detail])
 
   // ---- layout persistence: optimistic cache patch + debounced save ----
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -138,6 +123,7 @@ function ReportPage() {
 
   // ---- report mutations ----
   const renameMutation = useMutation({
+    meta: { silenceError: true },
     mutationFn: (name: string) => window.api.reports.update({ id, name }),
     onSuccess: (report) => {
       queryClient.setQueryData<ReportDetail>(['report', id], (prev) =>
@@ -184,8 +170,14 @@ function ReportPage() {
 
   if (detailQuery.isLoading) {
     return (
-      <Page>
-        <p className="text-sm text-muted-foreground">Loading…</p>
+      <Page className="space-y-6">
+        <Skeleton className="h-7 w-56" />
+        <div className="grid grid-cols-3 gap-4">
+          <Skeleton className="h-32" />
+          <Skeleton className="h-32" />
+          <Skeleton className="h-32" />
+        </div>
+        <Skeleton className="h-72 w-full" />
       </Page>
     )
   }
@@ -202,61 +194,31 @@ function ReportPage() {
   return (
     <Page className="space-y-6">
       <div className="flex items-center justify-between gap-4">
-        {/* the title and its rename field share one cell and crossfade */}
-        <div className="grid min-w-0 flex-1 items-center *:col-start-1 *:row-start-1">
-          <Input
-            // reseeds on every entry, so an abandoned draft never lingers
-            key={`${detail.report.name}-${editing}`}
-            defaultValue={detail.report.name}
-            inert={!editing}
-            className={cn(
-              'h-8 max-w-sm text-lg font-semibold',
-              CHROME_FADE,
-              !editing && 'opacity-0'
-            )}
-            onBlur={(e) => {
-              const name = e.target.value.trim()
-              if (name && name !== detail.report.name) renameMutation.mutate(name)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-            }}
-          />
-          <h2
-            inert={editing}
-            className={cn(
-              'truncate text-xl font-semibold tracking-tight select-text',
-              CHROME_FADE,
-              editing && 'opacity-0'
-            )}
-          >
-            {detail.report.name}
-          </h2>
-        </div>
+        <h2 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight select-text">
+          {detail.report.name}
+        </h2>
         <div className="flex shrink-0 items-center gap-2">
-          {addPresent && (
-            <div inert={!editing} className={cn(CHROME_ENTER, !editing && 'opacity-0')}>
-              <AddWidgetButton
-                reportId={id}
-                reportFilters={detail.report.filters}
-                nextPosition={nextPosition}
-              />
-            </div>
+          {/* an empty report offers the same button in its empty state */}
+          {detail.widgets.length > 0 && (
+            <AddWidgetButton
+              reportId={id}
+              reportFilters={detail.report.filters}
+              nextPosition={nextPosition}
+            />
           )}
-          <Button variant={editing ? 'default' : 'outline'} onClick={() => setEditing(!editing)}>
-            {editing ? 'Done' : 'Edit'}
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="icon" />}>
-              <HugeiconsIcon icon={MoreVerticalIcon} size={16} />
-              <span className="sr-only">Report menu</span>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem variant="destructive" onClick={() => setConfirmDelete(true)}>
-                Delete report
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {detail.widgets.length > 0 && (
+            <Button variant={editing ? 'default' : 'outline'} onClick={() => setEditing(!editing)}>
+              {editing ? 'Done' : 'Arrange'}
+            </Button>
+          )}
+          <ActionsMenu label="Report Actions">
+            <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => setRenaming(true)}>
+              Rename
+            </ActionsMenuItem>
+            <ActionsMenuItem icon={Delete02Icon} destructive onClick={() => setConfirmDelete(true)}>
+              Delete
+            </ActionsMenuItem>
+          </ActionsMenu>
         </div>
       </div>
 
@@ -272,7 +234,7 @@ function ReportPage() {
             <EmptyMedia variant="icon">
               <HugeiconsIcon icon={DashboardSquare01Icon} />
             </EmptyMedia>
-            <EmptyTitle>This report is empty</EmptyTitle>
+            <EmptyTitle>This Report Is Empty</EmptyTitle>
             <EmptyDescription>Add a widget to get started.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
@@ -305,6 +267,13 @@ function ReportPage() {
         nextPosition={nextPosition}
       />
 
+      <NameDialog
+        open={renaming}
+        onOpenChange={setRenaming}
+        title="Rename Report"
+        name={detail.report.name}
+        onSave={(name) => renameMutation.mutateAsync(name)}
+      />
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}

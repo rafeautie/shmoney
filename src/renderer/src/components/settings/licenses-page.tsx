@@ -43,7 +43,7 @@ export function LicensesPage({ onBack }: { onBack: () => void }) {
   return (
     <SettingsSubpage
       parent="About"
-      title="Licenses and credits"
+      title="Licenses and Credits"
       description={`shmoney ${__APP_VERSION__} ships with ${PACKAGES.length} open source packages. Rows link to each project.`}
       onBack={onBack}
     >

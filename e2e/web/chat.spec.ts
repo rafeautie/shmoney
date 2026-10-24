@@ -57,24 +57,24 @@ test('a new chat without the model shows the download gate until it is downloade
 }) => {
   const { page } = app
   await app.open({ route: '/chat' })
-  await expect(page.getByText('Download the model to chat')).toBeVisible()
+  await expect(page.getByText('Download the Model to Chat')).toBeVisible()
   await expect(composer(page)).toBeHidden()
 
   await page.getByRole('button', { name: 'Download', exact: true }).click()
   await expect(composer(page)).toBeVisible()
-  await expect(page.getByText('Download the model to chat')).toBeHidden()
-  await expect(page.getByText('Ask about your money')).toBeVisible()
+  await expect(page.getByText('Download the Model to Chat')).toBeHidden()
+  await expect(page.getByText('Ask About Your Money')).toBeVisible()
 })
 
 test('the composer appears once the model is ready and starters are offered', async ({ app }) => {
   const { page } = app
   await app.open({ route: '/chat' })
-  await expect(page.getByText('Download the model to chat')).toBeVisible()
+  await expect(page.getByText('Download the Model to Chat')).toBeVisible()
   await app.bridge((b) => b.llm.ready())
   await expect(composer(page)).toBeVisible()
   await expect(page.getByPlaceholder('How can I help you?')).toBeVisible()
 
-  await expect(page.getByText('Ask about your money')).toBeVisible()
+  await expect(page.getByText('Ask About Your Money')).toBeVisible()
   for (const starter of [
     'How much do I spend each month?',
     'Am I on budget this month?',
@@ -113,7 +113,7 @@ test('sending streams the scripted reply, settles it, and titles the conversatio
   await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled()
   await expect(page.getByRole('button', { name: 'Stop' })).toBeHidden()
   await expect(composer(page)).toHaveValue('')
-  await expect(page.getByPlaceholder('Write a message...')).toBeVisible()
+  await expect(page.getByPlaceholder('Write a message…')).toBeVisible()
 
   await expect(page.getByRole('link', { name: 'Where did my money go?' })).toBeVisible()
   const rows = await app.sql<{ title: string; status: string }>(
@@ -168,10 +168,10 @@ test('Stop ends a held turn and marks it stopped', async ({ app }) => {
   await expect(page.getByText('Let me think about that')).toBeVisible()
   const stop = page.getByRole('button', { name: 'Stop' })
   await expect(stop).toBeVisible()
-  await expect(page.getByText('Stopped generating')).toBeHidden()
+  await expect(page.getByText('Stopped Generating')).toBeHidden()
 
   await stop.click()
-  await expect(page.getByText('Stopped generating')).toBeVisible()
+  await expect(page.getByText('Stopped Generating')).toBeVisible()
   await expect(stop).toBeHidden()
   await expect(page.getByText('Let me think about that')).toBeVisible()
   const [{ status }] = await app.sql<{ status: string }>(
@@ -236,9 +236,9 @@ test('amounts in an answer render formatted and are masked by Hide amounts', asy
   await expect(amount).toBeVisible()
   await expect(amount).not.toHaveClass(/private-hidden/)
 
-  await page.getByRole('button', { name: 'Hide amounts' }).click()
+  await page.getByRole('button', { name: 'Hide Amounts' }).click()
   await expect(amount).toHaveClass(/private-hidden/)
-  await expect(page.getByRole('button', { name: 'Show amounts' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Show Amounts' })).toBeVisible()
 })
 
 test('a markdown table renders with copy and CSV download', async ({ app, context }) => {
@@ -253,7 +253,7 @@ test('a markdown table renders with copy and CSV download', async ({ app, contex
   await expect(page.getByRole('cell', { name: 'Rent' })).toBeVisible()
   await expect(page.getByRole('cell', { name: '900' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Copy table' }).click()
+  await page.getByRole('button', { name: 'Copy Table' }).click()
   const copied = (): Promise<string[][]> =>
     page
       .evaluate(() => navigator.clipboard.readText())
@@ -265,7 +265,7 @@ test('a markdown table renders with copy and CSV download', async ({ app, contex
   ])
 
   const download = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Download table as CSV' }).click()
+  await page.getByRole('button', { name: 'Download Table as CSV' }).click()
   expect((await download).suggestedFilename()).toBe('table.csv')
 })
 
@@ -314,7 +314,7 @@ test('a budget proposal can be applied, and undone from the toast', async ({ app
   await expect(
     page.locator('[data-slot=item-title]').filter({ hasText: /Set .*Groceries budget to/ })
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Dismiss' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Dismiss', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Apply' }).click()
 
   const toast = page
@@ -340,7 +340,7 @@ test('a budget proposal can be dismissed without changing anything', async ({ ap
   await queueReplies(app, { parts: [part] })
 
   await send(page, 'Budget dining at 321')
-  await page.getByRole('button', { name: 'Dismiss' }).click()
+  await page.getByRole('button', { name: 'Dismiss', exact: true }).click()
   await expect(page.getByText('Dismissed', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Apply' })).toBeHidden()
   expect(
@@ -350,28 +350,33 @@ test('a budget proposal can be dismissed without changing anything', async ({ ap
   ).toEqual([])
 })
 
-test('a conversation is renamed inline: Enter commits, Escape cancels', async ({ app }) => {
+test('a conversation is renamed in a dialog: Enter saves, Escape cancels', async ({ app }) => {
   const { page } = app
   await app.open({ route: '/chat' })
   const original = 'Chart my income versus spending by month'
+  const dialog = page.getByRole('dialog', { name: 'Rename conversation' })
 
   const openRename = async (name: string): Promise<void> => {
     await page.getByRole('link', { name }).hover()
     await page.getByRole('button', { name: 'Conversation actions' }).first().click()
     await page.getByRole('menuitem', { name: 'Rename' }).click()
+    await expect(dialog).toBeVisible()
   }
 
   await openRename(original)
-  const input = page.getByRole('textbox')
+  const input = dialog.getByLabel('Name')
   await expect(input).toBeFocused()
+  await expect(input).toHaveValue(original)
   await input.fill('Cancelled title')
   await input.press('Escape')
+  await expect(dialog).toBeHidden()
   await expect(page.getByRole('link', { name: original })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Cancelled title' })).toBeHidden()
 
   await openRename(original)
-  await page.getByRole('textbox').fill('Income vs spending')
-  await page.getByRole('textbox').press('Enter')
+  await dialog.getByLabel('Name').fill('Income vs spending')
+  await dialog.getByLabel('Name').press('Enter')
+  await expect(dialog).toBeHidden()
   await expect(page.getByRole('link', { name: 'Income vs spending' })).toBeVisible()
   await expect(page.getByRole('link', { name: original })).toBeHidden()
   const rows = await app.sql<{ title: string }>('SELECT title FROM conversations WHERE id = 2')
@@ -388,7 +393,7 @@ test('deleting a conversation removes it at once and Undo brings it back', async
   await page.getByRole('menuitem', { name: 'Delete' }).click()
 
   await expect(page.getByRole('link', { name: title })).toBeHidden()
-  const toast = page.locator('[data-sonner-toast]').filter({ hasText: 'Conversation deleted' })
+  const toast = page.locator('[data-sonner-toast]').filter({ hasText: 'Deleted the conversation' })
   await expect(toast).toBeVisible()
   await expect
     .poll(() => app.sql('SELECT id FROM conversations WHERE deleted_at IS NULL AND id = 3'))
@@ -410,7 +415,7 @@ test('deleting the open conversation returns to a new chat', async ({ app }) => 
 
   await expect(page).toHaveURL(/#\/chat$/)
   await expect(page.getByRole('link', { name: title })).toBeHidden()
-  await expect(page.getByText('Download the model to chat')).toBeVisible()
+  await expect(page.getByText('Download the Model to Chat')).toBeVisible()
 })
 
 test('the scope select narrows a new chat to one account', async ({ app }) => {
@@ -421,7 +426,7 @@ test('the scope select narrows a new chat to one account', async ({ app }) => {
   const [account] = await app.sql<{ id: number; name: string }>(
     'SELECT id, name FROM accounts ORDER BY id LIMIT 1'
   )
-  await page.getByRole('button', { name: 'All accounts' }).click()
+  await page.getByRole('button', { name: 'All Accounts' }).click()
   await page.getByRole('option', { name: account.name }).click()
   await expect(page.getByRole('button', { name: account.name })).toBeVisible()
 
@@ -452,8 +457,8 @@ test('the web demo explains that chat runs on the desktop and keeps seeded chats
 }) => {
   const { page } = app
   await app.open({ route: '/chat', desktop: false })
-  await expect(page.getByText('Chat runs on your computer')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Get shmoney' })).toBeVisible()
+  await expect(page.getByText('Chat Runs on Your Computer')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Get Shmoney' })).toBeVisible()
 
   await page.getByRole('link', { name: 'Chart my income versus spending by month' }).click()
   await expect(page.getByText('Income vs. spending by month')).toBeVisible()

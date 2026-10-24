@@ -73,7 +73,7 @@ export function FilteredTransactionsTable({
         showAccount={showAccount}
         showCreateRow={showCreateRow}
         createAccountId={createAccountId}
-        emptyMessage={isDefault ? undefined : 'No transactions match the current filters.'}
+        emptyMessage={isDefault ? undefined : 'No transactions match these filters.'}
         className="min-h-0 flex-1"
       />
     </div>

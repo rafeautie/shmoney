@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select'
+import { RULE_FORM_DESCRIPTION, ruleFormTitle } from './rule-form-labels'
 import { PhraseInput } from '@/components/phrase-input'
 
 // ---- dollar <-> milliunit helpers ----
@@ -59,9 +60,9 @@ const AMT_OP_LABELS: Record<AmtOp, string> = {
 const DESC_OP_ITEMS: Record<DescOp, string> = { contains: 'contains', equals: 'equals' }
 
 const DIRECTION_ITEMS: Record<Direction, string> = {
-  any: 'Any direction',
-  in: 'Money in',
-  out: 'Money out'
+  any: 'Any Direction',
+  in: 'Money In',
+  out: 'Money Out'
 }
 
 export function RuleEditor({
@@ -99,8 +100,8 @@ export function RuleEditor({
   )
 }
 
-/** The rule form, in a dialog (RuleEditor) or `inline` in a list, as Settings
- * edits rules in place. Inline, Escape cancels. */
+/** The rule form, in a dialog (RuleEditor) or `inline` on a Settings
+ * sub-page, which carries the title itself. Inline, Escape cancels. */
 export function RuleForm({
   rule,
   draft,
@@ -222,9 +223,6 @@ export function RuleForm({
   const categories = categoriesQuery.data
   const accounts = accountsQuery.data ?? []
 
-  const title = rule ? 'Edit rule' : 'New rule'
-  const description = 'A rule applies its action to transactions matching every condition you set.'
-
   return (
     <form
       className="flex min-h-0 flex-1 flex-col"
@@ -247,15 +245,10 @@ export function RuleForm({
         }
       }}
     >
-      {inline ? (
-        <div className="flex flex-col gap-1 p-4">
-          <h4 className="text-sm font-medium">{title}</h4>
-          <p className="text-xs text-muted-foreground">{description}</p>
-        </div>
-      ) : (
+      {!inline && (
         <DialogHeader className="p-4">
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle>{ruleFormTitle(rule)}</DialogTitle>
+          <DialogDescription>{RULE_FORM_DESCRIPTION}</DialogDescription>
         </DialogHeader>
       )}
 
@@ -315,9 +308,9 @@ export function RuleForm({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="any">Any direction</SelectItem>
-                    <SelectItem value="in">Money in</SelectItem>
-                    <SelectItem value="out">Money out</SelectItem>
+                    <SelectItem value="any">Any Direction</SelectItem>
+                    <SelectItem value="in">Money In</SelectItem>
+                    <SelectItem value="out">Money Out</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select
@@ -373,7 +366,7 @@ export function RuleForm({
               <Select
                 value={accountId === null ? 'any' : String(accountId)}
                 items={[
-                  { value: 'any', label: 'Any account' },
+                  { value: 'any', label: 'Any Account' },
                   ...accounts.map((account) => ({
                     value: String(account.id),
                     label: account.institutionName
@@ -387,7 +380,7 @@ export function RuleForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="any">Any account</SelectItem>
+                  <SelectItem value="any">Any Account</SelectItem>
                   {accounts.map((account) => (
                     <SelectItem key={account.id} value={String(account.id)}>
                       {account.institutionName
@@ -450,7 +443,7 @@ export function RuleForm({
                 onValueChange={(v) => setCategoryId(Number(v))}
               >
                 <SelectTrigger aria-label="Category" className="min-w-40 flex-1">
-                  <SelectValue placeholder="Choose a category" />
+                  <SelectValue placeholder="Choose a Category" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories?.groups.map((group) => (
@@ -507,7 +500,7 @@ export function RuleForm({
           Cancel
         </Button>
         <Button type="submit" disabled={!canSave || save.isPending}>
-          {save.isPending ? 'Saving…' : rule ? 'Save rule' : 'Create rule'}
+          {save.isPending ? 'Saving…' : rule ? 'Save' : 'Add Rule'}
         </Button>
       </DialogFooter>
     </form>
@@ -522,7 +515,7 @@ function FormBody({
   inline: boolean
   children: React.ReactNode
 }): React.JSX.Element {
-  if (inline) return <div className="border-t">{children}</div>
+  if (inline) return <div>{children}</div>
   return (
     <ScrollArea className="border-t" viewPortClassName="max-h-[60vh]">
       {children}
@@ -551,7 +544,7 @@ function DateField({
           />
         }
       >
-        {value ? format(value, 'MMM d, yyyy') : 'Any date'}
+        {value ? format(value, 'MMM d, yyyy') : 'Any Date'}
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar

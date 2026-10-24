@@ -17,11 +17,11 @@ const BUCKETS = [
   { label: 'Transactions', tables: ['transactions'], color: 'var(--chart-1)' },
   { label: 'Accounts', tables: ['connections', 'accounts', 'holdings'], color: 'var(--chart-2)' },
   {
-    label: 'Categories & rules',
+    label: 'Categories & Rules',
     tables: ['category_groups', 'categories', 'rules', 'rule_suggestions'],
     color: 'var(--chart-3)'
   },
-  { label: 'Activity log', tables: ['action_log'], color: 'var(--chart-5)' },
+  { label: 'Activity Log', tables: ['action_log'], color: 'var(--chart-5)' },
   { label: 'Chat', tables: ['conversations', 'chat_messages'], color: 'var(--chart-6)' }
 ]
 // low-chroma slate so the remainder reads as background, not a series
@@ -207,7 +207,7 @@ function BackupsSection() {
     >
       <SettingsGroup>
         <SettingAction
-          label="Back up now"
+          label="Back Up Now"
           description={latest ? `Last backup ${formatWhen(latest.createdAt)}` : 'No backups yet'}
         >
           <Button
@@ -215,7 +215,7 @@ function BackupsSection() {
             disabled={backupNow.isPending}
             onClick={() => backupNow.mutate()}
           >
-            {backupNow.isPending ? 'Backing up…' : 'Back up now'}
+            {backupNow.isPending ? 'Backing up…' : 'Back Up Now'}
           </Button>
         </SettingAction>
         <SettingAction label="Restore" description="Roll your data back to an earlier backup.">
@@ -224,15 +224,15 @@ function BackupsSection() {
             disabled={!backups.data?.length}
             onClick={() => open('storage', 'backups')}
           >
-            Choose backup
+            Choose Backup
           </Button>
         </SettingAction>
         <SettingAction
-          label="Backups folder"
+          label="Backups Folder"
           description="Copy backups somewhere else, like another drive, to keep them safe from this one."
         >
           <Button variant="outline" onClick={() => void window.api.storage.showBackupsFolder()}>
-            Show in folder
+            Show in Folder
           </Button>
         </SettingAction>
       </SettingsGroup>
@@ -248,7 +248,7 @@ function ExportSection() {
       toast('Export saved', {
         description: result.path,
         action: {
-          label: 'Show in folder',
+          label: 'Show in Folder',
           onClick: () => void window.api.storage.showInFolder(result.path)
         }
       })
@@ -260,7 +260,7 @@ function ExportSection() {
     <SettingsSection title="Export">
       <SettingsGroup>
         <SettingAction
-          label="Export everything"
+          label="Export Everything"
           description="One CSV file per table plus a copy of the database, saved to a folder you choose."
         >
           <Button
@@ -290,9 +290,9 @@ function BackupRow({ backup }: { backup: Backup }) {
     >
       <ConfirmButton
         variant="outline"
-        title="Restore this backup?"
+        title="Restore This Backup?"
         description={`shmoney restarts with your data as it was on ${when}. What you have now is backed up first, so you can switch back.`}
-        confirmLabel="Restore and restart"
+        confirmLabel="Restore and Restart"
         confirmVariant="default"
         pendingLabel="Restoring…"
         pending={restore.isPending}
@@ -313,7 +313,7 @@ function BackupsPage({ onBack }: { onBack: () => void }) {
   return (
     <SettingsSubpage
       parent="Storage"
-      title="Restore a backup"
+      title="Restore a Backup"
       description="Restoring replaces your current data with the backup’s and restarts shmoney."
       onBack={onBack}
     >

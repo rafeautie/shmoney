@@ -67,14 +67,14 @@ function Overview({ totals }: { totals: LlmUsageTotals }) {
         sub={outcomes.length ? outcomes.join(' · ') : undefined}
       />
       <Tile
-        label="Tokens generated"
+        label="Tokens Generated"
         value={totals.outputTokens.toLocaleString()}
         sub={`${formatCompactTokens(totals.inputTokens)} prompt tokens read`}
       />
-      <Tile label="Compute time" value={formatElapsed(totals.totalMs)} />
-      <Tile label="Generation speed" value={tps(avg.decodeTps)} sub="average while writing" />
-      <Tile label="Prompt speed" value={tps(avg.prefillTps)} sub="average while reading" />
-      <Tile label="First token" value={elapsed(avg.ttftMs)} sub="average wait" />
+      <Tile label="Compute Time" value={formatElapsed(totals.totalMs)} />
+      <Tile label="Generation Speed" value={tps(avg.decodeTps)} sub="average while writing" />
+      <Tile label="Prompt Speed" value={tps(avg.prefillTps)} sub="average while reading" />
+      <Tile label="First Token" value={elapsed(avg.ttftMs)} sub="average wait" />
     </div>
   )
 }
@@ -137,7 +137,7 @@ function ByModel({ rows }: { rows: LlmUsageSummary['byModel'] }) {
             <TableHead className="text-right">Requests</TableHead>
             <TableHead className="text-right">Generation</TableHead>
             <TableHead className="text-right">Prompt</TableHead>
-            <TableHead className="text-right">First token</TableHead>
+            <TableHead className="text-right">First Token</TableHead>
             <TableHead className="text-right">Load</TableHead>
           </TableRow>
         </TableHeader>
@@ -169,9 +169,9 @@ function ByFeature({ rows }: { rows: LlmUsageSummary['byFeature'] }) {
           <TableRow>
             <TableHead>Feature</TableHead>
             <TableHead className="text-right">Requests</TableHead>
-            <TableHead className="text-right">Prompt tokens</TableHead>
+            <TableHead className="text-right">Prompt Tokens</TableHead>
             <TableHead className="text-right">Generated</TableHead>
-            <TableHead className="text-right">Compute time</TableHead>
+            <TableHead className="text-right">Compute Time</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -213,7 +213,7 @@ export function LlmUsageSettings(): React.JSX.Element {
   return (
     <>
       <SettingsSection
-        title="AI usage"
+        title="AI Usage"
         description={
           <>
             How much work the on-device model has done and how fast it runs on this device. Counts
@@ -225,7 +225,7 @@ export function LlmUsageSettings(): React.JSX.Element {
           !empty &&
           usage && (
             <Button variant="outline" onClick={reset}>
-              Reset statistics
+              Reset Statistics
             </Button>
           )
         }
@@ -236,7 +236,7 @@ export function LlmUsageSettings(): React.JSX.Element {
               <EmptyMedia variant="icon">
                 <HugeiconsIcon icon={DashboardSpeed01Icon} />
               </EmptyMedia>
-              <EmptyTitle>No AI usage yet</EmptyTitle>
+              <EmptyTitle>No AI Usage Yet</EmptyTitle>
               <EmptyDescription>
                 Chat with your finances or auto-categorize transactions, and the model&apos;s speed
                 and token counts show up here.
@@ -255,12 +255,12 @@ export function LlmUsageSettings(): React.JSX.Element {
       {usage && !empty && (
         <>
           <SettingsSection
-            title="By model"
+            title="By Model"
             description="Average speeds for each model you've used, measured on this device."
           >
             <ByModel rows={usage.byModel} />
           </SettingsSection>
-          <SettingsSection title="By feature">
+          <SettingsSection title="By Feature">
             <ByFeature rows={usage.byFeature} />
           </SettingsSection>
         </>

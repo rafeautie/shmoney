@@ -26,7 +26,7 @@ export function ExportCsvButton({ filters, sortBy, sortDir, accountId }: ExportC
       toast('Transactions exported', {
         description: path,
         action: {
-          label: 'Show in folder',
+          label: 'Show in Folder',
           onClick: () => void window.api.storage.showInFolder(path)
         }
       })

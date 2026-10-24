@@ -43,12 +43,12 @@ import { isDialogOpen, isTypingTarget, startOfTodayEpoch } from '@/lib/utils'
 
 const PAGES = [
   { label: 'Accounts', icon: Wallet01Icon, to: '/accounts' },
-  { label: 'All transactions', icon: Invoice01Icon, to: '/accounts', tab: 'transactions' },
+  { label: 'All Transactions', icon: Invoice01Icon, to: '/accounts', tab: 'transactions' },
   { label: 'Budget', icon: PiggyBankIcon, to: '/budget' },
   { label: 'Goals', icon: Target02Icon, to: '/goals' },
   { label: 'Reports', icon: Analytics01Icon, to: '/reports' },
   { label: 'Activity', icon: Activity01Icon, to: '/activity' },
-  { label: 'New chat', icon: BubbleChatIcon, to: '/chat' }
+  { label: 'New Chat', icon: BubbleChatIcon, to: '/chat' }
 ] as const
 
 const RESULT_LIMIT = 6
@@ -191,13 +191,13 @@ function CommandPalette({
         className="h-11"
         value={query}
         onValueChange={setQuery}
-        placeholder="Search pages, actions, and transactions..."
+        placeholder="Search pages, actions, and transactions…"
       />
       <CommandList viewPortClassName="max-h-[min(420px,60vh)]">
         <CommandGroup heading="Actions">
           <PaletteItem
             id="action:new-transaction"
-            label="New transaction"
+            label="New Transaction"
             icon={Add01Icon}
             onSelect={() =>
               run(
@@ -216,7 +216,7 @@ function CommandPalette({
           {connection && (
             <PaletteItem
               id="action:sync"
-              label={actions.syncing ? 'Syncing…' : 'Sync now'}
+              label={actions.syncing ? 'Syncing…' : 'Sync Now'}
               keywords={['simplefin', 'refresh']}
               icon={RefreshIcon}
               disabled={actions.syncing}
@@ -225,28 +225,28 @@ function CommandPalette({
           )}
           <PaletteItem
             id="action:categorize"
-            label="Auto-categorize"
+            label="Auto-Categorize"
             icon={AiMagicIcon}
             disabled={!actions.canCategorize}
             onSelect={() => run(actions.categorize)}
           />
           <PaletteItem
             id="action:blur"
-            label={actions.blurAmounts ? 'Show amounts' : 'Hide amounts'}
+            label={actions.blurAmounts ? 'Show Amounts' : 'Hide Amounts'}
             keywords={['privacy', 'hide']}
             icon={actions.blurAmounts ? ViewIcon : ViewOffIcon}
             onSelect={() => run(actions.toggleBlur)}
           />
           <PaletteItem
             id="action:theme"
-            label={dark ? 'Switch to light theme' : 'Switch to dark theme'}
+            label={dark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
             keywords={['theme', 'appearance', 'mode']}
             icon={dark ? Sun03Icon : Moon02Icon}
             onSelect={() => run(() => actions.setTheme(dark ? 'light' : 'dark'))}
           />
         </CommandGroup>
 
-        <CommandGroup heading="Go to">
+        <CommandGroup heading="Go To">
           {PAGES.map((page) => (
             <PaletteItem
               key={page.label}

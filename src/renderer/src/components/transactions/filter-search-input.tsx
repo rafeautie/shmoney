@@ -7,7 +7,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/in
 export function FilterSearchInput({
   value,
   onChange,
-  placeholder = 'Search transactions...'
+  placeholder = 'Search transactions…'
 }: {
   value: string | undefined
   onChange: (value: string | undefined) => void

@@ -46,7 +46,7 @@ export function MoreFiltersPopover({
       </PopoverTrigger>
       <PopoverContent className="w-80" align="start">
         <div className="space-y-2">
-          <Label>Amount range</Label>
+          <Label>Amount Range</Label>
           <AmountRangeControl
             min={filters.amountMin}
             max={filters.amountMax}
@@ -54,14 +54,14 @@ export function MoreFiltersPopover({
           />
         </div>
         <label className="flex items-center justify-between text-sm">
-          Include pending transactions
+          Include Pending Transactions
           <Switch
             checked={filters.includePending}
             onCheckedChange={(includePending) => onChange({ ...filters, includePending })}
           />
         </label>
         <label className="flex items-center justify-between text-sm">
-          Include transfers
+          Include Transfers
           <Switch
             checked={filters.includeTransfers}
             onCheckedChange={(includeTransfers) => onChange({ ...filters, includeTransfers })}

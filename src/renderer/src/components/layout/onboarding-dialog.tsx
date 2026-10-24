@@ -46,7 +46,7 @@ const STEP_COUNT = 6
 export function Onboarding(): React.JSX.Element | null {
   const { onboardingComplete, completeOnboarding } = useOnboarding()
   // Render the flow as a child that fully unmounts once onboarding is done, so
-  // reopening it (via "Show again") always starts clean — step 0, empty token,
+  // reopening it (via "Show Again") always starts clean — step 0, empty token,
   // and idle connect/sync mutations rather than stale success/loading state.
   if (onboardingComplete) return null
   return <OnboardingFlow onDone={completeOnboarding} />
@@ -132,13 +132,13 @@ function OnboardingFlow({ onDone }: { onDone: () => void }): React.JSX.Element {
                 <HugeiconsIcon icon={ArrowRightIcon} className="size-4" />
               </Button>
             ) : connected ? (
-              <Button onClick={viewAccounts}>View accounts</Button>
+              <Button onClick={viewAccounts}>View Accounts</Button>
             ) : syncFailed ? (
               <>
                 <Button variant="ghost" onClick={viewAccounts}>
                   Finish
                 </Button>
-                <Button onClick={() => syncConnection.mutate()}>Try again</Button>
+                <Button onClick={() => syncConnection.mutate()}>Try Again</Button>
               </>
             ) : (
               <Button disabled={!setupToken.trim() || busy} onClick={() => connect.mutate()}>
@@ -194,27 +194,27 @@ function FeaturesStep(): React.JSX.Element {
   return (
     <>
       <DialogHeader>
-        <DialogTitle>What you can do</DialogTitle>
+        <DialogTitle>What You Can Do</DialogTitle>
         <DialogDescription>
           shmoney turns raw bank data into a clear picture of your money.
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-3">
-        <FeatureItem icon={Wallet01Icon} title="Every account together">
+        <FeatureItem icon={Wallet01Icon} title="Every Account Together">
           Balances and transactions from all your banks, side by side.
         </FeatureItem>
-        <FeatureItem icon={Tag01Icon} title="Categorize spending">
+        <FeatureItem icon={Tag01Icon} title="Categorize Spending">
           By hand, or automatically with rules you define.
         </FeatureItem>
-        <FeatureItem icon={Analytics01Icon} title="Reports & dashboards">
+        <FeatureItem icon={Analytics01Icon} title="Reports & Dashboards">
           Charts and tables that show where your money goes.
         </FeatureItem>
-        <FeatureItem icon={Exchange01Icon} title="Transfers handled for you">
+        <FeatureItem icon={Exchange01Icon} title="Transfers Handled for You">
           Movements between your own accounts stay out of your income and expense totals.
         </FeatureItem>
         <FeatureItem
           icon={BubbleChatIcon}
-          title="Chat with your finances"
+          title="Chat with Your Finances"
           badge={<ExperimentalBadge />}
         >
           Ask a local, on-device model about your money; it queries your data and charts the answer,
@@ -229,7 +229,7 @@ function ModelStep(): React.JSX.Element {
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Choose your AI model</DialogTitle>
+        <DialogTitle>Choose Your AI Model</DialogTitle>
         <DialogDescription>
           Auto-categorize and chat run on a private model that lives on this device. Pick one to
           download now, or skip and set it up later in Settings; the pick that best fits this
@@ -247,21 +247,21 @@ function BudgetsStep(): React.JSX.Element {
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Budget with envelopes</DialogTitle>
+        <DialogTitle>Budget with Envelopes</DialogTitle>
         <DialogDescription>
           The Budget page uses envelope budgeting: decide up front what each kind of spending gets,
           and always know what's left.
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-3">
-        <FeatureItem icon={MailOpen01Icon} title="An envelope per category">
+        <FeatureItem icon={MailOpen01Icon} title="An Envelope per Category">
           Pick the categories you care about and fill each with a set amount every month.
         </FeatureItem>
-        <FeatureItem icon={RepeatIcon} title="Leftovers roll forward">
+        <FeatureItem icon={RepeatIcon} title="Leftovers Roll Forward">
           Spend less than the fill and the rest stays in the envelope, building up for bigger or
           irregular expenses.
         </FeatureItem>
-        <FeatureItem icon={PiggyBankIcon} title="Overspending stays visible">
+        <FeatureItem icon={PiggyBankIcon} title="Overspending Stays Visible">
           Go over and the envelope carries a negative balance into next month, so slips never hide.
         </FeatureItem>
       </div>
@@ -352,7 +352,7 @@ function PasteTokenStep({
             <HugeiconsIcon icon={Tick02Icon} size={18} strokeWidth={2.5} />
           </div>
           <div className="space-y-0.5">
-            <p className="font-medium text-foreground">Accounts synced</p>
+            <p className="font-medium text-foreground">Accounts Synced</p>
             <p className="text-muted-foreground">
               Your accounts and transactions are ready to explore.
             </p>
@@ -376,7 +376,7 @@ function PasteTokenStep({
         <p className="text-sm text-destructive">Sync failed: {syncError}</p>
       ) : (
         <div className="space-y-2">
-          <Label htmlFor="onboarding-setup-token">Setup token</Label>
+          <Label htmlFor="onboarding-setup-token">Setup Token</Label>
           <Input
             id="onboarding-setup-token"
             value={setupToken}

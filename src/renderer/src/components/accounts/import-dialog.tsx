@@ -282,7 +282,7 @@ export function ImportDialog({
       {/* fixed height so the dialog doesn't jump as steps change content */}
       <DialogContent className="flex h-[520px] flex-col sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Import transactions</DialogTitle>
+          <DialogTitle>Import Transactions</DialogTitle>
           <DialogDescription>
             {step === 'file' && 'Choose a CSV, OFX, QFX, or QIF file exported from your bank.'}
             {step === 'account' && 'Pick the account these transactions belong to.'}
@@ -317,7 +317,7 @@ export function ImportDialog({
                 <EmptyMedia variant="icon">
                   <HugeiconsIcon icon={FileImportIcon} />
                 </EmptyMedia>
-                <EmptyTitle>Drop a file here</EmptyTitle>
+                <EmptyTitle>Drop a File Here</EmptyTitle>
                 <EmptyDescription>
                   CSV, TSV, OFX, QFX, or QIF exported from your bank
                 </EmptyDescription>
@@ -350,8 +350,8 @@ export function ImportDialog({
             </p>
             <Tabs value={mode} onValueChange={(v) => setMode(v as 'existing' | 'new')}>
               <TabsList>
-                <TabsTrigger value="existing">Existing account</TabsTrigger>
-                <TabsTrigger value="new">New account</TabsTrigger>
+                <TabsTrigger value="existing">Existing Account</TabsTrigger>
+                <TabsTrigger value="new">New Account</TabsTrigger>
               </TabsList>
             </Tabs>
             {mode === 'existing' ? (
@@ -365,7 +365,7 @@ export function ImportDialog({
                 )}
               >
                 <SelectTrigger aria-label="Account" className="w-80">
-                  <SelectValue placeholder="Select an account" />
+                  <SelectValue placeholder="Select an Account" />
                 </SelectTrigger>
                 <SelectContent>
                   {accounts.map((account) => (
@@ -530,7 +530,7 @@ function CurrencySelect({
       </PopoverTrigger>
       <PopoverContent className="w-(--anchor-width) min-w-64 p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search currencies..." />
+          <CommandInput placeholder="Search currencies…" />
           <CommandList>
             <CommandEmpty>No currency found.</CommandEmpty>
             <CommandGroup>
@@ -655,7 +655,7 @@ function CsvMappingFields({
           />
         </div>
         <div className="flex items-center justify-between gap-3">
-          <Label htmlFor={dateFormatId}>Date format</Label>
+          <Label htmlFor={dateFormatId}>Date Format</Label>
           <Select
             value={base.dateFormat}
             onValueChange={(dateFormat) => set({ dateFormat: dateFormat as string })}
@@ -841,7 +841,7 @@ const PreviewTableRow = memo(function PreviewTableRow({
       </TableCell>
       <TableCell className="whitespace-nowrap">
         {row.status === 'duplicate' && <Badge variant="secondary">Duplicate</Badge>}
-        {row.status === 'probable' && <Badge variant="outline">Possible duplicate</Badge>}
+        {row.status === 'probable' && <Badge variant="outline">Possible Duplicate</Badge>}
       </TableCell>
     </TableRow>
   )

@@ -89,7 +89,7 @@ export function HoldingsTable({ accountId, currency, className }: HoldingsTableP
       },
       {
         accessorKey: 'marketValue',
-        header: rightHeader('Market value'),
+        header: rightHeader('Market Value'),
         cell: ({ row }) => (
           <div className="text-right">
             <Amount value={row.original.marketValue} currency={currency} colored={false} />
@@ -100,7 +100,7 @@ export function HoldingsTable({ accountId, currency, className }: HoldingsTableP
         ? [
             {
               accessorKey: 'costBasis',
-              header: rightHeader('Cost basis'),
+              header: rightHeader('Cost Basis'),
               cell: ({ row }) => (
                 <div className="text-right">
                   {row.original.costBasis > 0 ? (

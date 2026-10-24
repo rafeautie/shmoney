@@ -65,3 +65,9 @@ export const test = base.extend<{ app: App }>({
 })
 
 export { expect }
+
+/** Matches the whole label, ignoring case, so a test names an option or field
+ *  without depending on how the label is capitalized */
+export function exactly(text: string): RegExp {
+  return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')
+}

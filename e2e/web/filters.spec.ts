@@ -7,21 +7,28 @@ const ROUTE = '/accounts?tab=transactions'
 const column = (page: Page, nth: number): Locator => page.locator(`tbody tr td:nth-child(${nth})`)
 const rowCheckboxes = (page: Page): Locator => page.getByRole('checkbox', { name: 'Select row' })
 const resetButton = (page: Page): Locator => page.getByRole('button', { name: 'Reset' })
-const filteredTotal = (page: Page): Locator => page.getByText('Filtered total')
+const filteredTotal = (page: Page): Locator => page.getByText('Filtered Total')
 const moreButton = (page: Page): Locator => page.getByRole('button', { name: /^More/ })
 const preset = (page: Page, name: string): Locator =>
   page.getByRole('button', { name, exact: true })
 const savedButton = (page: Page): Locator =>
   page.getByRole('button', { name: 'Saved', exact: true })
-const searchBox = (page: Page): Locator => page.getByPlaceholder('Search transactions...')
+const searchBox = (page: Page): Locator => page.getByPlaceholder('Search transactions…')
 const selectBox = (page: Page, text: string): Locator =>
   page.getByRole('combobox').filter({ hasText: text })
 const dateRange = (page: Page): Locator =>
-  page.getByRole('combobox').filter({ hasText: /time|month|year|Custom/ })
+  page.getByRole('combobox').filter({ hasText: /time|month|year|Custom/i })
 
 async function openTransactions(app: App, route = ROUTE, dataset?: 'starter'): Promise<void> {
   await app.open({ route, dataset })
   await expect(rowCheckboxes(app.page).first()).toBeVisible()
+}
+
+// grouped by day (the default), the day header carries the date and the rows leave it out
+async function ungroup(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'View Options' }).click()
+  await page.getByText('Group by Day', { exact: true }).click()
+  await page.keyboard.press('Escape')
 }
 
 // polls until every loaded row satisfies `test`; an empty or still-loading table fails
@@ -97,7 +104,7 @@ test.describe('search', () => {
     const { page } = app
     await openTransactions(app)
     await searchBox(page).fill('zzzzqqqq')
-    await expect(page.getByText('No transactions match the current filters.')).toBeVisible()
+    await expect(page.getByText('No transactions match these filters.')).toBeVisible()
     await expect(rowCheckboxes(page)).toHaveCount(0)
   })
 
@@ -116,16 +123,17 @@ test.describe('date range', () => {
   test('presets narrow the rows to their window', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
-    await expect(dateRange(page)).toHaveText('All time')
+    await ungroup(page)
+    await expect(dateRange(page)).toHaveText('All Time')
 
-    await pickOption(page, dateRange(page), 'Last year')
-    await expect(dateRange(page)).toHaveText('Last year')
+    await pickOption(page, dateRange(page), 'Last Year')
+    await expect(dateRange(page)).toHaveText('Last Year')
     await expectEveryRow(page, 2, (text) => text.endsWith('2025'))
 
-    await pickOption(page, dateRange(page), 'This month')
+    await pickOption(page, dateRange(page), 'This Month')
     await expectEveryRow(page, 2, (text) => /^Sep \d+, 2026$/.test(text))
 
-    await pickOption(page, dateRange(page), 'All time')
+    await pickOption(page, dateRange(page), 'All Time')
     await expect(resetButton(page)).toHaveCount(0)
     await expect
       .poll(async () =>
@@ -141,8 +149,9 @@ test.describe('date range', () => {
   }) => {
     const { page } = app
     await openTransactions(app)
-    await pickOption(page, dateRange(page), 'Custom range')
-    await expect(dateRange(page)).toHaveText('Custom range')
+    await ungroup(page)
+    await pickOption(page, dateRange(page), 'Custom Range')
+    await expect(dateRange(page)).toHaveText('Custom Range')
 
     const range = page.getByRole('button', { name: 'Aug 25, 2026 – Sep 24, 2026' })
     await expect(range).toBeVisible()
@@ -172,7 +181,7 @@ test.describe('date range', () => {
     await savedButton(page).click()
     await preset(page, 'Eating out, last 90 days').click()
     await expect(selectBox(page, 'Last 90 days')).toBeVisible()
-    await expect(selectBox(page, 'All time')).toHaveCount(0)
+    await expect(selectBox(page, 'All Time')).toHaveCount(0)
   })
 })
 
@@ -180,7 +189,7 @@ test.describe('accounts and categories', () => {
   test('the accounts multiselect scopes the table and labels the selection', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
-    const control = page.getByRole('button', { name: 'All accounts' })
+    const control = page.getByRole('button', { name: 'All Accounts' })
 
     await control.click()
     await page.getByRole('option', { name: 'Rewards Visa' }).click()
@@ -200,19 +209,19 @@ test.describe('accounts and categories', () => {
     await expectEveryRow(page, 3, (text) => text === 'Rewards Visa')
 
     await page.getByRole('button', { name: 'Rewards Visa' }).click()
-    await page.getByRole('option', { name: 'All accounts' }).click()
+    await page.getByRole('option', { name: 'All Accounts' }).click()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: 'All accounts' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'All Accounts' })).toBeVisible()
     await expect(resetButton(page)).toHaveCount(0)
   })
 
   test('the accounts popover searches by name', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
-    await page.getByRole('button', { name: 'All accounts' }).click()
-    await page.getByPlaceholder('Search accounts...').fill('savings')
+    await page.getByRole('button', { name: 'All Accounts' }).click()
+    await page.getByPlaceholder('Search accounts…').fill('savings')
     await expect(page.getByRole('option')).toHaveCount(1)
-    await page.getByPlaceholder('Search accounts...').fill('nothing here')
+    await page.getByPlaceholder('Search accounts…').fill('nothing here')
     await expect(page.getByText('No accounts found.')).toBeVisible()
   })
 
@@ -221,7 +230,7 @@ test.describe('accounts and categories', () => {
   }) => {
     const { page } = app
     await openTransactions(app)
-    const control = page.getByRole('button', { name: 'All categories' })
+    const control = page.getByRole('button', { name: 'All Categories' })
 
     await control.click()
     await page.getByRole('option', { name: 'Uncategorized' }).click()
@@ -260,20 +269,20 @@ test.describe('accounts and categories', () => {
     await page.getByRole('button', { name: '5 categories' }).click()
     await page.getByRole('option', { name: /All .*Wants/ }).click()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: 'All categories' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'All Categories' })).toBeVisible()
     await expect(resetButton(page)).toHaveCount(0)
   })
 
   test('the direction select keeps income or expenses', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
-    const direction = selectBox(page, 'All directions')
+    const direction = selectBox(page, 'All Directions')
 
-    await pickOption(page, direction, 'Income only')
+    await pickOption(page, direction, 'Income Only')
     await expectEveryRow(page, 6, (text) => money(text) > 0)
     await expect(resetButton(page)).toBeVisible()
 
-    await pickOption(page, selectBox(page, 'Income only'), 'Expenses only')
+    await pickOption(page, selectBox(page, 'Income Only'), 'Expenses Only')
     await expectEveryRow(page, 6, (text) => money(text) < 0)
   })
 })
@@ -309,8 +318,8 @@ test.describe('more filters', () => {
     await expect(column(page, 5).filter({ hasText: 'Transfers' }).first()).toBeVisible()
 
     await moreButton(page).click()
-    const pending = page.getByRole('switch', { name: 'Include pending transactions' })
-    const transfers = page.getByRole('switch', { name: 'Include transfers' })
+    const pending = page.getByRole('switch', { name: 'Include Pending Transactions' })
+    const transfers = page.getByRole('switch', { name: 'Include Transfers' })
     await expect(pending).toBeChecked()
     await expect(transfers).toBeChecked()
 
@@ -339,18 +348,18 @@ test.describe('reset', () => {
     await expect(resetButton(page)).toHaveCount(0)
 
     await searchBox(page).fill('chipotle')
-    await pickOption(page, selectBox(page, 'All directions'), 'Expenses only')
-    await pickOption(page, dateRange(page), 'Last year')
+    await pickOption(page, selectBox(page, 'All Directions'), 'Expenses Only')
+    await pickOption(page, dateRange(page), 'Last Year')
     await moreButton(page).click()
-    await page.getByRole('switch', { name: 'Include transfers' }).click()
+    await page.getByRole('switch', { name: 'Include Transfers' }).click()
     await page.keyboard.press('Escape')
     await expect(resetButton(page)).toBeVisible()
 
     await resetButton(page).click()
     await expect(resetButton(page)).toHaveCount(0)
     await expect(searchBox(page)).toHaveValue('')
-    await expect(dateRange(page)).toHaveText('All time')
-    await expect(selectBox(page, 'All directions')).toBeVisible()
+    await expect(dateRange(page)).toHaveText('All Time')
+    await expect(selectBox(page, 'All Directions')).toBeVisible()
     await expect(moreButton(page)).toHaveAccessibleName('More')
     await expect(filteredTotal(page)).toHaveCount(0)
     await expect
@@ -367,7 +376,7 @@ test.describe('filtered total', () => {
     await openTransactions(app)
     await expect(filteredTotal(page)).toHaveCount(0)
 
-    await pickOption(page, selectBox(page, 'All directions'), 'Expenses only')
+    await pickOption(page, selectBox(page, 'All Directions'), 'Expenses Only')
     await expect(filteredTotal(page)).toBeVisible()
 
     const [{ total }] = await app.sql<{ total: number }>(
@@ -384,7 +393,7 @@ test.describe('filtered total', () => {
     const { page } = app
     await openTransactions(app)
     await searchBox(page).fill('zzzzqqqq')
-    await expect(page.getByText('No transactions match the current filters.')).toBeVisible()
+    await expect(page.getByText('No transactions match these filters.')).toBeVisible()
     await expect(filteredTotal(page)).toHaveCount(0)
   })
 
@@ -395,7 +404,7 @@ test.describe('filtered total', () => {
       "UPDATE accounts SET currency = 'EUR' WHERE name = 'High-Yield Savings' RETURNING id"
     )
 
-    await pickOption(page, selectBox(page, 'All directions'), 'Income only')
+    await pickOption(page, selectBox(page, 'All Directions'), 'Income Only')
     await expect(filteredTotal(page)).toBeVisible()
     const totals = filteredTotal(page).locator('xpath=following-sibling::div[1]/*')
     await expect(totals).toHaveCount(2)
@@ -427,7 +436,7 @@ test.describe('saved filters', () => {
 
     await big.click()
     await expect(preset(page, 'Big purchases')).toBeHidden()
-    await expect(selectBox(page, 'Expenses only')).toBeVisible()
+    await expect(selectBox(page, 'Expenses Only')).toBeVisible()
     await expect(moreButton(page)).toHaveAccessibleName('More 2')
     await expectEveryRow(page, 6, (text) => money(text) <= -150)
     await expect(resetButton(page)).toBeVisible()
@@ -439,7 +448,7 @@ test.describe('saved filters', () => {
     // editing the filter drops the tick
     await page.keyboard.press('Escape')
     await expect(preset(page, 'Big purchases')).toBeHidden()
-    await pickOption(page, selectBox(page, 'Expenses only'), 'Income only')
+    await pickOption(page, selectBox(page, 'Expenses Only'), 'Income Only')
     await savedButton(page).click()
     await expect(preset(page, 'Big purchases').locator('svg')).toHaveCount(0)
   })
@@ -448,11 +457,11 @@ test.describe('saved filters', () => {
     const { page } = app
     await openTransactions(app, ROUTE, 'starter')
     await searchBox(page).fill('starbucks')
-    await pickOption(page, selectBox(page, 'All directions'), 'Expenses only')
+    await pickOption(page, selectBox(page, 'All Directions'), 'Expenses Only')
     await expect(resetButton(page)).toBeVisible()
 
     await savedButton(page).click()
-    const nameInput = page.getByPlaceholder('Save current filter as...')
+    const nameInput = page.getByPlaceholder('Save current filter as…')
     await nameInput.fill('Morning coffee')
     await page.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(nameInput).toHaveValue('')
@@ -471,7 +480,7 @@ test.describe('saved filters', () => {
     await savedButton(page).click()
     await preset(page, 'Morning coffee').click()
     await expect(searchBox(page)).toHaveValue('starbucks')
-    await expect(selectBox(page, 'Expenses only')).toBeVisible()
+    await expect(selectBox(page, 'Expenses Only')).toBeVisible()
     await expectEveryRow(page, 4, (text) => text.includes('STARBUCKS'))
 
     // the same name, in any case, replaces the preset instead of adding a second
@@ -527,7 +536,7 @@ test.describe('drill-down filters from the URL', () => {
     await app.open({ route: `${ROUTE}&filters=${encodeURIComponent(JSON.stringify(filters))}` })
 
     await expect(page.getByRole('button', { name: '1 category' })).toBeVisible()
-    await expect(selectBox(page, 'Expenses only')).toBeVisible()
+    await expect(selectBox(page, 'Expenses Only')).toBeVisible()
     await expect(resetButton(page)).toBeVisible()
     await expectEveryRow(page, 5, (text) => text.includes('Dining Out'))
     await expect(filteredTotal(page)).toBeVisible()
@@ -535,7 +544,7 @@ test.describe('drill-down filters from the URL', () => {
     // after arriving the bar is the source of truth, so edits behave as usual
     await resetButton(page).click()
     await expect(resetButton(page)).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'All categories' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'All Categories' })).toBeVisible()
   })
 
   for (const [name, filters] of [

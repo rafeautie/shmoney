@@ -38,7 +38,7 @@ export function ReportBugPage({ onBack }: { onBack: () => void }) {
   return (
     <SettingsSubpage
       parent="About"
-      title="Report a bug"
+      title="Report a Bug"
       description="shmoney can copy the diagnostics below to your clipboard so you can paste them into the GitHub issue. This is exactly what would be copied; no account, transaction, or balance data, and nothing is sent anywhere by shmoney itself."
       onBack={onBack}
     >
@@ -53,13 +53,13 @@ export function ReportBugPage({ onBack }: { onBack: () => void }) {
           className="mr-auto px-0"
           onClick={() => void window.api.diagnostics.openLogsFolder()}
         >
-          Open logs folder
+          Open Logs Folder
         </Button>
         <Button variant="outline" onClick={openGitHub}>
-          Open GitHub without copying
+          Open GitHub Without Copying
         </Button>
         <Button disabled={diagnostics.data === undefined} onClick={() => void copyAndOpenGitHub()}>
-          Copy diagnostics and open GitHub
+          Copy Diagnostics and Open GitHub
         </Button>
       </div>
     </SettingsSubpage>

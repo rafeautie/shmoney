@@ -68,7 +68,7 @@ function DebugPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Sample data</CardTitle>
+          <CardTitle>Sample Data</CardTitle>
           <CardDescription>
             Replace everything with a generated dataset (the same ones the web demo and the
             screenshots use), or clear back to a fresh install. Display preferences are kept.

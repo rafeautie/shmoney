@@ -4,6 +4,7 @@ import { ipcErrorMessage } from '@/lib/utils'
 import { connectionOptions } from '@/lib/queries'
 import { useOnboarding } from '@/lib/settings'
 import { useConnectSimpleFin } from '@/hooks/use-connect-simplefin'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,7 +28,7 @@ export function ConnectionSettings() {
   })
 
   if (connectionQuery.isLoading) {
-    return <p className="text-sm text-muted-foreground">Loading…</p>
+    return <Skeleton className="h-24 w-full" />
   }
 
   if (!connection) {
@@ -39,7 +40,7 @@ export function ConnectionSettings() {
         <SettingsGroup>
           <div className="flex items-center gap-2 px-4 py-3">
             <Label htmlFor="setup-token" className="sr-only">
-              Setup token
+              Setup Token
             </Label>
             <Input
               id="setup-token"
@@ -61,11 +62,11 @@ export function ConnectionSettings() {
             </Button>
           </div>
           <SettingAction
-            label="Getting started guide"
+            label="Getting Started Guide"
             description="Replay the first-run walkthrough."
           >
             <Button variant="outline" onClick={resetOnboarding} disabled={!onboardingComplete}>
-              Show again
+              Show Again
             </Button>
           </SettingAction>
         </SettingsGroup>
@@ -95,17 +96,17 @@ export function ConnectionSettings() {
         </p>
       )}
       <SettingsGroup>
-        <SettingAction label="Sync now" description="Fetch the latest balances and transactions.">
+        <SettingAction label="Sync Now" description="Fetch the latest balances and transactions.">
           <Button disabled={syncConnection.isPending} onClick={() => syncConnection.mutate()}>
             {syncConnection.isPending ? 'Syncing…' : 'Sync'}
           </Button>
         </SettingAction>
         <SettingAction
-          label="Getting started guide"
+          label="Getting Started Guide"
           description="Replay the first-run walkthrough."
         >
           <Button variant="outline" onClick={resetOnboarding} disabled={!onboardingComplete}>
-            Show again
+            Show Again
           </Button>
         </SettingAction>
         <SettingAction

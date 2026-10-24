@@ -12,9 +12,10 @@ import { DayHeader } from './day-header'
 import { DataTable, DataTableColumnHeader, type DataTableGroups } from '@/components/data-table'
 import { selectColumn } from '@/components/data-table-select-column'
 import {
-  EditableAmountCell,
-  EditableDateCell,
-  EditableTextCell,
+  AmountCell,
+  DateCell,
+  DescriptionCell,
+  TransactionActionsCell,
   TransactionCreateRow
 } from './transaction-cells'
 import { TransactionsBulkActions } from './transactions-bulk-actions'
@@ -126,7 +127,9 @@ export function TransactionsTable({
       {
         accessorKey: 'date',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Date" />,
-        cell: ({ row }) => <EditableDateCell transaction={row.original} />
+        // the day header above already names the date; the column stays for
+        // its sort toggle
+        cell: ({ row }) => (grouped ? null : <DateCell transaction={row.original} />)
       },
       ...(showAccount
         ? [
@@ -141,7 +144,7 @@ export function TransactionsTable({
         header: ({ column }) => <DataTableColumnHeader column={column} title="Description" />,
         // greedy column: soaks up remaining width and truncates instead of overflowing
         meta: { className: 'w-full max-w-0' },
-        cell: ({ row }) => <EditableTextCell transaction={row.original} />
+        cell: ({ row }) => <DescriptionCell transaction={row.original} />
       },
       {
         id: 'category',
@@ -156,10 +159,17 @@ export function TransactionsTable({
             <DataTableColumnHeader column={column} title="Amount" className="-mr-2 ml-0" />
           </div>
         ),
-        cell: ({ row }) => <EditableAmountCell transaction={row.original} />
+        cell: ({ row }) => <AmountCell transaction={row.original} />
+      },
+      {
+        id: 'actions',
+        header: () => <span className="sr-only">Actions</span>,
+        enableSorting: false,
+        meta: { className: 'w-0' },
+        cell: ({ row }) => <TransactionActionsCell transaction={row.original} />
       }
     ],
-    [showAccount]
+    [showAccount, grouped]
   )
 
   return (

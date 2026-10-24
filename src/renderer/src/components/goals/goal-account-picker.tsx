@@ -69,7 +69,7 @@ export function GoalAccountPicker({
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search accounts..." />
+          <CommandInput placeholder="Search accounts…" />
           <CommandList>
             <CommandEmpty>No accounts in this currency.</CommandEmpty>
             <CommandGroup>

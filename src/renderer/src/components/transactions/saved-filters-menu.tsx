@@ -134,7 +134,7 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground opacity-0 group-hover:opacity-100"
+                  className="text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
                   aria-label={`Delete saved filter ${filter.name}`}
                   onClick={() => deleteMutation.mutate({ id: filter.id, name: filter.name })}
                 >
@@ -148,7 +148,7 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
         <div className="flex items-center gap-2 p-2">
           <Input
             className="h-7"
-            placeholder="Save current filter as..."
+            placeholder="Save current filter as…"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {

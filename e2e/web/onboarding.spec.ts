@@ -3,9 +3,9 @@ import { expect, test } from '../fixtures'
 
 const STEP_TITLES = [
   'Welcome to shmoney!',
-  'What you can do',
-  'Choose your AI model',
-  'Budget with envelopes',
+  'What You Can Do',
+  'Choose Your AI Model',
+  'Budget with Envelopes',
   'Connect with SimpleFIN',
   'Paste your setup token'
 ]
@@ -83,7 +83,7 @@ test.describe('first run', () => {
     await dialog(page).getByRole('button', { name: 'Skip' }).click()
     await expect(dialog(page)).toBeHidden()
     await expect.poll(() => onboardingComplete(app)).toBe(true)
-    await expect(page.getByText('No accounts yet')).toBeVisible()
+    await expect(page.getByText('No Accounts Yet')).toBeVisible()
   })
 
   test('the close button completes onboarding from any step', async ({ app }) => {
@@ -100,22 +100,22 @@ test.describe('first run', () => {
     const connect = dialog(page).getByRole('button', { name: 'Connect' })
     await expect(connect).toBeDisabled()
 
-    await dialog(page).getByLabel('Setup token').fill('demo:starter')
+    await dialog(page).getByLabel('Setup Token').fill('demo:starter')
     await expect(connect).toBeEnabled()
     await connect.click()
 
     await expect(dialog(page).getByText("You're all set!")).toBeVisible()
-    await expect(dialog(page).getByText('Accounts synced')).toBeVisible()
+    await expect(dialog(page).getByText('Accounts Synced')).toBeVisible()
     await expect(dialog(page).getByRole('button', { name: 'Back' })).toBeHidden()
 
-    await dialog(page).getByRole('button', { name: 'View accounts' }).click()
+    await dialog(page).getByRole('button', { name: 'View Accounts' }).click()
     await expect(dialog(page)).toBeHidden()
     await expect(page).toHaveURL(/#\/accounts/)
     await expect.poll(() => onboardingComplete(app)).toBe(true)
 
     const [{ n }] = await app.sql<{ n: number }>('SELECT count(*) AS n FROM accounts')
     expect(n).toBeGreaterThan(0)
-    await expect(page.getByText('No accounts yet')).toBeHidden()
+    await expect(page.getByText('No Accounts Yet')).toBeHidden()
     await expect(page.getByRole('row', { name: /Checking/ }).first()).toBeVisible()
   })
 
@@ -130,22 +130,22 @@ test.describe('first run', () => {
         return Promise.reject(new Error('Bridge unreachable'))
       }
     })
-    await dialog(page).getByLabel('Setup token').fill('demo:starter')
+    await dialog(page).getByLabel('Setup Token').fill('demo:starter')
     await dialog(page).getByRole('button', { name: 'Connect' }).click()
 
     await expect(dialog(page).getByText('Connected, but the first sync failed')).toBeVisible()
     await expect(dialog(page).getByText('Bridge unreachable')).toBeVisible()
-    await expect(dialog(page).getByLabel('Setup token')).toBeHidden()
-    await dialog(page).getByRole('button', { name: 'Try again' }).click()
+    await expect(dialog(page).getByLabel('Setup Token')).toBeHidden()
+    await dialog(page).getByRole('button', { name: 'Try Again' }).click()
     await expect(dialog(page).getByText("You're all set!")).toBeVisible()
-    await dialog(page).getByRole('button', { name: 'View accounts' }).click()
+    await dialog(page).getByRole('button', { name: 'View Accounts' }).click()
     await expect.poll(() => onboardingComplete(app)).toBe(true)
   })
 
   test('a bad setup token shows the error and stays on the step', async ({ app }) => {
     const { page } = app
     await toLastStep(page)
-    await dialog(page).getByLabel('Setup token').fill('demo:nonsense')
+    await dialog(page).getByLabel('Setup Token').fill('demo:nonsense')
     await dialog(page).getByRole('button', { name: 'Connect' }).click()
     await expect(dialog(page).locator('p.text-destructive')).toBeVisible()
     await expect(dialog(page).getByRole('button', { name: 'Connect' })).toBeEnabled()
@@ -154,13 +154,13 @@ test.describe('first run', () => {
 })
 
 test.describe('replay', () => {
-  test('Settings > Connection "Getting started guide" reopens it from the top', async ({ app }) => {
+  test('Settings > Connection "Getting Started Guide" reopens it from the top', async ({ app }) => {
     const { page } = app
     await app.open({ route: '/accounts?settings=connection' })
-    await expect(dialog(page).getByText('Getting started guide')).toBeVisible()
+    await expect(dialog(page).getByText('Getting Started Guide')).toBeVisible()
     expect(await onboardingComplete(app)).toBe(true)
 
-    await dialog(page).getByRole('button', { name: 'Show again' }).click()
+    await dialog(page).getByRole('button', { name: 'Show Again' }).click()
     await expect(page.getByText(STEP_TITLES[0])).toBeVisible()
     await expect.poll(() => onboardingComplete(app)).toBe(false)
   })
@@ -170,14 +170,14 @@ test.describe('replay', () => {
   }) => {
     const { page } = app
     await app.open({ route: '/accounts?settings=connection' })
-    await page.getByRole('button', { name: 'Show again' }).click()
+    await page.getByRole('button', { name: 'Show Again' }).click()
     await expect(page.getByText(STEP_TITLES[0])).toBeVisible()
 
     const onboarding = page.getByRole('dialog').last()
     for (let i = 1; i < STEP_TITLES.length; i++)
       await onboarding.getByRole('button', { name: 'Next' }).click()
     await expect(onboarding.getByText("You're all set!")).toBeVisible()
-    await onboarding.getByRole('button', { name: 'View accounts' }).click()
+    await onboarding.getByRole('button', { name: 'View Accounts' }).click()
     await expect.poll(() => onboardingComplete(app)).toBe(true)
   })
 })

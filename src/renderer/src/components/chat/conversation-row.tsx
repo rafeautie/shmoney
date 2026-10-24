@@ -7,14 +7,14 @@ import { useDeleteConversation, useRenameConversation } from '@/lib/chat'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
+import { NameDialog } from '@/components/name-dialog'
+import { ActionsMenuItem } from '@/components/actions-menu'
 import { StatusDot } from '@/components/layout/nav-dot'
 import { SidebarMenuAction, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar'
 
-/** One conversation in the sidebar history: link, inline rename, delete menu. */
+/** One conversation in the sidebar history: link, and a menu to rename or delete it. */
 export const ConversationRow = memo(function ConversationRow({
   conversation,
   active
@@ -25,37 +25,12 @@ export const ConversationRow = memo(function ConversationRow({
   const navigate = useNavigate()
   const rename = useRenameConversation()
   const deleteConversation = useDeleteConversation()
-  const [editing, setEditing] = useState(false)
+  const [renaming, setRenaming] = useState(false)
   // the dropdown (a Base UI root) mounts on first hover or focus, not for every row up front
   const [armed, setArmed] = useState(false)
   const status = conversationStatus(conversation)
   // the open thread is being read as it lands; only its running reply is news
   const dot = status === 'busy' || (status !== null && !active) ? status : null
-
-  const commitRename = (title: string) => {
-    setEditing(false)
-    const trimmed = title.trim()
-    if (trimmed && trimmed !== conversation.title) {
-      rename.mutate({ id: conversation.id, title: trimmed })
-    }
-  }
-
-  if (editing) {
-    return (
-      <SidebarMenuItem>
-        <Input
-          autoFocus
-          className="h-7 px-2 text-xs"
-          defaultValue={conversation.title ?? ''}
-          onBlur={(e) => commitRename(e.currentTarget.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commitRename(e.currentTarget.value)
-            if (e.key === 'Escape') setEditing(false)
-          }}
-        />
-      </SidebarMenuItem>
-    )
-  }
 
   return (
     <SidebarMenuItem onPointerEnter={() => setArmed(true)} onFocus={() => setArmed(true)}>
@@ -79,31 +54,40 @@ export const ConversationRow = memo(function ConversationRow({
             render={
               <SidebarMenuAction
                 showOnHover
-                aria-label="Conversation actions"
+                aria-label="Conversation Actions"
                 // fade in on row hover with the same gentle timing as button hovers
                 className="transition-[opacity,transform,background-color,color]"
               />
             }
           >
-            <HugeiconsIcon icon={MoreHorizontalIcon} size={16} />
+            <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            <DropdownMenuItem onClick={() => setEditing(true)}>
-              <HugeiconsIcon icon={PencilEdit01Icon} size={14} />
+          <DropdownMenuContent align="start" className="w-auto min-w-40">
+            <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => setRenaming(true)}>
               Rename
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              variant="destructive"
+            </ActionsMenuItem>
+            <ActionsMenuItem
+              icon={Delete02Icon}
+              destructive
               onClick={() => {
                 deleteConversation.mutate(conversation.id)
                 if (active) void navigate({ to: '/chat' })
               }}
             >
-              <HugeiconsIcon icon={Delete02Icon} size={14} />
               Delete
-            </DropdownMenuItem>
+            </ActionsMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+      )}
+      {armed && (
+        <NameDialog
+          open={renaming}
+          onOpenChange={setRenaming}
+          title="Rename Conversation"
+          name={conversation.title ?? ''}
+          placeholder="Untitled"
+          onSave={(title) => rename.mutateAsync({ id: conversation.id, title })}
+        />
       )}
     </SidebarMenuItem>
   )

@@ -32,47 +32,47 @@ import {
 const DATE_PRESETS: { key: string; label: string; range: DateRange }[] = [
   {
     key: 'this-month',
-    label: 'This month',
+    label: 'This Month',
     range: { kind: 'relative', unit: 'month', count: 1, includeCurrent: true }
   },
   {
     key: 'last-month',
-    label: 'Last month',
+    label: 'Last Month',
     range: { kind: 'relative', unit: 'month', count: 1, includeCurrent: false }
   },
   {
     key: 'last-3-months',
-    label: 'Last 3 months',
+    label: 'Last 3 Months',
     range: { kind: 'relative', unit: 'month', count: 3, includeCurrent: true }
   },
   {
     key: 'last-6-months',
-    label: 'Last 6 months',
+    label: 'Last 6 Months',
     range: { kind: 'relative', unit: 'month', count: 6, includeCurrent: true }
   },
   {
     key: 'last-12-months',
-    label: 'Last 12 months',
+    label: 'Last 12 Months',
     range: { kind: 'relative', unit: 'month', count: 12, includeCurrent: true }
   },
   {
     key: 'this-year',
-    label: 'This year',
+    label: 'This Year',
     range: { kind: 'relative', unit: 'year', count: 1, includeCurrent: true }
   },
   {
     key: 'last-year',
-    label: 'Last year',
+    label: 'Last Year',
     range: { kind: 'relative', unit: 'year', count: 1, includeCurrent: false }
   },
-  { key: 'all', label: 'All time', range: { kind: 'all' } }
+  { key: 'all', label: 'All Time', range: { kind: 'all' } }
 ]
 
 // items lets the trigger's <SelectValue /> resolve the label before the
 // popup has ever been opened (without it, Base UI shows the raw value)
 const DATE_PRESET_ITEMS = [
   ...DATE_PRESETS.map((p) => ({ value: p.key, label: p.label })),
-  { value: 'custom', label: 'Custom range' }
+  { value: 'custom', label: 'Custom Range' }
 ]
 
 /** a relative range no preset covers, named the way the presets are */
@@ -125,7 +125,7 @@ export function DateRangeControl({
           }
         }}
       >
-        <SelectTrigger size="lg" aria-label="Date range" className="w-40">
+        <SelectTrigger size="lg" aria-label="Date Range" className="w-40">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -134,7 +134,7 @@ export function DateRangeControl({
               {preset.label}
             </SelectItem>
           ))}
-          <SelectItem value="custom">Custom range</SelectItem>
+          <SelectItem value="custom">Custom Range</SelectItem>
           {otherRelative && (
             <SelectItem value="relative">{relativeLabel(otherRelative)}</SelectItem>
           )}
@@ -202,7 +202,7 @@ export function AccountsControl({
   const selected = new Set(value ?? [])
   const label =
     value === undefined
-      ? 'All accounts'
+      ? 'All Accounts'
       : value.length === 1
         ? (accounts.find((a) => a.id === value[0])?.name ?? '1 account')
         : `${value.length} accounts`
@@ -222,7 +222,7 @@ export function AccountsControl({
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search accounts..." />
+          <CommandInput placeholder="Search accounts…" />
           <CommandList>
             <CommandEmpty>No accounts found.</CommandEmpty>
             <CommandGroup>
@@ -232,7 +232,7 @@ export function AccountsControl({
                 checked={value === undefined}
               >
                 <span className={cn(value !== undefined && 'text-muted-foreground')}>
-                  All accounts
+                  All Accounts
                 </span>
               </CommandItem>
             </CommandGroup>
@@ -272,7 +272,7 @@ export function GoalsControl({
   const selected = new Set(value ?? [])
   const label =
     value === undefined
-      ? 'All active goals'
+      ? 'All Active Goals'
       : value.length === 1
         ? (goals.find((g) => g.id === value[0])?.name ?? '1 goal')
         : `${value.length} goals`
@@ -292,7 +292,7 @@ export function GoalsControl({
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search goals..." />
+          <CommandInput placeholder="Search goals…" />
           <CommandList>
             <CommandEmpty>No goals found.</CommandEmpty>
             <CommandGroup>
@@ -302,7 +302,7 @@ export function GoalsControl({
                 checked={value === undefined}
               >
                 <span className={cn(value !== undefined && 'text-muted-foreground')}>
-                  All active goals
+                  All Active Goals
                 </span>
               </CommandItem>
             </CommandGroup>
@@ -351,7 +351,7 @@ export function CategoriesControl({
   const allSelected = value.categoryIds === undefined && !value.includeUncategorized
 
   const count = (value.categoryIds?.length ?? 0) + (value.includeUncategorized ? 1 : 0)
-  const label = allSelected ? 'All categories' : `${count} categor${count === 1 ? 'y' : 'ies'}`
+  const label = allSelected ? 'All Categories' : `${count} categor${count === 1 ? 'y' : 'ies'}`
 
   function emit(ids: Set<number>, uncategorized: boolean | undefined) {
     onChange({
@@ -385,7 +385,7 @@ export function CategoriesControl({
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search categories..." />
+          <CommandInput placeholder="Search categories…" />
           <CommandList>
             <CommandEmpty>No categories found.</CommandEmpty>
             <CommandGroup>
@@ -396,7 +396,7 @@ export function CategoriesControl({
                 }
                 checked={allSelected}
               >
-                <span className={cn(!allSelected && 'text-muted-foreground')}>All categories</span>
+                <span className={cn(!allSelected && 'text-muted-foreground')}>All Categories</span>
               </CommandItem>
               <CommandItem
                 value="uncategorized"
@@ -482,7 +482,7 @@ export function DirectionControl({
   return (
     <Select
       value={value}
-      items={{ all: 'All directions', income: 'Income only', expense: 'Expenses only' }}
+      items={{ all: 'All Directions', income: 'Income Only', expense: 'Expenses Only' }}
       onValueChange={(v) => onChange(v as Direction)}
       disabled={disabled}
     >
@@ -490,9 +490,9 @@ export function DirectionControl({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="all">All directions</SelectItem>
-        <SelectItem value="income">Income only</SelectItem>
-        <SelectItem value="expense">Expenses only</SelectItem>
+        <SelectItem value="all">All Directions</SelectItem>
+        <SelectItem value="income">Income Only</SelectItem>
+        <SelectItem value="expense">Expenses Only</SelectItem>
       </SelectContent>
     </Select>
   )

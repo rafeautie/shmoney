@@ -9,7 +9,7 @@ import { ModelPicker } from '@/components/llm/model-picker'
 export function LlmSettings(): React.JSX.Element {
   return (
     <SettingsSection
-      title="Local AI model"
+      title="Local AI Model"
       description={
         <>
           Choose the on-device model behind Auto features like auto-categorize and chat. Models

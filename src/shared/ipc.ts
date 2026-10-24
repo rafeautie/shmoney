@@ -218,7 +218,9 @@ export type CategoryCreateInput = z.infer<typeof categoryCreateSchema>
 
 export const categoryRenameSchema = z.object({
   id: idSchema,
-  name: categoryNameSchema
+  name: categoryNameSchema,
+  /** moves the category too when given; null = ungrouped */
+  groupId: idSchema.nullable().optional()
 })
 export type CategoryRenameInput = z.infer<typeof categoryRenameSchema>
 
@@ -237,6 +239,13 @@ export const transactionIdsSchema = z.object({
   transactionIds: z.array(idSchema).min(1)
 })
 export type TransactionIdsInput = z.infer<typeof transactionIdsSchema>
+
+/** The rows actually deleted (pending and already-deleted ones are skipped) and
+ *  the action-log entry covering them, null when nothing was deleted */
+export interface TransactionsBulkDeleteResult {
+  deletedIds: number[]
+  actionId: number | null
+}
 
 // manual transaction entry (the "Create transaction" dialog). The amount is
 // signed integer milliunits like everywhere else — negative is money out — and

@@ -11,7 +11,7 @@ export function PrivacySettings() {
     >
       <SettingsGroup>
         <SettingToggle
-          label="Hide amounts"
+          label="Hide Amounts"
           checked={blurAmounts}
           onCheckedChange={setBlurAmounts}
         />

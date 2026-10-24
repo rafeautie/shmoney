@@ -42,7 +42,7 @@ export function AutoCategorizeButton({ scope }: { scope: CategorizeScopeInput })
       disabled={!llmReady || autoCategorize.anyRunning}
       onClick={() => autoCategorize.start()}
     >
-      Auto-categorize
+      Auto-Categorize
     </Button>
   )
 

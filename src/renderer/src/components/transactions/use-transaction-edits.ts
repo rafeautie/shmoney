@@ -17,8 +17,8 @@ type EditedField = 'description' | 'amount' | 'date' | 'category'
 type TransactionPages = InfiniteData<Page<Transaction>>
 
 export interface TransactionEdits {
-  /** One cell edit; failures are toasted, so this never rejects */
-  update: (input: UpdateInput) => Promise<void>
+  /** One edit-dialog save; failures are toasted, then reject so the dialog stays open */
+  update: (input: UpdateInput) => Promise<unknown>
   /** Rejects on failure, so the caller can keep its picker open */
   setCategory: (transactionId: number, categoryId: number | null) => Promise<unknown>
 }
@@ -162,11 +162,15 @@ export function useTransactionEdits({
     })
   }
 
-  // every cell edit goes through transactions:update, which records an undoable
-  // action-log entry per changed field; the cell updating is the feedback (no toast)
+  // every dialog save goes through transactions:update, which records an undoable
+  // action-log entry per changed field; the row updating is the feedback (no toast)
   const { mutateAsync: update } = useMutation({
     mutationFn: (input: UpdateInput) => window.api.transactions.update(input),
-    onMutate: (input) => patchCachedTransaction(queryClient, input.id, updatePatch(input)),
+    onMutate: (input) => {
+      const category =
+        input.categoryId === undefined ? {} : (categoryPatch(queryClient, input.categoryId) ?? {})
+      patchCachedTransaction(queryClient, input.id, { ...updatePatch(input), ...category })
+    },
     onError: (error) => toast(ipcErrorMessage(error)),
     onSettled: (_data, error, input) => refresh(updatedFields(input), error !== null)
   })
@@ -186,11 +190,7 @@ export function useTransactionEdits({
 
   return useMemo(
     () => ({
-      update: (input) =>
-        update(input).then(
-          () => undefined,
-          () => undefined
-        ),
+      update,
       setCategory: (transactionId, categoryId) => setCategory({ transactionId, categoryId })
     }),
     [update, setCategory]

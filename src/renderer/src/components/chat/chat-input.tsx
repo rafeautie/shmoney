@@ -87,7 +87,7 @@ export function ChatInput({
                   : loading
                     ? 'Loading the model…'
                     : hasConversation
-                      ? 'Write a message...'
+                      ? 'Write a message…'
                       : 'How can I help you?'
               }
               className="min-h-11 p-3 pb-0 text-sm/5"

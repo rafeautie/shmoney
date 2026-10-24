@@ -18,7 +18,7 @@ test.describe('demo bar', () => {
   test('shows the sample-data controls by default', async ({ app }) => {
     const { page } = app
     await openDemo(page, '', '#/accounts')
-    await expect(page.getByText('Sample data', { exact: true })).toBeVisible()
+    await expect(page.getByText('Sample Data', { exact: true })).toBeVisible()
     await expect(page.getByRole('combobox', { name: 'Sample dataset' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Load' })).toBeEnabled()
     await expect(page.getByRole('button', { name: 'Clear' })).toBeEnabled()
@@ -30,7 +30,7 @@ test.describe('demo bar', () => {
     const { page } = app
     await openDemo(page, 'bar=0', '#/accounts')
     await expect(page.getByRole('row', { name: /Everyday Checking/ })).toBeVisible()
-    await expect(page.getByText('Sample data', { exact: true })).toBeHidden()
+    await expect(page.getByText('Sample Data', { exact: true })).toBeHidden()
     await expect(page.getByRole('button', { name: 'Load' })).toBeHidden()
   })
 
@@ -38,7 +38,7 @@ test.describe('demo bar', () => {
     const { page } = app
     await openDemo(page, 'shot=1', '#/accounts')
     await expect(page.getByRole('row', { name: /Everyday Checking/ })).toBeVisible()
-    await expect(page.getByText('Sample data', { exact: true })).toBeHidden()
+    await expect(page.getByText('Sample Data', { exact: true })).toBeHidden()
     await expect(page.locator('html')).toHaveAttribute('data-shot', '')
   })
 
@@ -53,7 +53,7 @@ test.describe('demo bar', () => {
 
     // a cleared install is a fresh one, so the first-run dialog is back
     await page.getByRole('dialog').getByRole('button', { name: 'Skip' }).click()
-    await expect(page.getByText('No accounts yet')).toBeVisible()
+    await expect(page.getByText('No Accounts Yet')).toBeVisible()
 
     await page.getByRole('combobox', { name: 'Sample dataset' }).click()
     await page.getByRole('option', { name: 'Fresh start' }).click()
@@ -111,7 +111,7 @@ test.describe('embed parameters', () => {
     const { page } = app
     await openDemo(page, 'screen=transactions&bar=0')
     await expect(page).toHaveURL(/#\/accounts\?tab=transactions/)
-    await expect(page.getByPlaceholder('Search transactions...')).toBeVisible()
+    await expect(page.getByPlaceholder('Search transactions…')).toBeVisible()
   })
 
   test('an unknown dataset id falls back to the household data', async ({ app }) => {
@@ -132,8 +132,8 @@ test.describe('every named screen', () => {
         await expect
           .poll(async () => (await main.innerText()).trim().length, { message: 'content rendered' })
           .toBeGreaterThan(40)
-        await expect(page.getByText('Page not found')).toBeHidden()
-        await expect(page.getByText('Something went wrong')).toBeHidden()
+        await expect(page.getByText('Page Not Found')).toBeHidden()
+        await expect(page.getByText('Something Went Wrong')).toBeHidden()
         if (theme === 'dark') await expect(page.locator('html')).toHaveClass(/dark/)
         else await expect(page.locator('html')).not.toHaveClass(/dark/)
         if (screen.name === 'settings-llm') {
@@ -218,7 +218,7 @@ test.describe('host page messages', () => {
     await expect(frame.getByRole('row', { name: /Cash Back Card/ })).toBeHidden()
 
     await send(page, { action: 'clear' })
-    await expect(frame.getByText('No accounts yet')).toBeVisible()
+    await expect(frame.getByText('No Accounts Yet')).toBeVisible()
   })
 
   test('theme switches the iframe between light and dark', async ({ app }) => {

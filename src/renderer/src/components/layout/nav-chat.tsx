@@ -37,7 +37,7 @@ export function NavChat() {
         </SidebarGroupLabel>
         <SidebarGroupAction
           render={<Link to="/chat" />}
-          aria-label="New chat"
+          aria-label="New Chat"
           // fade with the group label instead of the built-in instant hidden
           className="right-8.5 top-2.5 text-sidebar-foreground/70 transition-[opacity,background-color,color] duration-200 group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:opacity-0"
         >

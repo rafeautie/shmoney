@@ -2,10 +2,13 @@ import type { Locator, Page } from '@playwright/test'
 import { expect, test, type App } from '../fixtures'
 
 const ROUTE = '/accounts?tab=transactions'
-const SYNCED_TITLE = 'Synced from your bank'
 
+// transaction rows only: the day headers grouping them are rows of one wide cell
 const dataRows = (page: Page): Locator =>
-  page.locator('tbody tr').filter({ has: page.locator('td') })
+  page
+    .locator('tbody tr')
+    .filter({ has: page.locator('td') })
+    .filter({ hasNot: page.locator('td[colspan]') })
 const rowFor = (page: Page, description: string): Locator =>
   page.getByRole('row').filter({ hasText: description })
 const selectBoxes = (page: Page): Locator => page.getByRole('checkbox', { name: 'Select row' })
@@ -17,17 +20,24 @@ async function openTransactions(app: App, route = ROUTE): Promise<void> {
   await expect(app.page.getByRole('row').filter({ hasText: 'Pending' }).first()).toBeVisible()
 }
 
+// grouped by day (the default), the day header carries the date and the rows leave it out
+async function ungroup(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'View Options' }).click()
+  await page.getByText('Group by Day', { exact: true }).click()
+  await page.keyboard.press('Escape')
+}
+
 // the manual row is dated today, so it sorts ahead of every synced row; handing
 // back its position (not a text match) keeps the locator valid while it is edited
 async function addManual(app: App, description: string, amount: string): Promise<Locator> {
   const { page } = app
   await page.getByRole('button', { name: 'New Transaction' }).click()
-  await page.getByPlaceholder('Add transaction').fill(description)
+  await page.getByPlaceholder('Add Transaction').fill(description)
   await page.getByPlaceholder('-0.00').fill(amount)
   await page.getByPlaceholder('-0.00').press('Enter')
   await expect(rowFor(page, description)).toBeVisible()
   await page.getByRole('button', { name: 'Cancel' }).click()
-  await expect(page.getByPlaceholder('Add transaction')).toBeHidden()
+  await expect(page.getByPlaceholder('Add Transaction')).toBeHidden()
   const row = dataRows(page).first()
   await expect(row).toContainText(description)
   return row
@@ -42,6 +52,15 @@ interface StoredTransaction {
   posted: number
 }
 
+/** opens a row's Edit dialog from its actions menu */
+async function openEdit(app: App, row: Locator): Promise<Locator> {
+  await row.getByRole('button', { name: 'Transaction actions' }).click()
+  await app.page.getByRole('menuitem', { name: 'Edit' }).click()
+  const dialog = app.page.getByRole('dialog', { name: 'Edit Transaction' })
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
 async function storedTransaction(app: App, description: string): Promise<StoredTransaction> {
   const rows = await app.sql<StoredTransaction>(
     `SELECT id, description, amount, category_id, deleted_at, posted FROM transactions WHERE description = '${description}'`
@@ -53,6 +72,7 @@ test.describe('table', () => {
   test('lists newest first and sorts from the column headers', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
+    await ungroup(page)
 
     const dates = async (): Promise<number[]> =>
       (await page.locator('tbody tr td:nth-child(2)').allTextContents())
@@ -127,16 +147,32 @@ test.describe('table', () => {
     }
   })
 
-  test('synced rows are read-only except for the category', async ({ app }) => {
+  test('cells only show the row; the category picker and actions menu are its controls', async ({
+    app
+  }) => {
     const { page } = app
     await openTransactions(app)
     const row = dataRows(page).nth(2)
-
-    await expect(row.getByTitle(SYNCED_TITLE)).toHaveCount(3)
-    // the category picker is the only control on the row besides its checkbox
-    await expect(row.getByRole('button')).toHaveCount(1)
+    await expect(row.getByRole('button')).toHaveCount(2)
+    await expect(row.getByRole('button', { name: 'Transaction actions' })).toBeVisible()
     await row.getByText(/^\$?-?\$[\d,.]+$/).click({ force: true })
     await expect(row.getByRole('textbox')).toHaveCount(0)
+  })
+
+  test('a synced row edits only its category in the dialog', async ({ app }) => {
+    const { page } = app
+    await openTransactions(app)
+    const row = dataRows(page).nth(2)
+    const dialog = await openEdit(app, row)
+    await expect(dialog).toContainText('Synced from your bank')
+    await expect(dialog.getByLabel('Description')).toBeDisabled()
+    await expect(dialog.getByLabel('Amount')).toBeDisabled()
+    await dialog.getByRole('button', { name: 'Uncategorized' }).click()
+    await page.getByPlaceholder('Search categories…').fill('dining')
+    await page.getByRole('option', { name: /Dining Out/ }).click()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(row.getByRole('button', { name: /Dining Out/ })).toBeVisible()
   })
 
   test('picks a category from the searchable cell popover', async ({ app }) => {
@@ -149,12 +185,12 @@ test.describe('table', () => {
     )
 
     await row.getByRole('button', { name: 'Uncategorized' }).click()
-    await page.getByPlaceholder('Search categories...').fill('dining')
+    await page.getByPlaceholder('Search categories…').fill('dining')
     await expect(page.getByRole('option')).toHaveCount(1)
     await page.getByRole('option', { name: /Dining Out/ }).click()
 
     await expect(row.getByRole('button', { name: /Dining Out/ })).toBeVisible()
-    await expect(page.getByPlaceholder('Search categories...')).toBeHidden()
+    await expect(page.getByPlaceholder('Search categories…')).toBeHidden()
     await expect(row).toContainText(description)
     await expect
       .poll(async () => {
@@ -182,79 +218,84 @@ test.describe('table', () => {
 
   test('shows an empty state when the search matches nothing', async ({ app }) => {
     await app.open({ route: `${ROUTE}&q=zzzzqqqq` })
-    await expect(app.page.getByText('No transactions match the current filters.')).toBeVisible()
+    await expect(app.page.getByText('No transactions match these filters.')).toBeVisible()
   })
 })
 
-test.describe('inline editing', () => {
-  test('description: Enter commits, Escape cancels, empty is ignored', async ({ app }) => {
+test.describe('edit dialog', () => {
+  test('description: Save commits, Cancel and Escape change nothing, empty disables Save', async ({
+    app
+  }) => {
     const { page } = app
     await openTransactions(app)
     const row = await addManual(app, 'ZZ Original', '-12.50')
 
-    await row.getByRole('button', { name: 'ZZ Original' }).click()
-    const input = row.getByRole('textbox')
-    await expect(input).toBeFocused()
-    await input.fill('ZZ Renamed')
-    await input.press('Enter')
-    await expect(row.getByRole('button', { name: 'ZZ Renamed' })).toBeVisible()
+    let dialog = await openEdit(app, row)
+    const description = dialog.getByLabel('Description')
+    await expect(description).toBeFocused()
+    await expect(description).toHaveValue('ZZ Original')
+    await description.fill('ZZ Renamed')
+    await description.press('Enter')
+    await expect(dialog).toBeHidden()
+    await expect(row).toContainText('ZZ Renamed')
     await expect(page.getByRole('row').filter({ hasText: 'ZZ Original' })).toHaveCount(0)
     await expect.poll(() => storedTransaction(app, 'ZZ Renamed')).toBeTruthy()
 
-    await row.getByRole('button', { name: 'ZZ Renamed' }).click()
-    await input.fill('ZZ Abandoned')
-    await input.press('Escape')
-    await expect(input).toHaveCount(0)
-    await expect(row.getByRole('button', { name: 'ZZ Renamed' })).toBeVisible()
+    dialog = await openEdit(app, row)
+    await dialog.getByLabel('Description').fill('ZZ Abandoned')
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+    await expect(dialog).toBeHidden()
+    dialog = await openEdit(app, row)
+    await dialog.getByLabel('Description').fill('ZZ Abandoned')
+    await page.keyboard.press('Escape')
+    await expect(dialog).toBeHidden()
+    await expect(row).toContainText('ZZ Renamed')
     expect(await storedTransaction(app, 'ZZ Abandoned')).toBeUndefined()
 
-    await row.getByRole('button', { name: 'ZZ Renamed' }).click()
-    await input.fill('   ')
-    await input.press('Enter')
-    await expect(row.getByRole('button', { name: 'ZZ Renamed' })).toBeVisible()
-    expect((await storedTransaction(app, 'ZZ Renamed')).description).toBe('ZZ Renamed')
+    dialog = await openEdit(app, row)
+    await dialog.getByLabel('Description').fill('   ')
+    await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
-  test('amount: a literal minus sign is an expense, Escape cancels', async ({ app }) => {
+  test('amount: a literal minus sign is an expense', async ({ app }) => {
     await openTransactions(app)
     const row = await addManual(app, 'ZZ Amount', '-12.50')
     await expect(row).toContainText('-$12.50')
 
-    await row.getByRole('button', { name: '-$12.50' }).click()
-    const input = row.getByRole('textbox')
-    await expect(input).toHaveValue('-12.5')
-    await input.fill('-20.75')
-    await input.press('Enter')
+    let dialog = await openEdit(app, row)
+    await expect(dialog.getByLabel('Amount')).toHaveValue('-12.5')
+    await dialog.getByLabel('Amount').fill('-20.75')
+    await dialog.getByRole('button', { name: 'Save' }).click()
     await expect(row).toContainText('-$20.75')
     await expect.poll(async () => (await storedTransaction(app, 'ZZ Amount')).amount).toBe(-20750)
 
-    await row.getByRole('button', { name: '-$20.75' }).click()
-    await row.getByRole('textbox').fill('-1')
-    await row.getByRole('textbox').press('Escape')
-    await expect(row).toContainText('-$20.75')
-    expect((await storedTransaction(app, 'ZZ Amount')).amount).toBe(-20750)
-
-    await row.getByRole('button', { name: '-$20.75' }).click()
-    await row.getByRole('textbox').fill('15')
-    await row.getByRole('textbox').press('Enter')
+    dialog = await openEdit(app, row)
+    await dialog.getByLabel('Amount').fill('15')
+    await dialog.getByLabel('Amount').press('Enter')
     await expect(row).toContainText('$15.00')
     await expect(row).not.toContainText('-$15.00')
     await expect.poll(async () => (await storedTransaction(app, 'ZZ Amount')).amount).toBe(15000)
   })
 
-  test('date: picking a day in the calendar commits it', async ({ app }) => {
+  test('date and category save together', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
     const row = await addManual(app, 'ZZ Dated', '-5')
-    await expect(row).toContainText('Sep 24, 2026')
 
-    await row.getByRole('button', { name: 'Sep 24, 2026' }).click()
+    const dialog = await openEdit(app, row)
+    await dialog.getByRole('button', { name: 'Sep 24, 2026' }).click()
     await page.getByRole('button', { name: /September 20th, 2026/ }).click()
+    await expect(dialog.getByRole('button', { name: 'Sep 20, 2026' })).toBeVisible()
+    await dialog.getByRole('button', { name: 'Uncategorized' }).click()
+    await page.getByPlaceholder('Search categories…').fill('dining')
+    await page.getByRole('option', { name: /Dining Out/ }).click()
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).toBeHidden()
 
-    await expect(rowFor(page, 'ZZ Dated')).toContainText('Sep 20, 2026')
-    await expect(page.getByRole('grid')).toBeHidden()
+    await expect(rowFor(page, 'ZZ Dated')).toContainText('Dining Out')
     const stored = await storedTransaction(app, 'ZZ Dated')
     expect(new Date(stored.posted * 1000).getDate()).toBe(20)
+    expect(stored.category_id).not.toBeNull()
   })
 })
 
@@ -268,7 +309,7 @@ test.describe('create row', () => {
     await expect(toggle).toHaveAttribute('aria-pressed', 'false')
     await toggle.click()
 
-    const description = page.getByPlaceholder('Add transaction')
+    const description = page.getByPlaceholder('Add Transaction')
     const amount = page.getByPlaceholder('-0.00')
     await expect(description).toBeFocused()
     await expect(page.getByRole('button', { name: 'Cancel' })).toHaveAttribute(
@@ -290,7 +331,6 @@ test.describe('create row', () => {
     const row = rowFor(page, 'ZZ Coffee')
     await expect(row).toContainText('-$4.25')
     await expect(row).toContainText('Everyday Checking')
-    await expect(row).toContainText('Sep 24, 2026')
 
     // the entry row clears for the next entry and keeps focus on the description
     await expect(description).toHaveValue('')
@@ -312,7 +352,7 @@ test.describe('create row', () => {
     const { page } = app
     await openTransactions(app)
     await page.getByRole('button', { name: 'New Transaction' }).click()
-    const description = page.getByPlaceholder('Add transaction')
+    const description = page.getByPlaceholder('Add Transaction')
     const amount = page.getByPlaceholder('-0.00')
 
     await description.fill('ZZ Draft')
@@ -339,7 +379,7 @@ test.describe('create row', () => {
   test('the palette intent opens the create row and is cleaned from the URL', async ({ app }) => {
     const { page } = app
     await openTransactions(app, `${ROUTE}&create=true`)
-    await expect(page.getByPlaceholder('Add transaction')).toBeVisible()
+    await expect(page.getByPlaceholder('Add Transaction')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible()
     await expect(page).not.toHaveURL(/create/)
     await expect(page).toHaveURL(/tab=transactions/)
@@ -388,11 +428,11 @@ test.describe('selection and bulk actions', () => {
       .nth(2)
       .click({ modifiers: ['Shift'] })
     await expect(page.getByText('3 selected')).toBeVisible()
-    await selectionBar(page).getByRole('button', { name: 'Set category' }).click()
-    await page.getByPlaceholder('Search categories...').fill('subscriptions')
+    await selectionBar(page).getByRole('button', { name: 'Set Category' }).click()
+    await page.getByPlaceholder('Search categories…').fill('subscriptions')
     await page.getByRole('option', { name: /Subscriptions/ }).click()
 
-    await expect(page.getByPlaceholder('Search categories...')).toBeHidden()
+    await expect(page.getByPlaceholder('Search categories…')).toBeHidden()
     for (const row of await dataRows(page)
       .filter({ has: page.getByRole('checkbox', { name: 'Select row' }) })
       .all()
@@ -418,7 +458,7 @@ test.describe('selection and bulk actions', () => {
     await selectBoxes(page).nth(0).blur()
     await page.locator('body').press('c')
 
-    const search = page.getByPlaceholder('Search categories...')
+    const search = page.getByPlaceholder('Search categories…')
     await expect(search).toBeVisible()
     // the shortcut letter must not be typed into the search it just opened
     await expect(search).toHaveValue('')
@@ -427,56 +467,49 @@ test.describe('selection and bulk actions', () => {
     await expect(dataRows(page).nth(2)).toContainText('Groceries')
   })
 
-  test('deletes with a confirm dialog that counts the rows', async ({ app }) => {
+  test('deletes right away and offers Undo in the toast', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
-    const [{ n: before }] = await app.sql<{ n: number }>(
-      'SELECT count(*) n FROM transactions WHERE deleted_at IS NULL'
-    )
+    const live = async (): Promise<number> =>
+      (
+        await app.sql<{ n: number }>('SELECT count(*) n FROM transactions WHERE deleted_at IS NULL')
+      )[0].n
+    const before = await live()
 
     await selectBoxes(page).nth(0).click()
-    await selectionBar(page).getByRole('button', { name: 'Delete' }).click()
-    const dialog = page.getByRole('dialog')
-    await expect(dialog.getByText('Delete this transaction?')).toBeVisible()
-    await dialog.getByRole('button', { name: /^Cancel/ }).click()
-    await expect(dialog).toBeHidden()
-    await expect(page.getByText('1 selected')).toBeVisible()
-
     await selectBoxes(page)
       .nth(2)
       .click({ modifiers: ['Shift'] })
     await expect(page.getByText('3 selected')).toBeVisible()
     await selectionBar(page).getByRole('button', { name: 'Delete' }).click()
-    await expect(dialog.getByText('Delete 3 transactions?')).toBeVisible()
-    await dialog.getByRole('button', { name: 'Delete' }).click()
 
-    await expect(dialog).toBeHidden()
-    await expect
-      .poll(
-        async () =>
-          (
-            await app.sql<{ n: number }>(
-              'SELECT count(*) n FROM transactions WHERE deleted_at IS NULL'
-            )
-          )[0].n
-      )
-      .toBe(before - 3)
+    await expect(page.getByRole('dialog')).toBeHidden()
+    await expect(toast(page).filter({ hasText: 'Deleted 3 transactions' })).toBeVisible()
+    await expect.poll(live).toBe(before - 3)
+    await expect(page.getByText('3 selected')).toBeHidden()
+
+    await toast(page).getByRole('button', { name: 'Undo' }).click()
+    await expect.poll(live).toBe(before)
   })
 
-  test('the d shortcut asks before deleting, and Escape backs out', async ({ app }) => {
+  test('the d shortcut deletes the selected rows', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
     await selectBoxes(page).nth(0).click()
     await selectBoxes(page).nth(0).blur()
     await page.locator('body').press('d')
 
-    await expect(page.getByRole('dialog').getByText('Delete this transaction?')).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(page.getByRole('dialog')).toBeHidden()
-    const [{ n }] = await app.sql<{ n: number }>(
-      'SELECT count(*) n FROM transactions WHERE deleted_at IS NOT NULL'
-    )
-    expect(n).toBe(0)
+    await expect(toast(page).filter({ hasText: 'Deleted 1 transaction' })).toBeVisible()
+    await expect
+      .poll(
+        async () =>
+          (
+            await app.sql<{ n: number }>(
+              'SELECT count(*) n FROM transactions WHERE deleted_at IS NOT NULL'
+            )
+          )[0].n
+      )
+      .toBe(1)
   })
 
   test('shortcut letters are ignored while typing in an input', async ({ app }) => {
@@ -484,12 +517,12 @@ test.describe('selection and bulk actions', () => {
     await openTransactions(app)
     await selectBoxes(page).nth(0).click()
     await page.getByRole('button', { name: 'New Transaction' }).click()
-    const description = page.getByPlaceholder('Add transaction')
+    const description = page.getByPlaceholder('Add Transaction')
     await description.pressSequentially('dcd')
 
     await expect(description).toHaveValue('dcd')
     await expect(page.getByRole('dialog')).toBeHidden()
-    await expect(page.getByPlaceholder('Search categories...')).toBeHidden()
+    await expect(page.getByPlaceholder('Search categories…')).toBeHidden()
     await expect(page.getByText('1 selected')).toBeVisible()
   })
 
@@ -508,9 +541,7 @@ test.describe('selection and bulk actions', () => {
     await selectBoxes(page).nth(0).click()
     await selectBoxes(page).nth(1).click()
     await page.locator('body').press('d')
-    await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click()
     await expect.poll(live).toBe(before - 2)
-    await expect(page.getByRole('dialog')).toBeHidden()
 
     await page.locator('body').press(`${app.mod}+z`)
     await expect.poll(live).toBe(before)
@@ -537,6 +568,6 @@ test.describe('auto-categorize in the bulk bar', () => {
 
     await app.bridge((b) => b.llm.ready())
     await expect(button).toBeEnabled()
-    await expect(button).toHaveAttribute('title', 'Auto-categorize (a)')
+    await expect(button).toHaveAttribute('title', 'Auto-Categorize (a)')
   })
 })
