@@ -31,6 +31,7 @@ import {
   type ChartConfig
 } from '@/components/ui/chart'
 import { paletteColor } from '@/components/charts/chart-style'
+import { HOVER_FADE, useHoverDim } from '@/components/charts/hover-dim'
 import { privateTick } from '@/components/charts/private-tick'
 import { DRILL_LABEL, DRILL_TARGET, useBudgetDrill, type OnBudgetDrill } from '../use-drill'
 import { useResolvedQuery } from '../use-widget-data'
@@ -181,6 +182,7 @@ function BudgetBarsChart({
   currency: string
   onDrill?: OnBudgetDrill
 }) {
+  const { active, setActive, clear, shown, hover } = useHoverDim()
   const data = envelopes.map((e) => ({ label: e.categoryName, budgeted: e.fill, spent: e.spent }))
   const barClick =
     onDrill && ((_bar: unknown, index: number) => onDrill([envelopes[index].categoryId]))
@@ -194,8 +196,10 @@ function BudgetBarsChart({
         config={chartConfig}
         className={cn(
           'aspect-auto h-full w-full',
-          onDrill && '[&_.recharts-bar-rectangle]:cursor-pointer'
+          onDrill && '[&_.recharts-bar-rectangle]:cursor-pointer',
+          HOVER_FADE
         )}
+        onMouseLeave={clear}
       >
         <BarChart data={data} layout="vertical" margin={{ top: 8, right: 8 }}>
           <CartesianGrid horizontal={false} />
@@ -229,20 +233,26 @@ function BudgetBarsChart({
               />
             }
           />
-          <ChartLegend content={<ChartLegendContent />} />
+          <ChartLegend
+            content={<ChartLegendContent activeKey={active} onActiveChange={setActive} />}
+          />
           <Bar
             dataKey="budgeted"
             fill="var(--color-budgeted)"
+            fillOpacity={shown('budgeted')}
             radius={[0, 2, 2, 0]}
             isAnimationActive={false}
             onClick={barClick}
+            {...hover('budgeted')}
           />
           <Bar
             dataKey="spent"
             fill="var(--color-spent)"
+            fillOpacity={shown('spent')}
             radius={[0, 2, 2, 0]}
             isAnimationActive={false}
             onClick={barClick}
+            {...hover('spent')}
           />
         </BarChart>
       </ChartContainer>
@@ -260,6 +270,7 @@ function BudgetBalancesChart({
   currency: string
   onDrill?: OnBudgetDrill
 }) {
+  const { setActive, clear, shown } = useHoverDim()
   const data = envelopes.map((e) => ({ label: e.categoryName, balance: e.balance }))
   const chartConfig: ChartConfig = { balance: { label: 'Available' } }
   return (
@@ -268,8 +279,10 @@ function BudgetBalancesChart({
         config={chartConfig}
         className={cn(
           'aspect-auto h-full w-full',
-          onDrill && '[&_.recharts-bar-rectangle]:cursor-pointer'
+          onDrill && '[&_.recharts-bar-rectangle]:cursor-pointer',
+          HOVER_FADE
         )}
+        onMouseLeave={clear}
       >
         <BarChart data={data} layout="vertical" margin={{ top: 8, right: 8 }}>
           <CartesianGrid horizontal={false} />
@@ -308,9 +321,15 @@ function BudgetBalancesChart({
             radius={[0, 2, 2, 0]}
             isAnimationActive={false}
             onClick={onDrill && ((_bar, index) => onDrill([envelopes[index].categoryId]))}
+            onMouseEnter={(_bar, index) => setActive(String(index))}
+            onMouseLeave={clear}
           >
             {data.map((d, i) => (
-              <Cell key={d.label} fill={d.balance < 0 ? 'var(--destructive)' : paletteColor(i)} />
+              <Cell
+                key={d.label}
+                fill={d.balance < 0 ? 'var(--destructive)' : paletteColor(i)}
+                fillOpacity={shown(String(i))}
+              />
             ))}
           </Bar>
         </BarChart>
@@ -331,6 +350,7 @@ function BudgetDonutChart({
   showLegend: boolean
   onDrill?: OnBudgetDrill
 }) {
+  const { active, setActive, clear, shown } = useHoverDim()
   const slices = envelopes.filter((e) => e.fill > 0)
   if (slices.length === 0) {
     return <CenteredNote>No envelopes with a fill this month.</CenteredNote>
@@ -341,7 +361,8 @@ function BudgetDonutChart({
   const data = slices.map((e, i) => ({
     label: e.categoryName,
     value: e.fill,
-    fill: paletteColor(i)
+    fill: paletteColor(i),
+    fillOpacity: shown(e.categoryName)
   }))
   return (
     <div className="min-h-0 flex-1 px-4 pb-4">
@@ -349,8 +370,10 @@ function BudgetDonutChart({
         config={chartConfig}
         className={cn(
           'aspect-auto h-full w-full',
-          onDrill && '[&_.recharts-pie-sector]:cursor-pointer'
+          onDrill && '[&_.recharts-pie-sector]:cursor-pointer',
+          HOVER_FADE
         )}
+        onMouseLeave={clear}
       >
         <PieChart>
           <ChartTooltip
@@ -368,7 +391,13 @@ function BudgetDonutChart({
               />
             }
           />
-          {showLegend ? <ChartLegend content={<ChartLegendContent nameKey="label" />} /> : null}
+          {showLegend ? (
+            <ChartLegend
+              content={
+                <ChartLegendContent nameKey="label" activeKey={active} onActiveChange={setActive} />
+              }
+            />
+          ) : null}
           <Pie
             data={data}
             dataKey="value"
@@ -377,6 +406,8 @@ function BudgetDonutChart({
             strokeWidth={2}
             isAnimationActive={false}
             onClick={onDrill && ((_slice, index) => onDrill([slices[index].categoryId]))}
+            onMouseEnter={(_slice, index) => setActive(slices[index].categoryName)}
+            onMouseLeave={clear}
           />
         </PieChart>
       </ChartContainer>

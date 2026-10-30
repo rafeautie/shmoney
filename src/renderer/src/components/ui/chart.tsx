@@ -254,10 +254,15 @@ function ChartLegendContent({
   hideIcon = false,
   payload,
   verticalAlign = 'bottom',
-  nameKey
+  nameKey,
+  activeKey = null,
+  onActiveChange
 }: React.ComponentProps<'div'> & {
   hideIcon?: boolean
   nameKey?: string
+  /** the hovered entry (series dataKey, or the datum's nameKey value); the rest dim */
+  activeKey?: string | null
+  onActiveChange?: (key: string | null) => void
 } & RechartsPrimitive.DefaultLegendContentProps) {
   const { config } = useChart()
 
@@ -281,13 +286,22 @@ function ChartLegendContent({
         .map((item, index) => {
           const key = `${nameKey ?? item.dataKey ?? 'value'}`
           const itemConfig = getPayloadConfigFromPayload(config, item, key)
+          const id = String(
+            nameKey
+              ? (item.payload as Record<string, unknown> | undefined)?.[nameKey]
+              : item.dataKey
+          )
 
           return (
             <div
               key={index}
               className={cn(
-                'flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground'
+                'flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground',
+                'transition-opacity duration-150 motion-reduce:transition-none',
+                activeKey !== null && activeKey !== id && 'opacity-40'
               )}
+              onMouseEnter={onActiveChange && (() => onActiveChange(id))}
+              onMouseLeave={onActiveChange && (() => onActiveChange(null))}
             >
               {itemConfig?.icon && !hideIcon ? (
                 <itemConfig.icon />

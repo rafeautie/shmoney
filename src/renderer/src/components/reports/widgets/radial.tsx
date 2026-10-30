@@ -9,6 +9,7 @@ import {
   type ChartConfig
 } from '@/components/ui/chart'
 import { paletteColor } from '@/components/charts/chart-style'
+import { HOVER_FADE, useHoverDim } from '@/components/charts/hover-dim'
 import { groupTotals } from '../data'
 import { CenteredNote, MixedCurrencyBadge, TooltipRow } from './shared'
 import type { OnDrill } from '../use-drill'
@@ -38,6 +39,7 @@ export function RadialChartWidget({
   currencies: string[]
   onDrill?: OnDrill
 }) {
+  const { active, setActive, clear, shown, hover } = useHoverDim()
   const totals = useMemo(
     () =>
       groupTotals(
@@ -57,7 +59,11 @@ export function RadialChartWidget({
   const chartConfig: ChartConfig = Object.fromEntries(
     totals.map((t) => [t.label, { label: t.label }])
   )
-  const data = totals.map((t, i) => ({ ...t, fill: paletteColor(i) }))
+  const data = totals.map((t, i) => ({
+    ...t,
+    fill: paletteColor(i),
+    fillOpacity: shown(t.label)
+  }))
   return (
     <div className="relative flex h-full flex-col px-4 pb-4">
       <MixedCurrencyBadge currencies={currencies} />
@@ -65,8 +71,10 @@ export function RadialChartWidget({
         config={chartConfig}
         className={cn(
           'aspect-auto min-h-0 w-full flex-1',
-          onDrill && '[&_.recharts-radial-bar-sector]:cursor-pointer'
+          onDrill && '[&_.recharts-radial-bar-sector]:cursor-pointer',
+          HOVER_FADE
         )}
+        onMouseLeave={clear}
       >
         <RadialBarChart
           data={data}
@@ -95,6 +103,8 @@ export function RadialChartWidget({
             background
             isAnimationActive={false}
             onClick={onDrill && ((_bar, index) => onDrill({ groupIds: totals[index].groupIds }))}
+            onMouseEnter={(_bar, index) => setActive(totals[index].label)}
+            onMouseLeave={clear}
           />
         </RadialBarChart>
       </ChartContainer>
@@ -104,7 +114,11 @@ export function RadialChartWidget({
           {data.map((d) => (
             <div
               key={`${d.groupId}-${d.currency}-${d.label}`}
-              className="flex items-center gap-1.5"
+              className={cn(
+                'flex items-center gap-1.5 transition-opacity duration-150 motion-reduce:transition-none',
+                active !== null && active !== d.label && 'opacity-40'
+              )}
+              {...hover(d.label)}
             >
               <div className="h-2 w-2 shrink-0 rounded-[2px]" style={{ background: d.fill }} />
               {d.label}

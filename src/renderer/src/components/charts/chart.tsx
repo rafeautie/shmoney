@@ -27,6 +27,7 @@ import {
   type ChartConfig
 } from '@/components/ui/chart'
 import { paletteColor } from './chart-style'
+import { HOVER_FADE, useHoverDim } from './hover-dim'
 import { privateTick } from './private-tick'
 
 // The one chart-drawing surface shared by the report widgets and the chat
@@ -45,6 +46,9 @@ import { privateTick } from './private-tick'
 // whenever the geometry it computes changes by reference, which during a resize is
 // every frame, so an animated chart crawls along behind the pointer instead of
 // tracking it. Charts draw at their final geometry, like any other DOM element.
+//
+// Hovering a series (or slice, or per-point bar) in the plot or the legend dims
+// everything else.
 
 type ChartRow = Record<string, string | number | null>
 
@@ -221,6 +225,8 @@ const IN_PROGRESS_BAR_OPACITY = 0.6
 const IN_PROGRESS_DASH = '4 3'
 const SOLID = '__solid'
 const TAIL = '__tail'
+// a 2px line is too thin to hover, so each series gets an invisible wide twin
+const LINE_HIT_WIDTH = 12
 
 function CartesianView({
   kind,
@@ -238,6 +244,7 @@ function CartesianView({
   inProgressIndex,
   className
 }: CartesianProps & CommonProps) {
+  const { active, setActive, clear, shown, hover } = useHoverDim()
   if (data.length === 0 || series.length === 0) return <ChartNote>Nothing to chart.</ChartNote>
 
   const chartConfig: ChartConfig = Object.fromEntries(
@@ -367,8 +374,10 @@ function CartesianView({
           dataKey={s.key}
           type="monotone"
           stroke={color}
+          strokeOpacity={shown(s.key)}
           strokeWidth={2}
           dot={dot}
+          activeDot={{ opacity: shown(s.key) }}
           isAnimationActive={false}
         />
       ]
@@ -379,6 +388,7 @@ function CartesianView({
         dataKey={s.key + suffix}
         type="monotone"
         stroke={color}
+        strokeOpacity={shown(s.key)}
         strokeWidth={2}
         strokeDasharray={dash}
         dot={false}
@@ -397,12 +407,28 @@ function CartesianView({
         type="monotone"
         stroke={color}
         strokeOpacity={0}
+        activeDot={{ opacity: shown(s.key) }}
         strokeWidth={2}
         dot={false}
         isAnimationActive={false}
       />
     ]
   })
+  const lineHits = series.map((s) => (
+    <Line
+      key={s.key + '__hit'}
+      dataKey={s.key}
+      type="monotone"
+      stroke="transparent"
+      strokeWidth={LINE_HIT_WIDTH}
+      dot={false}
+      activeDot={false}
+      tooltipType="none"
+      legendType="none"
+      isAnimationActive={false}
+      {...hover(s.key)}
+    />
+  ))
   const areaMarks = series.flatMap((s) => {
     const color = `var(--color-${s.key})`
     // a single-bucket range has no area to draw; show the dot so it's visible
@@ -414,11 +440,14 @@ function CartesianView({
           dataKey={s.key}
           type="monotone"
           stroke={color}
+          strokeOpacity={shown(s.key)}
           fill={color}
-          fillOpacity={0.3}
+          fillOpacity={0.3 * shown(s.key)}
           stackId={stacked ? 'stack' : s.key}
           dot={dot}
+          activeDot={{ opacity: shown(s.key) }}
           isAnimationActive={false}
+          {...hover(s.key)}
         />
       ]
     }
@@ -429,15 +458,17 @@ function CartesianView({
         dataKey={s.key + suffix}
         type="monotone"
         stroke={color}
+        strokeOpacity={shown(s.key)}
         strokeDasharray={dash}
         fill={color}
-        fillOpacity={fillOpacity}
+        fillOpacity={fillOpacity * shown(s.key)}
         stackId={stacked ? suffix : s.key + suffix}
         dot={false}
         activeDot={false}
         tooltipType="none"
         legendType="none"
         isAnimationActive={false}
+        {...hover(s.key)}
       />
     )
     return [
@@ -449,6 +480,7 @@ function CartesianView({
         type="monotone"
         stroke={color}
         strokeOpacity={0}
+        activeDot={{ opacity: shown(s.key) }}
         fill="none"
         stackId={stacked ? 'stack' : s.key}
         dot={false}
@@ -456,7 +488,9 @@ function CartesianView({
       />
     ]
   })
-  const legendEl = showLegend ? <ChartLegend content={<ChartLegendContent />} /> : null
+  const legendEl = showLegend ? (
+    <ChartLegend content={<ChartLegendContent activeKey={active} onActiveChange={setActive} />} />
+  ) : null
   // bars report their own series; a line or area click picks the hovered x position
   const barClick = (key: string) =>
     onSelect ? (_bar: unknown, index: number) => onSelect(index, key) : undefined
@@ -478,8 +512,10 @@ function CartesianView({
           (kind === 'bar'
             ? '[&_.recharts-bar-rectangle]:cursor-pointer'
             : '[&_.recharts-surface]:cursor-pointer'),
+        HOVER_FADE,
         className
       )}
+      onMouseLeave={clear}
     >
       {kind === 'line' ? (
         <LineChart data={lineData} margin={{ top: 8, right: 8 }} onClick={chartClick}>
@@ -487,6 +523,7 @@ function CartesianView({
           {tooltip}
           {legendEl}
           {lineMarks}
+          {lineHits}
         </LineChart>
       ) : kind === 'area' ? (
         <AreaChart data={lineData} margin={{ top: 8, right: 8 }} onClick={chartClick}>
@@ -511,9 +548,11 @@ function CartesianView({
               radius={[0, 2, 2, 0]}
               isAnimationActive={false}
               onClick={barClick(series[0].key)}
+              onMouseEnter={(_bar, i) => setActive(String(i))}
+              onMouseLeave={clear}
             >
               {data.map((_row, i) => (
-                <Cell key={i} fill={paletteColor(i)} />
+                <Cell key={i} fill={paletteColor(i)} fillOpacity={shown(String(i))} />
               ))}
             </Bar>
           ) : (
@@ -522,6 +561,7 @@ function CartesianView({
                 key={s.key}
                 dataKey={s.key}
                 fill={`var(--color-${s.key})`}
+                fillOpacity={shown(s.key)}
                 stackId={stacked ? 'stack' : undefined}
                 radius={stacked ? 0 : BAR_TOP_RADIUS}
                 // in a stack only the segment on top gets the rounded corners
@@ -532,7 +572,8 @@ function CartesianView({
                           {...props}
                           radius={!stacked || stackTops[props.index] === s.key ? BAR_TOP_RADIUS : 0}
                           fillOpacity={
-                            props.index === inProgress ? IN_PROGRESS_BAR_OPACITY : undefined
+                            (props.index === inProgress ? IN_PROGRESS_BAR_OPACITY : 1) *
+                            shown(s.key)
                           }
                         />
                       )
@@ -540,6 +581,7 @@ function CartesianView({
                 }
                 isAnimationActive={false}
                 onClick={barClick(s.key)}
+                {...hover(s.key)}
               />
             ))
           )}
@@ -562,6 +604,7 @@ function PieView({
   onSelect,
   className
 }: PieProps & CommonProps) {
+  const { active, setActive, clear, shown } = useHoverDim()
   // slices carry an explicit fill so Recharts colors each by order
   const slices = useMemo(() => data.map((row, i) => ({ ...row, fill: paletteColor(i) })), [data])
   if (data.length === 0) return <ChartNote>Nothing to chart.</ChartNote>
@@ -576,8 +619,10 @@ function PieView({
       className={cn(
         'aspect-auto w-full',
         onSelect && '[&_.recharts-pie-sector]:cursor-pointer',
+        HOVER_FADE,
         className
       )}
+      onMouseLeave={clear}
     >
       <PieChart>
         <ChartTooltip
@@ -596,7 +641,17 @@ function PieView({
             />
           }
         />
-        {legend ? <ChartLegend content={<ChartLegendContent nameKey={labelKey} />} /> : null}
+        {legend ? (
+          <ChartLegend
+            content={
+              <ChartLegendContent
+                nameKey={labelKey}
+                activeKey={active}
+                onActiveChange={setActive}
+              />
+            }
+          />
+        ) : null}
         <Pie
           data={slices}
           dataKey={valueKey}
@@ -605,7 +660,13 @@ function PieView({
           strokeWidth={2}
           isAnimationActive={false}
           onClick={onSelect ? (_slice, index) => onSelect(index, null) : undefined}
-        />
+          onMouseEnter={(_slice, index) => setActive(String(data[index][labelKey]))}
+          onMouseLeave={clear}
+        >
+          {data.map((row, i) => (
+            <Cell key={i} fillOpacity={shown(String(row[labelKey]))} />
+          ))}
+        </Pie>
       </PieChart>
     </ChartContainer>
   )
