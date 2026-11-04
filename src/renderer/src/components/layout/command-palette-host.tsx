@@ -78,9 +78,10 @@ function filterByKeywords(_value: string, search: string, keywords: string[] = [
  * The command palette, pinned to the title bar: the search field is its input
  * and the results drop down beneath it. Opening and closing are always the
  * user's doing: a click, typing or Ctrl/Cmd+K opens it; Escape or a click
- * elsewhere closes it. Choosing a result runs it and leaves the search open; an
- * action that opens a dialog takes focus, which closes it, and the dialog
- * handing focus back on close does not reopen it.
+ * elsewhere closes it, and so does choosing a result that goes somewhere (a
+ * page, a record, Settings). An action that works in place leaves it open; one
+ * that opens a dialog takes focus, which closes it, and the dialog handing
+ * focus back on close does not reopen it.
  */
 export function TitleBarSearch({ className }: { className?: string }): React.JSX.Element {
   const [open, setOpenState] = useState(false)
@@ -142,7 +143,10 @@ export function TitleBarSearch({ className }: { className?: string }): React.JSX
         inputRef={inputRef}
         onOpen={() => setOpen(true)}
         onClose={close}
-        run={(fn) => fn()}
+        go={(fn) => {
+          close()
+          fn()
+        }}
       />
     </div>
   )
@@ -174,7 +178,7 @@ function usePaletteActions() {
 
 function CommandPalette({
   actions,
-  run,
+  go,
   open,
   query,
   setQuery,
@@ -185,7 +189,9 @@ function CommandPalette({
   onToggled
 }: {
   actions: ReturnType<typeof usePaletteActions>
-  run: (fn: () => void) => void
+  /** runs an entry that takes the user somewhere, closing the search first;
+   * entries that act in place run directly and leave it open */
+  go: (fn: () => void) => void
   open: boolean
   query: string
   setQuery: (query: string) => void
@@ -228,7 +234,7 @@ function CommandPalette({
   })
 
   const showTransactions = (search: string) =>
-    run(() => void navigate({ to: '/accounts', search: { tab: 'transactions', q: search } }))
+    go(() => void navigate({ to: '/accounts', search: { tab: 'transactions', q: search } }))
 
   return (
     <Command
@@ -328,7 +334,7 @@ function CommandPalette({
                 label="New Transaction"
                 icon={Add01Icon}
                 onSelect={() =>
-                  run(
+                  go(
                     () =>
                       void navigate({
                         to: '/accounts',
@@ -342,7 +348,7 @@ function CommandPalette({
                 label="Import"
                 keywords={['file', 'csv', 'ofx', 'qif']}
                 icon={FileImportIcon}
-                onSelect={() => run(actions.openImport)}
+                onSelect={actions.openImport}
               />
               {connection && (
                 <PaletteItem
@@ -351,7 +357,7 @@ function CommandPalette({
                   keywords={['simplefin', 'refresh']}
                   icon={RefreshIcon}
                   disabled={actions.syncing}
-                  onSelect={() => run(actions.sync)}
+                  onSelect={actions.sync}
                 />
               )}
               <PaletteItem
@@ -359,21 +365,21 @@ function CommandPalette({
                 label="Auto-Categorize"
                 icon={AiMagicIcon}
                 disabled={!actions.canCategorize}
-                onSelect={() => run(actions.categorize)}
+                onSelect={actions.categorize}
               />
               <PaletteItem
                 id="action:blur"
                 label={actions.blurAmounts ? 'Show Amounts' : 'Hide Amounts'}
                 keywords={['privacy', 'hide']}
                 icon={actions.blurAmounts ? ViewIcon : ViewOffIcon}
-                onSelect={() => run(actions.toggleBlur)}
+                onSelect={actions.toggleBlur}
               />
               <PaletteItem
                 id="action:theme"
                 label={dark ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
                 keywords={['theme', 'appearance', 'mode']}
                 icon={dark ? Sun03Icon : Moon02Icon}
-                onSelect={() => run(() => actions.setTheme(dark ? 'light' : 'dark'))}
+                onSelect={() => actions.setTheme(dark ? 'light' : 'dark')}
               />
             </CommandGroup>
 
@@ -385,7 +391,7 @@ function CommandPalette({
                   label={page.label}
                   icon={page.icon}
                   onSelect={() =>
-                    run(
+                    go(
                       () =>
                         void navigate({
                           to: page.to,
@@ -408,7 +414,7 @@ function CommandPalette({
                       label={section.label}
                       keywords={['settings']}
                       icon={section.icon}
-                      onSelect={() => run(() => actions.openSettings(section.id))}
+                      onSelect={() => go(() => actions.openSettings(section.id))}
                     />
                   ))}
                 </CommandGroup>
@@ -421,7 +427,7 @@ function CommandPalette({
                       keywords={account.institutionName ? [account.institutionName] : []}
                       icon={Wallet01Icon}
                       onSelect={() =>
-                        run(
+                        go(
                           () =>
                             void navigate({
                               to: '/accounts/$accountId',
@@ -440,7 +446,7 @@ function CommandPalette({
                       label={report.name}
                       icon={Analytics01Icon}
                       onSelect={() =>
-                        run(
+                        go(
                           () =>
                             void navigate({
                               to: '/reports/$reportId',
@@ -459,7 +465,7 @@ function CommandPalette({
                       label={conversation.title ?? 'Untitled'}
                       icon={BubbleChatIcon}
                       onSelect={() =>
-                        run(() => void navigate({ to: '/chat', search: { c: conversation.id } }))
+                        go(() => void navigate({ to: '/chat', search: { c: conversation.id } }))
                       }
                     />
                   ))}

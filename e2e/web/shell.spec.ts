@@ -190,8 +190,9 @@ test.describe('command palette', () => {
     await page.keyboard.press(`${app.mod}+k`)
     await page.getByRole('option', { name: 'Budget' }).click()
     await expect(page).toHaveURL(/#\/budget/)
-    // choosing an entry leaves the search open for the next one
-    await expect(palette(page)).toBeVisible()
+    // going somewhere closes the search
+    await expect(palette(page)).toBeHidden()
+    await expect(searchBox(page)).toHaveValue('')
 
     await page.keyboard.press(`${app.mod}+k`)
     await page.getByRole('option', { name: 'Activity' }).click()
@@ -244,6 +245,8 @@ test.describe('command palette', () => {
     await page.keyboard.press(`${app.mod}+k`)
     await page.getByRole('option', { name: 'Hide Amounts' }).click()
     await expect(page.getByRole('button', { name: 'Show Amounts' })).toBeVisible()
+    // an action that works in place leaves the search open
+    await expect(palette(page)).toBeVisible()
 
     await page.keyboard.press(`${app.mod}+k`)
     await page.getByRole('option', { name: 'Show Amounts' }).click()
