@@ -85,17 +85,21 @@ export function AppHeader(): React.JSX.Element {
       // header, and the sidebar already covers the first 48-256px of it.
       //
       // The OS paints those buttons above the page, so no z-index can lift the
-      // search over them. Instead --search-room is the widest the centered
-      // search may be and still keep 12px from them on the right and from the
-      // toggle and arrows (6.375rem past the padding) on the left. cqw is the
-      // bar's content width, so both paddings are added back for its full width.
+      // search over them. Instead --search-room is the lane between the toggle
+      // and arrows (6.625rem past the padding) and 12px short of them; the
+      // search stays centered while it fits and slides along the lane when one
+      // side is crowded. cqw is the bar's content width, so both paddings are
+      // added back for its full width.
       style={
         {
           '--bar-pl': clearTrafficLights ? '2rem' : '0.625rem',
+          // the web demo's bar claims the same strip through --demo-bar-inset
           '--caption-inset':
-            'max(1rem, calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px)))',
-          '--search-room':
-            'calc(100cqw + var(--bar-pl) + var(--caption-inset) - 2 * max(var(--bar-pl) + 6.375rem, var(--caption-inset) + 0.75rem))',
+            'max(1rem, calc(100vw - env(titlebar-area-width, 100vw) - env(titlebar-area-x, 0px)), var(--demo-bar-inset, 0px))',
+          '--search-full': 'calc(100cqw + var(--bar-pl) + var(--caption-inset))',
+          '--search-left': 'calc(var(--bar-pl) + 6.625rem)',
+          '--search-right': 'calc(var(--caption-inset) + 0.75rem)',
+          '--search-room': 'calc(var(--search-full) - var(--search-left) - var(--search-right))',
           paddingInlineStart: 'var(--bar-pl)',
           paddingInlineEnd: 'var(--caption-inset)'
         } as React.CSSProperties

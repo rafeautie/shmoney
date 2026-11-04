@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClientProvider } from '@tanstack/react-query'
 import type { Settings } from '@shared/settings'
@@ -90,11 +91,32 @@ async function setTheme(theme: Settings['theme']): Promise<void> {
 }
 
 function DemoBar(): React.JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
+  // the title bar keeps its right end clear of whatever sits over it (the
+  // desktop caption buttons), so the bar claims that strip the same way and the
+  // centered search narrows to stay out from under it
+  useLayoutEffect(() => {
+    const bar = ref.current
+    if (!bar) return
+    const root = document.documentElement
+    const claim = (): void =>
+      root.style.setProperty('--demo-bar-inset', `${bar.offsetWidth + 12}px`)
+    // claimed before first paint; the observer follows the select's label width
+    claim()
+    const observer = new ResizeObserver(claim)
+    observer.observe(bar)
+    return () => {
+      observer.disconnect()
+      root.style.removeProperty('--demo-bar-inset')
+    }
+  }, [])
   return (
-    // the header's right end is empty in the app (the desktop window's caption
-    // buttons sit there), so the bar never covers app controls
-    <div className="fixed top-2.5 right-3 z-50 flex items-center gap-2.5 text-xs text-muted-foreground">
-      <span className="whitespace-nowrap">Sample Data</span>
+    <div
+      ref={ref}
+      className="fixed top-2.5 right-3 z-50 flex items-center gap-2.5 text-xs text-muted-foreground"
+    >
+      {/* the select names the dataset; on a narrow window the room goes to search */}
+      <span className="whitespace-nowrap max-lg:hidden">Sample Data</span>
       <DatasetControls />
     </div>
   )

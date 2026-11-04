@@ -53,6 +53,18 @@ const PAGES = [
 
 const RESULT_LIMIT = 6
 
+// The field is centered on the title bar (see app-header for the --search-*
+// lane). When something wide claims one end, it slides toward the other by
+// just enough to stay in its lane, rather than shrinking to keep centered.
+function searchSize(width: string): React.CSSProperties {
+  return {
+    width,
+    translate: `calc(min(0px, var(--search-full) / 2 - var(--search-right) - ${width} / 2) + max(0px, var(--search-left) - var(--search-full) / 2 + ${width} / 2))`
+  }
+}
+const OPEN_SIZE = searchSize('min(36rem, var(--search-room, calc(100vw - 2rem)))')
+const CLOSED_SIZE = searchSize('min(28rem, 40vw, var(--search-room, 40vw))')
+
 // Every typed word must appear in the label or keywords; matches at a word start
 // rank first. Item values are unique ids, so they are left out of matching.
 function filterByKeywords(_value: string, search: string, keywords: string[] = []): number {
@@ -225,12 +237,13 @@ function CommandPalette({
       // one surface: closed it is a solid field on the canvas, easy to spot;
       // open it widens and the results grow down inside the same panel
       className={cn(
-        'relative h-auto overflow-hidden transition-[box-shadow,background-color] duration-500 ease-palette motion-reduce:transition-none [&_[data-slot=command-group]]:px-2 [&_[data-slot=command-group]]:py-1.5 [&_[data-slot=command-item]]:min-h-8 [&_[data-slot=command-item]]:gap-3',
-        toggling && 'transition-[width,box-shadow,background-color]',
+        '@container/search relative h-auto overflow-hidden transition-[box-shadow,background-color] duration-500 ease-palette motion-reduce:transition-none [&_[data-slot=command-group]]:px-2 [&_[data-slot=command-group]]:py-1.5 [&_[data-slot=command-item]]:min-h-8 [&_[data-slot=command-item]]:gap-3',
+        toggling && 'transition-[width,translate,box-shadow,background-color]',
         open
-          ? 'w-[min(36rem,var(--search-room,calc(100vw-2rem)))] rounded-xl bg-popover shadow-lg ring-1 ring-foreground/10'
-          : 'w-[min(28rem,40vw,var(--search-room,40vw))] rounded-lg bg-card shadow-xs ring-1 ring-foreground/12 hover:ring-foreground/20 dark:bg-muted'
+          ? 'rounded-xl bg-popover shadow-lg ring-1 ring-foreground/10'
+          : 'rounded-lg bg-card shadow-xs ring-1 ring-foreground/12 hover:ring-foreground/20 dark:bg-muted'
       )}
+      style={open ? OPEN_SIZE : CLOSED_SIZE}
       onTransitionEnd={(event) => {
         if (event.target === event.currentTarget && event.propertyName === 'width') onToggled()
       }}
@@ -238,8 +251,9 @@ function CommandPalette({
       <CommandInput
         ref={inputRef}
         wrapperClassName={cn(
-          'h-7 gap-2 border-0 border-b border-transparent px-2.5 transition-[height,padding,border-color] duration-500 ease-palette motion-reduce:transition-none',
-          open && 'h-9 border-border pr-9 pl-3'
+          'h-7 gap-2 border-0 border-b border-transparent transition-[height,padding,border-color] duration-500 ease-palette motion-reduce:transition-none',
+          // closed, the placeholder stops short of the shortcut hint
+          open ? 'h-9 border-border pr-9 pl-3' : 'pr-13 pl-2.5 @max-[12rem]/search:pr-2.5'
         )}
         className="h-full text-xs"
         value={query}
@@ -267,7 +281,7 @@ function CommandPalette({
       />
       <kbd
         className={cn(
-          'pointer-events-none absolute top-3.5 right-2 -translate-y-1/2 rounded border border-border px-1 font-sans text-caption text-muted-foreground transition-opacity duration-200 motion-reduce:transition-none',
+          'pointer-events-none absolute top-3.5 right-2 -translate-y-1/2 rounded border border-border px-1 font-sans text-caption text-muted-foreground transition-opacity duration-200 motion-reduce:transition-none @max-[12rem]/search:hidden',
           open && 'opacity-0'
         )}
       >
