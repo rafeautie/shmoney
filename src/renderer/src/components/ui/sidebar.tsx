@@ -26,7 +26,8 @@ const SIDEBAR_COOKIE_NAME = 'sidebar_state'
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7
 const SIDEBAR_WIDTH = '16rem'
 const SIDEBAR_WIDTH_MOBILE = '18rem'
-const SIDEBAR_WIDTH_ICON = '3rem'
+// +1px so the border doesn't shift the icons off center
+const SIDEBAR_WIDTH_ICON = 'calc(3rem + 1px)'
 const SIDEBAR_KEYBOARD_SHORTCUT = 'b'
 
 type SidebarContextProps = {
@@ -336,7 +337,7 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot="sidebar-footer"
       data-sidebar="footer"
       className={cn(
-        'flex flex-col gap-2 p-2 px-2.5 transition-[padding] duration-200 group-data-[collapsible=icon]:px-2',
+        'flex flex-col gap-2 p-2 px-2.5',
         className
       )}
       {...props}
@@ -375,7 +376,7 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot="sidebar-group"
       data-sidebar="group"
       className={cn(
-        'relative flex w-full min-w-0 flex-col px-2.5 py-1 transition-[padding] duration-200 group-data-[collapsible=icon]:px-2',
+        'relative flex w-full min-w-0 flex-col px-2.5 py-1',
         className
       )}
       {...props}
