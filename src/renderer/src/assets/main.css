@@ -13,7 +13,7 @@
    * gentle hover timing. */
   --default-transition-duration: 120ms;
   --default-transition-timing-function: ease;
-  --radius: 0.45rem;
+  --radius: 0.575rem;
   /* tells the engine which way native widgets go: scrollbars in the few raw
    * overflow containers, date pickers, autofill. Paired with the .dark rule
    * below rather than prefers-color-scheme, since the theme is a stored
@@ -706,8 +706,8 @@ html.suppress-transitions *::after {
 /* corner handles: quarter-arc brackets with rounded ends (SVG mask, since CSS
  * borders cannot round the arc's end caps), one nw-oriented arc rotated per
  * corner. The arc's 3px stroke is centered on the card's rounded-lg corner
- * (--radius = 0.45rem = 7.2px); the 20px mask box hangs 2px outside the
- * corner, putting the arc's circle center at 9.2px in mask coordinates. */
+ * (--radius = 0.575rem = 9.2px); the 20px mask box hangs 2px outside the
+ * corner, putting the arc's circle center at 11.2px in mask coordinates. */
 .react-grid-item > .react-resizable-handle.react-resizable-handle-nw,
 .react-grid-item > .react-resizable-handle.react-resizable-handle-ne,
 .react-grid-item > .react-resizable-handle.react-resizable-handle-sw,
@@ -724,7 +724,7 @@ html.suppress-transitions *::after {
   width: 20px;
   height: 20px;
   border-radius: 0;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M2 9.2A7.2 7.2 0 0 1 9.2 2' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E")
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M2 11.2A9.2 9.2 0 0 1 11.2 2' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E")
     center / contain no-repeat;
 }
 

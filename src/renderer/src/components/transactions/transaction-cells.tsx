@@ -87,7 +87,7 @@ export const DescriptionCell = memo(function DescriptionCell({
 /** Amount cell: the signed amount, transfers dimmed rather than colored */
 export const AmountCell = memo(function AmountCell({ transaction }: { transaction: Transaction }) {
   return (
-    <div className="text-right">
+    <div className="flex justify-end">
       <Amount
         value={transaction.amount}
         currency={transaction.currency}
@@ -126,6 +126,7 @@ export const TransactionActionsCell = memo(function TransactionActionsCell({
   const triggerProps = {
     variant: 'ghost',
     size: 'icon-sm',
+    className: 'size-5',
     'aria-label': 'Transaction Actions'
   } satisfies ComponentProps<typeof Button>
   const icon = <HugeiconsIcon icon={MoreHorizontalIcon} className="size-4" />
@@ -133,7 +134,7 @@ export const TransactionActionsCell = memo(function TransactionActionsCell({
   if (transaction.pending) return null
   if (!mounted) {
     return (
-      <div className="text-right">
+      <div className="flex justify-end">
         <Button
           {...triggerProps}
           onClick={() => {
@@ -148,7 +149,7 @@ export const TransactionActionsCell = memo(function TransactionActionsCell({
   }
 
   return (
-    <div className="text-right">
+    <div className="flex justify-end">
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger render={<Button {...triggerProps} />}>{icon}</DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-auto min-w-40">

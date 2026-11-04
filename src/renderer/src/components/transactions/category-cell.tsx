@@ -32,7 +32,7 @@ export const CategoryCell = memo(function CategoryCell({
       trigger={{
         variant: 'cell',
         size: 'sm',
-        className: cn('-ml-2', !transaction.categoryName && 'text-muted-foreground'),
+        className: cn('-ml-2 h-5', !transaction.categoryName && 'text-muted-foreground'),
         onClick: (event) => event.stopPropagation()
       }}
       label={transaction.categoryName ?? 'Uncategorized'}

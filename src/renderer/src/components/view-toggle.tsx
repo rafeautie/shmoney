@@ -14,7 +14,7 @@ export function ViewToggle({
 }) {
   return (
     <Tabs className="mx-1" value={view} onValueChange={(next) => onChange(next as ListView)}>
-      <TabsList className="h-7 rounded-md">
+      <TabsList className="h-8 rounded-md">
         <TabsTrigger value="cards" className="rounded-sm text-xs" aria-label="Card view">
           <HugeiconsIcon icon={GridViewIcon} className="size-3.5" />
           Cards

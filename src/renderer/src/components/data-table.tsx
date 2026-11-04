@@ -64,7 +64,7 @@ export function DataTableColumnHeader<TData, TValue>({
     <Button
       variant="ghost"
       size="sm"
-      className={cn('-ml-2.5 h-6', className)}
+      className={cn('-ml-2.5 h-7', className)}
       onClick={() => column.toggleSorting(sorted === 'asc')}
     >
       {title}

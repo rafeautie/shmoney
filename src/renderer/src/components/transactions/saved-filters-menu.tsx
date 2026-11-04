@@ -147,7 +147,7 @@ export function SavedFiltersMenu({ onLoad, currentFilters }: SavedFiltersMenuPro
         <Separator />
         <div className="flex items-center gap-2 p-2">
           <Input
-            className="h-7"
+            className="h-8"
             placeholder="Save current filter as…"
             value={name}
             onChange={(e) => setName(e.target.value)}

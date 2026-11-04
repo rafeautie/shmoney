@@ -90,7 +90,7 @@ export function SettingsDialog(): React.JSX.Element {
                 title={status?.tooltip}
                 onClick={() => open(id)}
                 className={cn(
-                  'flex h-7 items-center gap-[9px] rounded-[6px] px-2 py-1 text-left text-xs outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/50',
+                  'flex h-7 items-center gap-[9px] rounded-[8px] px-2 py-1 text-left text-xs outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring/50',
                   id === active.id && 'bg-sidebar-accent'
                 )}
               >
