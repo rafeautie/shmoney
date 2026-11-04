@@ -98,7 +98,8 @@ function GoalsPage() {
                 </p>
               </>
             ) : (
-              <div className="grid gap-5 px-page md:grid-cols-2 xl:grid-cols-3">
+              // pt-px keeps the cards' outside ring clear of the scroll viewport's clip
+              <div className="grid gap-5 px-page pt-px md:grid-cols-2 xl:grid-cols-3">
                 {active.map((goal) => (
                   <GoalCard key={goal.id} goal={goal} />
                 ))}
