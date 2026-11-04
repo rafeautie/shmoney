@@ -2,14 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { toGlyphs } from './mask-glyphs'
 
 /** d = dot, x = folds away, p = pad dot, anything else stays as itself */
-const shape = (text: string): string =>
-  toGlyphs(text)
+const shape = (text: string, dots?: number): string =>
+  toGlyphs(text, dots)
     .map((g) => (g.kind === 'fixed' ? g.char : { digit: 'd', drop: 'x', pad: 'p' }[g.kind]))
     .join('')
 
 describe('toGlyphs', () => {
   it('keeps four dots and folds the rest of a large figure', () => {
     expect(shape('$48,213.07')).toBe('$ddxddxxxx')
+  })
+
+  it('masks a piece of a figure with its own dot count, or none', () => {
+    expect(shape('.33', 2)).toBe('xdd')
+    expect(shape('.33', 0)).toBe('xxx')
   })
 
   it('pads a short figure up to four dots', () => {

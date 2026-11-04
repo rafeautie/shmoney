@@ -1,16 +1,16 @@
-import { HugeiconsIcon } from '@hugeicons/react'
-import { Cancel01Icon } from '@hugeicons/core-free-icons'
 import type { TransactionFilters } from '@shared/transaction-filters'
 import { Button } from '@/components/ui/button'
-import { plural } from '@/lib/utils'
 import {
-  AccountsControl,
-  CategoriesControl,
-  DateRangeControl,
-  DirectionControl
-} from '@/components/reports/filter-controls'
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@/components/ui/select'
+import { DateRangeControl } from '@/components/reports/filter-controls'
+import { ActiveFilterChips } from './active-filter-chips'
 import { FilterSearchInput } from './filter-search-input'
-import { MoreFiltersPopover } from './more-filters-popover'
+import { FiltersPopover } from './filters-popover'
 import { SavedFiltersMenu } from './saved-filters-menu'
 
 interface FilterBarProps {
@@ -21,66 +21,83 @@ interface FilterBarProps {
   /** per-account pages: the page's account scope is fixed, so the accounts
    * control is hidden (loaded accountIds are stripped by the parent) */
   hideAccounts?: boolean
+  /** reports: time charts can draw the window before beside their own */
+  showCompare?: boolean
+  /** reports: search is an occasional tool there, so it waits as an icon */
+  collapseSearch?: boolean
 }
 
+const COMPARE_ITEMS = { none: 'No Comparison', previous: 'Vs Previous Period' }
+
 /** The one filter bar, shared by the transactions views and the report page so
- * their filtering never drifts apart. */
-export function FilterBar({ filters, onChange, defaultFilters, hideAccounts }: FilterBarProps) {
+ * their filtering never drifts apart. The date range leads, since it frames
+ * every number below; the rest sit behind Filter and show as chips once set. */
+export function FilterBar({
+  filters,
+  onChange,
+  defaultFilters,
+  hideAccounts,
+  showCompare,
+  collapseSearch
+}: FilterBarProps) {
   const isDefault = JSON.stringify(filters) === JSON.stringify(defaultFilters)
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <FilterSearchInput
-        value={filters.search}
-        onChange={(search) => onChange({ ...filters, search })}
-      />
-      <DateRangeControl
-        value={filters.dateRange}
-        onChange={(dateRange) => onChange({ ...filters, dateRange })}
-      />
-      {!hideAccounts && (
-        <AccountsControl
-          value={filters.accountIds}
-          onChange={(accountIds) => onChange({ ...filters, accountIds })}
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <DateRangeControl
+          value={filters.dateRange}
+          onChange={(dateRange) => onChange({ ...filters, dateRange })}
+          showResolved
         />
-      )}
-      <CategoriesControl
-        value={{
-          categoryIds: filters.categoryIds,
-          includeUncategorized: filters.includeUncategorized
-        }}
-        onChange={({ categoryIds, includeUncategorized }) =>
-          onChange({ ...filters, categoryIds, includeUncategorized })
-        }
+        {showCompare && (
+          <Select
+            value={filters.compare ?? 'none'}
+            items={COMPARE_ITEMS}
+            onValueChange={(v) =>
+              // 'none' is the absence of a comparison, so it leaves the filters at their default
+              onChange({ ...filters, compare: v === 'previous' ? 'previous' : undefined })
+            }
+          >
+            <SelectTrigger size="lg" aria-label="Compare" className="w-auto">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No Comparison</SelectItem>
+              <SelectItem value="previous">Vs Previous Period</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
+        <FiltersPopover
+          filters={filters}
+          onChange={onChange}
+          defaultFilters={defaultFilters}
+          hideAccounts={hideAccounts}
+        />
+        <FilterSearchInput
+          value={filters.search}
+          onChange={(search) => onChange({ ...filters, search })}
+          collapsible={collapseSearch}
+        />
+        <div className="flex-1" />
+        <SavedFiltersMenu currentFilters={filters} onLoad={onChange} />
+        {!isDefault && (
+          <Button
+            variant="ghost"
+            size="lg"
+            className="text-muted-foreground"
+            onClick={() => onChange(defaultFilters)}
+          >
+            Reset
+          </Button>
+        )}
+      </div>
+      <ActiveFilterChips
+        filters={filters}
+        onChange={onChange}
+        defaultFilters={defaultFilters}
+        hideAccounts={hideAccounts}
       />
-      <DirectionControl
-        value={filters.direction}
-        onChange={(direction) => onChange({ ...filters, direction })}
-      />
-      <MoreFiltersPopover filters={filters} onChange={onChange} defaultFilters={defaultFilters} />
-      {/* a chat answer's exact rows; clearing the pin keeps the rest of the filter */}
-      {filters.transactionIds?.length ? (
-        <Button
-          variant="field"
-          size="lg"
-          aria-label="Clear pinned transactions"
-          onClick={() => onChange({ ...filters, transactionIds: undefined })}
-        >
-          {plural(filters.transactionIds.length, 'pinned transaction')}
-          <HugeiconsIcon icon={Cancel01Icon} className="text-muted-foreground" />
-        </Button>
-      ) : null}
-      <SavedFiltersMenu currentFilters={filters} onLoad={onChange} />
-      {!isDefault && (
-        <Button
-          variant="ghost"
-          size="lg"
-          className="text-muted-foreground"
-          onClick={() => onChange(defaultFilters)}
-        >
-          Reset
-        </Button>
-      )}
     </div>
   )
 }

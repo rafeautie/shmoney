@@ -347,8 +347,8 @@ function PasteTokenStep({
         <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
       {connected ? (
-        <div className="flex items-center gap-3 rounded-lg border border-positive/30 bg-positive/10 p-4">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-positive/15 text-positive">
+        <div className="flex items-center gap-3 rounded-lg border border-positive-fill/30 bg-positive-fill/10 p-4">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-positive-fill/15 text-positive">
             <HugeiconsIcon icon={Tick02Icon} size={18} strokeWidth={2.5} />
           </div>
           <div className="space-y-0.5">

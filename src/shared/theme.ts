@@ -12,5 +12,5 @@ export const THEME_CHROME = {
   dark: { background: '#0a0a0a', symbol: '#a1a1a1' }
 } as const
 
-/** Height of the app header (h-10), border included: the box is border-box. */
-export const TITLE_BAR_HEIGHT = 40
+/** Height of the app header (h-12). */
+export const TITLE_BAR_HEIGHT = 48

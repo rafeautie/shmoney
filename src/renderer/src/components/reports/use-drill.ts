@@ -1,20 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
 import { budgetDrillFilters, drillFilters, type DrillTarget } from '@shared/report-drill'
 import type { ReportFilters, WidgetConfig } from '@shared/reports'
-import type { TransactionFilters } from '@shared/transaction-filters'
 import { startOfTodayEpoch } from '@/lib/utils'
+import { useOpenTransactions } from './drill-context'
 
 export type OnDrill = (target: DrillTarget) => void
 export type OnBudgetDrill = (categoryIds: number[]) => void
 
-function useOpenTransactions() {
-  const navigate = useNavigate()
-  return (filters: TransactionFilters) =>
-    void navigate({ to: '/accounts', search: { tab: 'transactions', filters } })
-}
-
-/** Opens All transactions filtered to a clicked mark; undefined when the widget can't drill. */
+/** Opens the transactions behind a clicked mark; undefined when the widget can't drill. */
 export function useDrill(
   config: WidgetConfig,
   reportFilters: ReportFilters,

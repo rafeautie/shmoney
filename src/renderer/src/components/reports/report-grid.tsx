@@ -19,7 +19,7 @@ function useContainerWidth() {
     const node = containerRef.current
     if (!node) return
     setWidth(node.offsetWidth)
-    // Leading + trailing throttle: the sidebar's 200ms collapse would otherwise
+    // Leading + trailing throttle: the sidebar's 300ms collapse would otherwise
     // re-lay out every chart on every frame; this applies the first width at once
     // and then at most one update per THROTTLE_MS, always ending on the final width.
     let last = 0
@@ -121,6 +121,22 @@ export function ReportGrid({
     [widgets]
   )
 
+  // stat cards that meet edge to edge in a row, same height, join into a strip;
+  // arranging keeps them apart so each card stays its own thing to drag
+  const joins = useMemo(() => {
+    const stats = editing ? [] : widgets.filter((w) => w.type === 'stat')
+    const right = new Set<number>()
+    const left = new Set<number>()
+    for (const a of stats) {
+      const b = stats.find((b) => b.x === a.x + a.w && b.y === a.y && b.h === a.h)
+      if (b) {
+        right.add(a.id)
+        left.add(b.id)
+      }
+    }
+    return { left, right }
+  }, [widgets, editing])
+
   return (
     <div ref={containerRef}>
       {mounted && (
@@ -157,6 +173,8 @@ export function ReportGrid({
                 drillable={!editing}
                 onEdit={onEditWidget}
                 onDelete={onDeleteWidget}
+                joinLeft={joins.left.has(widget.id)}
+                joinRight={joins.right.has(widget.id)}
               />
             </div>
           ))}

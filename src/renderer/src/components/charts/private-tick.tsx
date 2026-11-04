@@ -34,7 +34,7 @@ export function privateTick(
       <foreignObject x={left} y={top} width={BOX_WIDTH} height={BOX_HEIGHT}>
         <div
           className={cn(
-            'flex h-full items-center text-muted-foreground',
+            'flex h-full items-center text-caption text-muted-foreground',
             textAnchor === 'end' && 'justify-end',
             textAnchor === 'middle' && 'justify-center'
           )}

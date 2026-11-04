@@ -7,14 +7,10 @@ import { TITLE_BAR_HEIGHT } from '@shared/theme'
 /**
  * The header is sized in CSS px, which page zoom scales, but the native caption
  * buttons and traffic lights are placed in window units, so they follow by hand.
- *
- * The caption buttons sit one unit short of the header so its bottom border runs
- * unbroken beneath them, the way a Windows 11 title bar separator does. At the
- * full height the OS paints the buttons' background over that row and the
- * border stops short of the window edge.
+ * The header has no bottom border, so the caption buttons take its full height.
  */
 export function titleBarOverlayHeight(scale: number): number {
-  return Math.round(TITLE_BAR_HEIGHT * scale) - 1
+  return Math.round(TITLE_BAR_HEIGHT * scale)
 }
 
 export function trafficLightPosition(scale: number): { x: number; y: number } {

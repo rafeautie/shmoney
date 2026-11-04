@@ -1,6 +1,10 @@
 import { clsx, type ClassValue } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { extendTailwindMerge } from 'tailwind-merge'
 import type { SortingState } from '@tanstack/react-table'
+
+// the type scale's own sizes (main.css @theme): without them tailwind-merge
+// reads text-caption as a color and drops it beside a real text color
+const twMerge = extendTailwindMerge({ extend: { theme: { text: ['caption', 'footnote'] } } })
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs))
@@ -8,6 +12,11 @@ export function cn(...inputs: ClassValue[]): string {
 
 /** Aligns first/last cell content with the page gutter when a table bleeds to its container's edges;
  * set --table-edge on an ancestor to match tighter chrome (e.g. a px-4 card) */
+/** A page's full-width table sits on its own sheet: white below the gray page
+ * header in light mode, the same as the page in dark (where canvas and
+ * background are one color). Cards keep their own surface instead. */
+export const TABLE_SHEET = 'bg-background'
+
 export const TABLE_BLEED =
   '[&_th:first-child]:pl-[var(--table-edge,var(--spacing-page))] [&_td:first-child]:pl-[var(--table-edge,var(--spacing-page))] [&_th:last-child]:pr-[var(--table-edge,var(--spacing-page))] [&_td:last-child]:pr-[var(--table-edge,var(--spacing-page))]'
 
@@ -99,6 +108,21 @@ export function formatAmount(milliunits: number, currency: string): string {
   } catch {
     // SimpleFIN allows custom currency URLs that Intl rejects
     return `${value.toFixed(2)} ${currency}`
+  }
+}
+
+/** {@link formatAmount} split at the decimal separator: ["$76,456", ".33"].
+ * Whatever follows the fraction (a trailing symbol) stays with it; a currency
+ * without minor units gives an empty second part. */
+export function formatAmountParts(milliunits: number, currency: string): [string, string] {
+  try {
+    const parts = currencyFormat(currency).formatToParts(milliunits / 1000)
+    const join = (list: Intl.NumberFormatPart[]) => list.map((part) => part.value).join('')
+    const decimal = parts.findIndex((part) => part.type === 'decimal')
+    if (decimal < 0) return [join(parts), '']
+    return [join(parts.slice(0, decimal)), join(parts.slice(decimal))]
+  } catch {
+    return [formatAmount(milliunits, currency), '']
   }
 }
 

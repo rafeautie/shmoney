@@ -33,6 +33,8 @@ interface FilteredTransactionsTableProps {
   /** Fixed account for the entry row; omitted = pick from an account cell */
   createAccountId?: number
   className?: string
+  /** classes for the table below the filter bar (a page sets it on a sheet) */
+  tableClassName?: string
 }
 
 /** TransactionsTable with a filter bar over it. */
@@ -45,7 +47,8 @@ export function FilteredTransactionsTable({
   showAccount,
   showCreateRow,
   createAccountId,
-  className
+  className,
+  tableClassName
 }: FilteredTransactionsTableProps) {
   const { filters, setFilters, resolved, isDefault } = filterState
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_TRANSACTION_SORTING)
@@ -74,7 +77,7 @@ export function FilteredTransactionsTable({
         showCreateRow={showCreateRow}
         createAccountId={createAccountId}
         emptyMessage={isDefault ? undefined : 'No transactions match these filters.'}
-        className="min-h-0 flex-1"
+        className={cn('min-h-0 flex-1', tableClassName)}
       />
     </div>
   )

@@ -59,6 +59,32 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       h: 2
     },
     {
+      // the month so far against last month at the same day: the question a
+      // finance dashboard opens on
+      title: 'Spending this month vs last',
+      type: 'line',
+      config: {
+        query: {
+          source: 'transactions',
+          measure: 'expense',
+          groupBy: 'none',
+          timeGrain: 'day',
+          cumulative: true
+        },
+        filters: {
+          mode: 'inherit',
+          overrides: {
+            dateRange: { kind: 'relative', unit: 'month', count: 1, includeCurrent: true },
+            compare: 'previous'
+          }
+        }
+      },
+      x: 0,
+      y: 2,
+      w: 8,
+      h: 5
+    },
+    {
       title: 'Monthly expenses by group',
       type: 'bar',
       config: {
@@ -73,13 +99,14 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
         display: { stacked: true, showLegend: true }
       },
       x: 0,
-      y: 2,
+      y: 7,
       w: 8,
       h: 5
     },
     {
+      // a ranked list reads in a glance where a radial chart needs its legend
       title: 'Spending by category',
-      type: 'radial',
+      type: 'summaryTable',
       config: {
         query: {
           source: 'transactions',
@@ -87,10 +114,9 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
           groupBy: 'category',
           timeGrain: 'none',
           cumulative: false,
-          limit: 8
+          limit: 6
         },
-        filters: { mode: 'inherit', overrides: {} },
-        display: { showLegend: true }
+        filters: { mode: 'inherit', overrides: {} }
       },
       x: 8,
       y: 2,
@@ -111,8 +137,8 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 0,
-      y: 7,
-      w: 8,
+      y: 12,
+      w: 12,
       h: 4
     },
     {
@@ -132,7 +158,7 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
       x: 8,
       y: 7,
       w: 4,
-      h: 4
+      h: 5
     },
     {
       title: 'Transactions',
@@ -148,7 +174,7 @@ export const SPENDING_OVERVIEW_TEMPLATE: ReportCreateInput = {
         filters: { mode: 'inherit', overrides: {} }
       },
       x: 0,
-      y: 11,
+      y: 16,
       w: 12,
       h: 6
     }

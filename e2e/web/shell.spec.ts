@@ -113,14 +113,38 @@ test.describe('command palette', () => {
   const searchBox = (page: Page): Locator =>
     page.getByPlaceholder('Search pages, actions, and transactions…')
 
-  test('Ctrl+K opens and closes it', async ({ app }) => {
+  test('Ctrl+K opens it, and pressing it again keeps it open', async ({ app }) => {
     const { page } = app
     await app.open()
     await page.keyboard.press(`${app.mod}+k`)
     await expect(palette(page)).toBeVisible()
     await expect(searchBox(page)).toBeFocused()
+    // only Escape or a click outside closes it
     await page.keyboard.press(`${app.mod}+k`)
+    await expect(palette(page)).toBeVisible()
+    await expect(searchBox(page)).toBeFocused()
+  })
+
+  test('a click outside closes it', async ({ app }) => {
+    const { page } = app
+    await app.open()
+    await page.keyboard.press(`${app.mod}+k`)
+    await expect(palette(page)).toBeVisible()
+    // the page's left gutter: the open panel hangs over the middle of the page,
+    // and the sidebar's resize rail overlaps the first few pixels
+    await page.locator('main').click({ position: { x: 24, y: 8 } })
     await expect(palette(page)).toBeHidden()
+  })
+
+  test('the clear button empties the search and keeps it open', async ({ app }) => {
+    const { page } = app
+    await app.open()
+    await page.keyboard.press(`${app.mod}+k`)
+    await searchBox(page).fill('csv')
+    await page.getByRole('button', { name: 'Clear search' }).click()
+    await expect(searchBox(page)).toHaveValue('')
+    await expect(searchBox(page)).toBeFocused()
+    await expect(palette(page)).toBeVisible()
   })
 
   test('Escape closes it', async ({ app }) => {
@@ -165,8 +189,9 @@ test.describe('command palette', () => {
     await app.open()
     await page.keyboard.press(`${app.mod}+k`)
     await page.getByRole('option', { name: 'Budget' }).click()
-    await expect(palette(page)).toBeHidden()
     await expect(page).toHaveURL(/#\/budget/)
+    // choosing an entry leaves the search open for the next one
+    await expect(palette(page)).toBeVisible()
 
     await page.keyboard.press(`${app.mod}+k`)
     await page.getByRole('option', { name: 'Activity' }).click()
@@ -203,7 +228,13 @@ test.describe('command palette', () => {
     await app.open()
     await page.keyboard.press(`${app.mod}+k`)
     await page.getByRole('option', { name: 'Import' }).click()
-    await expect(page.getByRole('dialog', { name: 'Import Transactions' })).toBeVisible()
+    const importDialog = page.getByRole('dialog', { name: 'Import Transactions' })
+    await expect(importDialog).toBeVisible()
+    await expect(palette(page)).toBeHidden()
+
+    // closing the dialog hands focus back to the search, which stays shut
+    await page.keyboard.press('Escape')
+    await expect(importDialog).toBeHidden()
     await expect(palette(page)).toBeHidden()
   })
 

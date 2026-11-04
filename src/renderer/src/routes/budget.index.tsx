@@ -26,6 +26,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useSavingsGoals, type SavingsGoals } from '@/hooks/use-savings-goals'
 import { currentMonth, formatMonthLong, shiftMonth } from '@/lib/format-date'
 import { useBudgetView } from '@/lib/settings'
+import { TABLE_SHEET, cn } from '@/lib/utils'
 
 export const Route = createFileRoute('/budget/')({
   component: BudgetPage
@@ -58,7 +59,7 @@ function BudgetPage() {
     // full-height flex column so the envelope table can bleed to the app
     // edges and own its scrolling, like the transactions table
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="space-y-6 px-page pt-page pb-5">
+      <div className="space-y-6 px-page pt-page-top pb-5">
         <PageHeader
           title="Budget"
           description="Envelope budgeting: fill each category monthly, and what you don't spend rolls forward."
@@ -123,7 +124,7 @@ function BudgetPage() {
           </Empty>
         </div>
       ) : budgetView === 'table' ? (
-        <EnvelopeList summary={summary} pace={pace} className="min-h-0 flex-1" />
+        <EnvelopeList summary={summary} pace={pace} className={cn('min-h-0 flex-1', TABLE_SHEET)} />
       ) : (
         <ScrollArea className="min-h-0 flex-1">
           <div className="space-y-8 px-page pb-page">

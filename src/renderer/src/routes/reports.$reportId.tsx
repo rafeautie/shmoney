@@ -25,6 +25,7 @@ import {
   EmptyTitle
 } from '@/components/ui/empty'
 import { ReportGrid } from '@/components/reports/report-grid'
+import { DrillSheetHost } from '@/components/reports/drill-sheet'
 import { FilterBar } from '@/components/transactions/filter-bar'
 import { AddWidgetButton, WidgetEditor } from '@/components/reports/widget-editor'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -192,97 +193,108 @@ function ReportPage() {
   }
 
   return (
-    <Page className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <h2 className="min-w-0 flex-1 truncate text-xl font-semibold tracking-tight select-text">
-          {detail.report.name}
-        </h2>
-        <div className="flex shrink-0 items-center gap-2">
-          {/* an empty report offers the same button in its empty state */}
-          {detail.widgets.length > 0 && (
-            <AddWidgetButton
-              reportId={id}
-              reportFilters={detail.report.filters}
-              nextPosition={nextPosition}
-            />
-          )}
-          {detail.widgets.length > 0 && (
-            <Button variant={editing ? 'default' : 'outline'} onClick={() => setEditing(!editing)}>
-              {editing ? 'Done' : 'Arrange'}
-            </Button>
-          )}
-          <ActionsMenu label="Report Actions">
-            <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => setRenaming(true)}>
-              Rename
-            </ActionsMenuItem>
-            <ActionsMenuItem icon={Delete02Icon} destructive onClick={() => setConfirmDelete(true)}>
-              Delete
-            </ActionsMenuItem>
-          </ActionsMenu>
+    <DrillSheetHost>
+      <Page className="space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="min-w-0 flex-1 truncate text-2xl font-semibold tracking-tight select-text">
+            {detail.report.name}
+          </h2>
+          <div className="flex shrink-0 items-center gap-2">
+            {/* an empty report offers the same button in its empty state */}
+            {detail.widgets.length > 0 && (
+              <AddWidgetButton
+                reportId={id}
+                reportFilters={detail.report.filters}
+                nextPosition={nextPosition}
+              />
+            )}
+            {detail.widgets.length > 0 && (
+              <Button
+                variant={editing ? 'default' : 'outline'}
+                onClick={() => setEditing(!editing)}
+              >
+                {editing ? 'Done' : 'Arrange'}
+              </Button>
+            )}
+            <ActionsMenu label="Report Actions">
+              <ActionsMenuItem icon={PencilEdit01Icon} onClick={() => setRenaming(true)}>
+                Rename
+              </ActionsMenuItem>
+              <ActionsMenuItem
+                icon={Delete02Icon}
+                destructive
+                onClick={() => setConfirmDelete(true)}
+              >
+                Delete
+              </ActionsMenuItem>
+            </ActionsMenu>
+          </div>
         </div>
-      </div>
 
-      <FilterBar
-        filters={detail.report.filters}
-        onChange={handleFiltersChange}
-        defaultFilters={DEFAULT_REPORT_FILTERS}
-      />
-
-      {detail.widgets.length === 0 ? (
-        <Empty className="border py-16">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <HugeiconsIcon icon={DashboardSquare01Icon} />
-            </EmptyMedia>
-            <EmptyTitle>This Report Is Empty</EmptyTitle>
-            <EmptyDescription>Add a widget to get started.</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <AddWidgetButton
-              reportId={id}
-              reportFilters={detail.report.filters}
-              nextPosition={nextPosition}
-            />
-          </EmptyContent>
-        </Empty>
-      ) : (
-        <ReportGrid
-          widgets={detail.widgets}
-          reportFilters={detail.report.filters}
-          editing={editing}
-          onLayoutChange={handleLayoutChange}
-          onEditWidget={openEditor}
-          onDeleteWidget={(widget) => deleteWidgetMutation.mutate(widget.id)}
+        <FilterBar
+          filters={detail.report.filters}
+          onChange={handleFiltersChange}
+          defaultFilters={DEFAULT_REPORT_FILTERS}
+          showCompare
+          collapseSearch
         />
-      )}
 
-      {/* editing an existing widget: the trigger is on the card, so the page
+        {detail.widgets.length === 0 ? (
+          <Empty className="border py-16">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <HugeiconsIcon icon={DashboardSquare01Icon} />
+              </EmptyMedia>
+              <EmptyTitle>This Report Is Empty</EmptyTitle>
+              <EmptyDescription>Add a widget to get started.</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <AddWidgetButton
+                reportId={id}
+                reportFilters={detail.report.filters}
+                nextPosition={nextPosition}
+              />
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <ReportGrid
+            widgets={detail.widgets}
+            reportFilters={detail.report.filters}
+            editing={editing}
+            onLayoutChange={handleLayoutChange}
+            onEditWidget={openEditor}
+            onDeleteWidget={(widget) => deleteWidgetMutation.mutate(widget.id)}
+          />
+        )}
+
+        {/* editing an existing widget: the trigger is on the card, so the page
           drives the editor itself */}
-      <WidgetEditor
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        reportId={id}
-        reportFilters={detail.report.filters}
-        widget={editorWidget}
-        nextPosition={nextPosition}
-      />
+        <WidgetEditor
+          open={editorOpen}
+          onOpenChange={setEditorOpen}
+          reportId={id}
+          reportFilters={detail.report.filters}
+          widget={editorWidget}
+          nextPosition={nextPosition}
+        />
 
-      <NameDialog
-        open={renaming}
-        onOpenChange={setRenaming}
-        title="Rename Report"
-        name={detail.report.name}
-        onSave={(name) => renameMutation.mutateAsync(name)}
-      />
-      <ConfirmDialog
-        open={confirmDelete}
-        onOpenChange={setConfirmDelete}
-        title={`Delete “${detail.report.name}”?`}
-        description="This permanently deletes the report and all its widgets."
-        pending={deleteMutation.isPending}
-        pendingLabel="Deleting…"
-        onConfirm={() => deleteMutation.mutate()}
-      />
-    </Page>
+        <NameDialog
+          open={renaming}
+          onOpenChange={setRenaming}
+          title="Rename Report"
+          name={detail.report.name}
+          onSave={(name) => renameMutation.mutateAsync(name)}
+        />
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title={`Delete “${detail.report.name}”?`}
+          description="This permanently deletes the report and all its widgets."
+          pending={deleteMutation.isPending}
+          pendingLabel="Deleting…"
+          onConfirm={() => deleteMutation.mutate()}
+        />
+      </Page>
+    </DrillSheetHost>
   )
 }

@@ -102,6 +102,11 @@ const GRAIN_LABELS = {
   year: 'Yearly'
 } as const
 
+const TRANSACTIONS_VIEW_LABELS = {
+  list: 'Recent List',
+  table: 'Full Table'
+} as const
+
 interface Draft {
   title: string
   type: WidgetType
@@ -362,6 +367,37 @@ export function WidgetEditor({
               </div>
             )}
 
+            {isTransactions && (
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold">Data</h4>
+                <div className="space-y-2">
+                  <Label htmlFor={`${uid}-transactions-view`}>View</Label>
+                  <Select
+                    value={config.display?.transactionsView ?? 'list'}
+                    items={TRANSACTIONS_VIEW_LABELS}
+                    onValueChange={(v) =>
+                      patchDisplay({ transactionsView: v as keyof typeof TRANSACTIONS_VIEW_LABELS })
+                    }
+                  >
+                    <SelectTrigger id={`${uid}-transactions-view`} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(
+                        Object.keys(
+                          TRANSACTIONS_VIEW_LABELS
+                        ) as (keyof typeof TRANSACTIONS_VIEW_LABELS)[]
+                      ).map((view) => (
+                        <SelectItem key={view} value={view}>
+                          {TRANSACTIONS_VIEW_LABELS[view]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
             {/* data */}
             {!isTransactions && !isBudget && !isGoalsType && (
               <div className="space-y-4">
@@ -522,6 +558,13 @@ export function WidgetEditor({
                       onChange={(showLegend) => patchDisplay({ showLegend })}
                     />
                   )}
+                  {draft.type === 'stat' && !isGoalSource && (
+                    <SwitchRow
+                      label="Sparkline"
+                      checked={config.display?.sparkline ?? true}
+                      onChange={(sparkline) => patchDisplay({ sparkline })}
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -578,6 +621,24 @@ export function WidgetEditor({
                       onChange={(dateRange) => patchOverrides({ dateRange })}
                     />
                   </OverrideRow>
+
+                  {isChart && hasTimeAxis && !isGoalSource && (
+                    <OverrideRow
+                      label="Compare to Previous Period"
+                      active={overrides.compare !== undefined}
+                      onToggle={(on) =>
+                        patchOverrides({ compare: on ? (base.compare ?? 'none') : undefined })
+                      }
+                    >
+                      <Switch
+                        checked={(overrides.compare ?? base.compare) === 'previous'}
+                        disabled={overrides.compare === undefined}
+                        onCheckedChange={(on) =>
+                          patchOverrides({ compare: on ? 'previous' : 'none' })
+                        }
+                      />
+                    </OverrideRow>
+                  )}
 
                   {!isGoalSource && (
                     <>

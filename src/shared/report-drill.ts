@@ -33,7 +33,9 @@ export function drillFilters(
   categories?: Pick<Category, 'id' | 'groupId' | 'systemKey'>[]
 ): TransactionFilters | null {
   if (config.query.source === 'goals') return null
-  const filters: TransactionFilters = { ...mergeFilters(reportFilters, config.filters) }
+  // compare only changes how a chart draws; it has no say in which rows match
+  const { compare, ...merged } = mergeFilters(reportFilters, config.filters)
+  const filters: TransactionFilters = merged
   const { measure, groupBy, timeGrain } = config.query
 
   // income and expense measures only count one sign, so the list should too

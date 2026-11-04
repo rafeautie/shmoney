@@ -14,7 +14,8 @@ function goalRow(app: App, name: string): Locator {
 }
 
 function statCard(app: App, label: string): Locator {
-  return app.page.locator('[data-slot="card"]').filter({ hasText: new RegExp(`^${label}`) })
+  // one card split into cells, one per figure
+  return app.page.locator('[data-slot="card-content"]').filter({ hasText: new RegExp(`^${label}`) })
 }
 
 async function openCards(app: App): Promise<void> {

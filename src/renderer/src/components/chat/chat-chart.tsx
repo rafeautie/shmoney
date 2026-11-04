@@ -30,7 +30,7 @@ function toNumber(cell: unknown): number | null {
 /** real amounts as the scope's currency, or plain numbers when mixed/unknown */
 function formatChatValue(value: number, currency: string | null, compact = false): string {
   const options: Intl.NumberFormatOptions = compact
-    ? { notation: 'compact' }
+    ? { notation: 'compact', maximumSignificantDigits: 3 }
     : { maximumFractionDigits: 2 }
   if (currency) {
     try {

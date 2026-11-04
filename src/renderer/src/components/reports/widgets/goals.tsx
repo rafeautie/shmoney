@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
-import { Bar, BarChart, CartesianGrid, Cell, XAxis, YAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, XAxis, YAxis } from 'recharts'
 import type { WidgetConfig } from '@shared/reports'
-import { GOAL_STATUS_TONE, type GoalSummary } from '@shared/goals'
+import { GOAL_STATUS_LABELS, GOAL_STATUS_TONE, type GoalSummary } from '@shared/goals'
 import { GoalProgressRow } from '@/components/goals/goal-progress'
 import { Empty, EmptyDescription } from '@/components/ui/empty'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { paletteColor } from '@/components/charts/chart-style'
 import { WidgetError } from '../widget-error'
+import { useEntityColors } from '../entity-colors'
 import { TooltipRow, WidgetSkeleton } from './shared'
 
 /** Shares the Goals page's ['goals'] key, so a card and a widget open side by
@@ -41,9 +42,11 @@ export function GoalsWidget({ config }: { config: WidgetConfig }) {
   )
 }
 
-/** Saved as a share of target, one bar per goal, toned by GOAL_STATUS_TONE so a
- * behind goal is red here and red on the page. */
+/** Saved as a share of target, one bar per goal in the goal's own color (the
+ * one its line has in "Saved over time"). A goal that needs attention says so
+ * in words at the end of its bar, so color never has to mean two things. */
 function GoalBarsChart({ goals }: { goals: GoalSummary[] }) {
+  const colorOf = useEntityColors('goals', 'none')
   const data = goals.map((goal, i) => ({
     label: goal.name,
     pct:
@@ -53,12 +56,13 @@ function GoalBarsChart({ goals }: { goals: GoalSummary[] }) {
     progress: goal.progress,
     target: goal.targetAmount,
     currency: goal.currency,
-    fill: GOAL_STATUS_TONE[goal.status] === 'destructive' ? 'var(--destructive)' : paletteColor(i)
+    fill: colorOf?.(goal.id) ?? paletteColor(i),
+    status: GOAL_STATUS_TONE[goal.status] === 'destructive' ? GOAL_STATUS_LABELS[goal.status] : ''
   }))
   return (
     <div className="h-full px-4 pb-4">
       <ChartContainer config={{ pct: { label: 'Saved' } }} className="aspect-auto h-full w-full">
-        <BarChart data={data} layout="vertical" margin={{ top: 8, right: 8 }}>
+        <BarChart data={data} layout="vertical" margin={{ top: 8, right: 64 }} barCategoryGap="30%">
           {/* the gridded 0-100% scale is what "against target" reads off, and it
               stays legible for a goal with nothing saved and so no bar */}
           <CartesianGrid horizontal={false} />
@@ -93,10 +97,16 @@ function GoalBarsChart({ goals }: { goals: GoalSummary[] }) {
               />
             }
           />
-          <Bar dataKey="pct" radius={[0, 2, 2, 0]} isAnimationActive={false}>
+          <Bar dataKey="pct" radius={[0, 3, 3, 0]} isAnimationActive={false}>
             {data.map((d) => (
               <Cell key={d.label} fill={d.fill} />
             ))}
+            <LabelList
+              dataKey="status"
+              position="right"
+              offset={8}
+              className="fill-destructive text-footnote font-medium"
+            />
           </Bar>
         </BarChart>
       </ChartContainer>

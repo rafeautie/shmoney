@@ -81,7 +81,9 @@ const filterFieldsSchema = z.object({
   /** rows in the Transfers system category; reports exclude them by default */
   includeTransfers: z.boolean(),
   /** pins exact rows (a chat answer's), ANDed with the rest of the filter */
-  transactionIds: z.array(idSchema).optional()
+  transactionIds: z.array(idSchema).optional(),
+  /** time charts also draw the window before as a faint ghost; not a row filter */
+  compare: z.enum(['none', 'previous']).optional()
 })
 
 export const reportFiltersSchema = filterFieldsSchema.extend({
@@ -188,7 +190,11 @@ export const widgetConfigSchema = z.object({
       donut: z.boolean().optional(),
       showLegend: z.boolean().optional(),
       budgetView: budgetViewSchema.optional(),
-      goalView: goalViewSchema.optional()
+      goalView: goalViewSchema.optional(),
+      /** stat cards: the measure's trend under the figure; on unless turned off */
+      sparkline: z.boolean().optional(),
+      /** transactions widgets: a short recent list (default) or the full table */
+      transactionsView: z.enum(['list', 'table']).optional()
     })
     .optional()
 })
@@ -207,11 +213,13 @@ export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
 
 // ---------- resolved query (what crosses IPC) ----------
 
-export const resolvedFiltersSchema = reportFiltersSchema.omit({ dateRange: true }).extend({
-  /** unix seconds, inclusive; null = unbounded */
-  dateStart: z.number().int().nullable(),
-  dateEnd: z.number().int().nullable()
-})
+export const resolvedFiltersSchema = reportFiltersSchema
+  .omit({ dateRange: true, compare: true })
+  .extend({
+    /** unix seconds, inclusive; null = unbounded */
+    dateStart: z.number().int().nullable(),
+    dateEnd: z.number().int().nullable()
+  })
 export type ResolvedFilters = z.infer<typeof resolvedFiltersSchema>
 
 export const resolvedQuerySchema = widgetQuerySchema
@@ -248,7 +256,8 @@ export function resolveQuery(
   reportFilters: ReportFilters,
   nowSec: number
 ): ResolvedQuery {
-  const { dateRange, ...rest } = mergeFilters(reportFilters, config.filters)
+  // compare is a drawing choice, so it stays out of the query (and its cache key)
+  const { dateRange, compare, ...rest } = mergeFilters(reportFilters, config.filters)
   const { start, end } = resolveDateRange(dateRange, nowSec)
   return {
     measure: config.query.measure,
@@ -362,6 +371,21 @@ export function previousPeriod(range: DateRange, nowSec: number): PreviousPeriod
   }
   const span = range.end - range.start + 1
   return { start: range.start - span, end: range.start - 1, label: 'previous period' }
+}
+
+/**
+ * The whole window before a range, for drawing it beside the range bucket by
+ * bucket. Unlike {@link previousPeriod}, a range that includes the unit in
+ * progress compares with the full unit before it rather than stopping at the
+ * same point in time: the chart aligns buckets, and a bucket cut short would
+ * read as a drop.
+ */
+export function previousWindow(range: DateRange, nowSec: number): PreviousPeriod | null {
+  const period = previousPeriod(range, nowSec)
+  if (!period || range.kind !== 'relative' || !range.includeCurrent) return period
+  const fns = UNIT_FNS[range.unit]
+  const { end } = resolveDateRange(range, nowSec)
+  return { ...period, end: toSec(fns.end(fns.sub(new Date(end! * 1000), range.count))) }
 }
 
 /**

@@ -47,8 +47,10 @@ function collectSeries(rows: QueryRow[]): SeriesInfo[] {
  * one numeric field per (group, currency) series. When `zeroFill` is set (all
  * additive measures) missing buckets are filled with 0 so lines/bars don't skip
  * gaps; averages have no natural zero, so their empty buckets are left absent to
- * render as gaps instead of dropping to $0. Cumulative mode runs a per-series
- * running total over the filled data (additive measures only).
+ * render as gaps instead of dropping to $0. Buckets that start after `nowSec`
+ * haven't happened yet, so they stay empty too: a month-to-date line stops at
+ * today instead of running flat to the month's end. Cumulative mode runs a
+ * per-series running total over the filled data (additive measures only).
  */
 export function pivotTimeSeries(
   rows: QueryRow[],
@@ -56,7 +58,8 @@ export function pivotTimeSeries(
   dateStart: number | null,
   dateEnd: number | null,
   cumulative: boolean,
-  zeroFill: boolean
+  zeroFill: boolean,
+  nowSec?: number
 ): TimeSeriesPivot {
   const series = collectSeries(rows)
   if (rows.length === 0) return { data: [], series, tooManyBuckets: false }
@@ -75,7 +78,8 @@ export function pivotTimeSeries(
     const row: Record<string, string | number> = { bucket }
     // averages have no natural zero: leaving empty buckets absent renders them
     // as gaps instead of fabricating a $0 average for a period with no data
-    if (zeroFill) for (const s of series) row[s.key] = 0
+    const future = nowSec !== undefined && parseBucketLabel(grain, bucket).getTime() / 1000 > nowSec
+    if (zeroFill && !future) for (const s of series) row[s.key] = 0
     byBucket.set(bucket, row)
   }
   for (const row of rows) {
@@ -90,6 +94,7 @@ export function pivotTimeSeries(
     const running = new Map<string, number>()
     for (const row of data) {
       for (const s of series) {
+        if (row[s.key] === undefined) continue
         const next = (running.get(s.key) ?? 0) + (row[s.key] as number)
         running.set(s.key, next)
         row[s.key] = next
@@ -157,4 +162,48 @@ export function groupTotals(
     }
   }
   return result
+}
+
+/** Complete buckets before the one in progress that set its pace. */
+const PACE_BUCKETS = 3
+/** Without history, a straight-line pace only once this much of the bucket has passed. */
+const MIN_ELAPSED = 0.25
+
+/**
+ * Where the bucket in progress is headed, per series key: the typical bucket
+ * (the average of the last few complete ones), or what it already holds once
+ * that is more. Spending is lumpy (rent lands on the 1st), so a straight-line
+ * pace (so far / elapsed) overshoots early in a month; it is only the fallback
+ * when there is no history, once a quarter of the bucket has passed. `raw`
+ * holds per-bucket values and `shown` what the chart draws (running totals
+ * when cumulative), so a cumulative projection lands on the running total.
+ * Null when nothing projects.
+ */
+export function projectInProgress(
+  raw: Record<string, string | number>[],
+  shown: Record<string, string | number>[],
+  index: number,
+  keys: string[],
+  elapsed: number
+): Record<string, number> | null {
+  if (index < 0 || index >= raw.length || elapsed <= 0 || elapsed >= 1) return null
+  const value = (row: Record<string, string | number> | undefined, key: string) =>
+    typeof row?.[key] === 'number' ? (row[key] as number) : null
+  const projected: Record<string, number> = {}
+  for (const key of keys) {
+    const soFar = value(raw[index], key) ?? 0
+    const history = raw
+      .slice(Math.max(0, index - PACE_BUCKETS), index)
+      .map((row) => value(row, key))
+      .filter((v): v is number => v !== null)
+    let bucket: number
+    if (history.length > 0) {
+      const typical = history.reduce((a, b) => a + b, 0) / history.length
+      bucket = Math.abs(soFar) > Math.abs(typical) ? soFar : typical
+    } else if (elapsed >= MIN_ELAPSED) {
+      bucket = soFar / elapsed
+    } else continue
+    projected[key] = (value(shown[index], key) ?? soFar) + Math.round(bucket - soFar)
+  }
+  return Object.keys(projected).length > 0 ? projected : null
 }

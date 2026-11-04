@@ -50,14 +50,14 @@ export function ChatWarning({
         if (leaving && e.propertyName === 'grid-template-rows') onDismiss()
       }}
       className={cn(
-        'grid transition-[grid-template-rows] duration-200 ease-out',
+        'grid transition-[grid-template-rows] duration-300 ease-palette',
         leaving ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
       )}
     >
       <div className="min-h-0">
         <div
           className={cn(
-            'mx-2 flex items-center gap-2.5 rounded-t-2xl border border-b-0 border-warning-fill/30 bg-warning-fill/10 py-2 pr-2 pl-3.5 transition duration-200 ease-out',
+            'mx-2 flex items-center gap-2.5 rounded-t-2xl border border-b-0 border-warning-fill/30 bg-warning-fill/10 py-2 pr-2 pl-3.5 transition duration-300 ease-palette',
             leaving && 'translate-y-2 opacity-0'
           )}
         >

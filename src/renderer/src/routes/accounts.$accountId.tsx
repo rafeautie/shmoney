@@ -14,6 +14,7 @@ import { useTransactionFilters } from '@/lib/transaction-filters'
 import { accountOptions } from '@/lib/queries'
 import { HoldingsTable } from '@/components/accounts/holdings-table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { TABLE_SHEET } from '@/lib/utils'
 
 export const Route = createFileRoute('/accounts/$accountId')({
   loader: async ({ context, params }) => {
@@ -67,6 +68,7 @@ function AccountDetailPage() {
       showCreateRow={creating}
       createAccountId={id}
       className="min-h-0 flex-1"
+      tableClassName={TABLE_SHEET}
     />
   )
 
@@ -74,7 +76,7 @@ function AccountDetailPage() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5">
-      <div className="flex items-start justify-between gap-4 px-page pt-page">
+      <div className="flex items-start justify-between gap-4 px-page pt-page-top">
         {/* bottom-aligned: the title block leads with 2xl text and the total
             with its label, so aligning tops would leave the amount floating
             between the two lines on the left. Bottom edges put its baseline on
@@ -82,10 +84,10 @@ function AccountDetailPage() {
         <div className="flex items-end gap-8">
           <div>
             {/* the account's own name and institution, not page furniture */}
-            <h2 className="text-xl font-semibold tracking-tight select-text">
+            <h2 className="text-2xl font-semibold tracking-tight select-text">
               {account?.name ?? 'Account'}
             </h2>
-            <p className="text-muted-foreground select-text">
+            <p className="text-base text-muted-foreground select-text">
               {account && (
                 <>
                   {account.institutionName ? `${account.institutionName} · ` : ''}

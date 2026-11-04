@@ -10,17 +10,24 @@ export function formatMeasureValue(measure: Measure, value: number, currency: st
 /** Compact axis ticks: "$1.2K" for money (milliunits), "1.2K" for counts */
 export function tickFormatter(measure: Measure, currency: string): (value: number) => string {
   if (measure === 'count') {
-    return (value) => new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value)
+    return (value) =>
+      new Intl.NumberFormat(undefined, { notation: 'compact', maximumSignificantDigits: 3 }).format(
+        value
+      )
   }
   return (value) => {
     try {
       return new Intl.NumberFormat(undefined, {
         style: 'currency',
         currency,
-        notation: 'compact'
+        notation: 'compact',
+        maximumSignificantDigits: 3
       }).format(value / 1000)
     } catch {
-      return new Intl.NumberFormat(undefined, { notation: 'compact' }).format(value / 1000)
+      return new Intl.NumberFormat(undefined, {
+        notation: 'compact',
+        maximumSignificantDigits: 3
+      }).format(value / 1000)
     }
   }
 }

@@ -130,6 +130,7 @@ function AggregateBody({
           rows={rows}
           currencies={currencies}
           resolved={resolved}
+          reportFilters={reportFilters}
           onDrill={onDrill}
         />
       )
@@ -154,6 +155,7 @@ function AggregateBody({
           rows={rows}
           currencies={currencies}
           resolved={resolved}
+          reportFilters={reportFilters}
           onDrill={onDrill}
         />
       )

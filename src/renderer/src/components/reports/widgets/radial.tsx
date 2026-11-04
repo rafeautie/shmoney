@@ -9,6 +9,7 @@ import {
   type ChartConfig
 } from '@/components/ui/chart'
 import { paletteColor } from '@/components/charts/chart-style'
+import { totalColor, useEntityColors } from '../entity-colors'
 import { HOVER_FADE, useHoverDim } from '@/components/charts/hover-dim'
 import { groupTotals } from '../data'
 import { CenteredNote, MixedCurrencyBadge, TooltipRow } from './shared'
@@ -40,6 +41,7 @@ export function RadialChartWidget({
   onDrill?: OnDrill
 }) {
   const { active, setActive, clear, shown, hover } = useHoverDim()
+  const colorOf = useEntityColors(config.query.source, config.query.groupBy)
   const totals = useMemo(
     () =>
       groupTotals(
@@ -61,7 +63,7 @@ export function RadialChartWidget({
   )
   const data = totals.map((t, i) => ({
     ...t,
-    fill: paletteColor(i),
+    fill: totalColor(t, colorOf) ?? paletteColor(i),
     fillOpacity: shown(t.label)
   }))
   return (

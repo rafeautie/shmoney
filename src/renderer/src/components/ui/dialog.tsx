@@ -70,16 +70,19 @@ function StackedPopup({
 
 function DialogContent({
   className,
+  overlayClassName,
   children,
   showCloseButton = true,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  /** classes for this dialog's backdrop, e.g. its own timing */
+  overlayClassName?: string
 }) {
   const stackId = React.useId()
   return (
     <DialogPortal>
-      <DialogOverlay stackId={stackId} />
+      <DialogOverlay stackId={stackId} className={overlayClassName} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(

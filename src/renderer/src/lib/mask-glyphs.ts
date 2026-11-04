@@ -16,9 +16,10 @@ export type Glyph =
  * ('drop'), and a short figure grows 'pad' dots right after its last digit.
  * Signs, symbols and currency codes stay put ('fixed'); a symbol touching the
  * dots gets a gap on that side, since a dot sits closer than a digit's ink.
- * index orders the animated glyphs left to right for the stagger.
+ * index orders the animated glyphs left to right for the stagger. `dots`
+ * overrides the count for a piece of a figure, such as cents set apart.
  */
-export function toGlyphs(text: string): Glyph[] {
+export function toGlyphs(text: string, dots = MASK_DOTS): Glyph[] {
   const chars = [...text]
   const glyphs: Glyph[] = []
   let digits = 0
@@ -29,7 +30,7 @@ export function toGlyphs(text: string): Glyph[] {
     const suffix = LETTER.test(char) && (inSuffix || DIGIT.test(chars[i - 1] ?? ''))
     inSuffix = suffix
     if (DIGIT.test(char)) {
-      glyphs.push({ kind: digits < MASK_DOTS ? 'digit' : 'drop', char, index: index++ })
+      glyphs.push({ kind: digits < dots ? 'digit' : 'drop', char, index: index++ })
       digits++
       afterLastDigit = glyphs.length
     } else if (suffix) {
@@ -37,7 +38,9 @@ export function toGlyphs(text: string): Glyph[] {
       glyphs.push({ kind: 'drop', char, index: index++ })
     } else if (
       SEPARATOR.test(char) &&
-      DIGIT.test(chars[i - 1] ?? '') &&
+      // between digits, or leading a split-off fraction (".33"), whose hidden
+      // dots would otherwise trail a lone decimal point
+      (DIGIT.test(chars[i - 1] ?? '') || i === 0) &&
       DIGIT.test(chars[i + 1] ?? '')
     ) {
       glyphs.push({ kind: 'drop', char, index: index++ })
@@ -47,7 +50,7 @@ export function toGlyphs(text: string): Glyph[] {
   })
   if (digits === 0) return glyphs
   const pads: Glyph[] = []
-  for (; digits < MASK_DOTS; digits++) pads.push({ kind: 'pad', index: index++ })
+  for (; digits < dots; digits++) pads.push({ kind: 'pad', index: index++ })
   glyphs.splice(afterLastDigit, 0, ...pads)
   glyphs.forEach((glyph, i) => {
     if (glyph.kind !== 'fixed' || !SYMBOL.test(glyph.char)) return

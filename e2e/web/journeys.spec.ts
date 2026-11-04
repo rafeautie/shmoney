@@ -4,7 +4,11 @@ import { expect, test, type App, exactly } from '../fixtures'
 const settingsDialog = (page: Page): Locator => page.getByRole('dialog', { name: 'Settings' })
 const toast = (page: Page): Locator => page.locator('[data-sonner-toast]')
 const dataRows = (page: Page): Locator =>
-  page.locator('tbody tr').filter({ has: page.locator('td') })
+  // day headers are single-cell rows spanning the table
+  page
+    .locator('tbody tr')
+    .filter({ has: page.locator('td') })
+    .filter({ hasNot: page.locator('td[colspan]') })
 const rowFor = (page: Page, description: string): Locator =>
   page.getByRole('row').filter({ hasText: description })
 
@@ -219,9 +223,16 @@ test('an imported statement flows through the budget and a report, and a delete 
     const row = table.getByRole('row', { name: /Emergency Fund/ })
     await expect(row).toContainText('$45.00')
 
+    // the drill opens beside the report; its Open in Transactions button carries the filters over
     await row.click()
+    const sheet = page.getByRole('dialog')
+    await expect(sheet.getByRole('heading', { name: 'Transactions' })).toBeVisible()
+    await expect(sheet.getByRole('list', { name: 'Active filters' })).toContainText(
+      'Emergency Fund'
+    )
+    await sheet.getByRole('button', { name: 'Open in Transactions' }).click()
     await expect(page).toHaveURL(/#\/accounts\?tab=transactions/)
-    await expect(page.getByRole('button', { name: '1 category' })).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Active filters' })).toContainText('Emergency Fund')
     await expect(dataRows(page)).toHaveCount(1)
     await expect(rowFor(page, 'ZZ TRAIL SUPPLY')).toContainText('-$45.00')
     await expect(rowFor(page, 'ZZ TRAIL SUPPLY')).toContainText('Trail Fund')

@@ -47,8 +47,10 @@ export function startPrivacyTransition(): void {
   let longest = 0
   figures.forEach((el, i) => {
     const r = rects[i]
+    // a figure folded away while hidden (headline cents) is 0 wide but still
+    // has a line's height, and must count as on screen to unfold on reveal
     const onScreen =
-      r.width > 0 &&
+      (r.width > 0 || r.height > 0) &&
       r.bottom > 0 &&
       r.top < window.innerHeight &&
       r.right > 0 &&

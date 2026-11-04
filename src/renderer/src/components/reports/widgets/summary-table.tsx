@@ -7,6 +7,8 @@ import { groupTotals } from '../data'
 import { CenteredNote, MeasureValue, MixedCurrencyBadge } from './shared'
 import { DRILL_LABEL, DRILL_TARGET, type OnDrill } from '../use-drill'
 import { displayMeasure } from './measure'
+import { ACCENT_COLOR } from '@/components/charts/chart-style'
+import { totalColor } from '../entity-colors'
 
 export function SummaryTableWidget({
   config,
@@ -29,6 +31,13 @@ export function SummaryTableWidget({
     for (const t of totals) map.set(t.currency, (map.get(t.currency) ?? 0) + Math.abs(t.value))
     return map
   }, [totals])
+  // each bar is drawn against the largest row in its currency, so the top row fills its track
+  const maxByCurrency = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const t of totals)
+      map.set(t.currency, Math.max(map.get(t.currency) ?? 0, Math.abs(t.value)))
+    return map
+  }, [totals])
 
   if (totals.length === 0) {
     return <CenteredNote>No transactions match these filters.</CenteredNote>
@@ -36,23 +45,26 @@ export function SummaryTableWidget({
   return (
     // full-bleed: the table spans the card edges; the badge stays pinned outside
     // the scroll region so it doesn't scroll away with the rows
-    <div className="relative h-full">
+    // a narrow card drops the % column so the names keep their room
+    <div className="@container relative h-full">
       <MixedCurrencyBadge currencies={currencies} />
       <ScrollArea className="h-full">
         {/* raw <table>, not the Table wrapper: its overflow-x container would
             become the sticky header's scroll context and break stickiness */}
-        <table className="w-full caption-bottom text-xs">
+        <table className="w-full table-fixed caption-bottom text-xs">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow>
               <TableHead>Group</TableHead>
-              <TableHead className="w-32 text-right">Value</TableHead>
-              <TableHead className="w-16 text-right">%</TableHead>
+              <TableHead className="w-[6.5rem] text-right">Value</TableHead>
+              <TableHead className="hidden w-12 text-right @[16rem]:table-cell">%</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {totals.map((t, i) => {
               const denominator = totalByCurrency.get(t.currency) ?? 0
               const pct = denominator > 0 ? (Math.abs(t.value) / denominator) * 100 : 0
+              const max = maxByCurrency.get(t.currency) ?? 0
+              const width = max > 0 ? (Math.abs(t.value) / max) * 100 : 0
               return (
                 <TableRow
                   key={`${t.groupId}-${t.currency}-${i}`}
@@ -67,13 +79,23 @@ export function SummaryTableWidget({
                     }
                   })}
                 >
-                  <TableCell className="truncate font-medium">
-                    <span className={cn(onDrill && DRILL_LABEL)}>{t.label}</span>
+                  <TableCell className="font-medium">
+                    <div className="truncate">
+                      <span className={cn(onDrill && DRILL_LABEL)}>{t.label}</span>
+                    </div>
+                    {/* the row's share against the largest: under the name, so it
+                        keeps its length however narrow the card gets */}
+                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${width}%`, background: totalColor(t) ?? ACCENT_COLOR }}
+                      />
+                    </div>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     <MeasureValue measure={measure} value={t.value} currency={t.currency} />
                   </TableCell>
-                  <TableCell className="text-right text-muted-foreground tabular-nums">
+                  <TableCell className="hidden text-right text-muted-foreground tabular-nums @[16rem]:table-cell">
                     {pct.toFixed(0)}%
                   </TableCell>
                 </TableRow>

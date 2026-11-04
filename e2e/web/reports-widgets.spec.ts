@@ -24,6 +24,19 @@ async function pick(trigger: Locator, option: string): Promise<void> {
   await expect(page.getByRole('listbox')).toHaveCount(0)
 }
 
+const filterButton = (page: Page): Locator => page.getByRole('button', { name: /^Filter( \d+)?$/ })
+const chip = (scope: Locator | Page, label: string): Locator =>
+  scope
+    .getByRole('list', { name: 'Active filters' })
+    .getByRole('listitem')
+    .filter({ hasText: label })
+
+// the Filter popover holds direction, accounts, categories, amount and the switches
+async function openFilter(page: Page): Promise<void> {
+  await filterButton(page).click()
+  await expect(page.getByText('Include Transfers')).toBeVisible()
+}
+
 async function blankReport({ page }: App): Promise<void> {
   await page.getByRole('button', { name: 'New Report' }).click()
   await page.getByRole('menuitem', { name: 'Blank Report' }).click()
@@ -61,8 +74,11 @@ test.describe('report filter bar', () => {
     await expect(page.getByRole('heading', { name: 'Spending Overview', level: 2 })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Reset' })).toHaveCount(0)
 
+    await openFilter(page)
     await pick(combo(page, 'All Directions'), 'Expenses Only')
     await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible()
+    await expect(filterButton(page)).toHaveAccessibleName('Filter 1')
+    await expect(chip(page, 'Expenses only')).toBeVisible()
     await expect
       .poll(async () => {
         const [row] = await app.sql<{ filters: string }>('SELECT filters FROM reports WHERE id = 1')
@@ -77,10 +93,12 @@ test.describe('report filter bar', () => {
       .filter({ has: page.getByRole('button', { name: 'Report actions' }) })
       .click()
     await expect(page).toHaveURL(/#\/reports\/1$/)
-    await expect(combo(page, 'Expenses Only')).toBeVisible()
+    await expect(chip(page, 'Expenses only')).toBeVisible()
+    await expect(filterButton(page)).toHaveAccessibleName('Filter 1')
 
     await page.getByRole('button', { name: 'Reset' }).click()
-    await expect(combo(page, 'All Directions')).toBeVisible()
+    await expect(page.getByRole('list', { name: 'Active filters' })).toHaveCount(0)
+    await expect(filterButton(page)).toHaveAccessibleName('Filter')
     await expect(page.getByRole('button', { name: 'Reset' })).toHaveCount(0)
     await expect
       .poll(async () => {
@@ -258,13 +276,42 @@ test.describe('widget editor', () => {
     await pick(field(dialog, 'Widget Type'), 'Transactions Table')
     await expect(dialog.getByText('Measure', { exact: true })).toHaveCount(0)
     await expect(dialog.getByText('Group By')).toHaveCount(0)
+    // the Data section picks between the compact recent list (default) and the full table
+    await expect(dialog.getByRole('heading', { name: 'Data' })).toBeVisible()
+    await pick(field(dialog, 'View'), 'Full Table')
     await dialog.getByLabel('Title').fill('Everything')
     await dialog.getByRole('button', { name: 'Add Widget' }).click()
     await expect(dialog).toBeHidden()
 
     const table = card(page, 'Everything')
     await expect(table.getByRole('row').nth(1)).toBeVisible()
-    expect((await storedWidgets(app, 4))[0].type).toBe('transactions')
+    const [widget] = await storedWidgets(app, 4)
+    expect(widget.type).toBe('transactions')
+    expect(widget.config.display).toMatchObject({ transactionsView: 'table' })
+  })
+
+  test('a transactions widget defaults to a recent list whose View all opens the rows', async ({
+    app
+  }) => {
+    const { page } = app
+    await app.open({ route: '/reports' })
+    await blankReport(app)
+    const dialog = await openAddWidget(page)
+
+    await pick(field(dialog, 'Widget Type'), 'Transactions Table')
+    await dialog.getByLabel('Title').fill('Recent')
+    await dialog.getByRole('button', { name: 'Add Widget' }).click()
+    await expect(dialog).toBeHidden()
+
+    const list = card(page, 'Recent')
+    await expect(list.getByRole('listitem').first()).toBeVisible()
+    await expect(list.getByRole('row')).toHaveCount(0)
+    expect((await storedWidgets(app, 4))[0].config.display?.transactionsView).toBeUndefined()
+
+    await list.getByRole('button', { name: 'View all' }).click()
+    const sheet = page.getByRole('dialog')
+    await expect(sheet.getByRole('heading', { name: 'Transactions' })).toBeVisible()
+    await expect(sheet.getByRole('checkbox', { name: 'Select row' }).first()).toBeVisible()
   })
 
   test('adds a budget widget with a chosen visualization', async ({ app }) => {
@@ -518,9 +565,12 @@ test.describe('drill down', () => {
     return table
   }
 
+  // the drill sheet is the only dialog on the report page
+  const sheet = (page: Page): Locator => page.getByRole('dialog')
+
   // the first transaction row, past the day header (which has no checkbox)
   const firstTransaction = (page: Page): Locator =>
-    page
+    sheet(page)
       .locator('tbody tr')
       .filter({ has: page.getByRole('checkbox') })
       .first()
@@ -530,21 +580,32 @@ test.describe('drill down', () => {
     return JSON.parse(url.searchParams.get('filters')!)
   }
 
-  test('clicking a summary row opens the transactions filtered to it', async ({ app }) => {
+  async function openInTransactions(page: Page): Promise<void> {
+    await sheet(page).getByRole('button', { name: 'Open in Transactions' }).click()
+    await expect(page).toHaveURL(/#\/accounts\?tab=transactions/)
+  }
+
+  test('clicking a summary row opens the rows behind it in a sheet', async ({ app }) => {
     const { page } = app
     const table = await topCategories(app)
     await table.getByRole('row', { name: /Groceries/ }).click()
 
-    await expect(page).toHaveURL(/#\/accounts\?tab=transactions/)
-    const filters = drilledFilters(page)
+    await expect(sheet(page).getByRole('heading', { name: 'Transactions' })).toBeVisible()
+    await expect(page).toHaveURL(/#\/reports\/2$/)
+    await expect(chip(sheet(page), 'Groceries')).toBeVisible()
+    await expect(chip(sheet(page), 'Expenses only')).toBeVisible()
+    await expect(firstTransaction(page)).toContainText('Groceries')
+    await expect(sheet(page).getByRole('button', { name: 'Reset' })).toBeVisible()
+
+    // the sheet hands its filters to the Transactions tab
+    await openInTransactions(page)
     const [{ id }] = await app.sql<{ id: number }>(
       `SELECT id FROM categories WHERE name LIKE '%Groceries'`
     )
-    expect(filters).toMatchObject({ categoryIds: [id], direction: 'expense' })
-    await expect(page.getByRole('button', { name: '1 category' })).toBeVisible()
-    await expect(combo(page, 'Expenses Only')).toBeVisible()
-    await expect(firstTransaction(page)).toContainText('Groceries')
-    await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible()
+    expect(drilledFilters(page)).toMatchObject({ categoryIds: [id], direction: 'expense' })
+    await expect(chip(page, 'Groceries')).toBeVisible()
+    await expect(chip(page, 'Expenses only')).toBeVisible()
+    await expect(page.getByRole('checkbox', { name: 'Select row' }).first()).toBeVisible()
   })
 
   test('Enter on a focused row drills too', async ({ app }) => {
@@ -555,7 +616,7 @@ test.describe('drill down', () => {
     await expect(row).toBeFocused()
     await page.keyboard.press('Enter')
 
-    await expect(page).toHaveURL(/#\/accounts\?tab=transactions/)
+    await expect(sheet(page).getByRole('heading', { name: 'Transactions' })).toBeVisible()
     await expect(firstTransaction(page)).toContainText('Housing')
   })
 
@@ -565,14 +626,29 @@ test.describe('drill down', () => {
     const table = card(page, 'Top categories')
     await expect(table.getByRole('row').nth(1)).toBeVisible()
     await table.getByRole('row', { name: /Housing/ }).click()
-    await expect(page).toHaveURL(/tab=transactions/)
+    await expect(sheet(page).getByRole('heading', { name: 'Transactions' })).toBeVisible()
     // Monthly Check-in is scoped to the last 6 months, pending included, no transfers
+    await expect(
+      sheet(page).getByRole('combobox').filter({ hasText: 'Last 6 Months' })
+    ).toBeVisible()
+    await expect(chip(sheet(page), 'No transfers')).toBeVisible()
+    await openInTransactions(page)
     expect(drilledFilters(page)).toMatchObject({
       dateRange: { kind: 'relative', unit: 'month', count: 6, includeCurrent: true },
       includePending: true,
       includeTransfers: false
     })
     await expect(combo(page, 'Last 6 Months')).toBeVisible()
+  })
+
+  test('the drill sheet closes with Escape and leaves the report in place', async ({ app }) => {
+    const { page } = app
+    const table = await topCategories(app)
+    await table.getByRole('row', { name: /Groceries/ }).click()
+    await expect(sheet(page)).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(sheet(page)).toHaveCount(0)
+    await expect(page).toHaveURL(/#\/reports\/2$/)
   })
 
   test('rows do not drill while editing', async ({ app }) => {
@@ -585,6 +661,7 @@ test.describe('drill down', () => {
     await row.focus()
     await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/#\/reports\/2$/)
+    await expect(sheet(page)).toHaveCount(0)
 
     await page.getByRole('button', { name: 'Done' }).click()
     await expect(row).toHaveAttribute('tabindex', '0')
@@ -602,7 +679,10 @@ test.describe('drill down', () => {
     const table = card(page, 'Top categories')
     await table.getByRole('row', { name: /Uncategorized/ }).click()
 
-    await expect(page).toHaveURL(/#\/accounts\?tab=transactions/)
+    // uncategorized plus the ungrouped categories fold into one categories chip
+    await expect(chip(sheet(page), 'categories')).toBeVisible()
+    await expect(firstTransaction(page)).toBeVisible()
+    await openInTransactions(page)
     const filters = drilledFilters(page)
     expect(filters).toMatchObject({ includeUncategorized: true, direction: 'expense' })
     expect(filters.categoryGroupIds).toBeUndefined()

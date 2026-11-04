@@ -24,7 +24,8 @@ function envelopeCard(app: App, name: string): Locator {
 }
 
 function statCard(app: App, label: string): Locator {
-  return app.page.locator('[data-slot="card"]').filter({ hasText: new RegExp(`^${label}`) })
+  // one card split into cells, one per figure
+  return app.page.locator('[data-slot="card-content"]').filter({ hasText: new RegExp(`^${label}`) })
 }
 
 const hobbiesRow = (app: App): Locator => app.page.getByRole('row', { name: /Hobbies/ })

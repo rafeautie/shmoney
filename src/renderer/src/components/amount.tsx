@@ -1,11 +1,11 @@
 import { useLayoutEffect, useRef, type CSSProperties, type Ref, type RefObject } from 'react'
-import { cn, formatAmount, formatShares } from '@/lib/utils'
+import { cn, formatAmount, formatAmountParts, formatShares } from '@/lib/utils'
 import { usePrivacy } from '@/lib/settings'
 import { usePrivacySettling } from '@/lib/privacy-transition'
 import { toGlyphs } from '@/lib/mask-glyphs'
 
-function MaskedGlyphs({ text }: { text: string }) {
-  return toGlyphs(text).map((glyph, i) => {
+function MaskedGlyphs({ text, dots }: { text: string; dots?: number }) {
+  return toGlyphs(text, dots).map((glyph, i) => {
     if (glyph.kind === 'fixed')
       return glyph.gap ? (
         <span key={`gap${i}`} className={`private-gap-${glyph.gap}`}>
@@ -48,6 +48,9 @@ interface PrivateTextProps {
   className?: string
   /** False renders plain text that ignores the privacy toggle */
   sensitive?: boolean
+  /** dots when hidden (0 folds the text away); every whole figure keeps the
+   * default so none leaks its size */
+  maskDots?: number
   ref?: Ref<HTMLSpanElement>
 }
 
@@ -56,7 +59,13 @@ interface PrivateTextProps {
  * in, rippling from the sidebar toggle (see privacy-transition). Plain text
  * whenever it is shown and settled, so long tables stay light.
  */
-export function PrivateText({ text, className, sensitive = true, ref }: PrivateTextProps) {
+export function PrivateText({
+  text,
+  className,
+  sensitive = true,
+  maskDots,
+  ref
+}: PrivateTextProps) {
   const { blurAmounts } = usePrivacy()
   const settling = usePrivacySettling()
   const hidden = sensitive && blurAmounts
@@ -76,7 +85,7 @@ export function PrivateText({ text, className, sensitive = true, ref }: PrivateT
         settling && 'private-enter'
       )}
     >
-      {masked ? <MaskedGlyphs text={text} /> : text}
+      {masked ? <MaskedGlyphs text={text} dots={maskDots} /> : text}
     </span>
   )
 }
@@ -90,6 +99,9 @@ interface AmountProps {
   /** Count from the old value to the new one when it changes in place */
   tween?: boolean
   className?: string
+  /** Sets the decimal part apart (smaller, muted): headline figures lead with
+   * the whole units. No tween in this form. */
+  fractionClassName?: string
 }
 
 const TWEEN_MS = 500
@@ -130,12 +142,37 @@ function useCountUp(
   }, [ref, value, currency, enabled])
 }
 
-export function Amount({ value, currency, colored = true, tween = false, className }: AmountProps) {
+export function Amount({
+  value,
+  currency,
+  colored = true,
+  tween = false,
+  className,
+  fractionClassName
+}: AmountProps) {
   const { blurAmounts } = usePrivacy()
   const settling = usePrivacySettling()
   const ref = useRef<HTMLSpanElement>(null)
   // a masked figure runs its own dot animation; it just lands on the new value
-  useCountUp(ref, value, currency, tween && !blurAmounts && !settling)
+  useCountUp(ref, value, currency, tween && !blurAmounts && !settling && !fractionClassName)
+
+  if (fractionClassName) {
+    const [whole, fraction] = formatAmountParts(value, currency)
+    return (
+      <span
+        className={cn(
+          'tabular-nums',
+          colored && value > 0 && 'text-positive',
+          colored && value < 0 && 'text-negative',
+          className
+        )}
+      >
+        <PrivateText text={whole} />
+        {/* hidden, the cents fold away whole: the dollars' dots stand for the figure */}
+        {fraction && <PrivateText text={fraction} maskDots={0} className={fractionClassName} />}
+      </span>
+    )
+  }
 
   return (
     <PrivateText

@@ -73,7 +73,13 @@ export function SettingsDialog(): React.JSX.Element {
     >
       <DialogContent
         // centered, so clearing the native caption buttons up top takes the same margin below
-        className="flex h-[min(1120px,calc(100vh_-_2_*_max(2rem,env(titlebar-area-height,0px)_+_1rem)))] gap-0 overflow-hidden p-0 sm:max-w-[min(90rem,calc(100%-4rem))]"
+        className="flex h-[min(1120px,calc(100vh_-_2_*_max(2rem,env(titlebar-area-height,0px)_+_1rem)))] gap-0 overflow-hidden p-0 duration-400 ease-palette data-closed:fill-mode-forwards motion-reduce:animate-none sm:max-w-[min(90rem,calc(100%-4rem))]"
+        // a big surface, so it opens and closes on the same gentle curve as the
+        // title bar search and the drill sheet. The backdrop keeps the panel's
+        // duration and holds its faded end state: the dialog stays mounted
+        // until the panel finishes, and an earlier-ending backdrop would snap
+        // back to dimmed for the difference
+        overlayClassName="duration-400 ease-palette data-closed:fill-mode-forwards motion-reduce:animate-none"
         // base-ui otherwise focuses the first section, even when opened at another
         initialFocus={activeRef}
       >

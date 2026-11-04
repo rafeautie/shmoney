@@ -18,21 +18,27 @@ const COLUMNS: Record<number, string> = {
   4: 'grid-cols-4'
 }
 
-/** Headline figures above a page's detail. Shared by Budget and Goals. */
+/**
+ * Headline figures above a page's detail, shared by Budget and Goals. One card
+ * split into columns, like the joined stat strip on a report.
+ */
 export function StatCards({ stats, currency }: { stats: Stat[]; currency: string }) {
   return (
-    <div className={cn('grid gap-4', COLUMNS[stats.length] ?? 'grid-cols-3')}>
+    <Card
+      className={cn(
+        'grid gap-0 divide-x divide-foreground/10 py-0',
+        COLUMNS[stats.length] ?? 'grid-cols-3'
+      )}
+    >
       {stats.map((stat) => (
-        <Card key={stat.label} className="py-4">
-          <CardContent className="px-4">
-            <p className="text-sm text-muted-foreground">{stat.label}</p>
-            <p className="text-2xl font-semibold tracking-tight">
-              <Amount value={stat.value} currency={currency} colored={stat.colored} tween />
-            </p>
-            {stat.sub !== undefined && <p className="text-xs text-muted-foreground">{stat.sub}</p>}
-          </CardContent>
-        </Card>
+        <CardContent key={stat.label} className="px-4 py-4">
+          <p className="text-sm text-muted-foreground">{stat.label}</p>
+          <p className="text-2xl font-semibold tracking-tight">
+            <Amount value={stat.value} currency={currency} colored={stat.colored} tween />
+          </p>
+          {stat.sub !== undefined && <p className="text-xs text-muted-foreground">{stat.sub}</p>}
+        </CardContent>
       ))}
-    </div>
+    </Card>
   )
 }

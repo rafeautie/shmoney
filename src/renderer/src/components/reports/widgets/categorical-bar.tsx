@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import type { QueryRow, WidgetConfig } from '@shared/reports'
 import { Chart } from '@/components/charts/chart'
+import { POINT_COLOR } from '@/components/charts/chart-style'
+import { totalColor, useEntityColors } from '../entity-colors'
 import { groupTotals, type GroupTotal } from '../data'
 import { CenteredNote, MixedCurrencyBadge } from './shared'
 import { displayMeasure, makeFormatValue } from './measure'
@@ -42,9 +44,16 @@ export function TotalsBarChart({
   currencies: string[]
   onDrill?: OnDrill
 }) {
+  const colorOf = useEntityColors(config.query.source, config.query.groupBy)
   const measure = displayMeasure(config)
   const fv = makeFormatValue(measure, currencies[0] ?? 'USD')
-  const data = totals.map((t) => ({ label: t.label, value: t.value, currency: t.currency }))
+  // each bar is an entity, so it wears that entity's color from every other widget
+  const data = totals.map((t) => ({
+    label: t.label,
+    value: t.value,
+    currency: t.currency,
+    [POINT_COLOR]: totalColor(t, colorOf) ?? null
+  }))
   return (
     <div className="relative h-full px-4 pb-4">
       <MixedCurrencyBadge currencies={currencies} />

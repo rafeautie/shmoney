@@ -17,7 +17,7 @@ test.describe('reports index', () => {
     await expect(cards).toHaveCount(3)
 
     const overview = cards.filter({ hasText: 'Spending Overview' })
-    await expect(overview).toContainText('8 widgets')
+    await expect(overview).toContainText('9 widgets')
     // the preview is the first widget at half scale: the Income stat
     await expect(overview).toContainText('Income')
     await expect(overview).toContainText(/\$[\d,]+\.\d\d/)
@@ -73,6 +73,7 @@ test.describe('reports index', () => {
       'Income',
       'Expenses',
       'Net',
+      'Spending this month vs last',
       'Monthly expenses by group',
       'Spending by category',
       'Cumulative net',
@@ -84,7 +85,7 @@ test.describe('reports index', () => {
     const [{ n }] = await app.sql<{ n: number }>(
       'SELECT count(*) AS n FROM report_widgets WHERE report_id = 4'
     )
-    expect(n).toBe(8)
+    expect(n).toBe(9)
     // a populated report opens in view mode
     await expect(page.getByRole('button', { name: 'Arrange', exact: true })).toBeVisible()
   })

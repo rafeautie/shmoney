@@ -8,7 +8,10 @@ const column = (page: Page, nth: number): Locator => page.locator(`tbody tr td:n
 const rowCheckboxes = (page: Page): Locator => page.getByRole('checkbox', { name: 'Select row' })
 const resetButton = (page: Page): Locator => page.getByRole('button', { name: 'Reset' })
 const filteredTotal = (page: Page): Locator => page.getByText('Filtered Total')
-const moreButton = (page: Page): Locator => page.getByRole('button', { name: /^More/ })
+const filterButton = (page: Page): Locator => page.getByRole('button', { name: /^Filter( \d+)?$/ })
+const chips = (page: Page): Locator => page.getByRole('list', { name: 'Active filters' })
+const chip = (page: Page, label: string): Locator =>
+  chips(page).getByRole('listitem').filter({ hasText: label })
 const preset = (page: Page, name: string): Locator =>
   page.getByRole('button', { name, exact: true })
 const savedButton = (page: Page): Locator =>
@@ -18,6 +21,18 @@ const selectBox = (page: Page, text: string): Locator =>
   page.getByRole('combobox').filter({ hasText: text })
 const dateRange = (page: Page): Locator =>
   page.getByRole('combobox').filter({ hasText: /time|month|year|Custom/i })
+
+// the Filter popover holds accounts, categories, direction, amount and the switches
+async function openFilter(page: Page): Promise<void> {
+  await filterButton(page).click()
+  await expect(page.getByText('Include Transfers')).toBeVisible()
+}
+
+// a nested multiselect (accounts or categories) closes with Escape and leaves Filter open
+async function pickIn(page: Page, control: string, option: string | RegExp): Promise<void> {
+  await page.getByRole('button', { name: control, exact: true }).click()
+  await page.getByRole('option', { name: option }).click()
+}
 
 async function openTransactions(app: App, route = ROUTE, dataset?: 'starter'): Promise<void> {
   await app.open({ route, dataset })
@@ -127,10 +142,12 @@ test.describe('date range', () => {
     await expect(dateRange(page)).toHaveText('All Time')
 
     await pickOption(page, dateRange(page), 'Last Year')
-    await expect(dateRange(page)).toHaveText('Last Year')
+    // a relative range spells out the dates it covers today
+    await expect(dateRange(page)).toHaveText(/^Last Year\s*Jan 2025 to Dec 2025$/)
     await expectEveryRow(page, 2, (text) => text.endsWith('2025'))
 
     await pickOption(page, dateRange(page), 'This Month')
+    await expect(dateRange(page)).toHaveText(/^This Month\s*Sep 2026$/)
     await expectEveryRow(page, 2, (text) => /^Sep \d+, 2026$/.test(text))
 
     await pickOption(page, dateRange(page), 'All Time')
@@ -189,36 +206,64 @@ test.describe('accounts and categories', () => {
   test('the accounts multiselect scopes the table and labels the selection', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
-    const control = page.getByRole('button', { name: 'All Accounts' })
+    await openFilter(page)
+    const control = (name: string): Locator => page.getByRole('button', { name, exact: true })
 
-    await control.click()
+    await control('All Accounts').click()
     await page.getByRole('option', { name: 'Rewards Visa' }).click()
     await page.getByRole('option', { name: 'Individual Brokerage' }).click()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: '2 accounts' })).toBeVisible()
+    await expect(control('2 accounts')).toBeVisible()
+    await expect(chip(page, '2 accounts')).toBeVisible()
+    await expect(filterButton(page)).toHaveAccessibleName('Filter 1')
     await expectEveryRow(
       page,
       3,
       (text) => text === 'Rewards Visa' || text === 'Individual Brokerage'
     )
 
-    await page.getByRole('button', { name: '2 accounts' }).click()
+    await control('2 accounts').click()
     await page.getByRole('option', { name: 'Individual Brokerage' }).click()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: 'Rewards Visa' })).toBeVisible()
+    await expect(control('Rewards Visa')).toBeVisible()
+    await expect(chip(page, 'Rewards Visa')).toBeVisible()
     await expectEveryRow(page, 3, (text) => text === 'Rewards Visa')
 
-    await page.getByRole('button', { name: 'Rewards Visa' }).click()
+    await control('Rewards Visa').click()
     await page.getByRole('option', { name: 'All Accounts' }).click()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: 'All Accounts' })).toBeVisible()
+    await expect(control('All Accounts')).toBeVisible()
+    await expect(chips(page)).toHaveCount(0)
     await expect(resetButton(page)).toHaveCount(0)
+  })
+
+  test('removing a chip clears only that filter', async ({ app }) => {
+    const { page } = app
+    await openTransactions(app)
+    await openFilter(page)
+    await pickIn(page, 'All Accounts', 'Rewards Visa')
+    await page.keyboard.press('Escape')
+    await pickIn(page, 'All Categories', /Dining Out/)
+    await page.keyboard.press('Escape')
+    await expect(chips(page).getByRole('listitem')).toHaveCount(2)
+    await expectEveryRow(page, 3, (text) => text === 'Rewards Visa')
+
+    // the open Filter popover hides the page behind it from the accessibility tree
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: /^Clear .*Dining Out/ }).click()
+    await expect(chips(page).getByRole('listitem')).toHaveCount(1)
+    await expect(chip(page, 'Rewards Visa')).toBeVisible()
+    await expectEveryRow(page, 3, (text) => text === 'Rewards Visa')
+    await expect
+      .poll(async () => new Set(await column(page, 5).allTextContents()).size)
+      .toBeGreaterThan(1)
   })
 
   test('the accounts popover searches by name', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
-    await page.getByRole('button', { name: 'All Accounts' }).click()
+    await openFilter(page)
+    await page.getByRole('button', { name: 'All Accounts', exact: true }).click()
     await page.getByPlaceholder('Search accounts…').fill('savings')
     await expect(page.getByRole('option')).toHaveCount(1)
     await page.getByPlaceholder('Search accounts…').fill('nothing here')
@@ -230,19 +275,21 @@ test.describe('accounts and categories', () => {
   }) => {
     const { page } = app
     await openTransactions(app)
-    const control = page.getByRole('button', { name: 'All Categories' })
+    await openFilter(page)
+    const control = (name: string): Locator => page.getByRole('button', { name, exact: true })
 
-    await control.click()
+    await control('All Categories').click()
     await page.getByRole('option', { name: 'Uncategorized' }).click()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: '1 category' })).toBeVisible()
+    await expect(control('1 category')).toBeVisible()
+    await expect(chip(page, 'Uncategorized')).toBeVisible()
     // pending rows have no category yet, so they read as uncategorized too
     await expectEveryRow(page, 5, (text) => text === 'Uncategorized' || text === '—')
 
-    await page.getByRole('button', { name: '1 category' }).click()
+    await control('1 category').click()
     await page.getByRole('option', { name: /Dining Out/ }).click()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: '2 categories' })).toBeVisible()
+    await expect(control('2 categories')).toBeVisible()
     await expectEveryRow(
       page,
       5,
@@ -250,59 +297,63 @@ test.describe('accounts and categories', () => {
     )
 
     // untoggling Uncategorized leaves only the category
-    await page.getByRole('button', { name: '2 categories' }).click()
+    await control('2 categories').click()
     await page.getByRole('option', { name: 'Uncategorized' }).click()
     await page.keyboard.press('Escape')
     await expectEveryRow(page, 5, (text) => text.includes('Dining Out'))
 
-    await page.getByRole('button', { name: '1 category' }).click()
+    await control('1 category').click()
     await page.getByRole('option', { name: /All .*Wants/ }).click()
     await page.keyboard.press('Escape')
     // Wants holds five categories, plus Dining Out already picked
-    await expect(page.getByRole('button', { name: '5 categories' })).toBeVisible()
+    await expect(control('5 categories')).toBeVisible()
     await expectEveryRow(page, 5, (text) =>
       ['Subscriptions', 'Shopping', 'Hobbies', 'Entertainment', 'Dining Out'].some((name) =>
         text.includes(name)
       )
     )
 
-    await page.getByRole('button', { name: '5 categories' }).click()
+    await control('5 categories').click()
     await page.getByRole('option', { name: /All .*Wants/ }).click()
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('button', { name: 'All Categories' })).toBeVisible()
+    await expect(control('All Categories')).toBeVisible()
     await expect(resetButton(page)).toHaveCount(0)
   })
 
   test('the direction select keeps income or expenses', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
-    const direction = selectBox(page, 'All Directions')
+    await openFilter(page)
 
-    await pickOption(page, direction, 'Income Only')
+    await pickOption(page, selectBox(page, 'All Directions'), 'Income Only')
     await expectEveryRow(page, 6, (text) => money(text) > 0)
     await expect(resetButton(page)).toBeVisible()
+    await expect(chip(page, 'Income only')).toBeVisible()
 
     await pickOption(page, selectBox(page, 'Income Only'), 'Expenses Only')
     await expectEveryRow(page, 6, (text) => money(text) < 0)
+    await expect(chip(page, 'Expenses only')).toBeVisible()
   })
 })
 
-test.describe('more filters', () => {
+test.describe('filter popover', () => {
   test('amount range bounds the absolute amount and counts in the badge', async ({ app }) => {
     const { page } = app
     await openTransactions(app)
-    await expect(moreButton(page)).toHaveAccessibleName('More')
+    await expect(filterButton(page)).toHaveAccessibleName('Filter')
 
-    await moreButton(page).click()
+    await openFilter(page)
     await page.getByPlaceholder('Min').fill('1000')
     await page.getByPlaceholder('Min').press('Enter')
-    await expect(moreButton(page)).toHaveAccessibleName('More 1')
+    await expect(filterButton(page)).toHaveAccessibleName('Filter 1')
+    await expect(chip(page, '$1,000.00 or more')).toBeVisible()
     await expectEveryRow(page, 6, (text) => Math.abs(money(text)) >= 1000)
 
     await page.getByPlaceholder('Max').fill('2000')
     await page.getByPlaceholder('Max').press('Enter')
     // one filter, whatever the number of bounds
-    await expect(moreButton(page)).toHaveAccessibleName('More 1')
+    await expect(filterButton(page)).toHaveAccessibleName('Filter 1')
+    await expect(chip(page, '$1,000.00 to $2,000.00')).toBeVisible()
     await expectEveryRow(
       page,
       6,
@@ -317,7 +368,7 @@ test.describe('more filters', () => {
     await expect(page.getByText('Pending', { exact: true })).toHaveCount(2)
     await expect(column(page, 5).filter({ hasText: 'Transfers' }).first()).toBeVisible()
 
-    await moreButton(page).click()
+    await openFilter(page)
     const pending = page.getByRole('switch', { name: 'Include Pending Transactions' })
     const transfers = page.getByRole('switch', { name: 'Include Transfers' })
     await expect(pending).toBeChecked()
@@ -325,16 +376,19 @@ test.describe('more filters', () => {
 
     await pending.click()
     await expect(page.getByText('Pending', { exact: true })).toHaveCount(0)
-    await expect(moreButton(page)).toHaveAccessibleName('More 1')
+    await expect(filterButton(page)).toHaveAccessibleName('Filter 1')
+    await expect(chip(page, 'No pending')).toBeVisible()
 
     await transfers.click()
-    await expect(moreButton(page)).toHaveAccessibleName('More 2')
+    await expect(filterButton(page)).toHaveAccessibleName('Filter 2')
+    await expect(chip(page, 'No transfers')).toBeVisible()
     await expect(column(page, 5).filter({ hasText: 'Transfers' })).toHaveCount(0)
     await expectEveryRow(page, 5, (text) => !text.includes('Transfers'))
 
     await pending.click()
     await transfers.click()
-    await expect(moreButton(page)).toHaveAccessibleName('More')
+    await expect(filterButton(page)).toHaveAccessibleName('Filter')
+    await expect(chips(page)).toHaveCount(0)
     await expect(resetButton(page)).toHaveCount(0)
   })
 })
@@ -348,9 +402,9 @@ test.describe('reset', () => {
     await expect(resetButton(page)).toHaveCount(0)
 
     await searchBox(page).fill('chipotle')
-    await pickOption(page, selectBox(page, 'All Directions'), 'Expenses Only')
     await pickOption(page, dateRange(page), 'Last Year')
-    await moreButton(page).click()
+    await openFilter(page)
+    await pickOption(page, selectBox(page, 'All Directions'), 'Expenses Only')
     await page.getByRole('switch', { name: 'Include Transfers' }).click()
     await page.keyboard.press('Escape')
     await expect(resetButton(page)).toBeVisible()
@@ -359,8 +413,8 @@ test.describe('reset', () => {
     await expect(resetButton(page)).toHaveCount(0)
     await expect(searchBox(page)).toHaveValue('')
     await expect(dateRange(page)).toHaveText('All Time')
-    await expect(selectBox(page, 'All Directions')).toBeVisible()
-    await expect(moreButton(page)).toHaveAccessibleName('More')
+    await expect(chips(page)).toHaveCount(0)
+    await expect(filterButton(page)).toHaveAccessibleName('Filter')
     await expect(filteredTotal(page)).toHaveCount(0)
     await expect
       .poll(async () =>
@@ -376,6 +430,7 @@ test.describe('filtered total', () => {
     await openTransactions(app)
     await expect(filteredTotal(page)).toHaveCount(0)
 
+    await openFilter(page)
     await pickOption(page, selectBox(page, 'All Directions'), 'Expenses Only')
     await expect(filteredTotal(page)).toBeVisible()
 
@@ -404,6 +459,7 @@ test.describe('filtered total', () => {
       "UPDATE accounts SET currency = 'EUR' WHERE name = 'High-Yield Savings' RETURNING id"
     )
 
+    await openFilter(page)
     await pickOption(page, selectBox(page, 'All Directions'), 'Income Only')
     await expect(filteredTotal(page)).toBeVisible()
     const totals = filteredTotal(page).locator('xpath=following-sibling::div[1]/*')
@@ -436,8 +492,9 @@ test.describe('saved filters', () => {
 
     await big.click()
     await expect(preset(page, 'Big purchases')).toBeHidden()
-    await expect(selectBox(page, 'Expenses Only')).toBeVisible()
-    await expect(moreButton(page)).toHaveAccessibleName('More 2')
+    await expect(chip(page, 'Expenses only')).toBeVisible()
+    // direction, amount, and transfers hidden (the preset's, against the transactions default)
+    await expect(filterButton(page)).toHaveAccessibleName('Filter 3')
     await expectEveryRow(page, 6, (text) => money(text) <= -150)
     await expect(resetButton(page)).toBeVisible()
 
@@ -448,6 +505,7 @@ test.describe('saved filters', () => {
     // editing the filter drops the tick
     await page.keyboard.press('Escape')
     await expect(preset(page, 'Big purchases')).toBeHidden()
+    await openFilter(page)
     await pickOption(page, selectBox(page, 'Expenses Only'), 'Income Only')
     await savedButton(page).click()
     await expect(preset(page, 'Big purchases').locator('svg')).toHaveCount(0)
@@ -457,6 +515,7 @@ test.describe('saved filters', () => {
     const { page } = app
     await openTransactions(app, ROUTE, 'starter')
     await searchBox(page).fill('starbucks')
+    await openFilter(page)
     await pickOption(page, selectBox(page, 'All Directions'), 'Expenses Only')
     await expect(resetButton(page)).toBeVisible()
 
@@ -480,7 +539,7 @@ test.describe('saved filters', () => {
     await savedButton(page).click()
     await preset(page, 'Morning coffee').click()
     await expect(searchBox(page)).toHaveValue('starbucks')
-    await expect(selectBox(page, 'Expenses Only')).toBeVisible()
+    await expect(chip(page, 'Expenses only')).toBeVisible()
     await expectEveryRow(page, 4, (text) => text.includes('STARBUCKS'))
 
     // the same name, in any case, replaces the preset instead of adding a second
@@ -535,8 +594,9 @@ test.describe('drill-down filters from the URL', () => {
     }
     await app.open({ route: `${ROUTE}&filters=${encodeURIComponent(JSON.stringify(filters))}` })
 
-    await expect(page.getByRole('button', { name: '1 category' })).toBeVisible()
-    await expect(selectBox(page, 'Expenses Only')).toBeVisible()
+    await expect(chip(page, 'Dining Out')).toBeVisible()
+    await expect(chip(page, 'Expenses only')).toBeVisible()
+    await expect(filterButton(page)).toHaveAccessibleName('Filter 2')
     await expect(resetButton(page)).toBeVisible()
     await expectEveryRow(page, 5, (text) => text.includes('Dining Out'))
     await expect(filteredTotal(page)).toBeVisible()
@@ -544,7 +604,8 @@ test.describe('drill-down filters from the URL', () => {
     // after arriving the bar is the source of truth, so edits behave as usual
     await resetButton(page).click()
     await expect(resetButton(page)).toHaveCount(0)
-    await expect(page.getByRole('button', { name: 'All Categories' })).toBeVisible()
+    await expect(chips(page)).toHaveCount(0)
+    await expect(filterButton(page)).toHaveAccessibleName('Filter')
   })
 
   for (const [name, filters] of [
@@ -556,7 +617,7 @@ test.describe('drill-down filters from the URL', () => {
       await app.open({ route: `${ROUTE}&filters=${encodeURIComponent(JSON.stringify(filters))}` })
       await expect(page.getByRole('row').nth(1)).toBeVisible()
       await expect(resetButton(page)).toHaveCount(0)
-      await expect(moreButton(page)).toHaveAccessibleName('More')
+      await expect(filterButton(page)).toHaveAccessibleName('Filter')
     })
   }
 })

@@ -4,8 +4,8 @@ import { format } from 'date-fns'
 import type { DateRange as DayRange } from 'react-day-picker'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
-import type { DateRange } from '@shared/reports'
-import { cn, currencySymbol } from '@/lib/utils'
+import { resolveDateRange, type DateRange } from '@shared/reports'
+import { cn, currencySymbol, startOfTodayEpoch } from '@/lib/utils'
 import { useAccountCurrency } from '@/lib/currency'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
@@ -82,14 +82,26 @@ function relativeLabel(range: Extract<DateRange, { kind: 'relative' }>): string 
   return includeCurrent ? `Last ${count} ${unit}s` : `Last ${count} full ${unit}s`
 }
 
+/** "Dec 2025 to Nov 2026": what a relative range covers today. */
+function resolvedLabel(range: Extract<DateRange, { kind: 'relative' }>): string {
+  const { start, end } = resolveDateRange(range, startOfTodayEpoch())
+  const fmt = range.unit === 'day' || range.unit === 'week' ? 'MMM d' : 'MMM yyyy'
+  const from = format(new Date(start! * 1000), fmt)
+  const to = format(new Date(end! * 1000), fmt)
+  return from === to ? from : `${from} to ${to}`
+}
+
 export function DateRangeControl({
   value,
   onChange,
-  disabled
+  disabled,
+  showResolved = false
 }: {
   value: DateRange
   onChange: (range: DateRange) => void
   disabled?: boolean
+  /** spell out the dates a relative range covers next to its name */
+  showResolved?: boolean
 }) {
   // in-progress calendar selection; committed once both ends are picked
   const [draft, setDraft] = useState<DayRange | undefined>()
@@ -125,8 +137,15 @@ export function DateRangeControl({
           }
         }}
       >
-        <SelectTrigger size="lg" aria-label="Date Range" className="w-40">
+        <SelectTrigger
+          size="lg"
+          aria-label="Date Range"
+          className={cn(showResolved && value.kind === 'relative' ? 'w-auto gap-2' : 'w-40')}
+        >
           <SelectValue />
+          {showResolved && value.kind === 'relative' && (
+            <span className="text-muted-foreground tabular-nums">{resolvedLabel(value)}</span>
+          )}
         </SelectTrigger>
         <SelectContent>
           {DATE_PRESETS.map((preset) => (
@@ -186,12 +205,14 @@ export function DateRangeControl({
 export function AccountsControl({
   value,
   onChange,
-  disabled
+  disabled,
+  className
 }: {
   /** undefined = all accounts */
   value: number[] | undefined
   onChange: (ids: number[] | undefined) => void
   disabled?: boolean
+  className?: string
 }) {
   const [open, setOpen] = useState(false)
   const accountsQuery = useQuery({
@@ -216,8 +237,10 @@ export function AccountsControl({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="field" size="lg" disabled={disabled} />}>
-        {label}
+      <PopoverTrigger
+        render={<Button variant="field" size="lg" disabled={disabled} className={className} />}
+      >
+        <span className="truncate">{label}</span>
         <HugeiconsIcon icon={ArrowDown01Icon} size={14} className="text-muted-foreground" />
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
@@ -335,11 +358,13 @@ export interface CategoryFilterValue {
 export function CategoriesControl({
   value,
   onChange,
-  disabled
+  disabled,
+  className
 }: {
   value: CategoryFilterValue
   onChange: (value: CategoryFilterValue) => void
   disabled?: boolean
+  className?: string
 }) {
   const [open, setOpen] = useState(false)
   const categoriesQuery = useQuery({
@@ -379,8 +404,10 @@ export function CategoriesControl({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger render={<Button variant="field" size="lg" disabled={disabled} />}>
-        {label}
+      <PopoverTrigger
+        render={<Button variant="field" size="lg" disabled={disabled} className={className} />}
+      >
+        <span className="truncate">{label}</span>
         <HugeiconsIcon icon={ArrowDown01Icon} size={14} className="text-muted-foreground" />
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
@@ -473,11 +500,13 @@ type Direction = 'all' | 'income' | 'expense'
 export function DirectionControl({
   value,
   onChange,
-  disabled
+  disabled,
+  className
 }: {
   value: Direction
   onChange: (value: Direction) => void
   disabled?: boolean
+  className?: string
 }) {
   return (
     <Select
@@ -486,7 +515,7 @@ export function DirectionControl({
       onValueChange={(v) => onChange(v as Direction)}
       disabled={disabled}
     >
-      <SelectTrigger size="lg" aria-label="Direction" className="w-36">
+      <SelectTrigger size="lg" aria-label="Direction" className={cn('w-36', className)}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

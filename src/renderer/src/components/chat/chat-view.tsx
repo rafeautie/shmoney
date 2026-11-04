@@ -94,7 +94,7 @@ export function ChatView({
         <MessageScrollerViewport
           className={cn(smoothFor === conversationId && streaming && 'scroll-smooth')}
         >
-          <MessageScrollerContent className="mx-auto w-full max-w-2xl p-4">
+          <MessageScrollerContent className="mx-auto w-full max-w-2xl px-4 pt-8 pb-4">
             {messages.map((message) => (
               <MessageScrollerItem
                 key={message.id}

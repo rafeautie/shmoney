@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 export function Page({ className, children }: { className?: string; children: ReactNode }) {
   return (
     <ScrollArea className="min-h-0 flex-1">
-      <div className={cn('p-page', className)}>{children}</div>
+      <div className={cn('px-page pt-page-top pb-page', className)}>{children}</div>
     </ScrollArea>
   )
 }
@@ -29,8 +29,8 @@ export function PageHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
       <div className="min-w-0 flex-1 basis-72">
-        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-        {description && <p className="text-muted-foreground">{description}</p>}
+        <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
+        {description && <p className="text-base text-muted-foreground">{description}</p>}
       </div>
       {children && <div className="flex shrink-0 flex-wrap items-center gap-2">{children}</div>}
     </div>

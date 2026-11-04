@@ -21,7 +21,8 @@ const FILTER_LABELS: Record<string, string> = {
   amountMax: 'max amount',
   descriptionSearch: 'description',
   includePending: 'pending',
-  includeTransfers: 'transfers'
+  includeTransfers: 'transfers',
+  compare: 'compare'
 }
 
 function OverrideBadge({ widget }: { widget: ReportWidget }) {
@@ -55,6 +56,10 @@ interface WidgetCardProps {
    * for a preview, which has no actions menu. */
   onEdit?: (widget: ReportWidget) => void
   onDelete?: (widget: ReportWidget) => void
+  /** stat cards side by side in one row read as one strip: the card reaches
+   * across the grid gap to meet its neighbor, which draws the divider */
+  joinLeft?: boolean
+  joinRight?: boolean
 }
 
 // Memoized because the grid re-renders on every frame of a resize (it follows the
@@ -68,7 +73,9 @@ export const WidgetCard = memo(function WidgetCard({
   editing,
   drillable = false,
   onEdit,
-  onDelete
+  onDelete,
+  joinLeft = false,
+  joinRight = false
 }: WidgetCardProps) {
   const [confirmDelete, setConfirmDelete] = useState(false)
   // widgets own their edge padding, so the card only pads the header
@@ -76,11 +83,22 @@ export const WidgetCard = memo(function WidgetCard({
     <Card
       className={cn(
         'relative flex h-full flex-col gap-1 pt-3 pb-0 overflow-visible',
-        editing && 'border-dashed cursor-grab active:cursor-grabbing'
+        editing && 'border-dashed cursor-grab active:cursor-grabbing',
+        // half the 16px grid gap from each side
+        joinLeft && '-ml-2 rounded-l-none',
+        joinRight && '-mr-2 rounded-r-none'
       )}
     >
       <div className="flex h-6 shrink-0 items-center gap-2 px-4">
-        <h3 className="min-w-0 truncate text-sm font-medium">{widget.title}</h3>
+        <h3
+          className={cn(
+            'min-w-0 truncate',
+            // a stat's title labels its figure, which is the thing to read
+            widget.type === 'stat' ? 'text-xs text-muted-foreground' : 'text-sm font-medium'
+          )}
+        >
+          {widget.title}
+        </h3>
         <OverrideBadge widget={widget} />
         {onEdit && onDelete && (
           // the same "…" menu as every other item; it works whether or not the

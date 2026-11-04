@@ -21,7 +21,7 @@ import { FilteredTotal } from '@/components/transactions/filtered-total'
 import { FilteredTransactionsTable } from '@/components/transactions/filtered-transactions-table'
 import { useTransactionFilters } from '@/lib/transaction-filters'
 import { accountsOptions } from '@/lib/queries'
-import { TABLE_BLEED, cn, plural } from '@/lib/utils'
+import { TABLE_BLEED, TABLE_SHEET, cn, plural } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -103,7 +103,7 @@ function AccountsPage() {
   }, [q, create, navigate])
   return (
     <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col gap-0">
-      <div className="space-y-5 px-page pt-page pb-5">
+      <div className="space-y-5 px-page pt-page-top pb-5">
         <PageHeader
           title="Accounts"
           description="Balances from your banks and imports, and every transaction across them."
@@ -143,6 +143,7 @@ function AccountsPage() {
           showAccount
           showCreateRow={creating}
           className="min-h-0 flex-1"
+          tableClassName={TABLE_SHEET}
         />
       </TabsContent>
     </Tabs>

@@ -6,7 +6,6 @@ import { AppHeader } from '@/components/layout/app-header'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { ErrorScreen, NotFoundScreen } from '@/components/error-screen'
 import { AutoSyncHost } from '@/components/layout/auto-sync-host'
-import { CommandPaletteHost } from '@/components/layout/command-palette-host'
 import { BackgroundNoticesHost } from '@/components/layout/background-notices-host'
 import { ImportFileHost } from '@/components/layout/import-file-host'
 import { RuleSuggestionsHost } from '@/components/rules/rule-suggestions-host'
@@ -98,7 +97,6 @@ function RootComponent() {
           <RuleSuggestionsHost />
           <LazySettingsDialog />
           <ImportFileHost />
-          <CommandPaletteHost />
           <AppChromeHost />
           <LazyOnboarding />
           <Toaster position="bottom-right" />

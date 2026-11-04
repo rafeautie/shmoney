@@ -25,7 +25,7 @@ import { useMonthlySaved } from '@/hooks/use-savings-goals'
 import { useAccountCurrency } from '@/lib/currency'
 import { currentMonth } from '@/lib/format-date'
 import { useGoalsView } from '@/lib/settings'
-import { plural } from '@/lib/utils'
+import { TABLE_SHEET, cn, plural } from '@/lib/utils'
 
 export const Route = createFileRoute('/goals/')({
   component: GoalsPage
@@ -51,7 +51,7 @@ function GoalsPage() {
     // full-height flex column so the goals table can bleed to the app edges and
     // own its scrolling, like the budget page's envelopes
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="space-y-6 px-page pt-page pb-5">
+      <div className="space-y-6 px-page pt-page-top pb-5">
         <PageHeader
           title="Goals"
           description="A target amount and the accounts the money lands in. Progress comes from your transactions, never typed in."
@@ -87,7 +87,10 @@ function GoalsPage() {
           </Empty>
         </div>
       ) : (
-        <ScrollArea horizontal className="min-h-0 flex-1">
+        <ScrollArea
+          horizontal
+          className={cn('min-h-0 flex-1', goalsView === 'table' && TABLE_SHEET)}
+        >
           {active.length > 0 &&
             (goalsView === 'table' ? (
               <>
