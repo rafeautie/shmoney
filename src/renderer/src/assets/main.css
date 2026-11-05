@@ -301,7 +301,10 @@
 
 /* Every page sits on the canvas tone, a step below its white cards and table
  * panels in light mode (the same as the background in dark). The frame carries
- * it, title bar included, so it never changes between pages. */
+ * it, title bar included, so it never changes between pages. The wrapper
+ * carries it too: on macOS the collapsed rail drops below the title bar with a
+ * rounded corner, and whatever shows above and around it is more title bar. */
+[data-slot='sidebar-wrapper'],
 [data-slot='sidebar-inset'] {
   background-color: var(--canvas);
 }
